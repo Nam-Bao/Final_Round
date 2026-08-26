@@ -50,6 +50,8 @@ skincare-o2o-platform/
 │
 ├── shared/                     # Chứa các file dùng chung (gRPC protos, constants, utils)
 └── devops/                     # Cấu hình Docker, Kubernetes, CI/CD
+```
+---
 ## 📂 Các bước chạy Frontend (Client & Admin)
 1. Clone dự án về máy
 2. Chạy Frontend Khách hàng (Client - Cổng 3001)
