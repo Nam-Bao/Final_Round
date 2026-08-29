@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres-identity:
+    image: postgres:15-alpine
+    container_name: o2o_db_identity
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: identity_db
+    ports:
+      - "5435:5432"
+
+  postgres-booking:
+    image: postgres:15-alpine
+    container_name: o2o_db_booking
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: booking_db
+    ports:
+      - "5433:5432" # Chạy ở port 5433 của máy tính
+
+  postgres-commerce:
+    image: postgres:15-alpine
+    container_name: o2o_db_commerce
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: commerce_db
+    ports:
+      - "5434:5432" # Chạy ở port 5434 của máy tính
+      
+  mongodb-ai:
+    image: mongo:6.0
+    container_name: o2o_db_medical
+    restart: always
+    ports:
+      - "27017:27017"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: o2o_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
