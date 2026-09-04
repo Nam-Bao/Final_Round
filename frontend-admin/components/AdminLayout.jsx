@@ -7,7 +7,9 @@ import {
   UserOutlined,
   CalendarOutlined,
   LogoutOutlined,
-  AppstoreOutlined
+  AppstoreOutlined,
+  TagsOutlined,   
+  GlobalOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 
@@ -41,10 +43,12 @@ export default function AdminLayout() {
   // Định nghĩa các mục trong Menu
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    // Dùng toán tử logic: Nếu là ADMIN thì mới render mảng chứa menu này
+    // Nhóm chức năng ĐỘC QUYỀN của Admin
     ...(currentUser.role === 'ADMIN' ? [
-        { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' }
+      { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
+      { key: '/page-info', icon: <GlobalOutlined />, label: 'Thông tin Trang' }
     ] : []),
+    // Nhóm chức năng chung
     { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn & Khám' },
     { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
   ];

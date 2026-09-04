@@ -5,6 +5,7 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminLayout from './components/AdminLayout';
 import UsersPage from './pages/UsersPage';
+import InventoryPage from './pages/InventoryPage';
 
 function App() {
   return (
@@ -19,7 +20,8 @@ function App() {
           {/* Sau này bạn làm trang Quản lý User thì nhét vào đây */}
           <Route path="/users" element={<UsersPage />} />
           <Route path="/appointments" element={<div>Giao diện Lịch hẹn sẽ nằm ở đây</div>} />
-          <Route path="/inventory" element={<div>Giao diện Kho sẽ nằm ở đây</div>} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/page-info" element={<div className="p-4 text-xl font-bold">Trang Quản lý Thông tin hệ thống (Đang phát triển)</div>} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,10 +1,14 @@
 const express = require('express');
 const { sequelize } = require('./models');
+const categoryRoute = require('./routes/category.route.js');
+const productRoute = require('./routes/product.route.js');
 
 const app = express();
 const PORT = 4003;
 
 app.use(express.json());
+app.use('/categories', categoryRoute);
+app.use('/products', productRoute);
 
 app.listen(PORT, async () => {
   console.log(`🚀 [Commerce Service] đang chạy tại port ${PORT}`);
