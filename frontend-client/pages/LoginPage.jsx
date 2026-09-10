@@ -1,29 +1,47 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:4000/api/identity/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      await new Promise(resolve => setTimeout(resolve, 500)); // Giả lập mạng
+
+      // 1. Kéo thông tin từ bộ nhớ tạm (nơi lưu user bạn đã đăng ký)
+      const savedUserStr = localStorage.getItem('mockRegisteredUser');
       
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      // Nếu chưa từng đăng ký tài khoản nào trên trình duyệt này
+      if (!savedUserStr) {
+        throw new Error('Không tìm thấy tài khoản. Vui lòng đăng ký trước!');
+      }
+
+      const savedUser = JSON.parse(savedUserStr);
+
+      // 2. Kiểm tra xem email và mật khẩu có khớp với lúc đăng ký không
+      if (savedUser.email !== email || savedUser.password !== password) {
+        throw new Error('Email hoặc mật khẩu không chính xác!');
+      }
+
+      // 3. Nếu đúng hoàn toàn, khởi tạo dữ liệu đăng nhập thật
+      const finalUser = { 
+        full_name: savedUser.full_name, 
+        phone: savedUser.phone,
+        email: savedUser.email, 
+        role: 'CUSTOMER' 
+      };
+
+      const fakeToken = 'day_la_token_gia_lap_xyz123';
       
-      // Lưu Token vào LocalStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      navigate('/'); // Chuyển về trang chủ
+      // 4. Lưu trạng thái đăng nhập vào Zustand
+      login(finalUser, fakeToken); 
+      navigate('/'); 
     } catch (err) {
       setError(err.message);
     }
