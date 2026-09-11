@@ -8,8 +8,13 @@ import {
   CalendarOutlined,
   LogoutOutlined,
   AppstoreOutlined,
-  TagsOutlined,   
-  GlobalOutlined
+  TeamOutlined,   
+  GlobalOutlined,
+  AppstoreAddOutlined,
+  ScheduleOutlined,
+  SolutionOutlined,
+  PlayCircleOutlined,
+  DollarOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 
@@ -46,11 +51,37 @@ export default function AdminLayout() {
     // Nhóm chức năng ĐỘC QUYỀN của Admin
     ...(currentUser.role === 'ADMIN' ? [
       { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
+      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },      
       { key: '/page-info', icon: <GlobalOutlined />, label: 'Thông tin Trang' }
+    ] : []),
+    ...(['GEN_MANAGER'].includes(currentUser.role) ? [
+      { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình (VIP)' },
+      { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
+      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' }
+    ] : []),
+    // DÀNH CHO NHÂN VIÊN Y TẾ
+    ...(['DOCTOR'].includes(currentUser.role) ? [
+      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
+      { key: '/workspace', icon: <TeamOutlined />, label: 'Không Gian Khám Bệnh' },
+    ] : []),
+    // DÀNH CHO TƯ VẤN VIÊN
+    ...(['CONSULTANT'].includes(currentUser.role) ? [
+      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
+      { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không Gian Tư Vấn' },
+    ] : []),
+    // DÀNH CHO SALE
+    ...(['SALES'].includes(currentUser.role) ? [
+      { key: '/sales-workspace', icon: <DollarOutlined />, label: 'Bàn Bán Hàng & Vận Hành' },
+      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
+    ] : []),
+    // DÀNH CHO KỸ THUẬT VIÊN
+    ...(['TECHNICIAN'].includes(currentUser.role) ? [
+      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
+      { key: '/technician-workspace', icon: <PlayCircleOutlined />, label: 'Không Gian Kỹ Thuật' },
     ] : []),
     // Nhóm chức năng chung
     { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn & Khám' },
-    { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+
   ];
 
   return (

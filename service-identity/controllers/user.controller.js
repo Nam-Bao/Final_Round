@@ -1,4 +1,5 @@
-const { User, Profile } = require('../models');
+// 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
+const { User, Profile, sequelize } = require('../models');
 const bcrypt = require('bcryptjs');
 
 const getAllUsers = async (req, res) => {
@@ -22,16 +23,13 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// 1. API THÊM TÀI KHOẢN (Chỉ dành cho Admin tạo nhân viên)
 const createUser = async (req, res) => {
   try {
     const { email, password, role, full_name, phone } = req.body;
 
-    // Băm mật khẩu
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Dùng Transaction lưu vào 2 bảng
     const result = await sequelize.transaction(async (t) => {
       const newUser = await User.create(
         { email, password_hash, role }, 
@@ -46,24 +44,22 @@ const createUser = async (req, res) => {
 
     res.status(201).json({ message: 'Tạo tài khoản nhân viên thành công' });
   } catch (error) {
+    // 2. ĐÃ SỬA: Thêm dòng console.error để nếu lỗi sẽ in ra Terminal màu đỏ!
+    console.error("LỖI TẠO USER:", error);
     res.status(500).json({ message: 'Lỗi khi tạo tài khoản', error: error.message });
   }
 };
 
-// 2. API SỬA TÀI KHOẢN
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { role, status, full_name, phone } = req.body;
 
     await sequelize.transaction(async (t) => {
-      // Cập nhật bảng User (Đổi chức vụ, đổi trạng thái)
       await User.update(
         { role, status },
         { where: { id }, transaction: t }
       );
-      
-      // Cập nhật bảng Profile (Đổi thông tin cá nhân)
       await Profile.update(
         { full_name, phone },
         { where: { user_id: id }, transaction: t }
@@ -72,24 +68,24 @@ const updateUser = async (req, res) => {
 
     res.status(200).json({ message: 'Cập nhật thành công' });
   } catch (error) {
+    console.error("LỖI CẬP NHẬT USER:", error);
     res.status(500).json({ message: 'Lỗi khi cập nhật', error: error.message });
   }
 };
 
-// 3. API XÓA TÀI KHOẢN
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
-    // Chống tự sát: Không cho phép Admin tự xóa chính mình
-    if (req.user.id === parseInt(id)) {
+    
+    // 3. ĐÃ SỬA: ID là UUID (chuỗi), nên không dùng parseInt nữa, chỉ so sánh thẳng chuỗi
+    if (String(req.user.id) === String(id)) {
       return res.status(400).json({ message: 'Bạn không thể tự xóa chính mình!' });
     }
 
-    // Vì ta đã thiết lập khóa ngoại CASCADE ở Model, xóa User sẽ tự bay màu Profile
     await User.destroy({ where: { id } });
-    
     res.status(200).json({ message: 'Đã xóa tài khoản vĩnh viễn' });
   } catch (error) {
+    console.error("LỖI XÓA USER:", error);
     res.status(500).json({ message: 'Lỗi khi xóa tài khoản', error: error.message });
   }
 };

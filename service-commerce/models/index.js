@@ -21,10 +21,16 @@ const Product = sequelize.define('Product', {
 
 const Order = sequelize.define('Order', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  customer_id: { type: DataTypes.UUID, allowNull: false }, // Soft link
-  prescription_id: { type: DataTypes.STRING }, // Soft link to MongoDB Medical_Record
+  customer_id: { type: DataTypes.UUID, allowNull: false }, 
+  appointment_id: { type: DataTypes.UUID, allowNull: false }, // THÊM MỚI: Soft link về lịch hẹn bên booking_db
+  consultant_id: { type: DataTypes.UUID }, // THÊM MỚI: Ai chốt đơn này (Để tính hoa hồng)
   total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-  status: { type: DataTypes.ENUM('PENDING', 'SHIPPING', 'DELIVERED', 'CANCELLED'), defaultValue: 'PENDING' }
+  discount_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 }, // THÊM MỚI: Tiền giảm giá
+  status: { 
+    // SỬA LẠI: Trạng thái phù hợp với thanh toán phòng khám
+    type: DataTypes.ENUM('UNPAID', 'PARTIAL_PAID', 'PAID', 'CANCELLED'), 
+    defaultValue: 'UNPAID' 
+  }
 });
 
 const OrderItem = sequelize.define('OrderItem', {

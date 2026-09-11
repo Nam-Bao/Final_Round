@@ -5,7 +5,7 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.
 const router = express.Router();
 
 // Chuỗi phòng thủ: Request -> verifyToken -> authorizeRoles -> getAllUsers
-router.use(verifyToken, authorizeRoles('ADMIN'));
+router.use(verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'));
 
 // Các đường dẫn API
 router.get('/', getAllUsers);           // Lấy danh sách

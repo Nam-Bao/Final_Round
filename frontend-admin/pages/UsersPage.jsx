@@ -154,6 +154,8 @@ export default function UsersPage() {
               <Select>
                 <Select.Option value="CUSTOMER">Khách hàng</Select.Option><Select.Option value="DOCTOR">Bác sĩ / Chuyên gia</Select.Option>
                 <Select.Option value="GEN_MANAGER">Quản lý</Select.Option><Select.Option value="ADMIN">Quản trị viên</Select.Option>
+                <Select.Option value="CONSULTANT">Tư vấn viên</Select.Option><Select.Option value="TECHNICIAN">Kỹ thuật viên</Select.Option>
+                <Select.Option value="SALES">Nhân viên Bán hàng</Select.Option>
               </Select>
             </Form.Item>
             {editingUser && (

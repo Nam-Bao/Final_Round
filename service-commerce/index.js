@@ -9,6 +9,7 @@ const PORT = 4003;
 app.use(express.json());
 app.use('/categories', categoryRoute);
 app.use('/products', productRoute);
+app.use('/orders', require('./routes/order.route.js'));
 
 app.listen(PORT, async () => {
   console.log(`🚀 [Commerce Service] đang chạy tại port ${PORT}`);
