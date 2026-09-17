@@ -1,4 +1,4 @@
-const { WorkShift } = require('../models');
+const { WorkShift, ShiftRequest } = require('../models');
 const { Op } = require('sequelize');
 
 // 1. Lấy danh sách ca làm việc theo tuần/tháng
@@ -104,4 +104,81 @@ const createShiftRequest = async (req, res) => {
   }
 };
 
-module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest };
+// 4. Lấy danh sách đơn xin nghỉ/đổi ca đang chờ duyệt
+const getShiftRequests = async (req, res) => {
+  try {
+    const requests = await ShiftRequest.findAll({
+      where: { status: 'PENDING' },
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Map thêm thông tin ca làm (WorkShift) vào từng đơn để Frontend hiển thị
+    const mappedRequests = await Promise.all(requests.map(async (request) => {
+      let shift = null;
+      if (request.from_shift_id) {
+        shift = await WorkShift.findByPk(request.from_shift_id);
+      }
+      return {
+        ...request.toJSON(),
+        WorkShift: shift // Đính kèm thông tin ca trực
+      };
+    }));
+
+    res.status(200).json({ data: mappedRequests });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy danh sách đơn', error: error.message });
+  }
+};
+
+// 5. Phê duyệt hoặc từ chối đơn
+const handleShiftRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // Nhận 'APPROVED' hoặc 'REJECTED'
+
+    const request = await ShiftRequest.findByPk(id);
+    if (!request) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+
+    request.status = status;
+    request.approver_id = req.user.id;
+    await request.save();
+
+    // Nếu Quản lý bấm Đồng ý, tự động xóa ca làm đó khỏi lịch trực
+    if (status === 'APPROVED' && request.from_shift_id) {
+      await WorkShift.destroy({ where: { id: request.from_shift_id } });
+    }
+
+    res.status(200).json({ message: 'Đã xử lý đơn thành công!' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi xử lý đơn', error: error.message });
+  }
+};
+
+// 6. API Dành riêng cho Nhân viên: Xem lịch sử đơn xin nghỉ của chính mình
+const getMyShiftRequests = async (req, res) => {
+  try {
+    const myId = req.user.id; 
+    const requests = await ShiftRequest.findAll({
+      where: { employee_id: myId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Map thêm thông tin ca làm để Frontend hiển thị rõ ngày nào
+    const mappedRequests = await Promise.all(requests.map(async (request) => {
+      let shift = null;
+      if (request.from_shift_id) {
+        shift = await WorkShift.findByPk(request.from_shift_id);
+      }
+      return {
+        ...request.toJSON(),
+        WorkShift: shift
+      };
+    }));
+
+    res.status(200).json({ data: mappedRequests });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy lịch sử đơn', error: error.message });
+  }
+};
+
+module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests };

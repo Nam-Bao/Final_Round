@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, List, Tag, Button, Modal, Form, Input, message, Typography, Space } from 'antd';
-import { CalendarOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Card, List, Tag, Button, Modal, Form, Input, message, Typography, Space, Tabs, Badge } from 'antd';
+import { CalendarOutlined, ClockCircleOutlined, InfoCircleOutlined, FileTextOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'; 
 
@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 
 export default function MySchedulePage() {
   const [shifts, setShifts] = useState([]);
+  const [requests, setRequests] = useState([]); // State chứa lịch sử xin nghỉ
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedShift, setSelectedShift] = useState(null);
@@ -17,20 +18,19 @@ export default function MySchedulePage() {
 
   useEffect(() => {
     fetchMyShifts();
+    fetchMyRequests(); // Gọi API lấy lịch sử đơn khi load trang
   }, []);
 
   const fetchMyShifts = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('admin_token');
-      // Gọi API dành riêng cho Nhân viên (đã khóa bằng token)
       const res = await fetch('http://localhost:4000/api/booking/shifts/my-shifts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.message);
       
-      // Lọc ra các ca từ hôm nay trở đi để hiển thị
       const today = dayjs().startOf('day');
       const upcomingShifts = result.data.filter(s => dayjs(s.date).isSameOrAfter(today));
       setShifts(upcomingShifts);
@@ -38,6 +38,20 @@ export default function MySchedulePage() {
       message.error('Không thể tải lịch làm việc của bạn');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Hàm mới: Kéo lịch sử đơn xin nghỉ
+  const fetchMyRequests = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch('http://localhost:4000/api/booking/shifts/my-requests', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await res.json();
+      if (result.data) setRequests(result.data);
+    } catch (error) {
+      console.error('Lỗi tải lịch sử đơn từ', error);
     }
   };
 
@@ -64,12 +78,14 @@ export default function MySchedulePage() {
       message.success('Đã gửi đơn xin nghỉ/đổi ca cho Quản lý!');
       setIsModalVisible(false);
       form.resetFields();
+      
+      // Load lại danh sách đơn để hiển thị ngay lập tức
+      fetchMyRequests(); 
     } catch (error) {
       message.error(error.message || 'Lỗi khi gửi yêu cầu');
     }
   };
 
-  // Hàm chuyển đổi hiển thị ca
   const getShiftDetails = (type) => {
     switch (type) {
       case 'MORNING': return { color: 'blue', label: 'Ca Sáng', time: '08:00 - 12:00' };
@@ -79,13 +95,21 @@ export default function MySchedulePage() {
     }
   };
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <Card 
-        title={<><CalendarOutlined className="mr-2" /> Lịch Trình Sắp Tới Của Bạn</>} 
-        bordered={false} 
-        className="shadow-sm"
-      >
+  // Giao diện render cho trạng thái đơn
+  const renderStatus = (status) => {
+    switch (status) {
+      case 'APPROVED': return <Tag icon={<CheckCircleOutlined />} color="success">Đã duyệt</Tag>;
+      case 'REJECTED': return <Tag icon={<CloseCircleOutlined />} color="error">Từ chối</Tag>;
+      default: return <Tag icon={<SyncOutlined spin />} color="processing">Đang chờ</Tag>;
+    }
+  };
+
+  // Cấu trúc 2 Tabs
+  const tabItems = [
+    {
+      key: 'upcoming',
+      label: <span><CalendarOutlined /> Lịch Trình Sắp Tới</span>,
+      children: (
         <List
           loading={loading}
           itemLayout="horizontal"
@@ -118,9 +142,7 @@ export default function MySchedulePage() {
                   }
                   description={
                     <Space className="mt-1">
-                      <Tag icon={<ClockCircleOutlined />} color={shiftInfo.color}>
-                        {shiftInfo.time}
-                      </Tag>
+                      <Tag icon={<ClockCircleOutlined />} color={shiftInfo.color}>{shiftInfo.time}</Tag>
                       <Text type="secondary">Trạng thái: {shift.status}</Text>
                     </Space>
                   }
@@ -130,26 +152,64 @@ export default function MySchedulePage() {
           }}
           locale={{ emptyText: 'Bạn không có ca làm việc nào sắp tới.' }}
         />
+      )
+    },
+    {
+      key: 'requests',
+      label: <span><FileTextOutlined /> Lịch Sử Đơn Từ</span>,
+      children: (
+        <List
+          dataSource={requests}
+          renderItem={(req) => {
+            let shiftInfo = { label: 'Ca không xác định' };
+            let dateStr = '--/--/----';
+            if (req.WorkShift) {
+              shiftInfo = getShiftDetails(req.WorkShift.shift_type);
+              dateStr = dayjs(req.WorkShift.date).format('DD/MM/YYYY');
+            }
+
+            return (
+              <List.Item className="bg-gray-50 rounded-lg mb-3 p-4 border border-gray-200">
+                <List.Item.Meta
+                  title={
+                    <div className="flex justify-between items-center mb-1">
+                      <Space>
+                        <Text strong>Xin nghỉ {shiftInfo.label}</Text>
+                        <Tag>{dateStr}</Tag>
+                      </Space>
+                      {renderStatus(req.status)}
+                    </div>
+                  }
+                  description={
+                    <div className="flex flex-col gap-1">
+                      <Text className="text-gray-600"><b>Lý do:</b> {req.reason}</Text>
+                      <Text className="text-xs text-gray-400">Gửi lúc: {dayjs(req.createdAt).format('HH:mm - DD/MM/YYYY')}</Text>
+                    </div>
+                  }
+                />
+              </List.Item>
+            );
+          }}
+          locale={{ emptyText: 'Bạn chưa gửi đơn xin nghỉ/đổi ca nào.' }}
+        />
+      )
+    }
+  ];
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <Card bordered={false} className="shadow-sm">
+        <Tabs items={tabItems} defaultActiveKey="upcoming" />
       </Card>
 
-      {/* Modal nộp đơn */}
-      <Modal
-        title="Gửi Đơn Xin Nghỉ / Đổi Ca"
-        open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={null}
-      >
+      <Modal title="Gửi Đơn Xin Nghỉ / Đổi Ca" open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded border border-yellow-200 text-sm">
           <InfoCircleOutlined className="mr-2" />
           Bạn đang làm đơn cho <b>{selectedShift ? getShiftDetails(selectedShift.shift_type).label : ''}</b> ngày <b>{selectedShift ? dayjs(selectedShift.date).format('DD/MM/YYYY') : ''}</b>. Yêu cầu sẽ được gửi tới Quản lý để phê duyệt.
         </div>
         
         <Form form={form} layout="vertical" onFinish={handleRequestOff}>
-          <Form.Item 
-            name="reason" 
-            label="Lý do cụ thể (hoặc đề xuất người làm thay)" 
-            rules={[{ required: true, message: 'Vui lòng nhập lý do!' }]}
-          >
+          <Form.Item name="reason" label="Lý do cụ thể (hoặc đề xuất người làm thay)" rules={[{ required: true, message: 'Vui lòng nhập lý do!' }]}>
             <Input.TextArea rows={4} placeholder="VD: Nhà có việc bận đột xuất, xin đổi ca với BS. Nam..." />
           </Form.Item>
           <Form.Item className="text-right mb-0">
