@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Sparkles, Calendar, ClipboardList, ShoppingBag, User, LogOut } from 'lucide-react';
+import { Sparkles, User, LogOut } from 'lucide-react';
 
 export default function ClientNavbar() {
   const { user, logout } = useAuthStore();
@@ -20,15 +20,23 @@ export default function ClientNavbar() {
         </Link>
       </div>
       <div className="flex-none gap-2">
-        <ul className="menu menu-horizontal px-1 hidden md:flex font-medium">
+        <ul className="menu menu-horizontal px-1 hidden lg:flex font-medium">
           <li><Link to="/">Sàng lọc AI</Link></li>
           <li><Link to="/booking">Đặt lịch</Link></li>
+          <li><Link to="/services">Dịch vụ</Link></li>
+          <li><Link to="/news">Tin tức</Link></li>
+          <li><Link to="/promotions">Khuyến mãi</Link></li>
+          <li><Link to="/reviews">Đánh giá dịch vụ</Link></li>
+          
           {user && (
-            <>
-              <li><Link to="/appointments">Lịch khám</Link></li>
-              <li><Link to="/treatments">Gói liệu trình</Link></li>
-              <li><Link to="/orders">Đơn hàng</Link></li>
-            </>
+            <li className="dropdown dropdown-hover">
+              <a tabIndex={0}>Hồ sơ của tôi ▾</a>
+              <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-48">
+                <li><Link to="/appointments">Sổ lịch khám</Link></li>
+                <li><Link to="/treatments">Gói liệu trình</Link></li>
+                <li><Link to="/orders">Đơn hàng Mỹ phẩm</Link></li>
+              </ul>
+            </li>
           )}
         </ul>
 
