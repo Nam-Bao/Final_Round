@@ -61,8 +61,14 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
     }
 
-    // 2. Tìm user trong Database
-    const user = await User.findOne({ where: { email } });
+    // 2. Tìm user trong Database và KẾT NỐI (JOIN) VỚI BẢNG PROFILE
+    const user = await User.findOne({ 
+      where: { email },
+      include: [
+        { model: Profile } // Lấy kèm thông tin cá nhân
+      ] 
+    });
+    
     if (!user) {
       return res.status(404).json({ message: 'Tài khoản không tồn tại' });
     }
@@ -74,25 +80,24 @@ const login = async (req, res) => {
     }
 
     // 4. Tạo Payload (những thông tin công khai nhét vào trong Token)
-    // Lưu ý: Tuyệt đối không nhét password vào đây!
     const payload = {
       id: user.id,
       role: user.role
     };
 
-    // 5. Ký Token (Ký bằng một mã bí mật của Server, token có hạn 1 ngày)
-    // Thực tế mã bí mật này nên để trong file .env
+    // 5. Ký Token 
     const JWT_SECRET = 'O2O_SKINCARE_SECRET_KEY_2026'; 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
 
-    // 6. Trả về cho Client
+    // 6. Trả về cho Client (BỔ SUNG THÊM THÔNG TIN PROFILE)
     res.status(200).json({
       message: 'Đăng nhập thành công',
       token: token,
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        Profile: user.Profile // Truyền toàn bộ object Profile (full_name, phone, avatar) về cho Frontend
       }
     });
 

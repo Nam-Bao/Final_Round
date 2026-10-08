@@ -49,6 +49,27 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
   approver_id: { type: DataTypes.UUID }
 });
 
+// BẢNG KHUYẾN MÃI / VOUCHER
+const Promotion = sequelize.define('Promotion', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  code: { type: DataTypes.STRING, allowNull: false, unique: true }, // Mã nhập (VD: SALE20)
+  discount_type: { type: DataTypes.ENUM('PERCENTAGE', 'FIXED_AMOUNT'), allowNull: false },
+  discount_value: { type: DataTypes.DECIMAL(10, 2), allowNull: false }, // Số % hoặc số tiền
+  max_discount: { type: DataTypes.DECIMAL(10, 2) }, // Giảm tối đa bao nhiêu (nếu dùng PERCENTAGE)
+  min_order_value: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 }, // Đơn tối thiểu để áp dụng
+  usage_limit: { type: DataTypes.INTEGER }, // Số lượng mã tối đa (null = không giới hạn)
+  used_count: { type: DataTypes.INTEGER, defaultValue: 0 }, // Số lần đã dùng
+  start_date: { type: DataTypes.DATE, allowNull: false },
+  end_date: { type: DataTypes.DATE, allowNull: false },
+  image_url: { type: DataTypes.STRING }, 
+  applicable_scope: { 
+    type: DataTypes.ENUM('ALL', 'SPA_SERVICE', 'PRODUCT', 'TREATMENT_PACKAGE'), 
+    defaultValue: 'ALL',
+    allowNull: false
+  },
+  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
+});
+
 // 2. THIẾT LẬP QUAN HỆ CÁC BẢNG (Relations)
 // Quan hệ Category - Product (1 Category có nhiều Product)
 Category.hasMany(Product, { foreignKey: 'category_id', onDelete: 'SET NULL' });
@@ -66,5 +87,6 @@ module.exports = {
   Product, 
   Order, 
   OrderItem, 
-  InventoryRequest 
+  InventoryRequest,
+  Promotion
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button, theme } from 'antd';
+import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -14,15 +14,19 @@ import {
   ScheduleOutlined,
   SolutionOutlined,
   PlayCircleOutlined,
-  DollarOutlined
+  DollarOutlined,
+  TagsOutlined, 
+  PercentageOutlined,
+  DownOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 
 const { Header, Sider, Content } = Layout;
 
 export default function AdminLayout() {
-  // State quản lý việc thu/phóng menu bên trái
   const [collapsed, setCollapsed] = useState(false);
+  const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
+
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -30,58 +34,82 @@ export default function AdminLayout() {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // Xử lý khi click vào các mục menu
   const handleMenuClick = ({ key }) => {
     navigate(key);
   };
 
-  // Xử lý Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
     navigate('/login');
   };
-  // Lấy thông tin user từ LocalStorage để hiển thị tên
-  const userStr = localStorage.getItem('admin_user');
-  const currentUser = userStr ? JSON.parse(userStr) : { role: 'Nhân viên' };
 
-  // Định nghĩa các mục trong Menu
+// 1. Đọc và parse dữ liệu an toàn, chống crash ứng dụng
+  let currentUser = { role: 'GUEST' }; // Giá trị mặc định an toàn
+  try {
+    const userStr = localStorage.getItem('admin_token') ? localStorage.getItem('admin_user') : null;
+    if (userStr && userStr !== "undefined") {
+      currentUser = JSON.parse(userStr);
+    }
+  } catch (error) {
+    console.error("Lỗi đọc dữ liệu người dùng:", error);
+  }
+
+  // 2. Trích xuất biến dữ liệu chuẩn xác theo Schema DB (Bảng User & Profile)
+  // Ưu tiên lấy trong object Profile lồng nhau, nếu backend đã làm phẳng (flatten) thì lấy trực tiếp
+  const email = currentUser.email || 'Chưa có email';
+  const role = currentUser.role || 'GUEST';
+  const fullName = currentUser.Profile?.full_name || currentUser.full_name || 'Chưa cập nhật tên';
+  const phone = currentUser.Profile?.phone || currentUser.phone || 'Chưa cập nhật số ĐT';
+  const avatarUrl = currentUser.Profile?.avatar || currentUser.avatar || null;
+
+  const userMenuItems = [
+    {
+      key: 'profile',
+      label: 'Thông tin cá nhân',
+      icon: <UserOutlined />,
+      onClick: () => setIsProfileModalVisible(true),
+    },
+    { type: 'divider' },
+    {
+      key: 'logout',
+      label: 'Đăng xuất',
+      icon: <LogoutOutlined />,
+      danger: true,
+      onClick: handleLogout,
+    },
+  ];
+
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    // Nhóm chức năng ĐỘC QUYỀN của Admin
-    ...(currentUser.role === 'ADMIN' ? [
+    ...(role === 'ADMIN' ? [
       { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
       { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },      
       { key: '/page-info', icon: <GlobalOutlined />, label: 'Thông tin Trang' }
     ] : []),
-    ...(['GEN_MANAGER'].includes(currentUser.role) ? [
-      { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình (VIP)' },
+    ...(['GEN_MANAGER'].includes(role) ? [
       { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
-      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' }
+      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+      { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ Spa lẻ' },
+      { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã Khuyến mãi' },
+      { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình' },
     ] : []),
-    // DÀNH CHO NHÂN VIÊN Y TẾ
-    ...(['DOCTOR'].includes(currentUser.role) ? [
+    ...(['DOCTOR'].includes(role) ? [
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
       { key: '/workspace', icon: <TeamOutlined />, label: 'Không Gian Khám Bệnh' },
     ] : []),
-    // DÀNH CHO TƯ VẤN VIÊN
-    ...(['CONSULTANT'].includes(currentUser.role) ? [
+    ...(['CONSULTANT'].includes(role) ? [
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
       { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không Gian Tư Vấn' },
     ] : []),
-    // DÀNH CHO SALE
-    ...(['SALES'].includes(currentUser.role) ? [
+    ...(['SALES'].includes(role) ? [
       { key: '/sales-workspace', icon: <DollarOutlined />, label: 'Bàn Bán Hàng & Vận Hành' },
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
     ] : []),
-    // DÀNH CHO KỸ THUẬT VIÊN
-    ...(['TECHNICIAN'].includes(currentUser.role) ? [
+    ...(['TECHNICIAN'].includes(role) ? [
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
       { key: '/technician-workspace', icon: <PlayCircleOutlined />, label: 'Không Gian Kỹ Thuật' },
     ] : []),
-    // Nhóm chức năng chung
-    { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn & Khám' },
-
   ];
 
   return (
@@ -93,7 +121,7 @@ export default function AdminLayout() {
         <Menu
           theme="light"
           mode="inline"
-          selectedKeys={[location.pathname]} // Tự động highlight menu dựa trên URL hiện tại
+          selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
         />
@@ -106,20 +134,50 @@ export default function AdminLayout() {
             onClick={() => setCollapsed(!collapsed)}
             className="w-16 h-16 text-lg"
           />
-          <div className="flex items-center gap-4">
-            <span className="font-medium text-gray-600">Xin chào, {currentUser.role}</span>
-            <Button type="primary" danger icon={<LogoutOutlined />} onClick={handleLogout}>
-              Đăng xuất
-            </Button>
+          
+          <div className="flex items-center">
+            <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
+              <Space className="cursor-pointer hover:bg-gray-50 px-4 py-2 rounded-lg transition-colors">
+                {/* Áp dụng biến avatar nếu có, nếu không dùng icon User mặc định */}
+                <Avatar src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500" />
+                <span className="font-medium text-gray-700">
+                  Xin chào, <span className="text-blue-600">{fullName}</span>
+                </span>
+                <DownOutlined className="text-xs text-gray-400" />
+              </Space>
+            </Dropdown>
           </div>
         </Header>
         
-        {/* Vùng chứa nội dung của từng trang */}
         <Content className="m-6 p-6 min-h-[280px]" style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
-          {/* <Outlet /> chính là "cái lỗ" để React Router nhét nội dung của các trang con vào đây */}
           <Outlet />
         </Content>
       </Layout>
+
+      <Modal
+        title="Thông tin tài khoản"
+        open={isProfileModalVisible}
+        onCancel={() => setIsProfileModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setIsProfileModalVisible(false)}>
+            Đóng
+          </Button>
+        ]}
+      >
+        <div className="flex flex-col items-center mb-6 mt-4">
+          <Avatar size={80} src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500 mb-4" />
+          <h3 className="text-xl font-bold text-gray-800 m-0">{fullName}</h3>
+          <span className="text-gray-500 mt-1">{role}</span>
+        </div>
+
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="Họ và tên">{fullName}</Descriptions.Item>
+          <Descriptions.Item label="Email">{email}</Descriptions.Item>
+          <Descriptions.Item label="Số điện thoại">{phone}</Descriptions.Item>
+          <Descriptions.Item label="Quyền hạn"><Tag color="blue">{role}</Tag></Descriptions.Item>
+        </Descriptions>
+      </Modal>
+
     </Layout>
   );
 }
