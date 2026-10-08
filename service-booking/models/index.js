@@ -89,6 +89,18 @@ const TreatmentSession = sequelize.define('TreatmentSession', {
   status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'SCHEDULED' }
 });
 
+// BẢNG DỊCH VỤ SPA LẺ (Ví dụ: Lấy nhân mụn, Triệt lông)
+const SpaService = sequelize.define('SpaService', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  duration_minutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 60 }, // Thời gian làm
+  price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  image_url: { type: DataTypes.STRING },
+  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
+});
+
+
 // 3. THIẾT LẬP QUAN HỆ (Relations)
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
 Appointment.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
@@ -111,4 +123,4 @@ CustomerPackage.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
 
 sequelize.sync({ alter: true }).then(() => console.log("✅ Đã đồng bộ Database cho service-booking!"));
 
-module.exports = { sequelize, TreatmentPackage, WorkShift, ShiftRequest, Appointment, AppointmentReview, FollowUpLog, CustomerPackage, TreatmentSession };
+module.exports = { sequelize, TreatmentPackage, WorkShift, ShiftRequest, Appointment, AppointmentReview, FollowUpLog, CustomerPackage, TreatmentSession, SpaService };

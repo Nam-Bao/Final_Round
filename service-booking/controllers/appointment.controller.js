@@ -49,7 +49,8 @@ const getMyTodayAppointments = async (req, res) => {
         ...apt,
         // Tạo thêm 2 trường mới gửi cho Frontend
         customer_name: customerInfo?.Profile?.full_name || 'Khách vãng lai (Chưa rõ tên)',
-        customer_phone: customerInfo?.Profile?.phone || 'Chưa cập nhật'
+        customer_phone: customerInfo?.Profile?.phone || 'Chưa cập nhật',
+        pre_notes: apt.pre_notes || ''
       };
     });
 

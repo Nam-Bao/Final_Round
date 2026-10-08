@@ -9,10 +9,18 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await new Promise(resolve => setTimeout(resolve, 800)); // Giả lập mạng chờ 0.8 giây
-      
-      // Lưu thông tin người dùng vừa nhập vào LocalStorage
-      localStorage.setItem('mockRegisteredUser', JSON.stringify(formData));
+      // Gọi API Đăng ký thật xuống Backend
+      const response = await fetch('http://localhost:4000/api/identity/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Lỗi khi đăng ký tài khoản');
+      }
       
       alert('Đăng ký thành công! Vui lòng đăng nhập.');
       navigate('/login');

@@ -31,9 +31,9 @@ export default function AdminLoginPage() {
       message.success(`Chào mừng ${role} đã đăng nhập!`);
       
       // Phân luồng Dashboard tùy theo Role (Tùy chọn nâng cao)
-      if (role === 'DOCTOR') navigate('/doctor-schedule');
-      else if (role === 'SALES') navigate('/inventory');
-      else navigate('/dashboard'); // Mặc định cho Admin/Manager
+      if (role === 'DOCTOR') navigate('/');
+      else if (role === 'SALES') navigate('/');
+      else navigate('/'); // Mặc định cho Admin/Manager
 
     } catch (err) {
       message.error(err.message || 'Đăng nhập thất bại');

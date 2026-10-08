@@ -44,6 +44,13 @@ app.use('/api/ai', createProxyMiddleware({
   pathRewrite: { '^/api/ai': '' }
 }));
 
+// -> Đẩy sang Media (Port 4005) - Xử lý File, Upload ảnh
+app.use('/api/media', createProxyMiddleware({ 
+  target: 'http://localhost:4005', 
+  changeOrigin: true,
+  pathRewrite: { '^/api/media': '' } 
+}));
+
 // Route mặc định kiểm tra sức khỏe của Gateway
 app.get('/', (req, res) => {
   res.json({ message: 'O2O API Gateway đang hoạt động hoàn hảo 🚀' });
@@ -56,4 +63,5 @@ app.listen(PORT, () => {
   console.log(`🚦 Tuyến /api/booking  -> Chuyển đến Port 4002`);
   console.log(`🚦 Tuyến /api/commerce -> Chuyển đến Port 4003`);
   console.log(`🚦 Tuyến /api/ai       -> Chuyển đến Port 4004`);
+  console.log(`🚦 Tuyến /api/media    -> Chuyển đến Port 4005`);
 });

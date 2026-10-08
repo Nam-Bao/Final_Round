@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, Radio, Upload } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState([]);
-  const [products, setProducts] = useState([]); // Chứa danh sách mỹ phẩm từ kho
+  const [products, setProducts] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
+  
+  // State quản lý việc nhập ảnh
+  const [imageMode, setImageMode] = useState('url'); 
+  const [fileList, setFileList] = useState([]);
 
   useEffect(() => {
     fetchPackages();
-    fetchProductsFromCommerce(); // Tự động kéo kho hàng về khi mở trang
+    fetchProductsFromCommerce(); 
   }, []);
 
   const fetchPackages = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('admin_token');
-      // Gọi API dành riêng cho Admin (Lấy cả gói ACTIVE và HIDDEN)
       const res = await fetch('http://localhost:4000/api/booking/packages/admin', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -37,7 +40,6 @@ export default function PackagesPage() {
     try {
       const res = await fetch('http://localhost:4000/api/commerce/products');
       const result = await res.json();
-      // Chỉ lấy những mặt hàng là Sản phẩm (PRODUCT) để tặng khách
       setProducts(result.data.filter(p => p.type === 'PRODUCT'));
     } catch (error) {
       console.error('Không thể kết nối đến service-commerce');
@@ -46,14 +48,47 @@ export default function PackagesPage() {
 
   const openModal = (record = null) => {
     setEditingItem(record);
-    if (record) form.setFieldsValue(record);
-    else form.resetFields();
+    setFileList([]); // Xóa file cũ nếu có
+    if (record) {
+      form.setFieldsValue(record);
+      // Mặc định hiển thị dạng URL
+      setImageMode(record.thumbnail_url ? 'url' : 'url'); 
+    } else {
+      form.resetFields();
+      setImageMode('url');
+    }
     setIsModalVisible(true);
   };
 
   const handleSubmit = async (values) => {
     try {
       const token = localStorage.getItem('admin_token');
+      let finalThumbnailUrl = values.thumbnail_url;
+
+      // 1. XỬ LÝ UPLOAD ẢNH (NẾU CÓ)
+      if (imageMode === 'file' && fileList.length > 0) {
+        const formData = new FormData();
+        // Dùng phép OR: Lấy originFileObj nếu có, nếu không có thì lấy thẳng file gốc
+        formData.append('image', fileList[0].originFileObj || fileList[0]);
+        
+        const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }, // Không set Content-Type
+          body: formData
+        });
+        
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error('Không thể tải ảnh lên máy chủ!');
+        // Cập nhật lại URL từ Cloudinary
+        finalThumbnailUrl = uploadData.url; 
+      }
+
+      // 2. TẠO PAYLOAD CHÍNH
+      const payload = {
+        ...values,
+        thumbnail_url: finalThumbnailUrl 
+      };
+
       const isUpdate = !!editingItem;
       const url = isUpdate 
         ? `http://localhost:4000/api/booking/packages/${editingItem.id}` 
@@ -62,7 +97,7 @@ export default function PackagesPage() {
       const res = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(values)
+        body: JSON.stringify(payload)
       });
       
       const result = await res.json();
@@ -89,6 +124,16 @@ export default function PackagesPage() {
     } catch (error) {
       message.error('Lỗi khi gỡ lộ trình');
     }
+  };
+
+  const uploadProps = {
+    onRemove: () => setFileList([]),
+    beforeUpload: (file) => {
+      setFileList([file]);
+      return false; // Chặn Antd upload mặc định
+    },
+    fileList,
+    maxCount: 1,
   };
 
   const columns = [
@@ -133,10 +178,34 @@ export default function PackagesPage() {
         open={isModalVisible} 
         onCancel={() => setIsModalVisible(false)} 
         footer={null}
-        width={750} // Form nhiều dữ liệu nên làm rộng ra
+        width={750} 
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           
+          {/* Card Hình ảnh được đưa lên đầu để dễ nhìn */}
+          <Card size="small" title="Hình ảnh Thumbnail" className="mb-4 bg-gray-50">
+            <Form.Item>
+              <Radio.Group 
+                value={imageMode} 
+                onChange={(e) => setImageMode(e.target.value)}
+                className="mb-3"
+              >
+                <Radio value="url">Nhập URL có sẵn</Radio>
+                <Radio value="file">Tải ảnh từ máy</Radio>
+              </Radio.Group>
+
+              {imageMode === 'url' ? (
+                <Form.Item name="thumbnail_url" noStyle>
+                  <Input placeholder="Nhập đường dẫn ảnh (VD: https://...)" size="large"/>
+                </Form.Item>
+              ) : (
+                <Upload {...uploadProps} accept="image/*">
+                  <Button icon={<UploadOutlined />} size="large">Chọn File Ảnh</Button>
+                </Upload>
+              )}
+            </Form.Item>
+          </Card>
+
           <Form.Item label="Tên Lộ trình" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên!' }]}>
             <Input placeholder="VD: Lộ trình trị mụn chuyên sâu 8 tuần" size="large"/>
           </Form.Item>
@@ -172,7 +241,6 @@ export default function PackagesPage() {
             </Col>
           </Row>
 
-          {/* Dùng Select multiple để chọn nhiều sản phẩm - Sẽ tự động lưu thành mảng JSONB xuống DB */}
           <Form.Item label="Mỹ phẩm đi kèm (Tặng khách)" name="included_products">
             <Select 
               mode="multiple" 
@@ -191,21 +259,13 @@ export default function PackagesPage() {
             <Input.TextArea rows={4} placeholder="Nhập các bước trong liệu trình, dặn dò..." />
           </Form.Item>
 
-          <Row gutter={16}>
-             <Col span={12}>
-                <Form.Item label="Link Ảnh Thumbnail" name="thumbnail_url">
-                  <Input placeholder="https://example.com/image.jpg" />
-                </Form.Item>
-             </Col>
-             <Col span={12}>
-                <Form.Item label="Trạng thái mở bán" name="status" initialValue="ACTIVE">
-                  <Select>
-                    <Select.Option value="ACTIVE">Đang mở bán (ACTIVE)</Select.Option>
-                    <Select.Option value="HIDDEN">Tạm ẩn (HIDDEN)</Select.Option>
-                  </Select>
-                </Form.Item>
-             </Col>
-          </Row>
+          {/* Đã gỡ bỏ ô Input Link Ảnh cũ, chỉ giữ lại phần trạng thái */}
+          <Form.Item label="Trạng thái mở bán" name="status" initialValue="ACTIVE">
+            <Select size="large">
+              <Select.Option value="ACTIVE">Đang mở bán (ACTIVE)</Select.Option>
+              <Select.Option value="HIDDEN">Tạm ẩn (HIDDEN)</Select.Option>
+            </Select>
+          </Form.Item>
 
           <Form.Item className="text-right mb-0 mt-4">
             <Space>

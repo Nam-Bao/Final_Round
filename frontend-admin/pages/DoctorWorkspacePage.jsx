@@ -7,20 +7,35 @@ const { Title, Text } = Typography;
 export default function DoctorWorkspacePage() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [packages, setPackages] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState([]); // Chứa dữ liệu dược mỹ phẩm thật
+  const [spaServices, setSpaServices] = useState([]); // Chứa dữ liệu dịch vụ spa lẻ
+  const [patients, setPatients] = useState([]);
   const [form] = Form.useForm();
 
-  // Khởi tạo mảng rỗng để chứa dữ liệu thật từ Database
-  const [patients, setPatients] = useState([]);
-
   useEffect(() => {
-    // 1. Gọi API lấy danh sách Gói lộ trình (Từ service-booking)
+    // 1. Gọi API lấy danh sách Gói lộ trình (VIP)
     fetch('http://localhost:4000/api/booking/packages')
       .then(res => res.json())
       .then(data => setPackages(data.data || []))
       .catch(() => console.error('Lỗi lấy Gói lộ trình'));
 
-    // 2. Gọi API lấy danh sách Lịch hẹn hôm nay của Bác sĩ
+    // 2. MỚI: Gọi API lấy danh sách Dịch vụ Spa lẻ
+    fetch('http://localhost:4000/api/booking/spa-services')
+      .then(res => res.json())
+      .then(data => setSpaServices(data.data || []))
+      .catch(() => console.error('Lỗi lấy Dịch vụ Spa'));
+
+    // 3. SỬA: Gọi API lấy danh sách Sản phẩm (Dược mỹ phẩm) từ kho
+    fetch('http://localhost:4000/api/commerce/products')
+      .then(res => res.json())
+      .then(data => {
+        // Chỉ lọc lấy loại PRODUCT (không lấy nguyên vật liệu MATERIAL)
+        const productList = (data.data || []).filter(item => item.type === 'PRODUCT');
+        setProducts(productList);
+      })
+      .catch(() => console.error('Lỗi lấy danh sách sản phẩm'));
+
+    // 4. Lấy danh sách bệnh nhân chờ
     const fetchTodayAppointments = async () => {
       try {
         const token = localStorage.getItem('admin_token');
@@ -30,16 +45,15 @@ export default function DoctorWorkspacePage() {
         const result = await res.json();
         
         if (result.data) {
-                const formattedPatients = result.data.map(apt => ({
-                    id: apt.id,
-                    // Thay vì tự ghép ID, giờ ta lấy thẳng Tên và SĐT từ Backend trả về
-                    name: apt.customer_name, 
-                    time: apt.appointment_time,
-                    status: apt.status,
-                    phone: apt.customer_phone, 
-                    history: apt.symptoms || 'Không có ghi chú'
-                }));
-                setPatients(formattedPatients);
+          const formattedPatients = result.data.map(apt => ({
+            id: apt.id,
+            name: apt.customer_name, 
+            time: apt.appointment_time,
+            status: apt.status,
+            phone: apt.customer_phone, 
+            history: apt.symptoms || 'Không có ghi chú'
+          }));
+          setPatients(formattedPatients);
         }
       } catch (error) {
         console.error('Lỗi tải danh sách bệnh nhân', error);
@@ -62,7 +76,7 @@ export default function DoctorWorkspacePage() {
   };
 
   const handleSubmitRecord = (values) => {
-    console.log('Dữ liệu chỉ định:', values);
+    console.log('Dữ liệu Bệnh án & Chỉ định gửi đi:', values);
     message.success('Đã lưu Bệnh án và Chỉ định thành công! Lễ tân đã nhận được thông tin.');
     handleUpdateStatus('COMPLETED');
   };
@@ -90,18 +104,35 @@ export default function DoctorWorkspacePage() {
       label: <><MedicineBoxOutlined /> Lộ trình & Kê đơn</>,
       children: (
         <div className="p-4">
-          <Form.Item name="treatment_package" label="Chỉ định Gói Lộ Trình (VIP)">
-            <Select placeholder="-- Chọn lộ trình trị liệu --" allowClear>
-              {packages.map(pkg => (
-                <Select.Option key={pkg.id} value={pkg.id}>{pkg.name} - {pkg.promotional_price?.toLocaleString()}đ</Select.Option>
+          {/* MỚI: Chỉ định Dịch vụ Spa lẻ */}
+          <Form.Item name="spa_services" label="Chỉ định Dịch vụ Spa lẻ (Làm ngay)">
+            <Select mode="multiple" placeholder="-- Chọn dịch vụ --" allowClear>
+              {spaServices.map(srv => (
+                <Select.Option key={srv.id} value={srv.id}>
+                  {srv.name} - <span className="text-red-500 font-medium">{Number(srv.price).toLocaleString('vi-VN')}đ</span>
+                </Select.Option>
               ))}
             </Select>
           </Form.Item>
+
+          <Form.Item name="treatment_package" label="Chỉ định Gói Lộ Trình (VIP)">
+            <Select placeholder="-- Chọn lộ trình trị liệu --" allowClear>
+              {packages.map(pkg => (
+                <Select.Option key={pkg.id} value={pkg.id}>
+                  {pkg.name} - <span className="text-red-500 font-medium">{Number(pkg.promotional_price || pkg.price).toLocaleString('vi-VN')}đ</span>
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          {/* SỬA LẠI: Render Dược mỹ phẩm từ Database kèm Giá tiền */}
           <Form.Item name="prescriptions" label="Kê đơn Dược Mỹ Phẩm (Mang về)">
             <Select mode="multiple" placeholder="-- Chọn dược mỹ phẩm --" allowClear>
-              <Select.Option value="prod1">Sữa rửa mặt Cetaphil 500ml</Select.Option>
-              <Select.Option value="prod2">Kem chống nắng La Roche-Posay</Select.Option>
-              <Select.Option value="prod3">Chấm mụn Megaduo</Select.Option>
+              {products.map(prod => (
+                <Select.Option key={prod.id} value={prod.id}>
+                  {prod.name} - <span className="text-red-500 font-medium">{Number(prod.price).toLocaleString('vi-VN')}đ</span>
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
         </div>
@@ -130,6 +161,7 @@ export default function DoctorWorkspacePage() {
                       {item.status === 'WAITING' && <Tag color="warning">Đang chờ</Tag>}
                       {item.status === 'IN_PROGRESS' && <Tag color="processing">Đang khám</Tag>}
                       {item.status === 'COMPLETED' && <Tag color="success">Đã xong</Tag>}
+                      {item.pre_notes && <span className="text-xs text-gray-500">({item.pre_notes})</span>}
                     </Space>
                   }
                 />
@@ -153,8 +185,15 @@ export default function DoctorWorkspacePage() {
                 <Space size="middle">
                   <Avatar size={50} icon={<UserOutlined />} className="bg-blue-600" />
                   <div>
-                    <Title level={4} className="m-0 text-blue-700">{selectedPatient.name}</Title>
-                    <Text type="secondary">SĐT: {selectedPatient.phone} | Lịch sử: {selectedPatient.history}</Text>
+                    <Space>
+                        <Title level={4} className="m-0 text-blue-700">{selectedPatient.name}</Title>
+                        {selectedPatient.pre_notes && <Tag color="cyan">{selectedPatient.pre_notes}</Tag>}
+                    </Space>
+                    <div className="mt-1">
+                        <Text type="secondary">SĐT: <span className="font-medium text-gray-700">{selectedPatient.phone}</span></Text>
+                        <Divider type="vertical" />
+                        <Text type="secondary">Tình trạng khai báo: <span className="italic text-gray-600">{selectedPatient.history}</span></Text>
+                    </div>
                   </div>
                 </Space>
                 <Space>

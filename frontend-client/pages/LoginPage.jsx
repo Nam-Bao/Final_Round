@@ -12,35 +12,30 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Giả lập mạng
+      // Gọi API Đăng nhập thật xuống Backend
+      const response = await fetch('http://localhost:4000/api/identity/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-      // 1. Kéo thông tin từ bộ nhớ tạm (nơi lưu user bạn đã đăng ký)
-      const savedUserStr = localStorage.getItem('mockRegisteredUser');
-      
-      // Nếu chưa từng đăng ký tài khoản nào trên trình duyệt này
-      if (!savedUserStr) {
-        throw new Error('Không tìm thấy tài khoản. Vui lòng đăng ký trước!');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Email hoặc mật khẩu không chính xác!');
       }
 
-      const savedUser = JSON.parse(savedUserStr);
-
-      // 2. Kiểm tra xem email và mật khẩu có khớp với lúc đăng ký không
-      if (savedUser.email !== email || savedUser.password !== password) {
-        throw new Error('Email hoặc mật khẩu không chính xác!');
-      }
-
-      // 3. Nếu đúng hoàn toàn, khởi tạo dữ liệu đăng nhập thật
-      const finalUser = { 
-        full_name: savedUser.full_name, 
-        phone: savedUser.phone,
-        email: savedUser.email, 
-        role: 'CUSTOMER' 
+      // Lấy dữ liệu thật từ Database (đã đính kèm Profile mà chúng ta vừa sửa ở các bước trước)
+      const finalUser = {
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.role,
+        full_name: data.user.Profile?.full_name || 'Khách hàng',
+        phone: data.user.Profile?.phone || ''
       };
-
-      const fakeToken = 'day_la_token_gia_lap_xyz123';
       
-      // 4. Lưu trạng thái đăng nhập vào Zustand
-      login(finalUser, fakeToken); 
+      // Lưu trạng thái đăng nhập vào Zustand với Token xịn từ Backend
+      login(finalUser, data.token); 
       navigate('/'); 
     } catch (err) {
       setError(err.message);
