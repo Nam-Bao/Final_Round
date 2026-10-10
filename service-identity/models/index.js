@@ -39,6 +39,38 @@ const Attendance = sequelize.define('Attendance', {
   check_out: { type: DataTypes.DATE }
 });
 
+// 5. Bảng MedicalRecords (Hồ sơ khám bệnh / Sổ y bạ)
+const MedicalRecord = sequelize.define('MedicalRecord', {
+  id: { 
+    type: DataTypes.UUID, 
+    defaultValue: DataTypes.UUIDV4, 
+    primaryKey: true 
+  },
+  // Khóa ngoại "mềm" (Logical FK) liên kết với bảng Appointments ở service-booking
+  appointment_id: { 
+    type: DataTypes.UUID, 
+    allowNull: false 
+  },
+  exam_date: { 
+    type: DataTypes.DATE, 
+    defaultValue: DataTypes.NOW 
+  },
+  symptoms: { 
+    type: DataTypes.TEXT // Lưu triệu chứng, lời khai của khách hàng
+  },
+  diagnosis: { 
+    type: DataTypes.STRING // Lưu kết luận, bệnh lý do Bác sĩ chẩn đoán
+  },
+  doctor_notes: { 
+    type: DataTypes.TEXT // Lời dặn dò, lưu ý sinh hoạt sau khi khám
+  },
+  follow_up_date: { type: DataTypes.DATEONLY, allowNull: true },
+  images: { 
+    type: DataTypes.JSON, 
+    defaultValue: [] // Lưu mảng URL hình ảnh soi da hoặc hình ảnh trước/sau khi điều trị
+  }
+});
+
 // Thiết lập quan hệ (Khóa ngoại vật lý TRONG CÙNG 1 DB)
 User.hasOne(Profile, { foreignKey: 'user_id' });
 Profile.belongsTo(User, { foreignKey: 'user_id' });
@@ -46,4 +78,12 @@ Profile.belongsTo(User, { foreignKey: 'user_id' });
 User.hasMany(Guardian, { foreignKey: 'customer_id' });
 User.hasMany(Attendance, { foreignKey: 'employee_id' });
 
-module.exports = { sequelize, User, Profile, Guardian, Attendance };
+// Khách hàng có nhiều Hồ sơ khám (Lịch sử y tế)
+User.hasMany(MedicalRecord, { foreignKey: 'customer_id', as: 'MedicalHistory' });
+MedicalRecord.belongsTo(User, { foreignKey: 'customer_id', as: 'Customer' });
+
+// Bác sĩ đã thực hiện nhiều Hồ sơ khám
+User.hasMany(MedicalRecord, { foreignKey: 'doctor_id', as: 'PerformedExams' });
+MedicalRecord.belongsTo(User, { foreignKey: 'doctor_id', as: 'Doctor' });
+
+module.exports = { sequelize, User, Profile, Guardian, Attendance, MedicalRecord };

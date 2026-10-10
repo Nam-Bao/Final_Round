@@ -5,6 +5,8 @@ const { sequelize } = require('./models');
 const authRoute = require('./routes/auth.route.js');
 const profileRoute = require('./routes/profile.route.js');
 const userRoute = require('./routes/user.route.js');
+const medicalRecordRoutes = require('./routes/medical-record.route.js');
+
 
 const app = express();
 const PORT = 4001;
@@ -15,6 +17,7 @@ app.use(express.json());
 app.use('/auth', authRoute);
 app.use('/profile', profileRoute);
 app.use('/users', userRoute);
+app.use('/medical-records', medicalRecordRoutes);
 
 app.listen(PORT, async () => {
   console.log(`🚀 [Identity Service] đang chạy tại port ${PORT}`);

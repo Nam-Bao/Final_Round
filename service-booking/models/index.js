@@ -45,8 +45,12 @@ const Appointment = sequelize.define('Appointment', {
   pre_notes: { type: DataTypes.TEXT }, // THÊM MỚI: Ghi chú khai thác sơ bộ
   status: { 
     // THÊM MỚI: CHECK_IN (Mới đến) và WAITING_FOR_SALE (Bác sĩ khám xong, chờ chốt sale)
-    type: DataTypes.ENUM('PENDING', 'CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED'), 
+    type: DataTypes.ENUM('PENDING', 'CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NEEDS_RESCHEDULE'), 
     defaultValue: 'PENDING' 
+  },
+  type: { 
+    type: DataTypes.ENUM('NEW_EXAM', 'FOLLOW_UP', 'TREATMENT'), // Khám mới, Tái khám, Đi làm liệu trình
+    defaultValue: 'NEW_EXAM' 
   },
   symptoms: { type: DataTypes.TEXT }, //[cite: 3]
 });

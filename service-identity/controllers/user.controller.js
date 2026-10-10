@@ -90,4 +90,55 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser };
+const getDoctors = async (req, res) => {
+  try {
+    const doctors = await User.findAll({
+      where: { 
+        role: 'DOCTOR',
+        status: 'ACTIVE' // Chỉ lấy Bác sĩ đang còn làm việc
+      },
+      attributes: ['id', 'email', 'role'], // CHỈ trả về thông tin công khai an toàn
+      include: [
+        { 
+          model: Profile, 
+          attributes: ['full_name', 'avatar'] // Chỉ lấy tên và avatar để hiển thị
+        }
+      ]
+    });
+
+    res.status(200).json({ data: doctors });
+  } catch (error) {
+    console.error("Lỗi lấy danh sách bác sĩ:", error);
+    res.status(500).json({ message: 'Lỗi server nội bộ', error: error.message });
+  }
+};
+
+// Lấy danh sách Khách hàng
+const getCustomers = async (req, res) => {
+  try {
+    const customers = await User.findAll({
+      where: { role: 'CUSTOMER' },
+      attributes: ['id', 'email', 'status'], 
+      include: [{ model: Profile, attributes: ['full_name', 'phone', 'dob'] }]
+    });
+    res.status(200).json({ data: customers });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// Lấy danh sách Nhân sự nội bộ
+const getEmployees = async (req, res) => {
+  try {
+    const employees = await User.findAll({
+      where: { role: { [Op.ne]: 'CUSTOMER' } }, // Lấy tất cả trừ CUSTOMER
+      attributes: ['id', 'email', 'role', 'status'], 
+      include: [{ model: Profile, attributes: ['full_name', 'phone'] }]
+    });
+    res.status(200).json({ data: employees });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees };

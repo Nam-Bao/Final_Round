@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Space, Button, message, Card, Modal, Form, Select, DatePicker, Tabs, Badge, List } from 'antd';
-import { CalendarOutlined, PlusOutlined, SolutionOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { Table, Tag, Space, Button, message, Card, Modal, Form, Select, DatePicker, Tabs, Badge, List, Typography } from 'antd';
+import { CalendarOutlined, PlusOutlined, SolutionOutlined, CheckOutlined, CloseOutlined, AlertOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
+const { Text } = Typography;
 
 const roleConfig = {
   DOCTOR: { label: 'Bác sĩ', icon: '👩‍⚕️' },
@@ -15,10 +16,10 @@ const roleConfig = {
 export default function WorkSchedulePage() {
   const [employees, setEmployees] = useState([]);
   const [shifts, setShifts] = useState([]);
-  const [requests, setRequests] = useState([]); // State chứa danh sách đơn xin nghỉ chờ duyệt
+  const [requests, setRequests] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isRequestModalVisible, setIsRequestModalVisible] = useState(false); // Modal xem đơn
+  const [isRequestModalVisible, setIsRequestModalVisible] = useState(false); 
   const [activeRole, setActiveRole] = useState('DOCTOR');
   const [form] = Form.useForm();
   
@@ -57,7 +58,6 @@ export default function WorkSchedulePage() {
     } catch (error) { message.error('Lỗi tải lịch làm việc'); } finally { setLoading(false); }
   };
 
-  // Kéo danh sách đơn xin nghỉ đang chờ duyệt từ Backend
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('admin_token');
@@ -69,7 +69,6 @@ export default function WorkSchedulePage() {
     } catch (error) { console.error('Lỗi tải danh sách đơn từ'); }
   };
 
-  // Xử lý Phê duyệt hoặc Từ chối đơn
   const handleProcessRequest = async (requestId, status) => {
     try {
       const token = localStorage.getItem('admin_token');
@@ -81,8 +80,25 @@ export default function WorkSchedulePage() {
       if (!res.ok) throw new Error();
       message.success(status === 'APPROVED' ? 'Đã duyệt đơn xin nghỉ!' : 'Đã từ chối đơn!');
       fetchRequests();
-      fetchShifts(); // Load lại lịch vì ca làm có thể đã bị xóa
+      fetchShifts(); 
     } catch (error) { message.error('Lỗi xử lý đơn'); }
+  };
+
+  const confirmEmergencyApproval = (requestId) => {
+    Modal.confirm({
+      title: 'Xác nhận duyệt Đơn Khẩn Cấp',
+      icon: <WarningOutlined className="text-red-500" />,
+      content: (
+        <div>
+          <p>Ca làm này <b>đang có khách hàng đặt lịch</b>. Nếu bạn duyệt, ca làm sẽ bị xóa.</p>
+          <p className="text-red-600 italic mt-2">Vui lòng đảm bảo bạn đã: <br/>1. Nhờ CSKH gọi điện dời lịch khách. <br/>2. Hoặc đã xếp Bác sĩ khác thay thế.</p>
+        </div>
+      ),
+      okText: 'Tôi đã xử lý & Duyệt đơn',
+      cancelText: 'Hủy bỏ',
+      okButtonProps: { danger: true },
+      onOk: () => handleProcessRequest(requestId, 'APPROVED')
+    });
   };
 
   const handleSubmit = async (values) => {
@@ -174,7 +190,6 @@ export default function WorkSchedulePage() {
       title={<><CalendarOutlined /> Quản lý Lịch làm việc</>} 
       extra={
         <Space>
-          {/* NÚT THÔNG BÁO ĐƠN CHỜ DUYỆT CÓ GẮN BADGE SỐ LƯỢNG */}
           <Badge count={requests.length} offset={[-5, 5]}>
             <Button icon={<SolutionOutlined />} onClick={() => setIsRequestModalVisible(true)}>
               Duyệt Đơn Từ
@@ -201,7 +216,6 @@ export default function WorkSchedulePage() {
 
       <Table columns={columns} dataSource={currentEmployees} rowKey="id" loading={loading} bordered pagination={false} scroll={{ x: 1000 }} />
 
-      {/* MODAL XẾP CA NHANH */}
       <Modal title={`Xếp ca làm việc - ${roleConfig[activeRole].label}`} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item label={`Chọn ${roleConfig[activeRole].label}`} name="employee_id" rules={[{ required: true }]}>
@@ -225,21 +239,16 @@ export default function WorkSchedulePage() {
         </Form>
       </Modal>
 
-{/* MODAL DANH SÁCH ĐƠN XIN NGHỈ CHỜ DUYỆT */}
       <Modal title="Danh Sách Đơn Xin Nghỉ / Đổi Ca Chờ Duyệt" open={isRequestModalVisible} onCancel={() => setIsRequestModalVisible(false)} footer={null} width={650}>
         <List
           dataSource={requests}
           locale={{ emptyText: 'Hiện không có đơn xin nghỉ nào cần duyệt.' }}
           renderItem={(item) => {
-            // 1. Kéo Tên và Vị trí từ danh sách nhân viên đã load ở Frontend
             const emp = employees.find(e => e.id === item.employee_id);
             const empName = emp?.Profile?.full_name || 'Chưa cập nhật tên';
             const empRoleLabel = roleConfig[emp?.role]?.label || emp?.role || 'Nhân viên';
-            
-            // Lấy đúng 4 ký tự cuối của ID
             const empCode = `...${item.employee_id.slice(-4)}`; 
             
-            // 2. Format lại thông tin Ca làm từ Backend gửi sang
             let shiftText = 'Ca làm không xác định';
             if (item.WorkShift) {
               const dateStr = dayjs(item.WorkShift.date).format('DD/MM/YYYY');
@@ -247,26 +256,47 @@ export default function WorkSchedulePage() {
               shiftText = `${shiftType} (${dateStr})`;
             }
 
+            // XÁC ĐỊNH ĐƠN KHẨN CẤP DỰA VÀO TIỀN TỐ TỪ FRONTEND BÁC SĨ
+            const isEmergency = item.reason.includes('[KHẨN CẤP');
+            const cleanReason = item.reason.replace('[KHẨN CẤP - Đã có khách]', '').trim();
+
             return (
               <List.Item
+                className={`rounded-xl mb-4 p-4 border ${isEmergency ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}`}
                 actions={[
-                  <Button type="primary" size="small" icon={<CheckOutlined />} className="bg-green-600" onClick={() => handleProcessRequest(item.id, 'APPROVED')}>Duyệt</Button>,
+                  <Button 
+                    type="primary" 
+                    size="small" 
+                    icon={isEmergency ? <AlertOutlined /> : <CheckOutlined />} 
+                    className={isEmergency ? "bg-red-600 hover:bg-red-700 shadow-md" : "bg-green-600"} 
+                    onClick={() => isEmergency ? confirmEmergencyApproval(item.id) : handleProcessRequest(item.id, 'APPROVED')}
+                  >
+                    {isEmergency ? 'Duyệt (Rủi ro)' : 'Duyệt'}
+                  </Button>,
                   <Button danger size="small" icon={<CloseOutlined />} onClick={() => handleProcessRequest(item.id, 'REJECTED')}>Từ chối</Button>
                 ]}
               >
                 <List.Item.Meta
                   title={
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-blue-600 text-base">{empName}</span>
-                      <Tag color="blue">{empRoleLabel}</Tag>
-                      <span className="text-gray-400 text-sm">({empCode})</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-blue-600 text-base">{empName}</span>
+                        <Tag color="blue" className="m-0">{empRoleLabel}</Tag>
+                        <span className="text-gray-400 text-sm">({empCode})</span>
+                      </div>
+                      {isEmergency && <Tag color="error" className="m-0 border-red-500 animate-pulse">🚨 CÓ KHÁCH ĐẶT</Tag>}
                     </div>
                   }
                   description={
-                    <div className="mt-2 text-gray-700 space-y-1">
-                      <p className="m-0"><b>Xin nghỉ ca:</b> <Tag color="warning">{shiftText}</Tag></p>
-                      <p className="m-0"><b>Lý do:</b> {item.reason}</p>
-                      <p className="m-0 text-xs text-gray-400 mt-2">Gửi lúc: {dayjs(item.createdAt).format('HH:mm - DD/MM/YYYY')}</p>
+                    <div className="mt-3 text-gray-700 space-y-2">
+                      <p className="m-0 flex items-center gap-2">
+                        <CalendarOutlined className="text-gray-500" />
+                        <span>Xin nghỉ ca:</span> <Tag color={isEmergency ? "red" : "warning"} className="font-medium">{shiftText}</Tag>
+                      </p>
+                      <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                        <Text className="text-gray-600"><b>Lý do:</b> {cleanReason || item.reason}</Text>
+                      </div>
+                      <p className="m-0 text-xs text-gray-400">Gửi lúc: {dayjs(item.createdAt).format('HH:mm - DD/MM/YYYY')}</p>
                     </div>
                   }
                 />
