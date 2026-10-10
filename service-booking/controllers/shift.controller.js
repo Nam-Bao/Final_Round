@@ -1,4 +1,4 @@
-const { WorkShift, ShiftRequest } = require('../models');
+const { WorkShift, ShiftRequest, Appointment } = require('../models');
 const { Op } = require('sequelize');
 
 // 1. Lấy danh sách ca làm việc theo tuần/tháng
@@ -68,16 +68,49 @@ const deleteShift = async (req, res) => {
 // API Dành riêng cho Nhân viên: Lấy lịch làm việc của chính họ
 const getMyShifts = async (req, res) => {
   try {
-    // req.user.id được giải mã từ Token lúc đăng nhập
     const myId = req.user.id; 
     
+    // Tối ưu: Chỉ Query các ca làm việc từ hôm nay trở về sau (giảm tải DB)
+    const today = new Date().toISOString().split('T')[0];
+
     const shifts = await WorkShift.findAll({
-      where: { employee_id: myId }, // Khóa chặt: Chỉ lấy đúng ID của mình
-      order: [['date', 'ASC']] // Sắp xếp ngày gần nhất lên đầu
+      where: { 
+        employee_id: myId,
+        date: { [Op.gte]: today } // gte: Greater than or equal (Lớn hơn hoặc bằng)
+      }, 
+      order: [['date', 'ASC']]
     });
     
-    res.status(200).json({ data: shifts });
+    // Đếm số lượng khách hẹn trong từng ca (Map & Count)
+    const mappedShifts = await Promise.all(shifts.map(async (shift) => {
+      // 1. Xác định khung giờ của ca làm đó
+      let startTime = '00:00:00';
+      let endTime = '23:59:59';
+      
+      if (shift.shift_type === 'MORNING') { startTime = '08:00:00'; endTime = '12:00:59'; }
+      else if (shift.shift_type === 'AFTERNOON') { startTime = '13:00:00'; endTime = '17:00:59'; }
+      else if (shift.shift_type === 'EVENING') { startTime = '18:00:00'; endTime = '22:00:59'; }
+
+      // 2. Đếm số lịch hẹn của Bác sĩ này, trong ngày này, nằm trong khung giờ này
+      const count = await Appointment.count({
+        where: {
+          doctor_id: myId,
+          appointment_date: shift.date,
+          appointment_time: { [Op.between]: [startTime, endTime] },
+          status: { [Op.notIn]: ['CANCELLED'] } // Bỏ qua các đơn đã bị khách hủy
+        }
+      });
+
+      // 3. Trả về object ca làm gốc + nhồi thêm biến đếm
+      return {
+        ...shift.toJSON(),
+        appointment_count: count 
+      };
+    }));
+
+    res.status(200).json({ data: mappedShifts });
   } catch (error) {
+    console.error("Lỗi getMyShifts:", error);
     res.status(500).json({ message: 'Lỗi khi lấy lịch làm việc', error: error.message });
   }
 };
@@ -134,7 +167,7 @@ const getShiftRequests = async (req, res) => {
 const handleShiftRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // Nhận 'APPROVED' hoặc 'REJECTED'
+    const { status } = req.body;
 
     const request = await ShiftRequest.findByPk(id);
     if (!request) return res.status(404).json({ message: 'Không tìm thấy đơn' });
@@ -143,13 +176,38 @@ const handleShiftRequest = async (req, res) => {
     request.approver_id = req.user.id;
     await request.save();
 
-    // Nếu Quản lý bấm Đồng ý, tự động xóa ca làm đó khỏi lịch trực
+    // NẾU QUẢN LÝ DUYỆT ĐƠN KHẨN CẤP -> Hủy ca làm & Chuyển khách sang cho CSKH
     if (status === 'APPROVED' && request.from_shift_id) {
-      await WorkShift.destroy({ where: { id: request.from_shift_id } });
+      const shift = await WorkShift.findByPk(request.from_shift_id);
+      
+      if (shift) {
+        // 1. Xác định khung giờ của ca bị hủy
+        let startTime = '00:00:00'; let endTime = '23:59:59';
+        if (shift.shift_type === 'MORNING') { startTime = '08:00:00'; endTime = '12:00:59'; }
+        else if (shift.shift_type === 'AFTERNOON') { startTime = '13:00:00'; endTime = '17:00:59'; }
+        else if (shift.shift_type === 'EVENING') { startTime = '18:00:00'; endTime = '22:00:59'; }
+
+        // 2. Chuyển tất cả khách trong ca này sang trạng thái "Cần Dời Lịch"
+        await Appointment.update(
+          { status: 'NEEDS_RESCHEDULE' },
+          {
+            where: {
+              doctor_id: shift.employee_id,
+              appointment_date: shift.date,
+              appointment_time: { [Op.between]: [startTime, endTime] },
+              status: { [Op.in]: ['PENDING', 'CONFIRMED'] } // Chỉ lấy những khách đang chờ
+            }
+          }
+        );
+
+        // 3. Xóa ca làm đó đi
+        await shift.destroy();
+      }
     }
 
     res.status(200).json({ message: 'Đã xử lý đơn thành công!' });
   } catch (error) {
+    console.error("Lỗi xử lý đơn xin nghỉ:", error);
     res.status(500).json({ message: 'Lỗi xử lý đơn', error: error.message });
   }
 };
@@ -181,4 +239,32 @@ const getMyShiftRequests = async (req, res) => {
   }
 };
 
-module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests };
+const getDoctorShifts = async (req, res) => {
+  try {
+    const { doctorId, startDate, endDate } = req.query;
+
+    if (!doctorId) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp ID bác sĩ' });
+    }
+
+    let whereClause = {
+      employee_id: doctorId,
+      status: 'SCHEDULED' // Chỉ lấy những ca có lịch đi làm
+    };
+    
+    if (startDate && endDate) {
+      whereClause.date = { [Op.between]: [startDate, endDate] };
+    }
+
+    const shifts = await WorkShift.findAll({ 
+      where: whereClause,
+      attributes: ['date', 'shift_type'] // CHỈ trả về ngày và buổi (Sáng/Chiều/Tối), giấu ID và các thông tin nội bộ
+    });
+
+    res.status(200).json({ data: shifts });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy ca làm việc bác sĩ', error: error.message });
+  }
+};
+
+module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests, getDoctorShifts };

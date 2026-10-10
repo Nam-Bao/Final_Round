@@ -15,6 +15,8 @@ import TechnicianWorkspacePage from './pages/TechnicianWorkspacePage';
 import SalesWorkspacePage from './pages/SalesWorkspacePage';
 import SpaServicesPage from './pages/SpaServicesPage';
 import PromotionsPage from './pages/PromotionsPage';
+import CustomerProfilePage from './pages/CustomerProfilePage';
+import AppointmentManagementPage from './pages/AppointmentManagementPage';
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
           <Route path="/sales-workspace" element={<SalesWorkspacePage />} />
           <Route path="/spa-services" element={<SpaServicesPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
+          <Route path="/customer-profiles" element={<CustomerProfilePage />} />
+          <Route path="/appointment-management" element={<AppointmentManagementPage />} />
           <Route path="/page-info" element={<div className="p-4 text-xl font-bold">Trang Quản lý Thông tin hệ thống (Đang phát triển)</div>} />
         </Route>
       </Routes>
