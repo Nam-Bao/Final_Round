@@ -95,10 +95,9 @@ const getTakenSlots = async (req, res) => {
   }
 };
 
-// 4. - Dành cho Khách: Đặt lịch hẹn mới
+// 4. - Dành cho Khách: Đặt lịch hẹn mới (TỰ ĐỘNG DUYỆT KHÁM ONLINE & FORMAT DỮ LIỆU CHUẨN)
 const createAppointment = async (req, res) => {
   try {
-    // Nếu là CSKH đặt: lấy customer_id từ Form. Nếu khách tự đặt: lấy từ Token
     const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : req.body.customer_id; 
     const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes } = req.body;
 
@@ -106,16 +105,29 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng điền đủ ngày, giờ và khách hàng' });
     }
 
+    let initialStatus = 'PENDING';
+    let finalPreNotes = pre_notes; // Giữ lại cờ [Khám ONLINE]
+
+    // TỰ ĐỘNG HÓA: Khám Online tự duyệt + Gom data tự động cho Bác sĩ đọc
+    if (pre_notes?.includes('[Khám ONLINE]') && symptoms && symptoms.trim() !== '') {
+       initialStatus = 'WAITING'; // Duyệt thẳng vào phòng chờ Bác sĩ
+       
+       // Format lại đoạn symptoms khách gõ (chứa \n) thành dấu gạch ngang ( - ) 
+       // Để khớp 100% với giao diện DoctorWorkspace đang dùng split(' - ')
+       const formattedSymptomsForDoctor = symptoms.replace(/\n/g, ' - ');
+       finalPreNotes = `${pre_notes} - ${formattedSymptomsForDoctor}`;
+    }
+
     const newAppointment = await Appointment.create({
       customer_id,
       doctor_id: doctor_id || null,
-      consultant_id: req.user.role !== 'CUSTOMER' ? req.user.id : null, // Lưu lại người tạo lịch
+      consultant_id: req.user.role !== 'CUSTOMER' ? req.user.id : null,
       type: type || 'NEW_EXAM',
       appointment_date,
       appointment_time,
-      symptoms,
-      pre_notes,
-      status: 'PENDING' 
+      symptoms: '', // Bỏ trống symptoms vì đã gộp hết vào pre_notes cho đúng UI cũ
+      pre_notes: finalPreNotes,
+      status: initialStatus 
     });
 
     res.status(201).json({ message: 'Đặt lịch thành công', data: newAppointment });
@@ -304,12 +316,17 @@ const updateAppointment = async (req, res) => {
   }
 };
 
-// --- CSKH Hủy lịch ---
+// --- Khách hàng / CSKH Hủy lịch ---
 const cancelAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+
+    // Bảo mật: Nếu là Khách hàng, chỉ được hủy lịch của chính mình
+    if (req.user.role === 'CUSTOMER' && apt.customer_id !== req.user.id) {
+       return res.status(403).json({ message: 'Bạn không có quyền hủy lịch của người khác' });
+    }
 
     apt.status = 'CANCELLED';
     await apt.save();
@@ -368,7 +385,6 @@ const getAvailableSlots = async (req, res) => {
   }
 };
 
-// Đã bổ sung xuất đủ 4 hàm
 module.exports = { 
   getMyTodayAppointments, 
   getMyHistory, 

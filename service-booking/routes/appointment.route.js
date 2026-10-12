@@ -44,6 +44,6 @@ router.put('/:id/reschedule', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MAN
 router.put('/:id/pre-check', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), preCheckAppointment);
 router.put('/:id/finish-exam', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), finishExam);
 router.put('/:id', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), updateAppointment);
-router.put('/:id/cancel', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), cancelAppointment);
+router.put('/:id/cancel', verifyToken, authorizeRoles('CUSTOMER','CONSULTANT', 'GEN_MANAGER', 'ADMIN'), cancelAppointment);
 
 module.exports = router;

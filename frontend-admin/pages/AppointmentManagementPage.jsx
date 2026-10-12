@@ -4,6 +4,7 @@ import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutl
 import axios from 'axios';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import { useLocation } from 'react-router-dom'; // BẮT BUỘC ĐỂ NHẬN DỮ LIỆU TỪ CHAT WIDGET
 dayjs.extend(isSameOrBefore);
 
 const { Title, Text } = Typography;
@@ -22,6 +23,8 @@ export default function AppointmentManagementPage() {
   
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  
+  const location = useLocation(); // Sử dụng useLocation
 
   const fetchData = async () => {
     try {
@@ -45,6 +48,23 @@ export default function AppointmentManagementPage() {
   useEffect(() => {
     fetchData();
   }, []);
+  
+  // --- TÍNH NĂNG AUTO-FILL TỪ WIDGET CHAT ---
+  useEffect(() => {
+      // Nếu AdminLayout bấm nút "+ Tạo Lịch" và truyền state sang
+      if (location.state?.autoFillCustomerId) {
+         setEditingAppointment(null);
+         form.resetFields();
+         setIsModalVisible(true);
+         form.setFieldsValue({ 
+             customer_id: location.state.autoFillCustomerId,
+             type: 'NEW_EXAM',
+             appointment_date: dayjs(),
+             method: 'OFFLINE'
+         });
+         fetchAvailableDoctors(dayjs().format('YYYY-MM-DD'));
+      }
+  }, [location.state, form]);
 
   const fetchAvailableDoctors = async (dateStr) => {
     try {
@@ -70,12 +90,10 @@ export default function AppointmentManagementPage() {
     }
   };
 
-  // --- LOGIC GỘP VÀ LOẠI TRỪ TRÙNG LẶP ---
   const getUpcomingReminders = () => {
     const today = dayjs().startOf('day');
     const threeDaysLater = dayjs().add(3, 'day').endOf('day');
 
-    // 1. Nhắc nhở từ bảng Lịch Hẹn (Khách đã chốt lịch)
     const aptReminders = (appointments || [])
       .filter(apt => {
         if (!apt.appointment_date) return false;
@@ -92,16 +110,14 @@ export default function AppointmentManagementPage() {
          raw: apt
       }));
 
-    // 2. Nhắc nhở từ Sổ Y Bạ (Bác sĩ hẹn nhưng chưa chốt giờ)
     const followUpReminders = (medicalFollowUps || [])
       .filter(record => {
-         // KIỂM TRA: Nếu khách NÀY đã có 1 lịch Tái khám đang chờ/đã xác nhận -> ẨN nhắc nhở Y bạ đi
          const alreadyScheduled = appointments.some(apt => 
             apt.customer_id === record.customer_id && 
             apt.type === 'FOLLOW_UP' && 
             (apt.status === 'PENDING' || apt.status === 'CONFIRMED')
          );
-         return !alreadyScheduled; // Chỉ giữ lại những người CHƯA được xếp lịch
+         return !alreadyScheduled; 
       })
       .map(record => {
          const oldApt = appointments.find(a => a.id === record.appointment_id);

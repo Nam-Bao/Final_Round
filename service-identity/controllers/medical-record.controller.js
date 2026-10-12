@@ -66,4 +66,26 @@ const getUpcomingFollowUps = async (req, res) => {
   }
 };
 
-module.exports = { createMedicalRecord, getCustomerMedicalHistory, getUpcomingFollowUps };
+// --- Lấy hồ sơ y tế của chính Khách hàng đang đăng nhập ---
+const getMyMedicalRecords = async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const history = await MedicalRecord.findAll({
+      where: { customer_id: myId },
+      include: [
+        {
+          model: User,
+          as: 'Doctor',
+          attributes: ['id', 'email'],
+          include: [{ model: Profile, attributes: ['full_name'] }]
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    res.status(200).json({ data: history });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy hồ sơ cá nhân', error: error.message });
+  }
+};
+
+module.exports = { createMedicalRecord, getCustomerMedicalHistory, getUpcomingFollowUps, getMyMedicalRecords };

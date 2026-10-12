@@ -1,5 +1,5 @@
 const express = require('express');
-const { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests, getDoctorShifts } = require('../controllers/shift.controller.js');
+const { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests, getDoctorShifts, getEmployeeShifts } = require('../controllers/shift.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -18,5 +18,6 @@ router.post('/request-off', verifyToken, authorizeRoles(...employeeRoles), creat
 router.get('/my-requests', verifyToken, authorizeRoles(...employeeRoles), getMyShiftRequests);
 
 router.get('/doctor-shifts', verifyToken, getDoctorShifts);
+router.get('/employee-shifts', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN', 'CONSULTANT'), getEmployeeShifts);
 
 module.exports = router;

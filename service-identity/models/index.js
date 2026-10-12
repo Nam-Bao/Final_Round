@@ -71,6 +71,21 @@ const MedicalRecord = sequelize.define('MedicalRecord', {
   }
 });
 
+// 6. Bảng ChatSessions (Phiên chat)
+const ChatSession = sequelize.define('ChatSession', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  status: { type: DataTypes.ENUM('WAITING', 'ACTIVE', 'CLOSED'), defaultValue: 'WAITING' }
+});
+
+// 7. Bảng ChatMessages (Tin nhắn chi tiết)
+const ChatMessage = sequelize.define('ChatMessage', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  sender_type: { type: DataTypes.ENUM('CUSTOMER', 'CONSULTANT', 'SYSTEM') },
+  content: { type: DataTypes.TEXT }
+});
+
+
+
 // Thiết lập quan hệ (Khóa ngoại vật lý TRONG CÙNG 1 DB)
 User.hasOne(Profile, { foreignKey: 'user_id' });
 Profile.belongsTo(User, { foreignKey: 'user_id' });
@@ -86,4 +101,13 @@ MedicalRecord.belongsTo(User, { foreignKey: 'customer_id', as: 'Customer' });
 User.hasMany(MedicalRecord, { foreignKey: 'doctor_id', as: 'PerformedExams' });
 MedicalRecord.belongsTo(User, { foreignKey: 'doctor_id', as: 'Doctor' });
 
-module.exports = { sequelize, User, Profile, Guardian, Attendance, MedicalRecord };
+User.hasMany(ChatSession, { foreignKey: 'customer_id', as: 'MyChats' });
+ChatSession.belongsTo(User, { foreignKey: 'customer_id', as: 'Customer' });
+
+User.hasMany(ChatSession, { foreignKey: 'consultant_id', as: 'HandledChats' });
+ChatSession.belongsTo(User, { foreignKey: 'consultant_id', as: 'Consultant' });
+
+ChatSession.hasMany(ChatMessage, { foreignKey: 'session_id', as: 'Messages' });
+ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
+
+module.exports = { sequelize, User, Profile, Guardian, Attendance, MedicalRecord, ChatSession, ChatMessage };

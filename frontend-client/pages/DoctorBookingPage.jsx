@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
@@ -16,105 +17,83 @@ export default function DoctorBookingPage() {
   const [slot, setSlot] = useState('');
   
   const [appointmentType, setAppointmentType] = useState('OFFLINE'); 
-  const [symptoms, setSymptoms] = useState('');
-  const [isOldCustomer, setIsOldCustomer] = useState(false);
-  const [fee, setFee] = useState(100000); // Mặc định khách mới 100k
   
+  // STATE CHUYÊN DỤNG CHO BỆNH ÁN SƠ BỘ TỰ ĐỘNG
+  const [skinCondition, setSkinCondition] = useState('');
+  const [currentProducts, setCurrentProducts] = useState('');
+  const [allergies, setAllergies] = useState('');
+
+  const [isOldCustomer, setIsOldCustomer] = useState(false);
+  const [fee, setFee] = useState(100000); 
   const [status, setStatus] = useState('IDLE');
-  const [isChatOpen, setIsChatOpen] = useState(false);
   
   const navigate = useNavigate();
 
-  // 1. LẤY DỮ LIỆU BAN ĐẦU (Danh sách bác sĩ & Lịch sử khách hàng)
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const token = localStorage.getItem('token'); // Lấy từ authStore
-        
-        // A. Lấy danh sách Bác sĩ từ service-identity
-        const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
+        const token = localStorage.getItem('token'); 
+        const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', { headers: { 'Authorization': `Bearer ${token}` } });
         const docData = await docRes.json();
-        
-        if (docRes.ok) {
-          // Gán thẳng vào State vì Backend đã lọc sẵn toàn bộ Bác sĩ rồi
-          setDoctors(docData.data || []); 
-        }
+        if (docRes.ok) setDoctors(docData.data || []); 
 
-        // B. Kiểm tra khách cũ hay mới (Giả lập gọi API lấy lịch sử)
-        // Nếu API trả về mảng appointments.length > 0 => Khách cũ => Fee = 0
-        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers: { 'Authorization': `Bearer ${token}` } });
         const histData = await histRes.json();
         if (histRes.ok && histData.data && histData.data.length > 0) {
           setIsOldCustomer(true);
           setFee(0);
         }
-      } catch (error) {
-        console.error('Lỗi lấy dữ liệu ban đầu', error);
-      }
+      } catch (error) { console.error('Lỗi lấy dữ liệu ban đầu', error); }
     };
     fetchInitialData();
   }, []);
 
-  // 2. KIỂM TRA LỊCH TRỐNG KHI ĐỔI BÁC SĨ HOẶC ĐỔI NGÀY
   useEffect(() => {
     if (!selectedDoc || !date) return;
-    
     const fetchAvailability = async () => {
       try {
-        setSlot(''); // Reset giờ đã chọn
-        
-        // Lấy token từ localStorage
+        setSlot(''); 
         const token = localStorage.getItem('token');
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // A. Lấy ca làm việc của Bác sĩ (ĐÃ BỔ SUNG HEADERS CHỨA TOKEN)
-        const shiftRes = await fetch(`http://localhost:4000/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, {
-          headers: headers
-        });
-        
+        const shiftRes = await fetch(`http://localhost:4000/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, { headers });
         if (!shiftRes.ok) throw new Error('Lỗi truy cập API ca làm việc');
-
-        const shiftData = await shiftRes.json();
-        // Không cần filter theo ID hay status nữa vì Backend đã lọc sạch sẽ và an toàn
-        const doctorShifts = shiftData.data || [];
+        const doctorShifts = (await shiftRes.json()).data || [];
         
-        // B. Lấy các giờ đã bị đặt (ĐÃ BỔ SUNG HEADERS CHỨA TOKEN)
-        const takenRes = await fetch(`http://localhost:4000/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, {
-          headers: headers
-        });
-        const takenData = await takenRes.json();
-        const takenTimes = takenData.data || []; 
+        const takenRes = await fetch(`http://localhost:4000/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, { headers });
+        const takenTimes = (await takenRes.json()).data || []; 
 
-        // C. Tính toán các khung giờ còn trống
         let slots = [];
         doctorShifts.forEach(shift => {
-          if (SHIFT_SLOTS[shift.shift_type]) {
-            slots = [...slots, ...SHIFT_SLOTS[shift.shift_type]];
-          }
+          if (SHIFT_SLOTS[shift.shift_type]) slots = [...slots, ...SHIFT_SLOTS[shift.shift_type]];
         });
 
-        const freeSlots = slots.filter(time => !takenTimes.includes(`${time}:00`));
+        const now = dayjs();
+        const selectedDate = dayjs(date);
+        const isToday = selectedDate.isSame(now, 'day');
+
+        const freeSlots = slots.filter(time => {
+           if (takenTimes.includes(`${time}:00`)) return false;
+           if (isToday && dayjs(`${date} ${time}`, 'YYYY-MM-DD HH:mm').isBefore(now)) return false;
+           return true;
+        });
         setAvailableSlots(freeSlots);
-        
-      } catch (error) {
-        console.error('Lỗi lấy giờ trống', error);
-      }
+      } catch (error) { console.error('Lỗi lấy giờ trống', error); }
     };
-    
     fetchAvailability();
   }, [selectedDoc, date]);
 
-  // 3. XỬ LÝ ĐẶT LỊCH
+  // XỬ LÝ ĐẶT LỊCH: GOM DỮ LIỆU ĐỂ BÁC SĨ XEM
   const handleSaveAppointment = async () => {
-    // Validate Khám Online bắt buộc có hồ sơ
-    if (appointmentType === 'ONLINE' && !symptoms.trim()) {
-      alert('Vui lòng điền tình trạng da hoặc nhờ CSKH hỗ trợ điền hồ sơ!');
+    if (appointmentType === 'ONLINE' && !skinCondition.trim()) {
+      alert('Vui lòng cung cấp tình trạng da ban đầu hoặc nhờ CSKH hỗ trợ điền!');
       return;
+    }
+
+    // Tự động gom 3 ô thành 1 Bệnh án sơ bộ gửi thẳng cho bác sĩ
+    let finalSymptoms = '';
+    if (appointmentType === 'ONLINE') {
+       finalSymptoms = `[TÌNH TRẠNG DA]: ${skinCondition}\n[SẢN PHẨM ĐANG DÙNG]: ${currentProducts || 'Không rõ'}\n[DỊ ỨNG/THUỐC]: ${allergies || 'Không rõ'}`;
     }
 
     setStatus('PAYMENT_PROCESSING');
@@ -124,21 +103,17 @@ export default function DoctorBookingPage() {
         doctor_id: selectedDoc.id,
         appointment_date: date,
         appointment_time: `${slot}:00`,
-        symptoms: symptoms,
+        symptoms: finalSymptoms, // CHUYỂN THẲNG LÊN DB
         pre_notes: `[Khám ${appointmentType}] ${isOldCustomer ? 'Khách cũ (Miễn phí)' : 'Khách mới (100k)'}`
       };
 
       const res = await fetch('http://localhost:4000/api/booking/appointments', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
       if (!res.ok) throw new Error('Không thể tạo lịch hẹn');
-      
       setStatus('APPOINTMENT_CONFIRMED');
     } catch (error) {
       console.error(error);
@@ -147,11 +122,9 @@ export default function DoctorBookingPage() {
     }
   };
 
-  // Giả lập CSKH điền hộ hồ sơ
-  const handleCskhSimulate = () => {
-    setSymptoms('Khách hàng báo da đổ nhiều dầu vùng chữ T, có mụn viêm sưng đỏ. (Đã được CSKH khai thác)');
-    setIsChatOpen(false);
-    alert('CSKH đã cập nhật hồ sơ thành công! Bạn có thể đặt lịch.');
+  const triggerGlobalChat = () => {
+     const event = new CustomEvent('open_cskh_chat');
+     window.dispatchEvent(event);
   };
 
   return (
@@ -163,7 +136,7 @@ export default function DoctorBookingPage() {
           <h2 className="text-2xl font-bold text-success flex justify-center items-center gap-2">
             <CheckCircle className="w-8 h-8"/> Đặt Lịch Thành Công!
           </h2>
-          <p>Lịch <b>{appointmentType === 'OFFLINE' ? 'Khám trực tiếp' : 'Tư vấn Online'}</b> với Bác sĩ lúc <b>{slot}</b> ngày <b>{date}</b> đã được lưu vào hệ thống.</p>
+          <p>Lịch <b>{appointmentType === 'OFFLINE' ? 'Khám trực tiếp' : 'Tư vấn Online'}</b> với Bác sĩ lúc <b>{slot}</b> ngày <b>{dayjs(date).format('DD/MM/YYYY')}</b> đã được lưu vào hệ thống.</p>
           
           {appointmentType === 'OFFLINE' ? (
              <div className="bg-base-200 p-6 rounded-xl inline-block mx-auto border-2 border-dashed border-base-300">
@@ -178,7 +151,7 @@ export default function DoctorBookingPage() {
             </div>
           )}
 
-          <button onClick={() => navigate('/appointments')} className="btn btn-primary mt-4">Xem sổ khám bệnh</button>
+          <button onClick={() => navigate('/client-appointments')} className="btn btn-primary mt-4">Xem sổ khám bệnh</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -197,24 +170,50 @@ export default function DoctorBookingPage() {
                </div>
             </div>
 
-            {/* BẮT BUỘC ĐIỀN HỒ SƠ NẾU ONLINE */}
+            {/* FORM KHAI THÁC THÔNG TIN (ONLINE) */}
             {appointmentType === 'ONLINE' && (
               <div className="card bg-info/5 p-6 shadow-xl border border-info">
                 <h3 className="font-bold text-info flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-5 h-5"/> Hồ sơ y tế (Bắt buộc cho Tư vấn Online)
+                  <AlertCircle className="w-5 h-5"/> Khai thác thông tin sơ bộ
                 </h3>
-                <p className="text-sm opacity-80 mb-4">Để bác sĩ có thể chuẩn bị phác đồ chuẩn xác qua video, vui lòng mô tả tình trạng da hiện tại của bạn.</p>
-                <textarea 
-                  className="textarea textarea-bordered w-full h-24" 
-                  placeholder="Ví dụ: Da tôi dạo này nổi nhiều mụn sưng đỏ ở cằm..." 
-                  value={symptoms} 
-                  onChange={(e) => setSymptoms(e.target.value)}
-                ></textarea>
+                <p className="text-sm opacity-80 mb-4">Dữ liệu này sẽ được chuyển thẳng cho Bác sĩ. Bạn cũng có thể nhờ CSKH hỗ trợ trực tiếp nếu cần.</p>
                 
-                <div className="mt-4 p-4 bg-white rounded-lg flex justify-between items-center shadow-sm">
-                  <span className="text-sm font-medium text-gray-600">Bạn gặp khó khăn khi diễn tả tình trạng?</span>
-                  <button onClick={() => setIsChatOpen(true)} className="btn btn-sm btn-info text-white gap-2">
-                    <MessageSquare className="w-4 h-4"/> Chat nhờ CSKH hỗ trợ
+                <div className="space-y-4">
+                  <div>
+                     <label className="label text-sm font-medium pb-1 text-blue-900">Tình trạng da hiện tại của bạn? *</label>
+                     <textarea 
+                        className="textarea textarea-bordered w-full h-16" 
+                        placeholder="Ví dụ: Da đỏ, có mụn viêm sưng, nhiều dầu nhờn..." 
+                        value={skinCondition} 
+                        onChange={(e) => setSkinCondition(e.target.value)}
+                     ></textarea>
+                  </div>
+                  <div>
+                     <label className="label text-sm font-medium pb-1 text-blue-900">Các sản phẩm bạn đang dùng (nếu có)?</label>
+                     <input 
+                        type="text" 
+                        className="input input-bordered w-full" 
+                        placeholder="Ví dụ: Sữa rửa mặt Cerave, Nước tẩy trang Bioderma..."
+                        value={currentProducts}
+                        onChange={(e) => setCurrentProducts(e.target.value)}
+                     />
+                  </div>
+                  <div>
+                     <label className="label text-sm font-medium pb-1 text-blue-900">Bạn có đang bị dị ứng hay dùng thuốc gì không?</label>
+                     <input 
+                        type="text" 
+                        className="input input-bordered w-full" 
+                        placeholder="Không có / Có dùng thuốc..."
+                        value={allergies}
+                        onChange={(e) => setAllergies(e.target.value)}
+                     />
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-info/20 flex flex-col md:flex-row justify-between items-center gap-3">
+                  <span className="text-sm font-medium text-blue-800">Cần nhân viên hỗ trợ phân tích và ghi nhận hồ sơ?</span>
+                  <button onClick={triggerGlobalChat} className="btn btn-sm btn-info text-white gap-2">
+                    <MessageSquare className="w-4 h-4"/> Nhờ CSKH Ghi Nhận
                   </button>
                 </div>
               </div>
@@ -241,7 +240,7 @@ export default function DoctorBookingPage() {
               </div>
             </div>
             
-            {/* CHỌN NGÀY VÀ GIỜ (Logic Giờ trống) */}
+            {/* CHỌN NGÀY VÀ GIỜ */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
               <h2 className="font-bold text-lg flex items-center gap-2 mb-4"><Calendar/> Chọn Ngày & Giờ trống</h2>
               <input type="date" value={date} min={new Date().toISOString().split('T')[0]} onChange={e => setDate(e.target.value)} className="input input-bordered w-full mb-4" />
@@ -249,7 +248,7 @@ export default function DoctorBookingPage() {
               {!selectedDoc ? (
                 <p className="text-sm text-warning italic">Vui lòng chọn Bác sĩ để xem giờ trống.</p>
               ) : availableSlots.length === 0 ? (
-                <p className="text-sm text-error italic">Bác sĩ không có lịch làm việc hoặc đã kín lịch vào ngày này.</p>
+                <p className="text-sm text-error italic">Bác sĩ không có lịch làm việc hoặc đã kín lịch/qua giờ vào ngày này.</p>
               ) : (
                 <div className="grid grid-cols-4 gap-2">
                   {availableSlots.map(s => (
@@ -268,7 +267,7 @@ export default function DoctorBookingPage() {
             <div className="text-sm space-y-2 opacity-80">
               <p>Loại: <b>{appointmentType === 'OFFLINE' ? 'Trực tiếp' : 'Online'}</b></p>
               <p>Bác sĩ: <b>{selectedDoc?.Profile?.full_name || 'Chưa chọn'}</b></p>
-              <p>Ngày: <b>{date}</b></p>
+              <p>Ngày: <b>{dayjs(date).format('DD/MM/YYYY')}</b></p>
               <p>Giờ: <b>{slot || 'Chưa chọn'}</b></p>
             </div>
             
@@ -296,24 +295,6 @@ export default function DoctorBookingPage() {
             >
               {status === 'PAYMENT_PROCESSING' ? <span className="loading loading-spinner"></span> : 'Xác nhận Đặt lịch'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CHAT CSKH */}
-      {isChatOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-base-100 p-6 rounded-2xl w-[400px] shadow-2xl">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-info"><MessageSquare/> Trợ lý CSKH O2O</h3>
-            <div className="h-48 bg-base-200 rounded-lg p-4 mb-4 flex flex-col gap-2 overflow-y-auto text-sm">
-              <div className="bg-white p-2 rounded-lg max-w-[80%] border">Xin chào! Em có thể giúp gì cho tình trạng da của chị ạ?</div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <button onClick={handleCskhSimulate} className="btn btn-primary w-full gap-2">
-                <CheckCircle className="w-4 h-4"/> Mô phỏng: CSKH đã cập nhật hồ sơ
-              </button>
-              <button onClick={() => setIsChatOpen(false)} className="btn btn-ghost w-full">Đóng</button>
-            </div>
           </div>
         </div>
       )}

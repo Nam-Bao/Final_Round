@@ -267,4 +267,32 @@ const getDoctorShifts = async (req, res) => {
   }
 };
 
-module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests, getDoctorShifts };
+// --- API dành riêng cho Nhân viên (CSKH, Lễ tân...) tự lấy lịch làm việc ---
+const getEmployeeShifts = async (req, res) => {
+  try {
+    const { employeeId, date } = req.query;
+
+    if (!employeeId) return res.status(400).json({ message: 'Vui lòng cung cấp ID nhân viên' });
+
+    let whereClause = {
+      employee_id: employeeId,
+      status: 'SCHEDULED' 
+    };
+    
+    // Nếu có truyền ngày lên thì lọc theo ngày đó
+    if (date) {
+      whereClause.date = date;
+    }
+
+    const shifts = await WorkShift.findAll({ 
+      where: whereClause,
+      attributes: ['date', 'shift_type'] 
+    });
+
+    res.status(200).json({ data: shifts });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy ca làm nhân viên', error: error.message });
+  }
+};
+
+module.exports = { getShifts, createShifts, deleteShift, getMyShifts, createShiftRequest, getShiftRequests, handleShiftRequest, getMyShiftRequests, getDoctorShifts, getEmployeeShifts };
