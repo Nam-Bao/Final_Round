@@ -18,25 +18,37 @@ import ProfilePage from './pages/ProfilePage';
 
 // ====== CẤU HÌNH AI ======
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
 const MODEL_NAMES = [
   import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash-lite',
   import.meta.env.VITE_GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite',
 ].filter((name, index, arr) => name && arr.indexOf(name) === index);
+
 const SYSTEM_PROMPT = `Bạn là nhân viên tư vấn nhiệt tình của phòng khám da liễu GlowSkin O2O...`;
+
 const genAI = new GoogleGenerativeAI(API_KEY || '');
+
 const getModel = (name) =>
-  genAI.getGenerativeModel({ model: name, systemInstruction: SYSTEM_PROMPT, generationConfig: { maxOutputTokens: 1024, temperature: 0.7 } });
+  genAI.getGenerativeModel({
+    model: name,
+    systemInstruction: SYSTEM_PROMPT,
+    generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+  });
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function startStream(contents) {
   let lastError;
   for (const name of MODEL_NAMES) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { return await getModel(name).generateContentStream({ contents }); } 
-      catch (err) {
+    // FIX 1: Giảm số lần retry xuống 2 lần để tránh treo UI quá lâu khi server Google bị lỗi 503
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await getModel(name).generateContentStream({ contents });
+      } catch (err) {
         lastError = err;
         const canRetry = err.status === 503 || err.status === 429 || /overload|high demand|unavailable/i.test(err.message || '');
         if (!canRetry) throw err; 
-        await sleep(1000 * (attempt + 1)); 
+        await sleep(1000); // Giảm thời gian chờ giữa các lần thử
       }
     }
   }
@@ -59,18 +71,17 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
-  // CÓ 3 TRẠNG THÁI: 'AI' (Bình thường), 'WAITING' (Chờ nối máy), 'HUMAN' (Đang chat với người)
   const [chatMode, setChatMode] = useState('AI'); 
   const [socket, setSocket] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [outOfOffice, setOutOfOffice] = useState(false); 
 
   const user = useAuthStore((state) => state.user); 
+
   const [messages, setMessages] = useState([
     { id: 1, sender: 'cs', text: 'Chào bạn! Kỹ thuật viên GlowSkin có thể giúp gì cho bạn hôm nay?' }
   ]);
 
-  // YÊU CẦU 4: DỌN DẸP KHUNG CHAT KHI ĐĂNG XUẤT
   useEffect(() => {
     if (!user) {
       setMessages([{ id: 1, sender: 'cs', text: 'Chào bạn! Kỹ thuật viên GlowSkin có thể giúp gì cho bạn hôm nay?' }]);
@@ -97,6 +108,9 @@ function App() {
   }, [messages, isChatOpen, isLoading, outOfOffice]);
 
   const handleSwitchToHuman = () => {
+    // FIX 2: Bất kể AI đang kẹt hay không, ép mở khóa UI ngay lập tức khi chuyển chế độ
+    setIsLoading(false); 
+
     if (!isWorkingHour()) {
        setOutOfOffice(true);
        setMessages(prev => [...prev, { 
@@ -106,7 +120,7 @@ function App() {
        return;
     }
 
-    setChatMode('WAITING'); // Chuyển sang trạng thái Đang chờ
+    setChatMode('WAITING'); 
     const newSocket = io('http://localhost:4001'); 
     setSocket(newSocket);
     
@@ -114,7 +128,7 @@ function App() {
     newSocket.emit('request_human_chat', { customerId: user?.id || null });
   
     newSocket.on('chat_accepted', (data) => {
-       setChatMode('HUMAN'); // CSKH đã vào -> Chuyển sang chế độ Người thật
+       setChatMode('HUMAN'); 
        setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.message, isSystem: true }]);
        setCurrentSessionId(data.sessionId); 
     });
@@ -123,9 +137,8 @@ function App() {
        setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: msg, isSystem: true }]);
     });
 
-    // YÊU CẦU 2: NHẬN TÍN HIỆU ĐÓNG PHIÊN CHUẨN XÁC TỪ BACKEND
     newSocket.on('session_closed', () => {
-       setChatMode('AI'); // Trả lại chế độ AI -> Nút Gặp CSKH sẽ hiện lại
+       setChatMode('AI'); 
        if(newSocket) newSocket.disconnect();
        setSocket(null);
        setCurrentSessionId(null);
@@ -146,7 +159,6 @@ function App() {
 
     if (outOfOffice) setOutOfOffice(false);
 
-    // YÊU CẦU 3: NẾU LÀ 'HUMAN' THÌ GỬI LÊN SOCKET, CÒN NẾU 'WAITING' HAY 'AI' THÌ CHO GEMINI XỬ LÝ
     if (chatMode === 'HUMAN' && socket && currentSessionId) {
       socket.emit('send_message', { 
          sessionId: currentSessionId, senderType: 'CUSTOMER', content: userText 
@@ -178,7 +190,7 @@ function App() {
       } catch (error) {
         setMessages((prev) => [...prev, {
             id: Date.now() + 2, sender: 'cs', isError: true,
-            text: 'Hệ thống đang bận, bạn đợi chút nhé!',
+            text: 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
         }]);
       } finally {
         setIsLoading(false);
@@ -247,7 +259,6 @@ function App() {
               </div>
 
               <div className="p-2 bg-base-100 border-t flex flex-col gap-2">
-                 {/* NÚT CHUYỂN CSKH: Ẩn đi khi đang chờ hoặc đang chat với người thật */}
                  {chatMode === 'AI' && !outOfOffice && (
                    <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
                       <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
@@ -265,9 +276,10 @@ function App() {
                       onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                       placeholder={chatMode === 'AI' || chatMode === 'WAITING' ? "Hỏi AI..." : "Nhắn CSKH..."}
                       className="input input-bordered input-sm flex-1"
-                      disabled={isLoading}
+                      /* FIX 3: Chỉ khóa ô chat khi người dùng đang ở chế độ AI thuần. Nếu là Human hoặc Đang Waiting thì luôn được gõ */
+                      disabled={isLoading && chatMode === 'AI'} 
                     />
-                    <button className="btn btn-primary btn-sm btn-circle" onClick={handleSendMessage} disabled={isLoading}>
+                    <button className="btn btn-primary btn-sm btn-circle" onClick={handleSendMessage} disabled={isLoading && chatMode === 'AI'}>
                       <Send className="w-4 h-4" />
                     </button>
                  </div>
