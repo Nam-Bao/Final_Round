@@ -4,7 +4,7 @@ import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutl
 import axios from 'axios';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import { useLocation } from 'react-router-dom'; // BẮT BUỘC ĐỂ NHẬN DỮ LIỆU TỪ CHAT WIDGET
+import { useLocation } from 'react-router-dom'; 
 dayjs.extend(isSameOrBefore);
 
 const { Title, Text } = Typography;
@@ -24,7 +24,7 @@ export default function AppointmentManagementPage() {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   
-  const location = useLocation(); // Sử dụng useLocation
+  const location = useLocation(); 
 
   const fetchData = async () => {
     try {
@@ -49,9 +49,7 @@ export default function AppointmentManagementPage() {
     fetchData();
   }, []);
   
-  // --- TÍNH NĂNG AUTO-FILL TỪ WIDGET CHAT ---
   useEffect(() => {
-      // Nếu AdminLayout bấm nút "+ Tạo Lịch" và truyền state sang
       if (location.state?.autoFillCustomerId) {
          setEditingAppointment(null);
          form.resetFields();
@@ -138,6 +136,7 @@ export default function AppointmentManagementPage() {
     return [...aptReminders, ...followUpReminders].sort((a, b) => dayjs(a.date).unix() - dayjs(b.date).unix());
   };
 
+  // TÙY CHỈNH MÀU DẤU CHẤM THEO TRẠNG THÁI VÀ LOẠI KHÁM
   const dateCellRender = (value) => {
     const dateStr = value.format('YYYY-MM-DD');
     const listData = (appointments || []).filter(apt => apt.appointment_date === dateStr && apt.status !== 'CANCELLED');
@@ -145,9 +144,16 @@ export default function AppointmentManagementPage() {
     return (
       <ul className="events p-0 m-0 list-none">
         {listData.map(item => {
-           let color = 'default';
-           if (item.status === 'CONFIRMED') color = 'processing';
-           if (item.type === 'FOLLOW_UP') color = 'warning';
+           let color = 'default'; // Mặc định xám (Chưa khám/Sắp tới)
+           
+           // Ưu tiên màu xanh cho lịch đã hoàn thành/chờ sale
+           if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') {
+               color = 'processing'; // Xanh nước biển
+           } 
+           // Nếu chưa xong mà là lịch tái khám thì màu vàng
+           else if (item.type === 'FOLLOW_UP') {
+               color = 'warning'; // Vàng
+           }
            
            const custName = customers.find(c => c.id === item.customer_id)?.Profile?.full_name || 'Khách';
            const timeStr = item.appointment_time ? String(item.appointment_time).slice(0,5) : '--:--';
@@ -269,12 +275,23 @@ export default function AppointmentManagementPage() {
     }
   };
 
+  // KIỂM TRA QUYỀN SỬA ĐỔI: Khóa Form nếu đã qua bước Khám bệnh
+  const isReadOnly = editingAppointment && (editingAppointment.status === 'WAITING_FOR_SALE' || editingAppointment.status === 'COMPLETED');
+
   return (
     <Row gutter={16} className="h-[85vh]">
       <Col span={18} className="h-full">
         <Card variant="borderless" className="h-full shadow-sm overflow-y-auto" styles={{ body: { padding: 10 } }}>
           <div className="flex justify-between items-center mb-4 p-2">
             <Title level={4} className="m-0 text-blue-800"><CalendarOutlined className="mr-2"/> Lịch Khám & Dịch vụ</Title>
+            
+            {/* THÊM THANH GHI CHÚ MÀU (LEGEND) CHO CSKH DỄ NHÌN */}
+            <Space className="text-xs font-medium bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+               <span><Badge status="processing" /> Đã khám xong</span>
+               <span><Badge status="warning" /> Tái khám</span>
+               <span><Badge status="default" /> Sắp tới / Chưa khám</span>
+            </Space>
+
             <Button type="primary" icon={<PlusOutlined />} onClick={() => handleSelectDate(dayjs())}>Tạo Lịch Mới</Button>
           </div>
           <Calendar cellRender={cellRender} onSelect={handleSelectDate} className="custom-calendar" />
@@ -329,7 +346,14 @@ export default function AppointmentManagementPage() {
         footer={null}
         width={700}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ method: 'OFFLINE', type: 'NEW_EXAM' }}>
+        {isReadOnly && (
+           <div className="mb-4 p-3 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-sm flex gap-2">
+              <AlertOutlined className="mt-1" />
+              <p>Khách hàng này <b>đã khám xong</b>. Dữ liệu đã được bác sĩ lưu vào bệnh án nên không thể chỉnh sửa hoặc hủy lịch nữa.</p>
+           </div>
+        )}
+
+        <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ method: 'OFFLINE', type: 'NEW_EXAM' }} disabled={isReadOnly}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="customer_id" label="Khách hàng" rules={[{ required: true, message: 'Hãy chọn khách hàng' }]}>
@@ -407,7 +431,7 @@ export default function AppointmentManagementPage() {
           </Form.Item>
 
           <div className="flex justify-between items-center mt-6">
-            {editingAppointment ? (
+            {editingAppointment && !isReadOnly ? (
               <Popconfirm title="Bạn có chắc muốn HỦY lịch này?" onConfirm={() => handleDelete(editingAppointment.id)}>
                 <Button danger type="text" icon={<DeleteOutlined />}>Hủy Lịch</Button>
               </Popconfirm>
@@ -415,7 +439,8 @@ export default function AppointmentManagementPage() {
             
             <Space>
               <Button onClick={() => setIsModalVisible(false)}>Đóng</Button>
-              <Button type="primary" htmlType="submit" loading={loading}>Lưu Lịch Hẹn</Button>
+              {/* CHỈ HIỆN NÚT LƯU NẾU CHƯA KHÁM XONG */}
+              {!isReadOnly && <Button type="primary" htmlType="submit" loading={loading}>Lưu Lịch Hẹn</Button>}
             </Space>
           </div>
         </Form>
