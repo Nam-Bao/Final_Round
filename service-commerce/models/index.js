@@ -15,8 +15,10 @@ const Product = sequelize.define('Product', {
   type: { type: DataTypes.ENUM('PRODUCT', 'MATERIAL'), allowNull: false },
   price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   stock_quantity: { type: DataTypes.INTEGER, defaultValue: 0 },
-  // THÊM MỚI: Khóa ngoại liên kết với bảng Category
-  category_id: { type: DataTypes.UUID, allowNull: true } 
+  category_id: { type: DataTypes.UUID, allowNull: true },
+  start_date: { type: DataTypes.DATE, allowNull: false },
+  end_date: { type: DataTypes.DATE, allowNull: false },
+  image_url: { type: DataTypes.JSONB }, 
 });
 
 const Order = sequelize.define('Order', {
