@@ -15,6 +15,7 @@ import AppointmentHistoryPage from './pages/AppointmentHistoryPage';
 import TreatmentPackagesPage from './pages/TreatmentPackagesPage';
 import PharmacyOrdersPage from './pages/PharmacyOrdersPage';
 import ProfilePage from './pages/ProfilePage';
+import PaymentPage from './pages/PaymentPage';
 
 // ====== CẤU HÌNH AI ======
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -212,6 +213,7 @@ function App() {
             <Route path="/treatments" element={<ProtectedRoute><TreatmentPackagesPage /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><PharmacyOrdersPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
             <Route path="/contact" element={<div className="text-center p-20 text-xl font-bold">Trang Liên hệ Hotline: 1900 xxxx</div>} />
             <Route path="/services" element={<div className="text-center p-20 text-xl font-bold opacity-50">Trang Dịch Vụ</div>} />
             <Route path="/news" element={<div className="text-center p-20 text-xl font-bold opacity-50">Trang Tin Tức</div>} />

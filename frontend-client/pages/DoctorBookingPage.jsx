@@ -16,9 +16,11 @@ export default function DoctorBookingPage() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slot, setSlot] = useState('');
   
+  // STATE MỚI: LƯU TRỮ CÁC GIỜ ĐÃ BỊ ĐẶT VÀ GIỜ ĐÃ QUA ĐỂ ĐỔI MÀU
+  const [disabledSlots, setDisabledSlots] = useState([]);
+
   const [appointmentType, setAppointmentType] = useState('OFFLINE'); 
   
-  // STATE CHUYÊN DỤNG CHO BỆNH ÁN SƠ BỘ TỰ ĐỘNG
   const [skinCondition, setSkinCondition] = useState('');
   const [currentProducts, setCurrentProducts] = useState('');
   const [allergies, setAllergies] = useState('');
@@ -72,25 +74,47 @@ export default function DoctorBookingPage() {
         const selectedDate = dayjs(date);
         const isToday = selectedDate.isSame(now, 'day');
 
-        const freeSlots = slots.filter(time => {
-           if (takenTimes.includes(`${time}:00`)) return false;
-           if (isToday && dayjs(`${date} ${time}`, 'YYYY-MM-DD HH:mm').isBefore(now)) return false;
-           return true;
+        let freeSlotsArr = [];
+        let disabledSlotsArr = [];
+
+        // PHÂN LOẠI GIỜ TRỐNG VÀ GIỜ BỊ KHÓA
+        slots.forEach(time => {
+           let isDisabled = false;
+
+           // Khóa nếu đã có người đặt
+           if (takenTimes.includes(`${time}:00`)) {
+               isDisabled = true;
+           }
+           
+           // LOGIC KHÓA GIỜ ĐÃ QUA (So với hiện tại)
+           if (isToday) {
+               const slotTime = dayjs(`${date} ${time}`, 'YYYY-MM-DD HH:mm');
+               if (slotTime.isBefore(now)) {
+                   isDisabled = true;
+               }
+           }
+
+           if (isDisabled) {
+               disabledSlotsArr.push(time);
+           } else {
+               freeSlotsArr.push(time);
+           }
         });
-        setAvailableSlots(freeSlots);
+
+        setAvailableSlots(freeSlotsArr);
+        setDisabledSlots(disabledSlotsArr); // Lưu danh sách các giờ cần bôi đen
+
       } catch (error) { console.error('Lỗi lấy giờ trống', error); }
     };
     fetchAvailability();
   }, [selectedDoc, date]);
 
-  // XỬ LÝ ĐẶT LỊCH: GOM DỮ LIỆU ĐỂ BÁC SĨ XEM
   const handleSaveAppointment = async () => {
     if (appointmentType === 'ONLINE' && !skinCondition.trim()) {
       alert('Vui lòng cung cấp tình trạng da ban đầu hoặc nhờ CSKH hỗ trợ điền!');
       return;
     }
 
-    // Tự động gom 3 ô thành 1 Bệnh án sơ bộ gửi thẳng cho bác sĩ
     let finalSymptoms = '';
     if (appointmentType === 'ONLINE') {
        finalSymptoms = `[TÌNH TRẠNG DA]: ${skinCondition}\n[SẢN PHẨM ĐANG DÙNG]: ${currentProducts || 'Không rõ'}\n[DỊ ỨNG/THUỐC]: ${allergies || 'Không rõ'}`;
@@ -103,7 +127,7 @@ export default function DoctorBookingPage() {
         doctor_id: selectedDoc.id,
         appointment_date: date,
         appointment_time: `${slot}:00`,
-        symptoms: finalSymptoms, // CHUYỂN THẲNG LÊN DB
+        symptoms: finalSymptoms, 
         pre_notes: `[Khám ${appointmentType}] ${isOldCustomer ? 'Khách cũ (Miễn phí)' : 'Khách mới (100k)'}`
       };
 
@@ -114,7 +138,8 @@ export default function DoctorBookingPage() {
       });
 
       if (!res.ok) throw new Error('Không thể tạo lịch hẹn');
-      setStatus('APPOINTMENT_CONFIRMED');
+      const resData = await res.json(); 
+      navigate(`/payment/${resData.data.id}?fee=${fee}&type=${appointmentType}`);
     } catch (error) {
       console.error(error);
       alert('Đã có lỗi xảy ra khi đặt lịch!');
@@ -126,6 +151,39 @@ export default function DoctorBookingPage() {
      const event = new CustomEvent('open_cskh_chat');
      window.dispatchEvent(event);
   };
+
+  // HÀM RENDER NÚT CHỌN GIỜ ĐỂ DỄ DÀNG KIỂM SOÁT STYLE
+  const renderSlotButton = (s, isDisabled = false) => {
+    let btnClass = 'btn btn-sm ';
+    
+    if (isDisabled) {
+        // GIỜ ĐÃ BỊ ĐẶT HOẶC ĐÃ QUA: Nền xám, chữ mờ, không bấm được
+        btnClass += 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed opacity-70';
+    } else if (slot === s) {
+        // GIỜ ĐANG ĐƯỢC CHỌN: Nền xanh lá (success), chữ trắng
+        btnClass += 'btn-success text-white border-success';
+    } else {
+        // GIỜ TRỐNG (MẶC ĐỊNH): Viền nhạt, nền trắng
+        btnClass += 'btn-outline border-gray-300 text-gray-700 hover:bg-gray-100';
+    }
+
+    return (
+        <button 
+            key={s} 
+            onClick={() => !isDisabled && setSlot(s)} 
+            disabled={isDisabled}
+            className={btnClass}
+            title={isDisabled ? "Giờ này đã được đặt hoặc đã trôi qua" : "Bấm để chọn giờ này"}
+        >
+          <Clock className="w-3 h-3"/> {s}
+        </button>
+    );
+  };
+
+  // GỘP CẢ GIỜ TRỐNG VÀ GIỜ BỊ KHÓA LẠI ĐỂ HIỂN THỊ ĐỦ TRÊN LƯỚI THEO THỨ TỰ THỜI GIAN
+  const allDisplaySlots = [...availableSlots, ...disabledSlots].sort((a, b) => {
+      return a.localeCompare(b);
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 relative">
@@ -242,21 +300,24 @@ export default function DoctorBookingPage() {
             
             {/* CHỌN NGÀY VÀ GIỜ */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
-              <h2 className="font-bold text-lg flex items-center gap-2 mb-4"><Calendar/> Chọn Ngày & Giờ trống</h2>
+              <h2 className="font-bold text-lg flex items-center gap-2 mb-4"><Calendar/> Chọn Ngày & Giờ</h2>
               <input type="date" value={date} min={new Date().toISOString().split('T')[0]} onChange={e => setDate(e.target.value)} className="input input-bordered w-full mb-4" />
               
               {!selectedDoc ? (
-                <p className="text-sm text-warning italic">Vui lòng chọn Bác sĩ để xem giờ trống.</p>
-              ) : availableSlots.length === 0 ? (
-                <p className="text-sm text-error italic">Bác sĩ không có lịch làm việc hoặc đã kín lịch/qua giờ vào ngày này.</p>
+                <p className="text-sm text-warning italic">Vui lòng chọn Bác sĩ để xem lịch làm việc.</p>
+              ) : allDisplaySlots.length === 0 ? (
+                <p className="text-sm text-error italic">Bác sĩ không có lịch làm việc vào ngày này.</p>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {availableSlots.map(s => (
-                    <button key={s} onClick={() => setSlot(s)} className={`btn btn-sm ${slot === s ? 'btn-primary' : 'btn-outline'}`}>
-                      <Clock className="w-3 h-3"/> {s}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="flex gap-4 mb-4 text-xs font-medium text-gray-500">
+                     <span className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-300 rounded-sm"></div> Trống</span>
+                     <span className="flex items-center gap-1"><div className="w-3 h-3 bg-success rounded-sm"></div> Đang chọn</span>
+                     <span className="flex items-center gap-1"><div className="w-3 h-3 bg-gray-200 rounded-sm"></div> Đã đặt / Đã qua</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {allDisplaySlots.map(s => renderSlotButton(s, disabledSlots.includes(s)))}
+                  </div>
+                </>
               )}
             </div>
           </div>

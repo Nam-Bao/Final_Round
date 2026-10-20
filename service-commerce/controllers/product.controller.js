@@ -16,9 +16,9 @@ const getProducts = async (req, res) => {
 // 2. Thêm Sản phẩm (Chỉ Admin)
 const createProduct = async (req, res) => {
   try {
-    const { name, type, price, stock_quantity, category_id } = req.body;
+    const { name, type, price, stock_quantity, category_id, start_date, end_date, image_url } = req.body;
     const newProduct = await Product.create({ 
-      name, type, price, stock_quantity, category_id 
+      name, type, price, stock_quantity, category_id, start_date, end_date, image_url 
     });
     res.status(201).json({ message: 'Thêm sản phẩm thành công', data: newProduct });
   } catch (error) {

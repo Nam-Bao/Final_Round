@@ -1,5 +1,6 @@
 const { WorkShift, ShiftRequest, Appointment } = require('../models');
 const { Op } = require('sequelize');
+const dayjs = require('dayjs');
 
 // 1. Lấy danh sách ca làm việc theo tuần/tháng
 const getShifts = async (req, res) => {
@@ -70,20 +71,19 @@ const getMyShifts = async (req, res) => {
   try {
     const myId = req.user.id; 
     
-    // Tối ưu: Chỉ Query các ca làm việc từ hôm nay trở về sau (giảm tải DB)
-    const today = new Date().toISOString().split('T')[0];
+    // Tối ưu: Chỉ Query các ca làm việc từ tuần này trở về sau (giảm tải DB)
+    const startOfWeek = dayjs().startOf('isoWeek').format('YYYY-MM-DD');
 
     const shifts = await WorkShift.findAll({
       where: { 
         employee_id: myId,
-        date: { [Op.gte]: today } // gte: Greater than or equal (Lớn hơn hoặc bằng)
+        date: { [Op.gte]: startOfWeek } // Lấy từ đầu tuần để vẽ lưới đầy đủ
       }, 
       order: [['date', 'ASC']]
     });
     
     // Đếm số lượng khách hẹn trong từng ca (Map & Count)
     const mappedShifts = await Promise.all(shifts.map(async (shift) => {
-      // 1. Xác định khung giờ của ca làm đó
       let startTime = '00:00:00';
       let endTime = '23:59:59';
       
@@ -91,17 +91,15 @@ const getMyShifts = async (req, res) => {
       else if (shift.shift_type === 'AFTERNOON') { startTime = '13:00:00'; endTime = '17:00:59'; }
       else if (shift.shift_type === 'EVENING') { startTime = '18:00:00'; endTime = '22:00:59'; }
 
-      // 2. Đếm số lịch hẹn của Bác sĩ này, trong ngày này, nằm trong khung giờ này
       const count = await Appointment.count({
         where: {
           doctor_id: myId,
           appointment_date: shift.date,
           appointment_time: { [Op.between]: [startTime, endTime] },
-          status: { [Op.notIn]: ['CANCELLED'] } // Bỏ qua các đơn đã bị khách hủy
+          status: { [Op.notIn]: ['CANCELLED'] } 
         }
       });
 
-      // 3. Trả về object ca làm gốc + nhồi thêm biến đếm
       return {
         ...shift.toJSON(),
         appointment_count: count 
