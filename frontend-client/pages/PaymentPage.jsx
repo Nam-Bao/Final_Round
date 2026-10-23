@@ -64,7 +64,7 @@ export default function PaymentPage() {
     return (
       <div className="max-w-xl mx-auto mt-10 text-center space-y-6 animate-fade-in-up">
         <CheckCircle className="w-20 h-20 text-success mx-auto" />
-        <h1 className="text-3xl font-bold text-slate-800">Thanh Toán & Đặt Lịch Thành Công!</h1>
+        <h1 className="text-3xl font-bold text-slate-800">Đặt Lịch Thành Công!</h1>
         <p className="text-slate-600">Lịch hẹn của bạn đã được chốt và gửi đến Bác sĩ.</p>
         <button onClick={() => navigate('/appointments')} className="btn btn-primary mt-4">
           Vào Sổ Y Bạ của bạn <ArrowRight className="w-4 h-4"/>

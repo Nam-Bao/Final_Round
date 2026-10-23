@@ -16,6 +16,7 @@ import SpaServicesPage from './pages/SpaServicesPage';
 import PromotionsPage from './pages/PromotionsPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import AppointmentManagementPage from './pages/AppointmentManagementPage';
+import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/customer-profiles" element={<CustomerProfilePage />} />
           <Route path="/appointment-management" element={<AppointmentManagementPage />} />
+          <Route path="/consultant-checkout" element={<ConsultantCheckoutPage />} />
           <Route path="/page-info" element={<div className="p-4 text-xl font-bold">Trang Quản lý Thông tin hệ thống</div>} />
         </Route>
       </Routes>

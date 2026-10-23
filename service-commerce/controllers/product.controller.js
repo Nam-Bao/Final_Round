@@ -48,4 +48,23 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct };
+// 5. Trừ tồn kho (Gọi từ Booking Service khi Checkout)
+const deductInventory = async (req, res) => {
+  try {
+    const { product_ids } = req.body; 
+    if (!product_ids || product_ids.length === 0) return res.status(200).json({ message: 'Không có sản phẩm để trừ' });
+
+    for (const id of product_ids) {
+      const product = await Product.findByPk(id);
+      if (product && product.stock_quantity > 0) {
+        product.stock_quantity -= 1; // Mỗi món mua số lượng 1
+        await product.save();
+      }
+    }
+    res.status(200).json({ message: 'Đã trừ tồn kho thành công' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi trừ tồn kho', error: error.message });
+  }
+};
+
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct, deductInventory };

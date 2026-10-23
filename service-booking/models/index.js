@@ -1,26 +1,23 @@
 const { Sequelize, DataTypes } = require('sequelize');
-// Kết nối PostgreSQL (Cổng 5433)
 const sequelize = new Sequelize('booking_db', 'postgres', 'password', { host: 'localhost', port: 5433, dialect: 'postgres' });
 
-// 1. BẢNG GÓI LỘ TRÌNH (Đã được nâng cấp các trường mới)
 const TreatmentPackage = sequelize.define('TreatmentPackage', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
-  thumbnail_url: { type: DataTypes.STRING }, // Link ảnh đại diện
+  thumbnail_url: { type: DataTypes.STRING }, 
   price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-  promotional_price: { type: DataTypes.DECIMAL(10, 2) }, // Giá khuyến mãi
-  total_sessions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }, // Tổng số buổi
-  interval_days: { type: DataTypes.INTEGER, defaultValue: 7 }, // Khoảng cách giữa các buổi (ngày)
-  validity_days: { type: DataTypes.INTEGER, defaultValue: 90 }, // Hạn sử dụng gói (ngày) thay cho duration_days cũ
-  included_products: { type: DataTypes.JSONB, defaultValue: [] }, // Mảng chứa ID Dược mỹ phẩm đi kèm
-  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' } // Trạng thái bán
+  promotional_price: { type: DataTypes.DECIMAL(10, 2) }, 
+  total_sessions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }, 
+  interval_days: { type: DataTypes.INTEGER, defaultValue: 7 }, 
+  validity_days: { type: DataTypes.INTEGER, defaultValue: 90 }, 
+  included_products: { type: DataTypes.JSONB, defaultValue: [] }, 
+  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' } 
 });
 
-// 2. CÁC BẢNG KHÁC (Được giữ nguyên vẹn để dùng sau này)
 const WorkShift = sequelize.define('WorkShift', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  employee_id: { type: DataTypes.UUID, allowNull: false }, // Soft link to Identity
+  employee_id: { type: DataTypes.UUID, allowNull: false }, 
   date: { type: DataTypes.DATEONLY, allowNull: false },
   shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING') },
   status: { type: DataTypes.ENUM('SCHEDULED', 'ATTENDED', 'ABSENT') }
@@ -31,12 +28,13 @@ const ShiftRequest = sequelize.define('ShiftRequest', {
   employee_id: { type: DataTypes.UUID, allowNull: false },
   reason: { type: DataTypes.STRING },
   status: { type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED'), defaultValue: 'PENDING' },
-  approved_by: { type: DataTypes.UUID } // Soft link to GEN_MANAGER
+  approved_by: { type: DataTypes.UUID } 
 });
 
 const Appointment = sequelize.define('Appointment', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false }, 
+  patient_profile_id: { type: DataTypes.UUID, allowNull: false }, 
   doctor_id: { type: DataTypes.UUID, allowNull: true },    
   consultant_id: { type: DataTypes.UUID, allowNull: true }, 
   appointment_date: { type: DataTypes.DATEONLY, allowNull: false }, 
@@ -47,14 +45,16 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.ENUM('PENDING_PAYMENT','PENDING', 'CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NEEDS_RESCHEDULE'), 
     defaultValue: 'PENDING_PAYMENT' 
   },
-  type: { 
-    type: DataTypes.ENUM('NEW_EXAM', 'FOLLOW_UP', 'TREATMENT'), 
-    defaultValue: 'NEW_EXAM' 
-  },
+  type: { type: DataTypes.ENUM('NEW_EXAM', 'FOLLOW_UP', 'TREATMENT'), defaultValue: 'NEW_EXAM' },
   symptoms: { type: DataTypes.TEXT }, 
+  pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] },
+  diagnosis: { type: DataTypes.STRING }, 
+  doctor_notes: { type: DataTypes.TEXT }, 
+  prescribed_services: { type: DataTypes.JSONB, defaultValue: [] }, 
+  prescribed_packages: { type: DataTypes.JSONB, defaultValue: [] }, 
+  prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] }
 });
 
-// --- THÊM MỚI: BẢNG NHẬT KÝ CHĂM SÓC KHÁCH HÀNG (FOLLOW-UP) ---
 const FollowUpLog = sequelize.define('FollowUpLog', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false },
@@ -71,7 +71,6 @@ const AppointmentReview = sequelize.define('AppointmentReview', {
   comment: { type: DataTypes.TEXT }
 });
 
-// --- BẢNG: KHÁCH HÀNG SỞ HỮU GÓI (Customer Package) ---
 const CustomerPackage = sequelize.define('CustomerPackage', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false },
@@ -81,7 +80,6 @@ const CustomerPackage = sequelize.define('CustomerPackage', {
   status: { type: DataTypes.ENUM('ACTIVE', 'COMPLETED', 'CANCELLED'), defaultValue: 'ACTIVE' }
 });
 
-// --- BẢNG: NHẬT KÝ LẦN LÀM DỊCH VỤ (Treatment Session) ---
 const TreatmentSession = sequelize.define('TreatmentSession', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_package_id: { type: DataTypes.UUID, allowNull: false }, 
@@ -92,7 +90,6 @@ const TreatmentSession = sequelize.define('TreatmentSession', {
   status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'SCHEDULED' }
 });
 
-// BẢNG DỊCH VỤ SPA LẺ 
 const SpaService = sequelize.define('SpaService', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false },
@@ -103,9 +100,17 @@ const SpaService = sequelize.define('SpaService', {
   status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
 });
 
-// =====================================
-// BẢNG MỚI: QUẢN LÝ TÀI CHÍNH (INVOICE & TRANSACTION)
-// =====================================
+// THÊM MỚI: BẢNG DỊCH VỤ LẺ (Dành cho khách không mua Gói)
+const ServiceSession = sequelize.define('ServiceSession', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customer_id: { type: DataTypes.UUID, allowNull: false },
+  spa_service_id: { type: DataTypes.UUID, allowNull: false },
+  technician_id: { type: DataTypes.UUID }, 
+  session_date: { type: DataTypes.DATEONLY, allowNull: false }, 
+  technician_note: { type: DataTypes.TEXT }, 
+  status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'WAITING' }
+});
+
 const Invoice = sequelize.define('Invoice', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false },
@@ -118,25 +123,26 @@ const Invoice = sequelize.define('Invoice', {
 const Transaction = sequelize.define('Transaction', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   invoice_id: { type: DataTypes.UUID, allowNull: false },
-  amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false }, // Số dương là thu, số âm là hoàn
+  amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   transaction_type: { type: DataTypes.ENUM('INCOME', 'REFUND'), allowNull: false },
   note: { type: DataTypes.STRING }
 });
 
-// 3. THIẾT LẬP QUAN HỆ (Relations)
+// Quan hệ Database
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
 Appointment.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
-
 WorkShift.hasMany(ShiftRequest, { foreignKey: 'from_shift_id' });
 Appointment.hasOne(AppointmentReview, { foreignKey: 'appointment_id' });
 
 CustomerPackage.hasMany(TreatmentSession, { foreignKey: 'customer_package_id' });
 TreatmentSession.belongsTo(CustomerPackage, { foreignKey: 'customer_package_id' });
-
 TreatmentPackage.hasMany(CustomerPackage, { foreignKey: 'package_id' });
 CustomerPackage.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
 
-// KHAI BÁO QUAN HỆ TÀI CHÍNH
+// Quan hệ cho Dịch vụ lẻ
+SpaService.hasMany(ServiceSession, { foreignKey: 'spa_service_id' });
+ServiceSession.belongsTo(SpaService, { foreignKey: 'spa_service_id' });
+
 Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
@@ -146,5 +152,5 @@ sequelize.sync({ alter: true }).then(() => console.log("✅ Đã đồng bộ Da
 module.exports = { 
   sequelize, TreatmentPackage, WorkShift, ShiftRequest, Appointment, 
   AppointmentReview, FollowUpLog, CustomerPackage, TreatmentSession, SpaService,
-  Invoice, Transaction // Export bảng mới
+  ServiceSession, Invoice, Transaction 
 };

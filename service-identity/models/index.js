@@ -1,7 +1,7 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
 // Cấu hình kết nối (Sẽ cấu hình chi tiết ở file env sau, tạm thời để code mẫu)
-const sequelize = new Sequelize('identity_db', 'postgres', 'password', { host: 'localhost',port: 5435, dialect: 'postgres' });
+const sequelize = new Sequelize('identity_db', 'postgres', 'password', { host: 'localhost', port: 5435, dialect: 'postgres' });
 
 // 1. Bảng Users
 const User = sequelize.define('User', {
@@ -12,23 +12,28 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('GUEST', 'CUSTOMER', 'GEN_MANAGER', 'ADMIN', 'DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES'),
     defaultValue: 'CUSTOMER' 
   },
-  status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'BANNED'), defaultValue: 'ACTIVE' }
+  status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'BANNED'), defaultValue: 'ACTIVE' },
+  reset_password_token: { type: DataTypes.STRING, allowNull: true },
+  reset_password_expires: { type: DataTypes.DATE, allowNull: true }
 });
 
-// 2. Bảng Profiles
+// 2. Bảng Profiles (Chứa thông tin nhân viên hoặc thông tin định danh của Account)
 const Profile = sequelize.define('Profile', {
   full_name: { type: DataTypes.STRING },
   phone: { type: DataTypes.STRING },
   dob: { type: DataTypes.DATEONLY },
+  gender: { type: DataTypes.ENUM('MALE', 'FEMALE', 'OTHER') },
   avatar: { type: DataTypes.STRING }
 });
 
-// 3. Bảng Guardians (Người giám hộ)
-const Guardian = sequelize.define('Guardian', {
+// 3. Bảng PatientProfiles (Hồ sơ người bệnh - THAY THẾ BẢNG GUARDIANS)
+const PatientProfile = sequelize.define('PatientProfile', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   full_name: { type: DataTypes.STRING, allowNull: false },
-  relationship: { type: DataTypes.STRING },
-  phone: { type: DataTypes.STRING }
+  relationship: { type: DataTypes.STRING, defaultValue: 'Bản thân' }, // Ví dụ: Bản thân, Con cái, Bố/mẹ...
+  phone: { type: DataTypes.STRING },
+  dob: { type: DataTypes.DATEONLY },
+  gender: { type: DataTypes.ENUM('MALE', 'FEMALE', 'OTHER') }
 });
 
 // 4. Bảng Attendances (Chấm công nhân viên)
@@ -41,34 +46,15 @@ const Attendance = sequelize.define('Attendance', {
 
 // 5. Bảng MedicalRecords (Hồ sơ khám bệnh / Sổ y bạ)
 const MedicalRecord = sequelize.define('MedicalRecord', {
-  id: { 
-    type: DataTypes.UUID, 
-    defaultValue: DataTypes.UUIDV4, 
-    primaryKey: true 
-  },
-  // Khóa ngoại "mềm" (Logical FK) liên kết với bảng Appointments ở service-booking
-  appointment_id: { 
-    type: DataTypes.UUID, 
-    allowNull: false 
-  },
-  exam_date: { 
-    type: DataTypes.DATE, 
-    defaultValue: DataTypes.NOW 
-  },
-  symptoms: { 
-    type: DataTypes.TEXT // Lưu triệu chứng, lời khai của khách hàng
-  },
-  diagnosis: { 
-    type: DataTypes.STRING // Lưu kết luận, bệnh lý do Bác sĩ chẩn đoán
-  },
-  doctor_notes: { 
-    type: DataTypes.TEXT // Lời dặn dò, lưu ý sinh hoạt sau khi khám
-  },
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  appointment_id: { type: DataTypes.UUID, allowNull: false },
+  exam_date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  symptoms: { type: DataTypes.TEXT }, 
+  diagnosis: { type: DataTypes.STRING }, 
+  doctor_notes: { type: DataTypes.TEXT }, 
   follow_up_date: { type: DataTypes.DATEONLY, allowNull: true },
-  images: { 
-    type: DataTypes.JSON, 
-    defaultValue: [] // Lưu mảng URL hình ảnh soi da hoặc hình ảnh trước/sau khi điều trị
-  }
+  pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] }, // Ảnh trước khám
+  post_exam_images: { type: DataTypes.JSONB, defaultValue: [] }  // Ảnh sau khám
 });
 
 // 6. Bảng ChatSessions (Phiên chat)
@@ -84,23 +70,29 @@ const ChatMessage = sequelize.define('ChatMessage', {
   content: { type: DataTypes.TEXT }
 });
 
+// ==========================================
+// THIẾT LẬP QUAN HỆ CÁC BẢNG (ASSOCIATIONS)
+// ==========================================
 
-
-// Thiết lập quan hệ (Khóa ngoại vật lý TRONG CÙNG 1 DB)
 User.hasOne(Profile, { foreignKey: 'user_id' });
 Profile.belongsTo(User, { foreignKey: 'user_id' });
 
-User.hasMany(Guardian, { foreignKey: 'customer_id' });
+// 1 User có thể quản lý nhiều Hồ sơ người bệnh (PatientProfiles)
+User.hasMany(PatientProfile, { foreignKey: 'user_id', as: 'PatientProfiles' });
+PatientProfile.belongsTo(User, { foreignKey: 'user_id', as: 'Account' });
+
+// Nhân viên có nhiều lượt chấm công
 User.hasMany(Attendance, { foreignKey: 'employee_id' });
 
-// Khách hàng có nhiều Hồ sơ khám (Lịch sử y tế)
-User.hasMany(MedicalRecord, { foreignKey: 'customer_id', as: 'MedicalHistory' });
-MedicalRecord.belongsTo(User, { foreignKey: 'customer_id', as: 'Customer' });
+// Mỗi Hồ sơ khám bệnh giờ sẽ liên kết trực tiếp với 1 PatientProfile (thay vì 1 User như trước)
+PatientProfile.hasMany(MedicalRecord, { foreignKey: 'patient_profile_id', as: 'MedicalHistory' });
+MedicalRecord.belongsTo(PatientProfile, { foreignKey: 'patient_profile_id', as: 'Patient' });
 
 // Bác sĩ đã thực hiện nhiều Hồ sơ khám
 User.hasMany(MedicalRecord, { foreignKey: 'doctor_id', as: 'PerformedExams' });
 MedicalRecord.belongsTo(User, { foreignKey: 'doctor_id', as: 'Doctor' });
 
+// Chat Sessions
 User.hasMany(ChatSession, { foreignKey: 'customer_id', as: 'MyChats' });
 ChatSession.belongsTo(User, { foreignKey: 'customer_id', as: 'Customer' });
 
@@ -110,4 +102,6 @@ ChatSession.belongsTo(User, { foreignKey: 'consultant_id', as: 'Consultant' });
 ChatSession.hasMany(ChatMessage, { foreignKey: 'session_id', as: 'Messages' });
 ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
-module.exports = { sequelize, User, Profile, Guardian, Attendance, MedicalRecord, ChatSession, ChatMessage };
+sequelize.sync({ alter: true }).then(() => console.log("✅ Đã đồng bộ Database cho service-identity!"));
+
+module.exports = { sequelize, User, Profile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

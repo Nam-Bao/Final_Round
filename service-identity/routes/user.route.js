@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees } = require('../controllers/user.controller.js');
+const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer } = require('../controllers/user.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -14,6 +14,7 @@ router.get('/employees', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), ge
 
 // Các đường dẫn API
 router.get('/doctors', verifyToken, getDoctors);
+router.post('/quick-customer', verifyToken, authorizeRoles('ADMIN', 'CONSULTANT', 'SALES'), createQuickCustomer);
 router.post('/', createUser);           // Tạo mới (Body JSON)
 router.put('/:id', updateUser);         // Cập nhật (Cần truyền ID lên URL)
 router.delete('/:id', deleteUser);      // Xóa (Cần truyền ID lên URL)

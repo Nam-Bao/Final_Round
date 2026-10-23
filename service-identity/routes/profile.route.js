@@ -1,10 +1,20 @@
 const express = require('express');
-const { getMyProfile } = require('../controllers/profile.controller.js');
+const { getMyProfile, updateMyProfile, getMyPatientProfiles, createPatientProfile, updatePatientProfile, deletePatientProfile, getPatientProfilesByUserId } = require('../controllers/profile.controller.js');
 const { verifyToken } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
 
-// Để verifyToken ở giữa: Request -> Middleware (verifyToken) -> Controller (getMyProfile)
+// Lấy và Cập nhật thông tin định danh Account
 router.get('/me', verifyToken, getMyProfile);
+router.put('/me', verifyToken, updateMyProfile); // Đã bổ sung PUT để lưu Profile
+
+// ===================================
+// TÍNH NĂNG QUẢN LÝ HỒ SƠ NGƯỜI BỆNH
+// ===================================
+router.get('/patients', verifyToken, getMyPatientProfiles);
+router.post('/patients', verifyToken, createPatientProfile);
+router.put('/patients/:id', verifyToken, updatePatientProfile);
+router.delete('/patients/:id', verifyToken, deletePatientProfile);
+router.get('/patients/user/:userId', verifyToken, getPatientProfilesByUserId);
 
 module.exports = router;

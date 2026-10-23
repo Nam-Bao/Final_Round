@@ -1,16 +1,15 @@
-const { User, Profile } = require('../models');
+const { User, Profile, PatientProfile } = require('../models');
 
+// [Giữ nguyên] API Lấy thông tin Tài khoản
 const getMyProfile = async (req, res) => {
   try {
-    // Lấy ID từ payload của token đã được giải mã ở middleware
     const userId = req.user.id;
 
-    // Truy vấn Database: Tìm User và kết nối (JOIN) luôn với bảng Profile
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'email', 'role', 'status'], // Chỉ lấy các cột cần thiết, không lấy password_hash
+      attributes: ['id', 'email', 'role', 'status'], 
       include: [{
         model: Profile,
-        attributes: ['full_name', 'phone', 'dob', 'avatar']
+        attributes: ['full_name', 'phone', 'dob', 'gender', 'avatar']
       }]
     });
 
@@ -25,4 +24,124 @@ const getMyProfile = async (req, res) => {
   }
 };
 
-module.exports = { getMyProfile };
+const updateMyProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { full_name, phone, dob, gender } = req.body;
+
+        // Cập nhật bảng Profile chính
+        const profile = await Profile.findOne({ where: { user_id: userId } });
+        if (profile) {
+            await profile.update({ full_name, phone, dob, gender });
+        }
+
+        // SỬA LỖI 1: Tự động đồng bộ thông tin sang PatientProfile "Bản thân"
+        const selfPatient = await PatientProfile.findOne({ 
+            where: { user_id: userId, relationship: 'Bản thân' } 
+        });
+        if (selfPatient) {
+            await selfPatient.update({ full_name, phone, dob, gender });
+        }
+
+        res.status(200).json({ message: 'Cập nhật tài khoản thành công', data: profile });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message });
+    }
+};
+
+// =====================================
+// API QUẢN LÝ HỒ SƠ NGƯỜI BỆNH (PATIENT PROFILES)
+// =====================================
+
+// Lấy danh sách Hồ sơ người bệnh do Account này quản lý
+const getMyPatientProfiles = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const profiles = await PatientProfile.findAll({
+            where: { user_id: userId },
+            order: [['createdAt', 'ASC']] // Bản thân thường sẽ đứng đầu
+        });
+        res.status(200).json({ data: profiles });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi lấy danh sách hồ sơ', error: error.message });
+    }
+};
+
+// Thêm hồ sơ người thân mới
+const createPatientProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { full_name, relationship, phone, dob, gender } = req.body;
+
+        if (!full_name || !relationship) {
+            return res.status(400).json({ message: 'Vui lòng nhập họ tên và mối quan hệ' });
+        }
+
+        const newProfile = await PatientProfile.create({
+            user_id: userId,
+            full_name,
+            relationship,
+            phone,
+            dob,
+            gender
+        });
+
+        res.status(201).json({ message: 'Thêm hồ sơ người thân thành công', data: newProfile });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi tạo hồ sơ mới', error: error.message });
+    }
+};
+
+// Cập nhật thông tin hồ sơ
+const updatePatientProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const profileId = req.params.id;
+        
+        // Kiểm tra xem profile này có thuộc quyền sở hữu của User đang đăng nhập không
+        const profile = await PatientProfile.findOne({ where: { id: profileId, user_id: userId }});
+        if (!profile) {
+            return res.status(403).json({ message: 'Không có quyền chỉnh sửa hồ sơ này' });
+        }
+
+        await profile.update(req.body);
+        res.status(200).json({ message: 'Cập nhật thành công', data: profile });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi cập nhật', error: error.message });
+    }
+};
+
+const deletePatientProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const profileId = req.params.id;
+        
+        const profile = await PatientProfile.findOne({ where: { id: profileId, user_id: userId }});
+        if (!profile) return res.status(404).json({ message: 'Không tìm thấy hồ sơ' });
+
+        // Chặn không cho xóa thẻ Bản thân
+        if (profile.relationship === 'Bản thân') {
+            return res.status(400).json({ message: 'Không thể xóa hồ sơ gốc của tài khoản' });
+        }
+
+        await profile.destroy();
+        res.status(200).json({ message: 'Xóa hồ sơ thành công' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi khi xóa hồ sơ' });
+    }
+};
+
+const getPatientProfilesByUserId = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const profiles = await PatientProfile.findAll({
+            where: { user_id: userId },
+            order: [['createdAt', 'ASC']]
+        });
+        res.status(200).json({ data: profiles });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+};
+
+module.exports = { getMyProfile, getMyPatientProfiles, createPatientProfile, updatePatientProfile, updateMyProfile, deletePatientProfile, getPatientProfilesByUserId };

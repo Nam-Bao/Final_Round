@@ -172,6 +172,7 @@ export default function AdminLayout() {
       { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không Gian Tư Vấn' },
       { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Quản Lý Hồ Sơ Khách' },
       { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản Lý Lịch Hẹn' },
+      { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
     ] : []),
     ...(['SALES'].includes(role) ? [
       { key: '/sales-workspace', icon: <DollarOutlined />, label: 'Bàn Bán Hàng & Vận Hành' },

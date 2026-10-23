@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, Popconfirm, message, Divider } from 'antd';
+import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, Popconfirm, message, Radio } from 'antd';
 import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, HistoryOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -12,18 +12,18 @@ const { Title, Text } = Typography;
 export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState([]);
   const [medicalFollowUps, setMedicalFollowUps] = useState([]); 
-  const [customers, setCustomers] = useState([]);
+  const [customers, setCustomers] = useState([]); 
+  const [patientProfiles, setPatientProfiles] = useState([]); 
   
   const [doctors, setDoctors] = useState([]); 
   const [availableSlots, setAvailableSlots] = useState([]); 
   
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [customerType, setCustomerType] = useState('EXISTING'); 
   
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
-  
   const location = useLocation(); 
 
   const fetchData = async () => {
@@ -41,28 +41,48 @@ export default function AppointmentManagementPage() {
       setCustomers(resCust.data?.data || []);
       setMedicalFollowUps(resFollowUps.data?.data || []);
     } catch (error) {
-      message.error('Không thể tải toàn bộ dữ liệu');
+      message.error('Không thể tải dữ liệu');
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
   
   useEffect(() => {
       if (location.state?.autoFillCustomerId) {
          setEditingAppointment(null);
          form.resetFields();
          setIsModalVisible(true);
+         setCustomerType('EXISTING');
          form.setFieldsValue({ 
              customer_id: location.state.autoFillCustomerId,
              type: 'NEW_EXAM',
              appointment_date: dayjs(),
              method: 'OFFLINE'
          });
+         fetchPatientProfiles(location.state.autoFillCustomerId);
          fetchAvailableDoctors(dayjs().format('YYYY-MM-DD'));
       }
   }, [location.state, form]);
+
+  const fetchPatientProfiles = async (userId, fallbackProfileId = null) => {
+    const selectedUser = customers.find(c => c.id === userId);
+    if (selectedUser && selectedUser.PatientProfiles && selectedUser.PatientProfiles.length > 0) {
+        setPatientProfiles(selectedUser.PatientProfiles);
+        return;
+    }
+
+    try {
+       const token = localStorage.getItem('admin_token');
+       const res = await axios.get(`http://localhost:4000/api/identity/profile/patients/user/${userId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+       setPatientProfiles(res.data?.data || []);
+    } catch (error) {
+       setPatientProfiles([{ 
+           id: fallbackProfileId || 'mock-id-ban-than', 
+           full_name: selectedUser?.Profile?.full_name || 'Bản thân', 
+           relationship: 'Bản thân' 
+       }]);
+    }
+  };
 
   const fetchAvailableDoctors = async (dateStr) => {
     try {
@@ -70,94 +90,65 @@ export default function AppointmentManagementPage() {
       const resDoc = await axios.get(`http://localhost:4000/api/booking/appointments/doctors-available?date=${dateStr}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setDoctors(resDoc.data?.data || []);
       return resDoc.data?.data || [];
-    } catch (error) {
-       return [];
-    }
+    } catch (error) { return []; }
   };
 
   const fetchAvailableSlots = async (doctorId, customDateStr = null) => {
     if (!doctorId) return [];
     try {
-      const dateStr = customDateStr || form.getFieldValue('appointment_date').format('YYYY-MM-DD');
+      const formDate = form.getFieldValue('appointment_date');
+      const dateStr = customDateStr || (formDate ? formDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+      
       const token = localStorage.getItem('admin_token');
       const resSlot = await axios.get(`http://localhost:4000/api/booking/appointments/slots-available?date=${dateStr}&doctorId=${doctorId}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setAvailableSlots(resSlot.data?.data || []);
       return resSlot.data?.data || [];
-    } catch (error) {
-      return [];
-    }
+    } catch (error) { return []; }
   };
 
   const getUpcomingReminders = () => {
     const today = dayjs().startOf('day');
     const threeDaysLater = dayjs().add(3, 'day').endOf('day');
 
-    const aptReminders = (appointments || [])
-      .filter(apt => {
+    const aptReminders = (appointments || []).filter(apt => {
         if (!apt.appointment_date) return false;
         const aptDate = dayjs(apt.appointment_date);
         return (apt.status === 'PENDING' || apt.status === 'CONFIRMED') && aptDate.isAfter(today) && aptDate.isSameOrBefore(threeDaysLater);
-      })
-      .map(apt => ({
-         id: apt.id,
-         isMedicalRecord: false,
-         customer_id: apt.customer_id,
-         date: apt.appointment_date,
-         time: apt.appointment_time ? String(apt.appointment_time).slice(0,5) : '--:--',
-         type: apt.type,
-         raw: apt
+      }).map(apt => ({
+         id: apt.id, isMedicalRecord: false, customer_id: apt.customer_id,
+         date: apt.appointment_date, time: apt.appointment_time ? String(apt.appointment_time).slice(0,5) : '--:--',
+         type: apt.type, raw: apt
       }));
 
-    const followUpReminders = (medicalFollowUps || [])
-      .filter(record => {
-         const alreadyScheduled = appointments.some(apt => 
-            apt.customer_id === record.customer_id && 
-            apt.type === 'FOLLOW_UP' && 
-            (apt.status === 'PENDING' || apt.status === 'CONFIRMED')
-         );
+    const followUpReminders = (medicalFollowUps || []).filter(record => {
+         const alreadyScheduled = appointments.some(apt => apt.customer_id === record.customer_id && apt.type === 'FOLLOW_UP' && (apt.status === 'PENDING' || apt.status === 'CONFIRMED'));
          return !alreadyScheduled; 
-      })
-      .map(record => {
+      }).map(record => {
          const oldApt = appointments.find(a => a.id === record.appointment_id);
          return {
-             id: record.id,
-             isMedicalRecord: true,
-             customer_id: record.customer_id,
-             customer_name: record.Customer?.Profile?.full_name || 'Khách',
-             customer_phone: record.Customer?.Profile?.phone || 'Chưa có SĐT',
-             date: record.follow_up_date,
-             time: 'Chưa xếp giờ',
-             type: 'FOLLOW_UP',
-             old_time: oldApt ? oldApt.appointment_time : null,
-             raw: record
+             id: record.id, isMedicalRecord: true, customer_id: record.customer_id,
+             customer_name: record.Patient?.full_name || 'Khách', customer_phone: record.Patient?.phone || 'Chưa có',
+             date: record.follow_up_date, time: 'Chưa xếp giờ', type: 'FOLLOW_UP', old_time: oldApt ? oldApt.appointment_time : null, raw: record
          };
       });
 
     return [...aptReminders, ...followUpReminders].sort((a, b) => dayjs(a.date).unix() - dayjs(b.date).unix());
   };
 
-  // TÙY CHỈNH MÀU DẤU CHẤM THEO TRẠNG THÁI VÀ LOẠI KHÁM
   const dateCellRender = (value) => {
+    if (!value) return null;
     const dateStr = value.format('YYYY-MM-DD');
     const listData = (appointments || []).filter(apt => apt.appointment_date === dateStr && apt.status !== 'CANCELLED');
     
     return (
       <ul className="events p-0 m-0 list-none">
         {listData.map(item => {
-           let color = 'default'; // Mặc định xám (Chưa khám/Sắp tới)
-           
-           // Ưu tiên màu xanh cho lịch đã hoàn thành/chờ sale
-           if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') {
-               color = 'processing'; // Xanh nước biển
-           } 
-           // Nếu chưa xong mà là lịch tái khám thì màu vàng
-           else if (item.type === 'FOLLOW_UP') {
-               color = 'warning'; // Vàng
-           }
+           let color = 'default'; 
+           if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') color = 'processing'; 
+           else if (item.type === 'FOLLOW_UP') color = 'warning'; 
            
            const custName = customers.find(c => c.id === item.customer_id)?.Profile?.full_name || 'Khách';
            const timeStr = item.appointment_time ? String(item.appointment_time).slice(0,5) : '--:--';
-
            return (
             <li key={item.id} className="mb-1 text-xs truncate cursor-pointer hover:opacity-80" onClick={(e) => { e.stopPropagation(); handleEdit(item.raw ? item.raw : item); }}>
               <Badge status={color} text={`${timeStr} - ${custName}`} />
@@ -174,50 +165,42 @@ export default function AppointmentManagementPage() {
   };
 
   const handleSelectDate = (date) => {
-    setSelectedDate(date);
+    const safeDate = date || dayjs();
     form.resetFields();
-    form.setFieldsValue({ appointment_date: date });
+    form.setFieldsValue({ appointment_date: safeDate, method: 'OFFLINE', type: 'NEW_EXAM' });
+    setCustomerType('EXISTING');
     setEditingAppointment(null);
     setIsModalVisible(true);
-    fetchAvailableDoctors(date.format('YYYY-MM-DD'));
+    fetchAvailableDoctors(safeDate.format('YYYY-MM-DD'));
   };
 
   const handleEdit = async (item) => {
     if (item.isMedicalRecord) {
       setEditingAppointment(null);
       form.resetFields();
+      setCustomerType('EXISTING');
       
       const targetDate = dayjs(item.date);
       form.setFieldsValue({
-        customer_id: item.customer_id,
-        type: 'FOLLOW_UP',
-        appointment_date: targetDate,
-        method: 'OFFLINE'
+        customer_id: item.customer_id, patient_profile_id: item.raw?.patient_profile_id,
+        type: 'FOLLOW_UP', appointment_date: targetDate, method: 'OFFLINE'
       });
       
       setIsModalVisible(true); 
+      fetchPatientProfiles(item.customer_id, item.raw?.patient_profile_id);
       
       const docs = await fetchAvailableDoctors(targetDate.format('YYYY-MM-DD'));
       const oldDocId = item.raw.doctor_id;
-      
       if (oldDocId && docs.some(d => d.id === oldDocId)) {
          form.setFieldsValue({ doctor_id: oldDocId });
-         
          const slots = await fetchAvailableSlots(oldDocId, targetDate.format('YYYY-MM-DD'));
          const oldTime = item.old_time ? String(item.old_time).slice(0, 5) : null;
-         
-         if (oldTime && slots.includes(oldTime)) {
-             form.setFieldsValue({ appointment_time: oldTime });
-             message.success('Đã điền tự động Bác sĩ và Giờ khám cũ!');
-         } else {
-             message.info('Giờ khám cũ đã bị người khác đặt hoặc đã qua, vui lòng chọn giờ khác.');
-         }
-      } else {
-         message.info('Bác sĩ khám lần trước không có ca trực vào ngày này!');
+         if (oldTime && slots.includes(oldTime)) form.setFieldsValue({ appointment_time: oldTime });
       }
     } else {
       const record = item.raw || item;
       setEditingAppointment(record);
+      setCustomerType('EXISTING');
       form.setFieldsValue({
         ...record,
         appointment_date: record.appointment_date ? dayjs(record.appointment_date) : dayjs(),
@@ -227,6 +210,8 @@ export default function AppointmentManagementPage() {
       });
       
       setIsModalVisible(true);
+      if (record.customer_id) fetchPatientProfiles(record.customer_id, record.patient_profile_id);
+      
       const aptDate = record.appointment_date ? dayjs(record.appointment_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
       await fetchAvailableDoctors(aptDate); 
       if (record.doctor_id) await fetchAvailableSlots(record.doctor_id, aptDate);
@@ -240,22 +225,30 @@ export default function AppointmentManagementPage() {
       message.success('Đã hủy lịch!');
       fetchData();
       setIsModalVisible(false);
-    } catch (error) {
-      message.error('Lỗi hủy lịch');
-    }
+    } catch (error) { message.error('Lỗi hủy lịch'); }
   };
 
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('admin_token');
+      let finalCustomerId = values.customer_id;
+      let finalPatientProfileId = values.patient_profile_id;
+
+      if (customerType === 'NEW' && !editingAppointment) {
+          const resNewUser = await axios.post(`http://localhost:4000/api/identity/users/quick-customer`, {
+              email: values.new_email, full_name: values.new_full_name, phone: values.new_phone
+          }, { headers: { 'Authorization': `Bearer ${token}` } });
+          
+          finalCustomerId = resNewUser.data.data.userId;
+          finalPatientProfileId = resNewUser.data.data.patientProfileId;
+      }
+
       const payload = {
-        customer_id: values.customer_id,
-        doctor_id: values.doctor_id,
-        type: values.type,
+        customer_id: finalCustomerId, patient_profile_id: finalPatientProfileId,
+        doctor_id: values.doctor_id, type: values.type,
         appointment_date: values.appointment_date ? values.appointment_date.format('YYYY-MM-DD') : null,
-        appointment_time: values.appointment_time, 
-        symptoms: values.symptoms,
+        appointment_time: values.appointment_time, symptoms: values.symptoms,
         pre_notes: values.method === 'ONLINE' ? `[ONLINE] ${values.pre_notes || ''}` : values.pre_notes
       };
 
@@ -269,13 +262,10 @@ export default function AppointmentManagementPage() {
       setIsModalVisible(false);
       fetchData();
     } catch (error) {
-      message.error('Có lỗi xảy ra!');
-    } finally {
-      setLoading(false);
-    }
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra!');
+    } finally { setLoading(false); }
   };
 
-  // KIỂM TRA QUYỀN SỬA ĐỔI: Khóa Form nếu đã qua bước Khám bệnh
   const isReadOnly = editingAppointment && (editingAppointment.status === 'WAITING_FOR_SALE' || editingAppointment.status === 'COMPLETED');
 
   return (
@@ -284,14 +274,11 @@ export default function AppointmentManagementPage() {
         <Card variant="borderless" className="h-full shadow-sm overflow-y-auto" styles={{ body: { padding: 10 } }}>
           <div className="flex justify-between items-center mb-4 p-2">
             <Title level={4} className="m-0 text-blue-800"><CalendarOutlined className="mr-2"/> Lịch Khám & Dịch vụ</Title>
-            
-            {/* THÊM THANH GHI CHÚ MÀU (LEGEND) CHO CSKH DỄ NHÌN */}
             <Space className="text-xs font-medium bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
                <span><Badge status="processing" /> Đã khám xong</span>
                <span><Badge status="warning" /> Tái khám</span>
                <span><Badge status="default" /> Sắp tới / Chưa khám</span>
             </Space>
-
             <Button type="primary" icon={<PlusOutlined />} onClick={() => handleSelectDate(dayjs())}>Tạo Lịch Mới</Button>
           </div>
           <Calendar cellRender={cellRender} onSelect={handleSelectDate} className="custom-calendar" />
@@ -316,21 +303,13 @@ export default function AppointmentManagementPage() {
                     description={
                       <Space direction="vertical" size={0}>
                         <Text type="secondary" className="text-xs"><PhoneOutlined/> {custPhone || 'Chưa có SĐT'}</Text>
-                        <Text className={`text-sm font-medium mt-1 ${item.isMedicalRecord ? 'text-red-500' : ''}`}>
-                           Ngày hẹn: {dayjs(item.date).format('DD/MM/YYYY')} ({item.time})
-                        </Text>
+                        <Text className={`text-sm font-medium mt-1 ${item.isMedicalRecord ? 'text-red-500' : ''}`}>Ngày hẹn: {dayjs(item.date).format('DD/MM/YYYY')} ({item.time})</Text>
                       </Space>
                     }
                   />
                   <div className="text-right">
-                    <Tag color={daysLeft <= 1 ? "red" : "orange"} className="mr-0 mb-1 block text-center">
-                      Còn {daysLeft} ngày
-                    </Tag>
-                    {item.isMedicalRecord ? (
-                      <Tag icon={<HistoryOutlined />} color="error" className="mr-0 text-xs">Y bạ: Gọi xếp lịch</Tag>
-                    ) : (
-                      item.type === 'FOLLOW_UP' && <Tag color="cyan" className="mr-0 text-xs mt-1 block">Tái khám</Tag>
-                    )}
+                    <Tag color={daysLeft <= 1 ? "red" : "orange"} className="mr-0 mb-1 block text-center">Còn {daysLeft} ngày</Tag>
+                    {item.isMedicalRecord ? <Tag icon={<HistoryOutlined />} color="error" className="mr-0 text-xs">Y bạ: Gọi xếp lịch</Tag> : item.type === 'FOLLOW_UP' && <Tag color="cyan" className="mr-0 text-xs mt-1 block">Tái khám</Tag>}
                   </div>
                 </List.Item>
               )
@@ -339,13 +318,7 @@ export default function AppointmentManagementPage() {
         </Card>
       </Col>
 
-      <Modal
-        title={editingAppointment ? 'Cập nhật Lịch hẹn' : 'Tạo Lịch hẹn mới'}
-        open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={null}
-        width={700}
-      >
+      <Modal title={editingAppointment ? 'Cập nhật Lịch hẹn' : 'Tạo Lịch hẹn mới'} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null} width={700}>
         {isReadOnly && (
            <div className="mb-4 p-3 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-sm flex gap-2">
               <AlertOutlined className="mt-1" />
@@ -354,19 +327,67 @@ export default function AppointmentManagementPage() {
         )}
 
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ method: 'OFFLINE', type: 'NEW_EXAM' }} disabled={isReadOnly}>
+          
+          {!editingAppointment && (
+            <div className="mb-4 text-center">
+              <Radio.Group value={customerType} onChange={e => setCustomerType(e.target.value)} buttonStyle="solid">
+                <Radio.Button value="EXISTING">Khách đã có tài khoản</Radio.Button>
+                <Radio.Button value="NEW">Khách mới (Vãng lai)</Radio.Button>
+              </Radio.Group>
+            </div>
+          )}
+
+          <Row gutter={16}>
+            {customerType === 'EXISTING' ? (
+              <>
+                <Col span={12}>
+                  <Form.Item name="customer_id" label="Tài khoản Khách hàng" rules={[{ required: true, message: 'Hãy chọn tài khoản' }]}>
+                    <Select 
+                      showSearch placeholder="Tìm theo tên/SĐT" 
+                      filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} 
+                      onChange={val => { form.setFieldsValue({ patient_profile_id: null }); fetchPatientProfiles(val, null); }}
+                      options={(customers || []).map(c => ({ value: c.id, label: `${c.Profile?.full_name || 'Khách'} - ${c.Profile?.phone || ''}` }))} 
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="patient_profile_id" label="Chọn Hồ Sơ Bệnh Nhân" rules={[{ required: true, message: 'Vui lòng chọn hồ sơ' }]}>
+                    <Select placeholder="-- Khám cho ai? --">
+                      {(patientProfiles || []).map(p => (<Select.Option key={p.id} value={p.id}>{p.full_name} ({p.relationship})</Select.Option>))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </>
+            ) : (
+              <>
+                <Col span={8}>
+                  <Form.Item name="new_full_name" label="Họ và Tên Khách" rules={[{ required: true, message: 'Bắt buộc' }]}>
+                    <Input placeholder="Nhập họ tên đầy đủ" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="new_phone" label="Số điện thoại" rules={[{ required: true, message: 'Bắt buộc' }]}>
+                    <Input placeholder="Nhập số điện thoại" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="new_email" label="Email đăng nhập" rules={[{ required: true, type: 'email', message: 'Phải là Email hợp lệ' }]}>
+                    <Input placeholder="Ví dụ: khachhang@gmail.com" />
+                  </Form.Item>
+                </Col>
+              </>
+            )}
+          </Row>
+          
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="customer_id" label="Khách hàng" rules={[{ required: true, message: 'Hãy chọn khách hàng' }]}>
-                <Select showSearch placeholder="Tìm theo tên/SĐT" filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={(customers || []).map(c => ({ value: c.id, label: `${c.Profile?.full_name || 'Khách'} - ${c.Profile?.phone || ''}` }))} />
+              <Form.Item name="type" label="Loại hình khám">
+                <Select><Select.Option value="NEW_EXAM">Khám mới</Select.Option><Select.Option value="FOLLOW_UP">Tái khám (Chỉ định cũ)</Select.Option><Select.Option value="TREATMENT">Làm liệu trình</Select.Option></Select>
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="type" label="Loại hình" rules={[{ required: true }]}>
-                <Select>
-                  <Select.Option value="NEW_EXAM">Khám mới</Select.Option>
-                  <Select.Option value="FOLLOW_UP">Tái khám (Chỉ định cũ)</Select.Option>
-                  <Select.Option value="TREATMENT">Làm liệu trình</Select.Option>
-                </Select>
+              <Form.Item name="method" label="Hình thức tiếp nhận">
+                <Select><Select.Option value="OFFLINE">Trực tiếp tại phòng khám</Select.Option><Select.Option value="ONLINE">Tư vấn Online (Qua Video/Zalo)</Select.Option></Select>
               </Form.Item>
             </Col>
           </Row>
@@ -374,24 +395,21 @@ export default function AppointmentManagementPage() {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="appointment_date" label="Ngày khám" rules={[{ required: true }]}>
-                <DatePicker 
-                  format="DD/MM/YYYY" 
-                  className="w-full" 
-                  onChange={(val) => {
+                <DatePicker format="DD/MM/YYYY" className="w-full" onChange={(val) => {
                      form.setFieldsValue({ doctor_id: null, appointment_time: null });
                      setAvailableSlots([]);
-                     if (val) fetchAvailableDoctors(val.format('YYYY-MM-DD'));
-                     else setDoctors([]);
+                     if (val) {
+                         fetchAvailableDoctors(val.format('YYYY-MM-DD'));
+                     } else {
+                         setDoctors([]);
+                     }
                   }}
                 />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="doctor_id" label="Bác sĩ (Tuỳ chọn)">
-                <Select 
-                   placeholder={doctors.length > 0 ? "Chọn Bác sĩ" : "Không có bác làm việc"} 
-                   allowClear
-                   onChange={(val) => {
+                <Select placeholder={doctors.length > 0 ? "Chọn Bác sĩ" : "Không có bác làm việc"} allowClear onChange={(val) => {
                       form.setFieldsValue({ appointment_time: null });
                       if (val) fetchAvailableSlots(val);
                       else setAvailableSlots([]);
@@ -404,29 +422,16 @@ export default function AppointmentManagementPage() {
             <Col span={8}>
               <Form.Item name="appointment_time" label="Giờ khám" rules={[{ required: true, message: 'Vui lòng chọn giờ' }]}>
                  <Select placeholder="Chọn giờ trống">
-                    {(availableSlots || []).map(time => (
-                      <Select.Option key={time} value={time}>{time}</Select.Option>
-                    ))}
+                    {(availableSlots || []).map(time => (<Select.Option key={time} value={time}>{time}</Select.Option>))}
                     {editingAppointment && editingAppointment.appointment_time && !availableSlots.includes(String(editingAppointment.appointment_time).slice(0,5)) && (
-                       <Select.Option value={String(editingAppointment.appointment_time).slice(0,5)}>
-                         {String(editingAppointment.appointment_time).slice(0,5)} (Giờ cũ)
-                       </Select.Option>
+                       <Select.Option value={String(editingAppointment.appointment_time).slice(0,5)}>{String(editingAppointment.appointment_time).slice(0,5)} (Giờ cũ)</Select.Option>
                     )}
                  </Select>
               </Form.Item>
             </Col>
           </Row>
 
-          <Divider className="my-2" />
-
-          <Form.Item name="method" label="Hình thức tiếp nhận">
-            <Select>
-              <Select.Option value="OFFLINE">Trực tiếp tại phòng khám</Select.Option>
-              <Select.Option value="ONLINE">Tư vấn Online (Qua điện/Zalo)</Select.Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item name="symptoms" label="Lý do / Mô tả tình trạng chung">
+          <Form.Item name="symptoms" label="Lý do / Tình trạng ban đầu">
             <Input.TextArea rows={2} placeholder="Nhập yêu cầu hoặc tình trạng của khách hàng..." />
           </Form.Item>
 
@@ -439,7 +444,6 @@ export default function AppointmentManagementPage() {
             
             <Space>
               <Button onClick={() => setIsModalVisible(false)}>Đóng</Button>
-              {/* CHỈ HIỆN NÚT LƯU NẾU CHƯA KHÁM XONG */}
               {!isReadOnly && <Button type="primary" htmlType="submit" loading={loading}>Lưu Lịch Hẹn</Button>}
             </Space>
           </div>
