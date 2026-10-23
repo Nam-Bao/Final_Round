@@ -13,6 +13,6 @@ router.get('/my-records', verifyToken, authorizeRoles('CUSTOMER'), getMyMedicalR
 
 // 2. Tuyến đường xem hồ sơ:
 // Cho phép CSKH, Bác sĩ và Quản lý xem toàn bộ lịch sử bệnh án của 1 Khách hàng
-router.get('/:customerId', verifyToken, authorizeRoles('CONSULTANT', 'DOCTOR', 'GEN_MANAGER', 'ADMIN'), getCustomerMedicalHistory);
+router.get('/:id', verifyToken, authorizeRoles('CONSULTANT', 'DOCTOR', 'GEN_MANAGER', 'ADMIN'), getCustomerMedicalHistory);
 
 module.exports = router;

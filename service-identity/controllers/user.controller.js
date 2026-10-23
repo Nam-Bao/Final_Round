@@ -1,5 +1,5 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
-const { User, Profile, sequelize } = require('../models');
+const { User, Profile, PatientProfile, sequelize } = require('../models');
 const bcrypt = require('bcryptjs');
 
 const getAllUsers = async (req, res) => {
@@ -50,6 +50,34 @@ const createUser = async (req, res) => {
   }
 };
 
+const createQuickCustomer = async (req, res) => {
+  try {
+    const { email, full_name, phone, dob, gender } = req.body;
+    if (!email || !full_name || !phone) {
+       return res.status(400).json({ message: 'Vui lòng cung cấp đủ Email, Họ tên và SĐT' });
+    }
+
+    // Set mật khẩu mặc định là 12345
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash('12345', salt);
+
+    const result = await sequelize.transaction(async (t) => {
+      // 1. Tạo Account
+      const newUser = await User.create({ email, password_hash, role: 'CUSTOMER' }, { transaction: t });
+      // 2. Tạo Profile định danh Account
+      await Profile.create({ user_id: newUser.id, full_name, phone, dob, gender: gender || 'OTHER' }, { transaction: t });
+      // 3. Tự động sinh PatientProfile "Bản thân"
+      const patientProfile = await PatientProfile.create({
+        user_id: newUser.id, full_name, relationship: 'Bản thân', phone, dob, gender: gender || 'OTHER'
+      }, { transaction: t });
+
+      return { userId: newUser.id, patientProfileId: patientProfile.id };
+    });
+
+    res.status(201).json({ message: 'Tạo khách hàng thành công', data: result });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -90,6 +118,49 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(404).json({ message: 'Email chưa được đăng ký trong hệ thống' });
+
+    // Sinh Token ngẫu nhiên (Mã OTP 6 số để dễ nhập qua điện thoại)
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    user.reset_password_token = resetToken;
+    user.reset_password_expires = Date.now() + 15 * 60 * 1000; // Token sống 15 phút
+    await user.save();
+
+    // TO-DO: Tích hợp thư viện Nodemailer gửi email chứa `resetToken` tại đây
+    console.log(`[HỆ THỐNG] Mã OTP Reset Pass của ${email} là: ${resetToken}`);
+
+    res.status(200).json({ message: 'Mã khôi phục đã được tạo (Xem log hệ thống). Vui lòng gửi email cho khách.' });
+  } catch (error) { res.status(500).json({ message: 'Lỗi xử lý quên mật khẩu' }); }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, token, new_password } = req.body;
+    const user = await User.findOne({ 
+      where: { 
+        email, 
+        reset_password_token: token,
+        reset_password_expires: { [Op.gt]: Date.now() } // Kiểm tra còn hạn không
+      } 
+    });
+
+    if (!user) return res.status(400).json({ message: 'Mã OTP không hợp lệ hoặc đã hết hạn' });
+
+    const salt = await bcrypt.genSalt(10);
+    user.password_hash = await bcrypt.hash(new_password, salt);
+    user.reset_password_token = null;
+    user.reset_password_expires = null;
+    await user.save();
+
+    res.status(200).json({ message: 'Cập nhật mật khẩu mới thành công' });
+  } catch (error) { res.status(500).json({ message: 'Lỗi cập nhật mật khẩu' }); }
+};
+
 const getDoctors = async (req, res) => {
   try {
     const doctors = await User.findAll({
@@ -119,7 +190,8 @@ const getCustomers = async (req, res) => {
     const customers = await User.findAll({
       where: { role: 'CUSTOMER' },
       attributes: ['id', 'email', 'status'], 
-      include: [{ model: Profile, attributes: ['full_name', 'phone', 'dob'] }]
+      include: [{ model: Profile, attributes: ['full_name', 'phone', 'dob'] }, { model: PatientProfile, as: 'PatientProfiles' }]
+      
     });
     res.status(200).json({ data: customers });
   } catch (error) {
@@ -141,4 +213,4 @@ const getEmployees = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees };
+module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword };

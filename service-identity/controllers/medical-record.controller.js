@@ -1,19 +1,23 @@
-const { MedicalRecord, User, Profile } = require('../models');
-const { Op } = require('sequelize'); const dayjs = require('dayjs');
+const { MedicalRecord, User, Profile, PatientProfile } = require('../models');
+const { Op } = require('sequelize'); 
+const dayjs = require('dayjs');
 
-// 1. API: Lưu hồ sơ mới (Được gọi tự động khi Bác sĩ hoàn tất khám)
+// 1. Lưu hồ sơ mới
 const createMedicalRecord = async (req, res) => {
   try {
-    const { customer_id, doctor_id, appointment_id, symptoms, diagnosis, doctor_notes, follow_up_date } = req.body;
+    // SỬA ĐỔI: Nhận patient_profile_id thay vì customer_id
+    const { patient_profile_id, doctor_id, appointment_id, symptoms, diagnosis, doctor_notes, follow_up_date, pre_exam_images, post_exam_images } = req.body;
 
     const newRecord = await MedicalRecord.create({
-      customer_id,
+      patient_profile_id, 
       doctor_id,
       appointment_id,
       symptoms,
       diagnosis,
       doctor_notes,
-      follow_up_date
+      follow_up_date,
+      pre_exam_images: pre_exam_images || [], 
+      post_exam_images: post_exam_images || []
     });
 
     res.status(201).json({ message: 'Tạo hồ sơ y tế thành công', data: newRecord });
@@ -22,22 +26,27 @@ const createMedicalRecord = async (req, res) => {
   }
 };
 
-// 2. API: Lấy toàn bộ hồ sơ y tế của một Khách hàng (Dành cho trang Quản lý hồ sơ)
+// 2. Lấy toàn bộ hồ sơ y tế của một Khách hàng (Nhân viên dùng)
 const getCustomerMedicalHistory = async (req, res) => {
   try {
-    const { customerId } = req.params;
+    const { id } = req.params;
 
     const history = await MedicalRecord.findAll({
-      where: { customer_id: customerId },
+      where: { patient_profile_id: id },
       include: [
         { 
           model: User, 
           as: 'Doctor', 
           attributes: ['id', 'email'],
-          include: [{ model: Profile, attributes: ['full_name'] }] // Lấy kèm tên Bác sĩ khám
+          include: [{ model: Profile, attributes: ['full_name'] }] 
+        },
+        {
+          model: PatientProfile,
+          as: 'Patient',
+          attributes: ['full_name', 'phone', 'relationship']
         }
       ],
-      order: [['exam_date', 'DESC']] // Sắp xếp ngày khám mới nhất lên đầu
+      order: [['exam_date', 'DESC']] 
     });
 
     res.status(200).json({ data: history });
@@ -46,7 +55,7 @@ const getCustomerMedicalHistory = async (req, res) => {
   }
 };
 
-// --- Lấy danh sách Khách hàng có lịch tái khám sắp tới ---
+// 3. Lấy danh sách Khách hàng có lịch tái khám sắp tới
 const getUpcomingFollowUps = async (req, res) => {
   try {
     const today = dayjs().startOf('day').toDate();
@@ -56,7 +65,13 @@ const getUpcomingFollowUps = async (req, res) => {
       where: {
         follow_up_date: { [Op.between]: [today, threeDaysLater] }
       },
-      include: [{ model: User, as: 'Customer', include: [{ model: Profile }] }],
+      include: [
+        { 
+          model: PatientProfile, 
+          as: 'Patient', 
+          attributes: ['full_name', 'phone'] // Chỉ lấy thông tin người bệnh cụ thể
+        }
+      ],
       order: [['follow_up_date', 'ASC']]
     });
 
@@ -66,18 +81,34 @@ const getUpcomingFollowUps = async (req, res) => {
   }
 };
 
-// --- Lấy hồ sơ y tế của chính Khách hàng đang đăng nhập ---
+// 4. Lấy hồ sơ y tế của TẤT CẢ Profile mà Account này quản lý (Cho màn hình "Hồ sơ của tôi")
 const getMyMedicalRecords = async (req, res) => {
   try {
-    const myId = req.user.id;
+    const myAccountId = req.user.id;
+    
+    // Bước 1: Lấy tất cả PatientProfile thuộc Account này
+    const myProfiles = await PatientProfile.findAll({
+        where: { user_id: myAccountId },
+        attributes: ['id']
+    });
+    
+    // Rút trích mảng ID
+    const profileIds = myProfiles.map(p => p.id);
+
+    // Bước 2: Truy vấn MedicalRecords dựa trên tập ID này
     const history = await MedicalRecord.findAll({
-      where: { customer_id: myId },
+      where: { patient_profile_id: { [Op.in]: profileIds } }, // In clause
       include: [
         {
           model: User,
           as: 'Doctor',
           attributes: ['id', 'email'],
           include: [{ model: Profile, attributes: ['full_name'] }]
+        },
+        {
+          model: PatientProfile,
+          as: 'Patient',
+          attributes: ['full_name', 'relationship'] // Kèm theo tên để phân biệt khám cho ai
         }
       ],
       order: [['createdAt', 'DESC']]

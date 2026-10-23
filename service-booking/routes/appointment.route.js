@@ -19,7 +19,8 @@ const {
   updateAppointment,
   cancelAppointment, 
   getAvailableDoctors,
-  getAvailableSlots
+  getAvailableSlots,
+  checkoutAppointment
 } = require('../controllers/appointment.controller.js');
 
 // ==========================================
@@ -52,6 +53,7 @@ router.put('/:id/reschedule', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MAN
 router.put('/:id/pre-check', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), preCheckAppointment);
 router.put('/:id/finish-exam', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), finishExam);
 router.put('/:id/cancel', verifyToken, authorizeRoles('CUSTOMER','CONSULTANT', 'GEN_MANAGER', 'ADMIN'), cancelAppointment);
-router.put('/:id', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), updateAppointment);
+router.put('/:id', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN', 'DOCTOR'), updateAppointment);
+router.put('/:id/checkout', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), checkoutAppointment);
 
 module.exports = router;

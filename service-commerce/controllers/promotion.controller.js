@@ -109,3 +109,18 @@ exports.applyPromotion = async (req, res) => {
     res.status(500).json({ message: 'Lỗi xử lý khuyến mãi', error: error.message });
   }
 };
+
+exports.incrementUsage = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ message: 'Thiếu mã code' });
+    
+    await Promotion.increment('used_count', { 
+      by: 1, 
+      where: { code: code.toUpperCase() } 
+    });
+    res.status(200).json({ message: 'Đã tăng lượt sử dụng voucher' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật lượt dùng voucher', error: error.message });
+  }
+};
