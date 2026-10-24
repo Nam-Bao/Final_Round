@@ -5,7 +5,7 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.
 const router = express.Router();
 
 router.get('/', getActivePackages);
-router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAllPackagesForAdmin);
+router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'MANAGER', 'QUANLY'), getAllPackagesForAdmin);
 router.post('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), createPackage);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), updatePackage);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), deletePackage);

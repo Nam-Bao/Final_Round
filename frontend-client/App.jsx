@@ -7,6 +7,7 @@ import { io } from 'socket.io-client';
 import dayjs from 'dayjs';
 
 import ClientNavbar from './components/ClientNavbar';
+import ClientFooter from './components/ClientFooter';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AiTriagePage from './pages/AiTriagePage';
@@ -16,6 +17,12 @@ import TreatmentPackagesPage from './pages/TreatmentPackagesPage';
 import PharmacyOrdersPage from './pages/PharmacyOrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import PaymentPage from './pages/PaymentPage';
+import ServicesPage from './pages/ServicesPage';
+import ServiceDetailPage from './pages/ServiceDetailPage';
+import NewsPage from './pages/NewsPage';
+import NewsDetailPage from './pages/NewsDetailPage';
+import PromotionsPage from './pages/PromotionsPage'; 
+import ReviewsPage from './pages/ReviewsPage';
 
 // ====== CẤU HÌNH AI ======
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -41,7 +48,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function startStream(contents) {
   let lastError;
   for (const name of MODEL_NAMES) {
-    // FIX 1: Giảm số lần retry xuống 2 lần để tránh treo UI quá lâu khi server Google bị lỗi 503
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         return await getModel(name).generateContentStream({ contents });
@@ -49,7 +55,7 @@ async function startStream(contents) {
         lastError = err;
         const canRetry = err.status === 503 || err.status === 429 || /overload|high demand|unavailable/i.test(err.message || '');
         if (!canRetry) throw err; 
-        await sleep(1000); // Giảm thời gian chờ giữa các lần thử
+        await sleep(1000);
       }
     }
   }
@@ -109,16 +115,15 @@ function App() {
   }, [messages, isChatOpen, isLoading, outOfOffice]);
 
   const handleSwitchToHuman = () => {
-    // FIX 2: Bất kể AI đang kẹt hay không, ép mở khóa UI ngay lập tức khi chuyển chế độ
     setIsLoading(false); 
 
     if (!isWorkingHour()) {
-       setOutOfOffice(true);
-       setMessages(prev => [...prev, { 
-          id: Date.now(), sender: 'cs', isSystem: true,
-          text: 'Hiện tại đã hết giờ làm việc của Tư vấn viên (08:00 - 20:00). Bạn có thể chat với tôi (Chat Box AI) hoặc liên hệ qua Hotline nếu cần hỗ trợ khẩn cấp.'
-       }]);
-       return;
+      setOutOfOffice(true);
+      setMessages(prev => [...prev, { 
+        id: Date.now(), sender: 'cs', isSystem: true,
+        text: 'Hiện tại đã hết giờ làm việc của Tư vấn viên (08:00 - 20:00). Bạn có thể chat với tôi (Chat Box AI) hoặc liên hệ qua Hotline nếu cần hỗ trợ khẩn cấp.'
+      }]);
+      return;
     }
 
     setChatMode('WAITING'); 
@@ -129,24 +134,24 @@ function App() {
     newSocket.emit('request_human_chat', { customerId: user?.id || null });
   
     newSocket.on('chat_accepted', (data) => {
-       setChatMode('HUMAN'); 
-       setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.message, isSystem: true }]);
-       setCurrentSessionId(data.sessionId); 
+      setChatMode('HUMAN'); 
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.message, isSystem: true }]);
+      setCurrentSessionId(data.sessionId); 
     });
     
     newSocket.on('system_message', (msg) => {
-       setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: msg, isSystem: true }]);
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: msg, isSystem: true }]);
     });
 
     newSocket.on('session_closed', () => {
-       setChatMode('AI'); 
-       if(newSocket) newSocket.disconnect();
-       setSocket(null);
-       setCurrentSessionId(null);
+      setChatMode('AI'); 
+      if (newSocket) newSocket.disconnect();
+      setSocket(null);
+      setCurrentSessionId(null);
     });
   
     newSocket.on('receive_message', (data) => {
-       setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.content }]);
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.content }]);
     });
   };
 
@@ -162,15 +167,15 @@ function App() {
 
     if (chatMode === 'HUMAN' && socket && currentSessionId) {
       socket.emit('send_message', { 
-         sessionId: currentSessionId, senderType: 'CUSTOMER', content: userText 
+        sessionId: currentSessionId, senderType: 'CUSTOMER', content: userText 
       });
     } else {
       setIsLoading(true);
       try {
         if (!API_KEY) throw new Error('Chưa có VITE_GEMINI_API_KEY');
         const contents = newMessages.filter((m) => m.id !== 1 && !m.isError).slice(-6).map((m) => ({
-            role: m.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: m.text }],
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text }],
         }));
 
         const result = await startStream(contents);
@@ -190,8 +195,8 @@ function App() {
         }
       } catch (error) {
         setMessages((prev) => [...prev, {
-            id: Date.now() + 2, sender: 'cs', isError: true,
-            text: 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
+          id: Date.now() + 2, sender: 'cs', isError: true,
+          text: 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
         }]);
       } finally {
         setIsLoading(false);
@@ -203,6 +208,7 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen flex flex-col bg-slate-50 relative">
         <ClientNavbar />
+        
         <main className="flex-1 container mx-auto px-4 py-6 max-w-7xl">
           <Routes>
             <Route path="/" element={<AiTriagePage />} />
@@ -215,13 +221,20 @@ function App() {
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
             <Route path="/contact" element={<div className="text-center p-20 text-xl font-bold">Trang Liên hệ Hotline: 1900 xxxx</div>} />
-            <Route path="/services" element={<div className="text-center p-20 text-xl font-bold opacity-50">Trang Dịch Vụ</div>} />
-            <Route path="/news" element={<div className="text-center p-20 text-xl font-bold opacity-50">Trang Tin Tức</div>} />
-            <Route path="/promotions" element={<div className="text-center p-20 text-xl font-bold opacity-50">Khuyến Mãi</div>} />
-            <Route path="/reviews" element={<div className="text-center p-20 text-xl font-bold opacity-50">Đánh Giá</div>} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />  
+            <Route path="/news" element={<NewsPage />} />
+            <Route path="/news/:slug" element={<NewsDetailPage />} />
+            <Route path="/news/:id" element={<NewsDetailPage />} />
+            <Route path="/promotions" element={<PromotionsPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
           </Routes>
         </main>
 
+        {/* FOOTER HIỂN THỊ CỐ ĐỊNH Ở CHÂN TRANG CHO TOÀN BỘ WEBSITE */}
+        <ClientFooter />
+
+        {/* NÚT BẤM VÀ KHUNG CHAT AI / CSKH */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
           {isChatOpen && (
             <div className="card w-80 bg-base-100 shadow-2xl border border-base-200 mb-4 overflow-hidden animate-fade-in-up">
@@ -243,11 +256,11 @@ function App() {
                 ))}
                 
                 {outOfOffice && (
-                   <div className="flex justify-center mt-2">
-                      <a href="/contact" className="btn btn-sm btn-error text-white gap-1 shadow-md">
-                         <PhoneCall className="w-3 h-3"/> Liên hệ Hotline
-                      </a>
-                   </div>
+                  <div className="flex justify-center mt-2">
+                    <a href="/contact" className="btn btn-sm btn-error text-white gap-1 shadow-md">
+                      <PhoneCall className="w-3 h-3"/> Liên hệ Hotline
+                    </a>
+                  </div>
                 )}
 
                 {isLoading && (
@@ -261,35 +274,37 @@ function App() {
               </div>
 
               <div className="p-2 bg-base-100 border-t flex flex-col gap-2">
-                 {chatMode === 'AI' && !outOfOffice && (
-                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
-                      <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
-                   </button>
-                 )}
-                 {chatMode === 'WAITING' && (
-                   <div className="badge badge-warning gap-1 self-start mb-2 text-xs"><Clock className="w-3 h-3"/> Đang chờ CSKH... (Bạn vẫn có thể hỏi AI)</div>
-                 )}
-                 
-                 <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder={chatMode === 'AI' || chatMode === 'WAITING' ? "Hỏi AI..." : "Nhắn CSKH..."}
-                      className="input input-bordered input-sm flex-1"
-                      /* FIX 3: Chỉ khóa ô chat khi người dùng đang ở chế độ AI thuần. Nếu là Human hoặc Đang Waiting thì luôn được gõ */
-                      disabled={isLoading && chatMode === 'AI'} 
-                    />
-                    <button className="btn btn-primary btn-sm btn-circle" onClick={handleSendMessage} disabled={isLoading && chatMode === 'AI'}>
-                      <Send className="w-4 h-4" />
-                    </button>
-                 </div>
+                {chatMode === 'AI' && !outOfOffice && (
+                  <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
+                    <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
+                  </button>
+                )}
+                {chatMode === 'WAITING' && (
+                  <div className="badge badge-warning gap-1 self-start mb-2 text-xs"><Clock className="w-3 h-3"/> Đang chờ CSKH... (Bạn vẫn có thể hỏi AI)</div>
+                )}
+                
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder={chatMode === 'AI' || chatMode === 'WAITING' ? "Hỏi AI..." : "Nhắn CSKH..."}
+                    className="input input-bordered input-sm flex-1"
+                    disabled={isLoading && chatMode === 'AI'} 
+                  />
+                  <button className="btn btn-primary btn-sm btn-circle" onClick={handleSendMessage} disabled={isLoading && chatMode === 'AI'}>
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          <button className={`btn btn-primary btn-circle btn-lg shadow-2xl transition-transform hover:scale-110 ${!isChatOpen ? 'animate-bounce' : ''}`} onClick={() => setIsChatOpen(!isChatOpen)}>
+          <button 
+            className={`btn btn-primary btn-circle btn-lg shadow-2xl transition-transform hover:scale-110 ${!isChatOpen ? 'animate-bounce' : ''}`} 
+            onClick={() => setIsChatOpen(!isChatOpen)}
+          >
             {isChatOpen ? <X className="w-8 h-8 text-white" /> : <MessageCircle className="w-8 h-8 text-white" />}
           </button>
         </div>
