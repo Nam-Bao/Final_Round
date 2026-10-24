@@ -1,7 +1,10 @@
 const express = require('express');
-const { 
-  getActiveServices, getAllServicesForAdmin, 
-  createService, updateService, deleteService 
+const {
+    getActiveServices,
+    getAllServicesForAdmin,
+    createService,
+    updateService,
+    deleteService
 } = require('../controllers/spaService.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
@@ -12,5 +15,6 @@ router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAll
 router.post('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), createService);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), updateService);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), deleteService);
+//router.get('/:id', getServiceById);
 
 module.exports = router;

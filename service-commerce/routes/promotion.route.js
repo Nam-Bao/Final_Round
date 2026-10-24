@@ -1,16 +1,17 @@
 const express = require('express');
-const { 
-  getAllPromotionsForAdmin, createPromotion, 
-  updatePromotion, deletePromotion, applyPromotion, incrementUsage 
+const {
+    getAllPromotionsForAdmin,
+    createPromotion,
+    updatePromotion,
+    deletePromotion,
+    applyPromotion
 } = require('../controllers/promotion.controller.js');
 const { verifyToken, authorizeRoles, i } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
 
 // API Public cho phép khách hàng check mã
-router.post('/apply', applyPromotion); 
-
-router.post('/increment-usage', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT'), incrementUsage);
+router.post('/apply', applyPromotion);
 
 // Các API quản lý dành cho Admin
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAllPromotionsForAdmin);
