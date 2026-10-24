@@ -4,8 +4,9 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.
 
 const router = express.Router();
 
+
 // Khách hàng có thể xem danh sách sản phẩm
-router.get('/', getProducts); 
+router.get('/', getProducts);
 
 router.post('/deduct', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT'), deductInventory);
 

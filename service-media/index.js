@@ -1,17 +1,25 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
+const { sequelize } = require('./models');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Import file route upload (file bạn vừa cắt từ booking sang đây)
 const uploadRoutes = require('./routes/upload.route.js');
+const newsRoutes = require('./routes/news.route.js');
 
-// Mount route vào '/upload'
-// (Vì API Gateway cắt mất chữ /api/media rồi, nên request đến đây chỉ còn là /upload)
 app.use('/upload', uploadRoutes);
+app.use('/news', newsRoutes);
 
-app.listen(4005, () => {
-  console.log('📦 [Service Media] đang chạy tại port 4005');
+const PORT = 4005;
+app.listen(PORT, async () => {
+  console.log(`📦 [Service Media] đang chạy tại port ${PORT}`);
+  try {
+    await sequelize.authenticate();
+    await sequelize.sync({ alter: true });
+    console.log('✅ Đã kết nối media_db và đồng bộ bảng tin tức!');
+  } catch (error) {
+    console.error('❌ Lỗi DB Media:', error.message);
+  }
 });
