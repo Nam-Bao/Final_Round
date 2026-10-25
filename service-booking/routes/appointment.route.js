@@ -20,7 +20,8 @@ const {
   cancelAppointment, 
   getAvailableDoctors,
   getAvailableSlots,
-  checkoutAppointment
+  checkoutAppointment,
+  getAppointmentsByPatient
 } = require('../controllers/appointment.controller.js');
 
 // ==========================================
@@ -40,6 +41,7 @@ router.post('/sepay-webhook', sepayWebhook);
 // Đặt lịch hẹn mới (Tạo đơn Pending Payment)
 router.post('/', verifyToken, createAppointment);
 
+router.get('/patient/:patientProfileId', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT', 'DOCTOR'), getAppointmentsByPatient);
 // ==========================================
 // 2. CÁC ĐƯỜNG DẪN ĐỘNG (Có chứa /:id ở giữa)
 // ==========================================

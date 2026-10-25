@@ -199,6 +199,20 @@ const getCustomers = async (req, res) => {
   }
 };
 
+const getCusProfile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: ['id', 'email', 'role', 'status'],
+      include: [
+        { model: Profile, attributes: ['full_name', 'phone', 'dob', 'gender', 'avatar'] },
+        { model: PatientProfile, as: 'PatientProfiles' }
+      ]
+    });
+    if (!user) return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
+    res.status(200).json({ data: user });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
 // Lấy danh sách Nhân sự nội bộ
 const getEmployees = async (req, res) => {
   try {
@@ -213,4 +227,4 @@ const getEmployees = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword };
+module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };

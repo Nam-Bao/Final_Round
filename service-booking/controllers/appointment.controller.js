@@ -1,4 +1,4 @@
-const { Appointment, WorkShift, Invoice, Transaction } = require('../models');
+const { Appointment, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
@@ -31,18 +31,15 @@ const getMyTodayAppointments = async (req, res) => {
 
     const enrichedAppointments = appointments.map(apt => {
       const customerInfo = allUsers.find(u => u.id === apt.customer_id);
-      
-      // TÌM ĐÚNG HỒ SƠ ĐÃ ĐẶT LỊCH (Bản thân hoặc Người thân)
       const patientProfile = customerInfo?.PatientProfiles?.find(p => p.id === apt.patient_profile_id);
 
       return {
         ...apt,
-        // Ưu tiên lấy thông tin từ PatientProfile, nếu không có mới lấy từ Account gốc
         customer_name: patientProfile?.full_name || customerInfo?.Profile?.full_name || 'Khách vãng lai',
         customer_phone: patientProfile?.phone || customerInfo?.Profile?.phone || 'Chưa cập nhật',
         dob: patientProfile?.dob || customerInfo?.Profile?.dob || null,
         gender: patientProfile?.gender || customerInfo?.Profile?.gender || 'OTHER',
-        patient_profile_id: apt.patient_profile_id, // TRUYỀN ID HỒ SƠ Y TẾ RA FRONTEND
+        patient_profile_id: apt.patient_profile_id, 
         pre_notes: apt.pre_notes || '',
         pre_exam_images: apt.pre_exam_images || []
       };
@@ -105,7 +102,6 @@ const createAppointment = async (req, res) => {
       appointment_time,
       symptoms: '', 
       pre_notes: finalPreNotes,
-      // ĐÃ SỬA: KHÁCH HÀNG TỰ TẠO SẼ CHỜ THANH TOÁN (PENDING_PAYMENT), LỄ TÂN/CSKH TẠO SẼ VÀO HÀNG ĐỢI (PENDING)
       status: req.user.role === 'CUSTOMER' ? 'PENDING_PAYMENT' : 'PENDING',
       pre_exam_images: pre_exam_images || [] 
     });
@@ -125,12 +121,9 @@ const checkPaymentStatus = async (req, res) => {
     const { id } = req.params;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
-
     const isPaid = apt.status !== 'PENDING_PAYMENT';
     res.status(200).json({ isPaid });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
 const confirmPayment = async (req, res) => {
@@ -152,44 +145,31 @@ const confirmPayment = async (req, res) => {
        invoice.payment_method = 'CASH'; 
        await invoice.save();
     }
-
     res.status(200).json({ message: 'Xác nhận thanh toán thành công!', data: apt });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
 const sepayWebhook = async (req, res) => {
   try {
     const { transferAmount, content } = req.body;
-
     if (transferAmount > 0 && content) {
-      console.log(`💰 Có tiền vào: +${transferAmount} VND. Nội dung: ${content}`);
-      
       const match = content.match(/O2O\s?([a-zA-Z0-9]{6})/i);
-      
       if (match) {
         const orderCode = match[1].toLowerCase();
-        
         const pendingApts = await Appointment.findAll({ where: { status: 'PENDING_PAYMENT' } });
         const apt = pendingApts.find(a => a.id.toLowerCase().startsWith(orderCode));
 
         if (apt) {
            const invoice = await Invoice.findOne({ where: { appointment_id: apt.id } });
-           
            if (invoice && transferAmount >= invoice.total_amount) {
-               if (apt.pre_notes?.includes('[Khám ONLINE]') && apt.pre_notes?.includes('TÌNH TRẠNG DA')) {
-                  apt.status = 'WAITING'; 
-               } else {
-                  apt.status = 'CONFIRMED'; 
-               }
+               if (apt.pre_notes?.includes('[Khám ONLINE]') && apt.pre_notes?.includes('TÌNH TRẠNG DA')) apt.status = 'WAITING'; 
+               else apt.status = 'CONFIRMED'; 
                await apt.save();
 
                if (invoice.payment_status === 'PENDING') {
                    invoice.payment_status = 'PAID';
                    invoice.payment_method = 'VIETQR';
                    await invoice.save();
-
                    await Transaction.create({
                       invoice_id: invoice.id,
                       amount: invoice.total_amount, 
@@ -197,19 +177,12 @@ const sepayWebhook = async (req, res) => {
                       note: `Khách thanh toán cọc VietQR cho đơn ${orderCode.toUpperCase()}`
                    });
                }
-
-               console.log(`🎉 Đã tự động chốt lịch hẹn ID: ${apt.id}`);
-           } else {
-               console.log(`⚠️ Đơn hàng ${orderCode} chuyển THIẾU TIỀN`);
            }
-        } else {
-           console.log(`❌ Không tìm thấy đơn hàng nào khớp với mã ${orderCode}`);
         }
       }
     }
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Lỗi Webhook SePay:", error);
     res.status(200).json({ success: false, message: error.message }); 
   }
 };
@@ -221,9 +194,7 @@ const getConsultantQueues = async (req, res) => {
       where: { status: { [Op.in]: ['PENDING', 'CONFIRMED', 'WAITING_FOR_SALE', 'NEEDS_RESCHEDULE'] } }, raw: true
     });
     
-    // Đã thêm: Kéo hóa đơn để lấy số tiền cọc khách đã đóng
     const invoices = await Invoice.findAll({ raw: true });
-    
     const token = req.headers.authorization;
     let allUsers = [];
     try {
@@ -235,7 +206,6 @@ const getConsultantQueues = async (req, res) => {
     appointments.forEach(apt => {
       const customerInfo = allUsers.find(u => u.id === apt.customer_id);
       const patientProfile = customerInfo?.PatientProfiles?.find(p => p.id === apt.patient_profile_id);
-      
       const invoice = invoices.find(inv => inv.appointment_id === apt.id);
       const deposit_paid = (invoice && invoice.payment_status === 'PAID') ? Number(invoice.total_amount) : 0;
 
@@ -243,7 +213,7 @@ const getConsultantQueues = async (req, res) => {
         ...apt, 
         customer_name: patientProfile?.full_name || customerInfo?.Profile?.full_name || 'Khách hàng', 
         customer_phone: patientProfile?.phone || customerInfo?.Profile?.phone || '',
-        deposit_paid // Gắn tiền cọc vào để Frontend tính toán
+        deposit_paid
       };
 
       if (apt.status === 'NEEDS_RESCHEDULE') queues.reschedule.push(enrichedApt);
@@ -309,18 +279,15 @@ const finishExam = async (req, res) => {
         patient_profile_id: apt.patient_profile_id, 
         doctor_id: apt.doctor_id, 
         appointment_id: apt.id,
-        symptoms: symptoms || apt.symptoms || apt.pre_notes, // Không ghi đè nữa
+        symptoms: symptoms || apt.symptoms || apt.pre_notes,
         diagnosis, 
         doctor_notes, 
         follow_up_date,
         pre_exam_images: apt.pre_exam_images,
         post_exam_images: post_exam_images || []
       }, { headers: { 'Authorization': req.headers.authorization } });
-    } catch (err) { 
-        console.warn('Lỗi khi đồng bộ Hồ sơ y tế:', err.message); 
-    }
+    } catch (err) { console.warn('Lỗi khi đồng bộ Hồ sơ y tế:', err.message); }
 
-    // ĐÃ SỬA: Lưu 5 thông tin mới vào thẳng Appointment cho Thu ngân
     if (symptoms) apt.symptoms = symptoms;
     apt.diagnosis = diagnosis;
     apt.doctor_notes = doctor_notes;
@@ -353,7 +320,7 @@ const updateAppointment = async (req, res) => {
     apt.appointment_time = appointment_time || apt.appointment_time;
     apt.symptoms = symptoms || apt.symptoms;
     apt.pre_notes = pre_notes || apt.pre_notes;
-    apt.status = status || apt.status; // ĐÃ SỬA: Cho phép cập nhật status (VD: Bác sĩ click để đổi thành IN_PROGRESS)
+    apt.status = status || apt.status; 
     await apt.save();
     res.status(200).json({ message: 'Cập nhật thành công', data: apt });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
@@ -376,7 +343,6 @@ const cancelAppointment = async (req, res) => {
     if (invoice && invoice.payment_status === 'PAID') {
        invoice.payment_status = 'REFUNDED';
        await invoice.save();
-
        await Transaction.create({
           invoice_id: invoice.id,
           amount: -invoice.total_amount, 
@@ -384,11 +350,8 @@ const cancelAppointment = async (req, res) => {
           note: `Khách hủy lịch - Hoàn cọc đơn ${id.slice(0,6).toUpperCase()}`
        });
     }
-
     res.status(200).json({ message: 'Hủy lịch thành công' });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message }); 
-  }
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
 const getAvailableDoctors = async (req, res) => {
@@ -442,7 +405,6 @@ const checkoutAppointment = async (req, res) => {
     if (invoice) {
         if (invoice.payment_status === 'PAID') depositPaid = Number(invoice.total_amount);
         const remainingToPay = total_bill - depositPaid;
-
         invoice.total_amount = total_bill; 
         invoice.payment_status = 'PAID';
         invoice.payment_method = payment_method || 'CASH';
@@ -458,16 +420,54 @@ const checkoutAppointment = async (req, res) => {
         }
     }
 
+    const today = dayjs().format('YYYY-MM-DD');
+    const shifts = await WorkShift.findAll({ where: { date: today, status: { [Op.in]: ['SCHEDULED', 'ATTENDED'] } }, raw: true });
+    const scheduledEmployeeIds = [...new Set(shifts.map(s => s.employee_id))];
+
+    let chosenTechnicianId = null;
+    if (scheduledEmployeeIds.length > 0) {
+        try {
+            const resUsers = await axios.get('http://localhost:4000/api/identity/users', { headers: { 'Authorization': req.headers.authorization } });
+            const availableKTVs = resUsers.data.data.filter(u => u.role === 'TECHNICIAN' && scheduledEmployeeIds.includes(u.id));
+
+            let minLoad = Infinity;
+            for (const ktv of availableKTVs) {
+                const tCount = await TreatmentSession.count({ where: { session_date: today, technician_id: ktv.id } });
+                const sCount = await ServiceSession.count({ where: { session_date: today, technician_id: ktv.id } });
+                const totalLoad = tCount + sCount;
+                if (totalLoad < minLoad) {
+                    minLoad = totalLoad;
+                    chosenTechnicianId = ktv.id;
+                }
+            }
+        } catch (err) { console.warn('Lỗi auto-routing KTV:', err.message); }
+    }
+
     if (selected_packages && selected_packages.length > 0) {
        for (const pkgId of selected_packages) {
           const pkgInfo = await TreatmentPackage.findByPk(pkgId);
           if (pkgInfo) {
-             await CustomerPackage.create({
+             const newPkg = await CustomerPackage.create({
                 customer_id: apt.customer_id, package_id: pkgId,
                 total_sessions: pkgInfo.total_sessions, remaining_sessions: pkgInfo.total_sessions,
                 status: 'ACTIVE'
              });
+             await TreatmentSession.create({
+                customer_package_id: newPkg.id, technician_id: chosenTechnicianId,
+                patient_profile_id: apt.patient_profile_id, // THÊM ID HỒ SƠ
+                session_number: 1, session_date: today, status: 'WAITING'
+             });
           }
+       }
+    }
+
+    if (selected_services && selected_services.length > 0) {
+       for (const srvId of selected_services) {
+           await ServiceSession.create({
+              customer_id: apt.customer_id, spa_service_id: srvId,
+              patient_profile_id: apt.patient_profile_id, // THÊM ID HỒ SƠ
+              technician_id: chosenTechnicianId, session_date: today, status: 'WAITING'
+           });
        }
     }
 
@@ -479,9 +479,7 @@ const checkoutAppointment = async (req, res) => {
 
     if (voucher_code && discount_amount > 0) {
        try {
-         await axios.post('http://localhost:4000/api/commerce/promotions/increment-usage', { 
-            code: voucher_code 
-         }, { headers: { 'Authorization': req.headers.authorization } });
+         await axios.post('http://localhost:4000/api/commerce/promotions/increment-usage', { code: voucher_code }, { headers: { 'Authorization': req.headers.authorization } });
        } catch (err) { console.warn('Lỗi đồng bộ lượt dùng voucher:', err.message); }
     }
 
@@ -489,8 +487,21 @@ const checkoutAppointment = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+const getAppointmentsByPatient = async (req, res) => {
+  try {
+    const { patientProfileId } = req.params;
+    const apts = await Appointment.findAll({
+      where: { patient_profile_id: patientProfileId },
+      raw: true
+    });
+    res.status(200).json({ data: apts });
+  } catch (error) { 
+    res.status(500).json({ message: 'Lỗi server', error: error.message }); 
+  }
+};
+
 module.exports = { 
   getMyTodayAppointments, getMyHistory, getTakenSlots, createAppointment, checkPaymentStatus, confirmPayment, sepayWebhook,
   getConsultantQueues, rescheduleAppointment, preCheckAppointment, finishExam, getAllAppointments, updateAppointment, cancelAppointment, 
-  getAvailableDoctors, getAvailableSlots, checkoutAppointment
+  getAvailableDoctors, getAvailableSlots, checkoutAppointment, getAppointmentsByPatient
 };

@@ -78,13 +78,15 @@ const CustomerPackage = sequelize.define('CustomerPackage', {
 });
 
 const TreatmentSession = sequelize.define('TreatmentSession', {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    customer_package_id: { type: DataTypes.UUID, allowNull: false },
-    technician_id: { type: DataTypes.UUID },
-    session_number: { type: DataTypes.INTEGER, allowNull: false },
-    session_date: { type: DataTypes.DATEONLY, allowNull: false },
-    technician_note: { type: DataTypes.TEXT },
-    status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'SCHEDULED' }
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customer_package_id: { type: DataTypes.UUID, allowNull: false },
+  patient_profile_id: { type: DataTypes.UUID, allowNull: false }, // THÊM: Bắt buộc có ID hồ sơ
+  technician_id: { type: DataTypes.UUID }, 
+  session_number: { type: DataTypes.INTEGER, allowNull: false }, 
+  session_date: { type: DataTypes.DATEONLY, allowNull: false }, 
+  technician_note: { type: DataTypes.TEXT },
+  post_treatment_images: { type: DataTypes.JSONB, defaultValue: [] }, // THÊM: Chứa mảng link ảnh
+  status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'SCHEDULED' }
 });
 
 const SpaService = sequelize.define('SpaService', {
@@ -99,15 +101,16 @@ const SpaService = sequelize.define('SpaService', {
     status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
 });
 
-// THÊM MỚI: BẢNG DỊCH VỤ LẺ (Dành cho khách không mua Gói)
 const ServiceSession = sequelize.define('ServiceSession', {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    customer_id: { type: DataTypes.UUID, allowNull: false },
-    spa_service_id: { type: DataTypes.UUID, allowNull: false },
-    technician_id: { type: DataTypes.UUID },
-    session_date: { type: DataTypes.DATEONLY, allowNull: false },
-    technician_note: { type: DataTypes.TEXT },
-    status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'WAITING' }
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customer_id: { type: DataTypes.UUID, allowNull: false },
+  patient_profile_id: { type: DataTypes.UUID, allowNull: false }, // THÊM: Bắt buộc có ID hồ sơ
+  spa_service_id: { type: DataTypes.UUID, allowNull: false },
+  technician_id: { type: DataTypes.UUID }, 
+  session_date: { type: DataTypes.DATEONLY, allowNull: false }, 
+  technician_note: { type: DataTypes.TEXT }, 
+  post_treatment_images: { type: DataTypes.JSONB, defaultValue: [] }, // THÊM: Chứa mảng link ảnh
+  status: { type: DataTypes.ENUM('SCHEDULED', 'WAITING', 'IN_PROGRESS', 'COMPLETED'), defaultValue: 'WAITING' }
 });
 
 const Invoice = sequelize.define('Invoice', {
@@ -127,8 +130,6 @@ const Transaction = sequelize.define('Transaction', {
     note: { type: DataTypes.STRING }
 });
 
-
-// Quan hệ Database
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
 Appointment.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
 WorkShift.hasMany(ShiftRequest, { foreignKey: 'from_shift_id' });
@@ -140,7 +141,6 @@ TreatmentSession.belongsTo(CustomerPackage, { foreignKey: 'customer_package_id' 
 TreatmentPackage.hasMany(CustomerPackage, { foreignKey: 'package_id' });
 CustomerPackage.belongsTo(TreatmentPackage, { foreignKey: 'package_id' });
 
-// Quan hệ cho Dịch vụ lẻ
 SpaService.hasMany(ServiceSession, { foreignKey: 'spa_service_id' });
 ServiceSession.belongsTo(SpaService, { foreignKey: 'spa_service_id' });
 

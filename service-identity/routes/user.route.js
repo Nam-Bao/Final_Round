@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer } = require('../controllers/user.controller.js');
+const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR', 'CONSULTANT', 'TECHNICIAN'), getAllUsers);
 // Lễ tân, CSKH, Bác sĩ, Quản lý đều được xem danh sách khách
 router.get('/customers', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR', 'CONSULTANT', 'SALES', 'TECHNICIAN'), getCustomers);
+router.get('/profile', verifyToken, getCusProfile);
 
 // Chỉ Quản lý và Admin được xem danh sách toàn bộ nhân viên
 router.get('/employees', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getEmployees);

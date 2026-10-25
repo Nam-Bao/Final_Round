@@ -1,266 +1,171 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, Alert } from 'antd';
-import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Collapse, Avatar, Typography, Input, Space, Tag, Timeline, Descriptions, Spin, Empty, Image } from 'antd';
+import { UserOutlined, SearchOutlined, HistoryOutlined, MedicineBoxOutlined, PictureOutlined, ScissorOutlined, ShoppingOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+const { Search } = Input;
 
-export default function ConsultantCheckoutPage() {
-  const [hotLeads, setHotLeads] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+export default function CustomerProfilePage() {
+  const [customers, setCustomers] = useState([]);
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  const [packages, setPackages] = useState([]);
-  const [products, setProducts] = useState([]); 
-  const [spaServices, setSpaServices] = useState([]);
+  const [catalogs, setCatalogs] = useState({ services: [], packages: [], products: [] });
 
-  const [selectedItems, setSelectedItems] = useState({ services: [], packages: [], medicines: [] });
-  
-  const [voucherCode, setVoucherCode] = useState('');
-  const [discountAmount, setDiscountAmount] = useState(0);
-  // THÊM MỚI: State khóa mã voucher đã áp dụng thành công
-  const [appliedVoucher, setAppliedVoucher] = useState(null); 
-
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem('admin_token');
-      fetch('http://localhost:4000/api/booking/packages').then(res => res.json()).then(data => setPackages(data.data || []));
-      fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
-      fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
-      
-      const res = await axios.get('http://localhost:4000/api/booking/appointments/consultant-queues', { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.data.data) setHotLeads(res.data.data.hotLeads || []);
-    } catch (error) { console.error('Lỗi tải dữ liệu', error); }
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  // Tự động gỡ mã nếu CSKH thay đổi giỏ hàng
   useEffect(() => {
-    if (appliedVoucher) {
-       setDiscountAmount(0);
-       setAppliedVoucher(null);
-       setVoucherCode('');
-       message.info('Giỏ hàng thay đổi, hệ thống đã gỡ mã giảm giá để tính toán lại.');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedItems.services, selectedItems.packages, selectedItems.medicines]);
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('admin_token');
+        const [custRes, srvRes, pkgRes, prodRes] = await Promise.all([
+          axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } }),
+          axios.get('http://localhost:4000/api/booking/spa-services'),
+          axios.get('http://localhost:4000/api/booking/packages'),
+          axios.get('http://localhost:4000/api/commerce/products')
+        ]);
+        setCustomers(custRes.data?.data || []);
+        setFilteredCustomers(custRes.data?.data || []);
+        setCatalogs({
+          services: srvRes.data?.data || [],
+          packages: pkgRes.data?.data || [],
+          products: prodRes.data?.data || []
+        });
+      } catch (error) { console.error(error); }
+    };
+    fetchData();
+  }, []);
 
-  const handleSelectCustomer = (customer) => {
-    setSelectedCustomer(customer);
-    setDiscountAmount(0); 
-    setVoucherCode('');
-    setAppliedVoucher(null);
-    setSelectedItems({
-      services: customer.prescribed_services || [],
-      packages: customer.prescribed_packages || [],
-      medicines: customer.prescribed_medicines || []
-    });
-  };
+  useEffect(() => {
+    if (!searchTerm.trim()) return setFilteredCustomers(customers);
+    const keyword = searchTerm.toLowerCase();
+    setFilteredCustomers(customers.filter(user => user.Profile?.full_name?.toLowerCase().includes(keyword) || user.PatientProfiles?.some(p => p.full_name?.toLowerCase().includes(keyword))));
+  }, [searchTerm, customers]);
 
-  const getSubtotal = () => {
-    let sub = selectedCustomer?.deposit_paid === 0 ? 100000 : 0; 
-    selectedItems.services.forEach(id => { const item = spaServices.find(s => s.id === id); if (item) sub += Number(item.price); });
-    selectedItems.packages.forEach(id => { const item = packages.find(p => p.id === id); if (item) sub += Number(item.promotional_price || item.price); });
-    selectedItems.medicines.forEach(id => { const item = products.find(p => p.id === id); if (item) sub += Number(item.price); });
-    return sub;
-  };
-
-  const handleApplyVoucher = async () => {
-    if (!voucherCode.trim()) return;
-    try {
-      const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
-        code: voucherCode,
-        order_value: getSubtotal()
-      });
-      const amount = res.data.data.discount_amount;
-      setDiscountAmount(amount);
-      // LƯU TRẠNG THÁI THÀNH CÔNG ĐỂ HIỂN THỊ UI
-      setAppliedVoucher({ code: voucherCode.toUpperCase(), amount }); 
-      message.success('Áp dụng mã giảm giá thành công!');
-    } catch (error) {
-      message.error(error.response?.data?.message || 'Mã giảm giá không hợp lệ');
-      setDiscountAmount(0);
-      setAppliedVoucher(null);
-    }
-  };
-
-  const handleSubmitCheckout = async () => {
+  const handleSelectProfile = async (profile) => {
+    if (profile.id === 'mock') return;
+    setSelectedProfile(profile);
     setLoading(true);
-    const currentSubtotal = getSubtotal();
-    const currentFinalTotal = Math.max(0, currentSubtotal - discountAmount);
-
     try {
       const token = localStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
-        selected_services: selectedItems.services,
-        selected_packages: selectedItems.packages,
-        selected_medicines: selectedItems.medicines,
-        discount_amount: discountAmount,
-        // ĐẢM BẢO GỬI ĐÚNG MÃ ĐÃ APPLY THÀNH CÔNG VỀ BACKEND
-        voucher_code: appliedVoucher ? appliedVoucher.code : null, 
-        total_bill: currentFinalTotal,
-        payment_method: 'VIETQR' 
-      }, { headers: { 'Authorization': `Bearer ${token}` } });
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      const [medRes, sessionRes, aptRes] = await Promise.all([
+        axios.get(`http://localhost:4000/api/identity/medical-records/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`http://localhost:4000/api/booking/sessions/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`http://localhost:4000/api/booking/appointments/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } }))
+      ]);
 
-      message.success('Chốt Sale & Xuất hóa đơn thành công!');
-      setSelectedCustomer(null);
-      fetchData(); 
-    } catch (error) { message.error('Lỗi khi chốt hóa đơn!'); }
-    finally { setLoading(false); }
+      const medData = Array.isArray(medRes.data?.data) ? medRes.data.data : [];
+      const sessionData = Array.isArray(sessionRes.data?.data) ? sessionRes.data.data : [];
+      const aptData = Array.isArray(aptRes.data?.data) ? aptRes.data.data : [];
+
+      const combinedHistory = [
+        ...medData.map(r => {
+          const apt = aptData.find(a => a.id === r.appointment_id);
+          return { type: 'EXAM', date: r.exam_date, data: { ...r, prescribed_services: apt?.prescribed_services, prescribed_packages: apt?.prescribed_packages, prescribed_medicines: apt?.prescribed_medicines }, id: `exam_${r.id}` }
+        }),
+        ...sessionData.map(s => ({ type: 'TREATMENT', date: s.session_date, data: s, id: `session_${s.id}` }))
+      ].sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+      setHistory(combinedHistory);
+    } catch (error) {} finally { setLoading(false); }
   };
 
-  const subtotal = getSubtotal();
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const timelineItems = history.map((item, index) => {
+    const isLatest = index === 0;
+    if (item.type === 'EXAM') {
+      const record = item.data;
+      return {
+        key: item.id, color: 'blue', dot: <MedicineBoxOutlined className="text-lg text-blue-600" />,
+        children: (
+          <div className={`p-4 rounded-lg border shadow-sm mb-4 ${isLatest ? 'bg-white border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+            <div className="flex justify-between items-center mb-3 border-b pb-2">
+              <Title level={5} className="m-0 text-blue-700">Khám bác sĩ: {dayjs(item.date).format('DD/MM/YYYY')}</Title>
+              <Tag color="cyan">BS. {record.Doctor?.Profile?.full_name || 'Chưa cập nhật'}</Tag>
+            </div>
+            <Descriptions column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
+              <Descriptions.Item label="Triệu chứng"><Text className="whitespace-pre-line">{record.symptoms || 'Không ghi nhận'}</Text></Descriptions.Item>
+              <Descriptions.Item label="Chẩn đoán"><Text strong className="text-red-600">{record.diagnosis || 'Chưa có chẩn đoán'}</Text></Descriptions.Item>
+              <Descriptions.Item label="Dặn dò">{record.doctor_notes || 'Không có dặn dò'}</Descriptions.Item>
+            </Descriptions>
+            
+            {(record.prescribed_services?.length > 0 || record.prescribed_packages?.length > 0 || record.prescribed_medicines?.length > 0) && (
+              <div className="mt-2 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                <Text strong className="text-purple-700 mb-2 block"><ShoppingOutlined/> Dịch vụ & Sản phẩm đã mua:</Text>
+                {record.prescribed_services?.length > 0 && <div><Text strong>Dịch vụ:</Text> {record.prescribed_services.map(id => catalogs.services.find(s=>s.id === id)?.name).join(', ')}</div>}
+                {record.prescribed_packages?.length > 0 && <div><Text strong>Lộ trình:</Text> {record.prescribed_packages.map(id => catalogs.packages.find(p=>p.id === id)?.name).join(', ')}</div>}
+                {record.prescribed_medicines?.length > 0 && <div><Text strong>Thuốc/Mỹ phẩm:</Text> {record.prescribed_medicines.map(id => catalogs.products.find(p=>p.id === id)?.name).join(', ')}</div>}
+              </div>
+            )}
+
+            <div className="mt-3 pt-3 border-t">
+               <Text type="secondary" className="block mb-2 text-xs uppercase"><PictureOutlined/> Hình ảnh trước khám (Before)</Text>
+               {record.pre_exam_images?.length > 0 ? (
+                 <Image.PreviewGroup><Space size={[8, 8]} wrap>{record.pre_exam_images.map((img, i) => <Image key={i} width={60} height={60} src={img} className="rounded object-cover border" />)}</Space></Image.PreviewGroup>
+               ) : <Text type="secondary" className="text-xs italic">Không có ảnh</Text>}
+            </div>
+          </div>
+        )
+      };
+    } else {
+      const session = item.data;
+      return {
+        key: item.id, color: 'green', dot: <ScissorOutlined className="text-lg text-green-600" />,
+        children: (
+          <div className="p-4 rounded-lg border shadow-sm mb-4 bg-green-50 border-green-200">
+            <div className="flex justify-between items-center mb-3 border-b border-green-200 pb-2">
+              <Title level={5} className="m-0 text-green-700">Làm dịch vụ: {dayjs(item.date).format('DD/MM/YYYY')}</Title>
+              <Tag color="green">{session.type === 'PACKAGE' ? 'GÓI LỘ TRÌNH' : 'DỊCH VỤ LẺ'}</Tag>
+            </div>
+            <Descriptions column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
+              <Descriptions.Item label="Dịch vụ thực hiện"><Text strong>{session.service_name}</Text> {session.type === 'PACKAGE' && `(Buổi ${session.session_number})`}</Descriptions.Item>
+              <Descriptions.Item label="Ghi chú KTV"><Text className="whitespace-pre-line text-gray-700">{session.technician_note || 'Không có ghi chú'}</Text></Descriptions.Item>
+            </Descriptions>
+            <div className="mt-3 pt-3 border-t border-green-200">
+               <Text type="secondary" className="block mb-2 text-xs uppercase text-green-700"><PictureOutlined/> Hình ảnh sau dịch vụ (After)</Text>
+               {session.post_treatment_images?.length > 0 ? (
+                 <Image.PreviewGroup><Space size={[8, 8]} wrap>{session.post_treatment_images.map((img, i) => <Image key={i} width={60} height={60} src={img} className="rounded border-green-400" />)}</Space></Image.PreviewGroup>
+               ) : <Text type="secondary" className="text-xs italic">Không có ảnh</Text>}
+            </div>
+          </div>
+        )
+      };
+    }
+  });
+
+  const collapseItems = filteredCustomers.map(user => ({
+    key: user.id, label: <Space><UserOutlined/> <b className="text-gray-800">{user.Profile?.full_name}</b></Space>,
+    children: (
+      <>
+         {(user.PatientProfiles?.length > 0 ? user.PatientProfiles : [{ id: 'mock', full_name: user.Profile?.full_name, relationship: 'Bản thân' }]).map(profile => (
+            <div key={profile.id} onClick={() => handleSelectProfile(profile)} className={`p-2 mb-1 rounded cursor-pointer border hover:bg-blue-50 ${selectedProfile?.id === profile.id ? 'bg-blue-100 border-blue-400' : 'border-transparent'}`}>
+               <Text className="block text-sm">{profile.full_name} <Tag className="ml-1 text-[10px]">{profile.relationship}</Tag></Text>
+            </div>
+         ))}
+      </>
+    )
+  }));
 
   return (
     <Row gutter={16} className="h-[85vh]">
       <Col span={7} className="h-full">
-        <Card title={`Khách Chờ Chốt Sale (${hotLeads.length})`} variant="borderless" className="h-full shadow-sm" styles={{ body: { padding: 0, height: 'calc(100% - 55px)', overflowY: 'auto' } }}>
-          <List
-            itemLayout="horizontal" dataSource={hotLeads} locale={{ emptyText: 'Không có khách chờ thanh toán.' }}
-            renderItem={(item) => (
-              <List.Item onClick={() => handleSelectCustomer(item)} className={`cursor-pointer px-4 py-3 border-b border-gray-100 hover:bg-green-50 ${selectedCustomer?.id === item.id ? 'bg-green-100 border-l-4 border-l-green-500' : ''}`}>
-                <List.Item.Meta
-                  avatar={<Avatar icon={<UserOutlined />} className="bg-green-500" />}
-                  title={<b className="text-gray-800">{item.customer_name}</b>}
-                  description={<Tag color="success" className="mt-1">Vừa ra khỏi phòng khám</Tag>}
-                />
-              </List.Item>
-            )}
-          />
+        <Card className="h-full shadow-sm" styles={{ body: { padding: 0, height: '100%', display: 'flex', flexDirection: 'column' } }}>
+          <div className="p-4 bg-gray-50 border-b"><Search placeholder="Tìm theo tên khách hàng/người thân..." allowClear onChange={e => setSearchTerm(e.target.value)} /></div>
+          <div className="flex-1 overflow-y-auto p-2"><Collapse ghost expandIconPlacement="end" items={collapseItems} /></div>
         </Card>
       </Col>
-
       <Col span={17} className="h-full">
-        <Card variant="borderless" className="h-full shadow-sm flex flex-col" styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column', height: '100%' } }}>
-          {!selectedCustomer ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-              <DollarOutlined className="text-6xl mb-4 text-gray-200" />
-              <Title level={4} type="secondary">Chưa chọn khách hàng</Title>
-              <Text>Chọn khách hàng để xem toa bác sĩ và tính tiền.</Text>
-            </div>
+        <Card className="h-full shadow-sm" styles={{ body: { padding: 0, height: '100%', display: 'flex', flexDirection: 'column' } }}>
+          {!selectedProfile ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400"><HistoryOutlined className="text-6xl mb-4" /><Title level={4} type="secondary">Chưa chọn hồ sơ</Title></div>
           ) : (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-              <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-start">
-                <Space size="middle" align="start">
-                  <Avatar size={50} icon={<UserOutlined />} className="bg-green-600 mt-1" />
-                  <div>
-                    <Title level={4} className="m-0 text-gray-800">{selectedCustomer.customer_name}</Title>
-                    <Text type="secondary">SĐT: {selectedCustomer.customer_phone}</Text>
-                    <div className="mt-2 text-sm text-gray-600">
-                        <Text strong>Chẩn đoán của BS:</Text> {selectedCustomer.diagnosis || 'Không có'}
-                    </div>
-                  </div>
-                </Space>
-                <Tag color="purple" className="text-sm px-3 py-1"><SolutionOutlined/> Trạng thái: Chốt Hóa Đơn</Tag>
-              </div>
-
-              <div className="flex-1 p-6 overflow-y-auto flex gap-6">
-                 <div className="flex-1">
-                    <Title level={5} className="text-blue-700 border-b pb-2"><MedicineBoxOutlined/> Giỏ hàng / Dịch vụ</Title>
-                    
-                    <div className="mb-4">
-                       <Text strong className="block mb-2 text-gray-700">1. Dịch vụ Spa (Làm ngay)</Text>
-                       <Select
-                          mode="multiple" className="w-full" placeholder="-- Chọn thêm dịch vụ --"
-                          value={selectedItems.services} onChange={(vals) => setSelectedItems(prev => ({...prev, services: vals}))}
-                       >
-                          {spaServices.map(s => (
-                             <Select.Option key={s.id} value={s.id}>{s.name} - <span className="text-red-500 font-medium">{Number(s.price).toLocaleString('vi-VN')}đ</span></Select.Option>
-                          ))}
-                       </Select>
-                    </div>
-
-                    <div className="mb-4">
-                       <Text strong className="block mb-2 text-gray-700">2. Gói Lộ Trình (VIP)</Text>
-                       <Select
-                          mode="multiple" className="w-full" placeholder="-- Chọn thêm gói --"
-                          value={selectedItems.packages} onChange={(vals) => setSelectedItems(prev => ({...prev, packages: vals}))}
-                       >
-                          {packages.map(p => (
-                             <Select.Option key={p.id} value={p.id}>{p.name} - <span className="text-red-500 font-medium">{Number(p.promotional_price || p.price).toLocaleString('vi-VN')}đ</span></Select.Option>
-                          ))}
-                       </Select>
-                    </div>
-
-                    <div className="mb-4">
-                       <Text strong className="block mb-2 text-gray-700">3. Dược Mỹ Phẩm (Mang về)</Text>
-                       <Select
-                          mode="multiple" className="w-full" placeholder="-- Chọn thêm sản phẩm --"
-                          value={selectedItems.medicines} onChange={(vals) => setSelectedItems(prev => ({...prev, medicines: vals}))}
-                       >
-                          {products.map(p => (
-                             <Select.Option key={p.id} value={p.id}>{p.name} - <span className="text-red-500 font-medium">{Number(p.price).toLocaleString('vi-VN')}đ</span></Select.Option>
-                          ))}
-                       </Select>
-                    </div>
-                 </div>
-
-                 <div className="w-[350px] bg-gray-50 border border-gray-200 rounded-lg p-5 flex flex-col">
-                    <Title level={5} className="text-gray-800 border-b pb-2">Tổng kết Hóa đơn</Title>
-                    
-                    <div className="flex justify-between mb-2 mt-2">
-                       <Text>Tiền Dịch vụ/Sản phẩm:</Text>
-                       <Text strong>{(subtotal - (selectedCustomer.deposit_paid === 0 ? 100000 : 0)).toLocaleString('vi-VN')} ₫</Text>
-                    </div>
-
-                    {selectedCustomer.deposit_paid === 0 && (
-                       <div className="flex justify-between mb-2">
-                          <Text>Phí khám bác sĩ:</Text>
-                          <Text strong>100.000 ₫</Text>
-                       </div>
-                    )}
-
-                    <div className="flex justify-between mb-4 border-t border-gray-200 pt-2">
-                       <Text>Tạm tính:</Text>
-                       <Text strong>{subtotal.toLocaleString('vi-VN')} ₫</Text>
-                    </div>
-
-                    <div className="mb-4">
-                       <Text className="block mb-1"><PercentageOutlined/> Mã giảm giá:</Text>
-                       <Space.Compact className="w-full">
-                          <Input 
-                            placeholder="Nhập mã voucher..." 
-                            value={voucherCode} 
-                            allowClear
-                            onChange={e => {
-                               const val = e.target.value.toUpperCase();
-                               setVoucherCode(val);
-                               if (!val) {
-                                  setDiscountAmount(0);
-                                  setAppliedVoucher(null);
-                               }
-                            }} 
-                          />
-                          <Button type="primary" onClick={handleApplyVoucher}>Áp dụng</Button>
-                       </Space.Compact>
-                       
-                       {/* HIỂN THỊ RÕ RÀNG TRẠNG THÁI MÃ KHI THÀNH CÔNG */}
-                       {appliedVoucher && (
-                          <Alert 
-                            message={<span className="font-bold">{appliedVoucher.code}</span>} 
-                            description={`Đã giảm: ${appliedVoucher.amount.toLocaleString('vi-VN')} ₫`} 
-                            type="success" 
-                            showIcon 
-                            icon={<CheckCircleOutlined />} 
-                            className="mt-3 py-1 px-3" 
-                          />
-                       )}
-                    </div>
-
-                    <Divider className="my-2"/>
-                    
-                    <div className="flex justify-between mb-6 bg-blue-50 p-3 border border-blue-200 rounded">
-                       <Text strong className="text-blue-700 text-lg">TỔNG CẦN THU:</Text>
-                       <Text strong className="text-2xl text-blue-700">{finalTotal.toLocaleString('vi-VN')} ₫</Text>
-                    </div>
-
-                    <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} onClick={handleSubmitCheckout}>
-                       XÁC NHẬN & THANH TOÁN
-                    </Button>
-                 </div>
-              </div>
+            <div className="flex-1 flex flex-col overflow-hidden">
+               <div className="p-4 bg-white border-b shadow-sm flex justify-between items-center"><Title level={4} className="m-0 text-gray-800">Hồ sơ: {selectedProfile.full_name}</Title><Tag color="blue">Tổng: {history.length} lượt tương tác</Tag></div>
+               <div className="flex-1 p-6 overflow-y-auto bg-gray-50"><Spin spinning={loading}>{history.length > 0 ? <Timeline mode="left" items={timelineItems} /> : <Empty description="Hồ sơ chưa có lịch sử" />}</Spin></div>
             </div>
           )}
         </Card>
