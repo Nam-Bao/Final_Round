@@ -3,7 +3,6 @@ import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, Fi
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import { Image } from 'antd'; // BỔ SUNG: Import thư viện xem ảnh chuẩn xác như bên Admin
 
 export default function AppointmentHistoryPage() {
   const navigate = useNavigate();
@@ -18,6 +17,7 @@ export default function AppointmentHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedApt, setSelectedApt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null); // BỔ SUNG: State lưu ảnh đang xem phóng to
 
   const fetchData = async () => {
     try {
@@ -69,6 +69,11 @@ export default function AppointmentHistoryPage() {
     setIsModalOpen(true);
   };
 
+  // BỔ SUNG: Hàm xử lý mở modal xem ảnh phóng to
+  const handleImageClick = (imgUrl) => {
+    setPreviewImage(imgUrl);
+  };
+
   const getStatusUI = (status) => {
     switch(status) {
       case 'PENDING': return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3"/> Chờ xác nhận</span>;
@@ -88,7 +93,7 @@ export default function AppointmentHistoryPage() {
   const sessionsInModal = selectedApt ? mySessions.filter(s => s.session_date === selectedApt.appointment_date && s.patient_profile_id === selectedApt.patient_profile_id) : [];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 relative">
       <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
         <ClipboardList className="text-primary" /> Sổ Lịch Khám & Y Bạ
       </h1>
@@ -214,46 +219,69 @@ export default function AppointmentHistoryPage() {
                   <div>
                     <h4 className="font-bold text-slate-700 mb-2 border-b pb-1">📷 Da trước khám (Before)</h4>
                     {selectedApt.pre_exam_images?.length > 0 ? (
-                      <Image.PreviewGroup>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedApt.pre_exam_images.map((img, i) => (
-                            <Image 
-                              key={i} 
+                      <div className="flex flex-wrap gap-2">
+                        {selectedApt.pre_exam_images.map((img, i) => (
+                          <div 
+                            key={i} 
+                            onClick={() => handleImageClick(img)}
+                            className="cursor-pointer overflow-hidden rounded-lg border shadow-sm hover:opacity-80 transition-opacity"
+                          >
+                            <img 
                               src={img} 
                               alt="Before" 
-                              width={80}
-                              height={80}
-                              className="object-cover rounded-lg border shadow-sm" 
+                              className="w-20 h-20 object-cover" 
                             />
-                          ))}
-                        </div>
-                      </Image.PreviewGroup>
+                          </div>
+                        ))}
+                      </div>
                     ) : <p className="text-sm text-slate-400 italic">Không có ảnh chụp</p>}
                   </div>
 
                   <div>
                     <h4 className="font-bold text-green-700 mb-2 border-b pb-1">✨ Da sau dịch vụ (After)</h4>
                     {sessionsInModal.length > 0 && sessionsInModal.some(s => s.post_treatment_images?.length > 0) ? (
-                      <Image.PreviewGroup>
-                        <div className="flex flex-wrap gap-2">
-                          {sessionsInModal.flatMap(s => s.post_treatment_images || []).map((img, i) => (
-                            <Image 
-                               key={i} 
+                      <div className="flex flex-wrap gap-2">
+                        {sessionsInModal.flatMap(s => s.post_treatment_images || []).map((img, i) => (
+                          <div 
+                            key={i} 
+                            onClick={() => handleImageClick(img)}
+                            className="cursor-pointer overflow-hidden rounded-lg border border-green-300 shadow-sm hover:opacity-80 transition-opacity"
+                          >
+                            <img 
                                src={img} 
                                alt="After" 
-                               width={80}
-                               height={80}
-                               className="object-cover rounded-lg border border-green-300 shadow-sm" 
+                               className="w-20 h-20 object-cover" 
                             />
-                          ))}
-                        </div>
-                      </Image.PreviewGroup>
+                          </div>
+                        ))}
+                      </div>
                     ) : <p className="text-sm text-slate-400 italic">Chưa hoàn thành dịch vụ hoặc không có ảnh</p>}
                   </div>
                </div>
             </div>
           </div>
           <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}></div>
+        </div>
+      )}
+
+      {/* BỔ SUNG: Modal xem ảnh phóng to bằng Tailwind & HTML chuẩn */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewImage(null)}>
+          <button 
+            className="absolute top-4 right-4 text-white hover:text-slate-300 p-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreviewImage(null);
+            }}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img 
+            src={previewImage} 
+            alt="Preview" 
+            className="max-w-full max-h-full object-contain rounded"
+            onClick={(e) => e.stopPropagation()} // Ngăn click vào ảnh bị đóng modal
+          />
         </div>
       )}
     </div>
