@@ -11,20 +11,21 @@ const CONFIRM_CONF = Number(process.env.CONFIRM_CONF || 40);       // >= mức n
 const ALLOWED_IMAGE_HOST = process.env.ALLOWED_IMAGE_HOST || 'res.cloudinary.com';
 
 // 12 class của model skin-problems-detection-jp4jv/4 (key viết thường)
-// maxArea: diện tích box tối đa so với diện tích ảnh (0-1). Box lớn hơn mức này coi là nhiễu
-// (ví dụ "tàn nhang" mà khoanh cả mảng má). Đây là ngưỡng ước lượng ban đầu, hãy chỉnh theo dữ liệu thật.
+// maxArea: diện tích box tối đa so với diện tích ảnh (0-1). Box lớn hơn mức này coi là nhiễu.
+// Giá trị lấy từ phân vị 99% kích thước box thật trong dataset x 1.3 (xem scripts/dataset_stats.js).
+// Lưu ý: dataset gán nhãn freckles/melasma/wrinkle theo VÙNG (nhiều box dạng thanh dài), nên ngưỡng của chúng rộng.
 const CLASS_MAP = {
   pustule: { vi: 'Mụn mủ', weight: 3, maxArea: 0.03 },
-  nodule: { vi: 'Mụn viêm/nang', weight: 4, maxArea: 0.06 },
-  papule: { vi: 'Mụn sẩn đỏ', weight: 2, maxArea: 0.04 },
-  blackhead: { vi: 'Mụn đầu đen', weight: 1, maxArea: 0.01 },
-  whitehead: { vi: 'Mụn ẩn/đầu trắng', weight: 1, maxArea: 0.01 },
-  cyst: { vi: 'Mụn bọc', weight: 5, maxArea: 0.08 },
-  pih: { vi: 'Thâm sau mụn (PIH)', weight: 2, maxArea: 0.1 },
-  melasma: { vi: 'Nám da', weight: 3, maxArea: 0.25 },
-  freckles: { vi: 'Tàn nhang', weight: 1, maxArea: 0.03 },
-  'dark circle': { vi: 'Quầng thâm', weight: 2, maxArea: 0.06 },
-  wrinkle: { vi: 'Nếp nhăn', weight: 2, maxArea: 0.1 },
+  nodule: { vi: 'Mụn viêm/nang', weight: 4, maxArea: 0.08 },
+  papule: { vi: 'Mụn sẩn đỏ', weight: 2, maxArea: 0.08 },
+  blackhead: { vi: 'Mụn đầu đen', weight: 1, maxArea: 0.06 },
+  whitehead: { vi: 'Mụn ẩn/đầu trắng', weight: 1, maxArea: 0.02 },
+  cyst: { vi: 'Mụn bọc', weight: 5, maxArea: 0.11 },
+  pih: { vi: 'Thâm sau mụn (PIH)', weight: 2, maxArea: 0.03 },
+  melasma: { vi: 'Nám da', weight: 3, maxArea: 1 },
+  freckles: { vi: 'Tàn nhang', weight: 1, maxArea: 0.36 },
+  'dark circle': { vi: 'Quầng thâm', weight: 2, maxArea: 0.2 },
+  wrinkle: { vi: 'Nếp nhăn', weight: 2, maxArea: 0.06 },
   'skin-pore': { vi: 'Lỗ chân lông to', weight: 1, maxArea: 0.02 },
 };
 
