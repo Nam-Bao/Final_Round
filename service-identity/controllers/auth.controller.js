@@ -100,8 +100,12 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Lỗi API Login:', error);
-    res.status(500).json({ message: 'Lỗi server nội bộ' });
+  console.error('[Register Error]:', error);
+  return res.status(500).json({ 
+    success: false, 
+    message: 'Lỗi hệ thống khi đăng ký', 
+    error: error.message 
+  });
   }
 };
 

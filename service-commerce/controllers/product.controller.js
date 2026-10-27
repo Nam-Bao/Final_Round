@@ -67,4 +67,36 @@ const deductInventory = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct, deductInventory };
+const getAllProducts = async (req, res) => {
+  try {
+    const currentDate = new Date();
+    
+    const products = await Product.findAll({
+      where: { 
+        type: 'PRODUCT', // Chỉ lấy mỹ phẩm bán cho khách
+        start_date: { [Op.lte]: currentDate },
+        end_date: { [Op.gte]: currentDate }
+      },
+      attributes: {
+        include: [
+          // Tính điểm trung bình (AVG) và tổng số lượt đánh giá (COUNT)
+          [sequelize.fn('COALESCE', sequelize.fn('AVG', sequelize.col('Reviews.rating')), 0), 'avg_rating'],
+          [sequelize.fn('COUNT', sequelize.col('Reviews.id')), 'review_count']
+        ]
+      },
+      include: [{ 
+        model: Review, 
+        attributes: [] // Không lấy chi tiết comment, chỉ dùng để aggregate
+      }],
+      group: ['Product.id'],
+      order: [['createdAt', 'DESC']]
+    });
+
+    return res.status(200).json({ success: true, data: products });
+  } catch (error) {
+    console.error('[Lỗi tải sản phẩm]:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };

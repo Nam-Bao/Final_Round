@@ -1,50 +1,45 @@
 const mongoose = require('mongoose');
-// Cấu hình kết nối (Để mẫu)
-// mongoose.connect('mongodb://localhost:27017/medical_db');
 
-// 1. Hồ sơ da liễu tổng quát
-const dermatologyProfileSchema = new mongoose.Schema({
-  customer_id: { type: String, required: true, index: true }, // UUID dạng String
-  skin_type: String,
-  allergies: [String],
-  current_routine: String,
-}, { timestamps: true });
+const aiAnalysisSchema = new mongoose.Schema(
+  {
+    customer_id: { type: String, required: true, index: true },
+    image_url: { type: String, required: true },
+    provider: { type: String, required: true },
+    status: { type: String, enum: ['success', 'failed'], default: 'success' },
+    error_message: String,
 
-// 2. Nhật ký theo dõi da (Khách hàng tự chụp)
-const skinDiarySchema = new mongoose.Schema({
-  customer_id: { type: String, required: true },
-  date: { type: Date, default: Date.now },
-  images: [String], // URLs ảnh
-  notes: String,
-  condition_rating: Number
-});
+    // Bằng chứng khách đã đồng ý chính sách sử dụng hình ảnh (modal ở frontend)
+    consent: {
+      version: String,
+      accepted_at: Date,
+      allow_training: { type: Boolean, default: false }, // đồng ý tùy chọn: dùng ảnh ẩn danh để cải thiện mô hình
+    },
 
-// 3. Hồ sơ bệnh án & Kê đơn (Bác sĩ ghi)
-const medicalRecordSchema = new mongoose.Schema({
-  appointment_id: { type: String, required: true }, // Liên kết Postgres
-  doctor_id: String,
-  customer_id: String,
-  diagnosis: String,
-  doctor_notes: String,
-  e_prescription: [{
-    product_id: String, // Liên kết Postgres Commerce
-    dosage: String,
-    instructions: String
-  }]
-}, { timestamps: true });
-
-// 4. Kết quả phân tích AI
-const aiAnalysisSchema = new mongoose.Schema({
-  customer_id: String,
-  scan_date: { type: Date, default: Date.now },
-  image_url: String,
-  metrics: mongoose.Schema.Types.Mixed, // Cho phép object linh hoạt
-  recommendations: mongoose.Schema.Types.Mixed
-});
+    parsed_metrics: {
+      skin_age: { type: Number, default: null }, // Đảm bảo nhận null, không lỗi Cast
+      skin_type: String,
+      overall_score: { type: Number, default: null }, // null khi AI chưa chắc chắn
+      severity: String,
+      level: { type: String, enum: ['detected', 'uncertain', 'none'] },
+      summary: mongoose.Schema.Types.Mixed, // { 'Mụn mủ': 2, ... }
+      image_size: { width: Number, height: Number },
+      raw_count: Number,
+      issues: [
+        {
+          raw_class: String,
+          issue_name: String,
+          weight: Number,
+          confidence: Number,
+          certainty: { type: String, enum: ['confirmed', 'possible'] },
+          bounding_box: mongoose.Schema.Types.Mixed, // { top, left, width, height }
+        },
+      ],
+      ai_summary: mongoose.Schema.Types.Mixed, // mô tả từ model thị giác (tùy chọn)
+    },
+  },
+  { timestamps: true }
+);
 
 module.exports = {
-  DermatologyProfile: mongoose.model('DermatologyProfile', dermatologyProfileSchema),
-  SkinDiary: mongoose.model('SkinDiary', skinDiarySchema),
-  MedicalRecord: mongoose.model('MedicalRecord', medicalRecordSchema),
-  AiAnalysis: mongoose.model('AiAnalysis', aiAnalysisSchema)
+  AiAnalysis: mongoose.model('AiAnalysis', aiAnalysisSchema),
 };

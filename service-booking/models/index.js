@@ -148,7 +148,7 @@ Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
 
-sequelize.sync().then(() => console.log("✅ Đã đồng bộ Database cho service-booking!"));
+sequelize.sync({after:true}).then(() => console.log("✅ Đã đồng bộ Database cho service-booking!"));
 
 module.exports = {
     sequelize,

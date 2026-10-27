@@ -24,6 +24,7 @@ export default function ClientNavbar() {
           <li><Link to="/">Sàng lọc AI</Link></li>
           <li><Link to="/booking">Đặt lịch</Link></li>
           <li><Link to="/services">Dịch vụ</Link></li>
+          <li><Link to="/shops">Mỹ phẩm</Link></li>
           <li><Link to="/news">Tin tức</Link></li>
           <li><Link to="/promotions">Khuyến mãi</Link></li>
           <li><Link to="/reviews">Đánh giá dịch vụ</Link></li>

@@ -30,7 +30,7 @@ const handleProxyReq = (proxyReq, req, res) => {
 
 // Tuyến Identity: Nhận request /api/identity/* -> chuyển sang service-identity
 app.use('/api/identity', createProxyMiddleware({
-    target: 'http://localhost:5000',
+    target: 'http://localhost:4001',
     changeOrigin: true,
     pathRewrite: { '^/api/identity': '' },
     onProxyReq: handleProxyReq
@@ -76,7 +76,7 @@ app.get('/', (req, res) => {
 // 3. Khởi động Gateway
 app.listen(PORT, () => {
     console.log(`🌍 [API Gateway] đang chạy tại http://localhost:${PORT}`);
-    console.log(`🚦 Tuyến /api/identity -> Chuyển đến Port 5000`);
+    console.log(`🚦 Tuyến /api/identity -> Chuyển đến Port 4001`);
     console.log(`🚦 Tuyến /api/booking  -> Chuyển đến Port 4002`);
     console.log(`🚦 Tuyến /api/commerce -> Chuyển đến Port 4003`);
     console.log(`🚦 Tuyến /api/ai       -> Chuyển đến Port 4004`);

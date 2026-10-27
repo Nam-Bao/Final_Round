@@ -1,19 +1,16 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const models = require('./models'); // Chỉ import để Mongoose nhận diện Schema
+const cors = require('cors');
+const aiRoutes = require('./routes/aiAnalysis.route');
+require('dotenv').config();
 
 const app = express();
-const PORT = 4004;
-
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.listen(PORT, async () => {
-  console.log(`🚀 [AI Analysis & Medical Service] đang chạy tại port ${PORT}`);
-  try {
-    // Kết nối đến MongoDB qua Docker
-    await mongoose.connect('mongodb://localhost:27017/medical_db');
-    console.log('✅ Kết nối MongoDB THÀNH CÔNG! Collections đã sẵn sàng.');
-  } catch (error) {
-    console.error('❌ Lỗi kết nối MongoDB:', error.message);
-  }
-});
+app.use('/', aiRoutes);
+
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/medical_db')
+  .then(() => app.listen(4004, () => console.log('AI Service running on port 4004')))
+  .catch(err => console.error('Database connection error:', err));1
