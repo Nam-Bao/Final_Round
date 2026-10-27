@@ -3,7 +3,7 @@ import { User, Save, Users, Plus, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export default function ProfilePage() {
-  const { user, updateProfile, checkAuth } = useAuthStore(); // Lấy thêm hàm checkAuth để tải lại user
+  const { user, updateUser } = useAuthStore();
   
   const [accountData, setAccountData] = useState({ 
     full_name: '', phone: '', dob: '', gender: 'OTHER'
@@ -29,8 +29,35 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
+    loadAccount();
     fetchPatientProfiles();
   }, []);
+
+  // Chuẩn hóa dữ liệu gửi lên: ngày sinh / SĐT để trống thì gửi null (không gửi chuỗi rỗng)
+  const toPayload = (form) => ({
+    ...form,
+    dob: form.dob || null,
+    phone: form.phone || null
+  });
+
+  // Tải thông tin tài khoản mới nhất từ server để đổ vào form
+  const loadAccount = async () => {
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const res = await fetch('http://localhost:4000/api/identity/profile/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const u = await res.json(); // API /profile/me trả thẳng object user
+      setAccountData({
+        full_name: u.Profile?.full_name || '',
+        phone: u.Profile?.phone || '',
+        dob: u.Profile?.dob || '',
+        gender: u.Profile?.gender || 'OTHER'
+      });
+      if (updateUser) updateUser({ ...(user || {}), ...u });
+    } catch (error) { console.error(error); }
+  };
 
   const fetchPatientProfiles = async () => {
     try {
@@ -49,13 +76,16 @@ export default function ProfilePage() {
       const res = await fetch('http://localhost:4000/api/identity/profile/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(accountData)
+        body: JSON.stringify(toPayload(accountData))
       });
 
       if (res.ok) {
         alert('Cập nhật thông tin tài khoản thành công!');
-        if (checkAuth) checkAuth(); // Gọi lại hàm lấy dữ liệu user của Zustand để đồng bộ
+        loadAccount(); // Tải lại thông tin tài khoản và đồng bộ vào store
         fetchPatientProfiles(); // Tải lại bảng bên dưới để thấy "Bản thân" được update
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Lỗi: ${errorData.message || 'Không thể cập nhật tài khoản'}`);
       }
     } catch (error) { console.error(error); }
   };
@@ -91,7 +121,7 @@ export default function ProfilePage() {
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(patientForm)
+        body: JSON.stringify(toPayload(patientForm))
       });
       
       if (res.ok) {

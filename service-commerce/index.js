@@ -11,6 +11,7 @@ app.use(express.json());
 app.use('/categories', categoryRoute);
 app.use('/products', productRoute);
 app.use('/orders', require('./routes/order.route.js'));
+app.use('/carts', require('./routes/cart.route.js'))
 app.use('/promotions', promotionRoute);
 
 app.listen(PORT, async () => {

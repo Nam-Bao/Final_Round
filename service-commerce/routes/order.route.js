@@ -1,13 +1,17 @@
 const express = require('express');
-const { getUnpaidOrders, payOrder } = require('../controllers/order.controller.js');
+const router = express.Router();
+const orderController = require('../controllers/order.controller');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
-const router = express.Router();
+// API lấy danh sách sổ địa chỉ (Phải đặt ở trên)
+router.get('/addresses', orderController.getUserAddresses);
+// Endpoint: POST /api/commerce/orders/checkout
+router.post('/checkout', orderController.checkout);
+router.post('/addresses', orderController.addUserAddress); // API Thêm địa chỉ mới
+router.put('/addresses/:id', orderController.updateUserAddress); // API Cập nhật địa chỉ
 
-// Lấy danh sách hóa đơn chờ thu ngân
-router.get('/unpaid', getUnpaidOrders);
-
-// Cập nhật thanh toán
-router.put('/:id/pay', payOrder);
+router.get('/admin', orderController.getAllOrdersForAdmin);
+router.put('/admin/:id/status', orderController.updateOrderStatus);
+router.put('/admin/:id/cancel', orderController.cancelOrder);
 
 module.exports = router;

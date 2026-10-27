@@ -1,433 +1,373 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  UploadCloud,
-  Camera,
-  CheckCircle,
-  Sparkles,
-  Calendar,
-  X,
-} from 'lucide-react';
+import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle } from 'lucide-react';
+import axios from 'axios';
+import PhotoConsentModal from '../components/PhotoConsentModal';
 
-import CustomerConcerns from '../components/CustomerConcerns';
-import GlowSkinValueProp from '../components/GlowSkinValueProp';
+// Vite: đặt VITE_API_URL trong frontend-client/.env nếu gateway không chạy ở cổng 4000
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function AiTriagePage() {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [status, setStatus] = useState('IDLE');
-  const [result, setResult] = useState(null);
-  const [recommendedServices, setRecommendedServices] = useState([]);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [images, setImages] = useState([]); // [{ url, result, consent }]
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
 
-  const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const imageRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const pendingConsentRef = useRef(null); // consent vừa được khách đồng ý, gắn vào các ảnh sắp tải
 
-  // Mở luồng camera từ thiết bị
-  const startCamera = async () => {
-    try {
-      setIsCameraOpen(true);
+  /* ------------------------------ Đồng ý chính sách ------------------------------ */
+  const openConsent = () => setShowConsent(true);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-      });
+  const handleConsentAccepted = (consent) => {
+    pendingConsentRef.current = consent;
+    setShowConsent(false);
+    fileInputRef.current?.click(); // mở hộp chọn ảnh ngay sau khi đồng ý
+  };
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+  /* ------------------------------ Upload ------------------------------ */
+  const handleMultipleUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // cho phép chọn lại cùng một file
+    if (!files.length) return;
+
+    const consent = pendingConsentRef.current;
+    if (!consent) return openConsent(); // phòng trường hợp chưa đồng ý
+
+    const token = localStorage.getItem('token');
+    const startIndex = images.length;
+    const uploaded = [];
+
+    setIsUploading(true);
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const uploadRes = await fetch(`${API_URL}/api/media/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!uploadRes.ok) throw new Error('Tải ảnh thất bại!');
+
+        const uploadData = await uploadRes.json();
+        uploaded.push({ url: uploadData.url, result: null, consent });
+      } catch (err) {
+        console.error(err);
+        alert(`Lỗi khi tải ảnh ${file.name}`);
       }
-    } catch (err) {
-      console.error('Không thể truy cập camera:', err);
-      alert('Không thể mở camera. Vui lòng cấp quyền truy cập thiết bị ghi hình.');
-      setIsCameraOpen(false);
+    }
+    setIsUploading(false);
+    pendingConsentRef.current = null; // lần thêm ảnh sau phải đồng ý lại
+
+    if (uploaded.length) {
+      setImages((prev) => [...prev, ...uploaded]);
+      setActiveIndex(startIndex);
     }
   };
 
-  // Chụp ảnh trực tiếp từ video stream
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  /* ------------------------------ Phân tích ------------------------------ */
+  const handleAnalyzeAI = async () => {
+    if (images.length === 0) return alert('Vui lòng tải ảnh lên!');
 
-    const video = videoRef.current;
+    const target = images[activeIndex];
+    setIsAnalyzing(true);
+
+    try {
+      // ?debug=1 chỉ bật khi chạy dev (vite dev server)
+      const res = await axios.post(`${API_URL}/api/ai/analyze${import.meta.env.DEV ? '?debug=1' : ''}`, {
+        customer_id: 'GUEST_ANALYSIS',
+        image_url: target.url,
+        consent: target.consent,
+      });
+      if (res.data.debug) console.log('[AI debug]', res.data.debug);
+
+      const metrics = res.data.data.parsed_metrics;
+      // Gắn theo url (không theo index) để không sai ảnh nếu người dùng xóa/đổi ảnh khi đang quét
+      setImages((prev) => prev.map((im) => (im.url === target.url ? { ...im, result: metrics } : im)));
+    } catch (error) {
+      console.error(error);
+      alert('Không thể kết nối hoặc phân tích ảnh bằng AI.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const removeImage = (indexToRemove, e) => {
+    e.stopPropagation();
+    const filtered = images.filter((_, i) => i !== indexToRemove);
+    setImages(filtered);
+    if (activeIndex >= filtered.length) setActiveIndex(Math.max(0, filtered.length - 1));
+  };
+
+  /* ------------------------------ Vẽ khung lên ảnh ------------------------------ */
+  const drawAiResults = () => {
     const canvas = canvasRef.current;
+    const img = imageRef.current;
+    const result = images[activeIndex]?.result;
+    if (!canvas || !img || !img.naturalWidth) return;
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    // Canvas phủ đúng khung <img> đang hiển thị
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    canvas.style.left = `${img.offsetLeft}px`;
+    canvas.style.top = `${img.offsetTop}px`;
 
     const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    if (!result?.issues?.length) return;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Với object-contain, ảnh thật được co vừa khung và căn giữa => có dải đen hai bên.
+    // Phải tính phần ảnh thực sự hiển thị thì khung mới khớp.
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    const fit = Math.min(w / natW, h / natH);
+    const offX = (w - natW * fit) / 2;
+    const offY = (h - natH * fit) / 2;
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
+    // Roboflow trả tọa độ theo kích thước ảnh nó nhận (image_size), có thể khác ảnh gốc
+    const srcW = result.image_size?.width || natW;
+    const srcH = result.image_size?.height || natH;
+    const kx = (natW / srcW) * fit;
+    const ky = (natH / srcH) * fit;
 
-      const capturedFile = new File(
-        [blob],
-        'camera-capture.jpg',
-        { type: 'image/jpeg' }
-      );
+    result.issues.forEach(({ bounding_box: b, issue_name, confidence, certainty }) => {
+      if (!b) return;
+      const sure = certainty === 'confirmed';
+      const color = sure ? '#ef4444' : '#f59e0b';
+      const x = offX + b.left * kx;
+      const y = offY + b.top * ky;
 
-      setFile(capturedFile);
-      setPreview(URL.createObjectURL(capturedFile));
-      stopCamera();
-    }, 'image/jpeg');
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.setLineDash(sure ? [] : [6, 4]); // nét liền: chắc chắn, nét đứt: nghi ngờ
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, b.width * kx, b.height * ky);
+      ctx.setLineDash([]);
+
+      // Nhãn có nền để dễ đọc trên ảnh có nhiều vùng đỏ
+      const label = `${sure ? '' : '? '}${issue_name} ${Math.round(confidence)}%`;
+      ctx.font = 'bold 12px Arial';
+      const tw = ctx.measureText(label).width;
+      const ty = Math.max(y - 4, 16);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, ty - 14, tw + 8, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, x + 4, ty - 2);
+    });
   };
 
-  // Đóng luồng camera
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-
-      tracks.forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-
-    setIsCameraOpen(false);
-  };
-
-  // Đóng camera khi component bị hủy
+  // Vẽ lại khi đổi ảnh, khi có kết quả mới, và khi resize cửa sổ
   useEffect(() => {
-    return () => {
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject
-          .getTracks()
-          .forEach((track) => track.stop());
-      }
-    };
-  }, []);
+    drawAiResults();
+    window.addEventListener('resize', drawAiResults);
+    return () => window.removeEventListener('resize', drawAiResults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, images]);
 
-  // Chọn ảnh từ máy tính
-  const handleImageChange = (e) => {
-    const selected = e.target.files[0];
+  const activeImage = images[activeIndex];
+  const activeResult = activeImage?.result;
+  const aiSummary = activeResult?.ai_summary;
 
-    if (selected) {
-      setFile(selected);
-      setPreview(URL.createObjectURL(selected));
-    }
-  };
-
-  // Phân tích hình ảnh
-  const handleAnalyze = async () => {
-    if (!file) return;
-
-    setStatus('ANALYZING');
-
-    try {
-      // Lấy dữ liệu dịch vụ từ service-booking qua API Gateway
-      const res = await fetch(
-        'http://localhost:4000/api/booking/spa-services'
-      );
-
-      let services = [];
-
-      if (res.ok) {
-        const data = await res.json();
-        services = Array.isArray(data) ? data : data.data || [];
-      }
-
-      // Giả lập kết quả phân tích AI như code gốc
-      setTimeout(() => {
-        setStatus('ANALYSIS_COMPLETED');
-
-        setResult({
-          acneScore: 68,
-          pigmentationScore: 42,
-          skinType: 'Da hỗn hợp thiên dầu',
-          recommendations: [
-            'Tình trạng: Có dấu hiệu mụn viêm vùng chữ T và lỗ chân lông bí tắc.',
-            'Đánh giá AI: Da cần được làm sạch tầng sâu và điều trị kháng viêm chuẩn y khoa.',
-          ],
-        });
-
-        // Ưu tiên dịch vụ trị mụn hoặc làm sạch sâu
-        const matched = services.filter(
-          (s) =>
-            s.name.toLowerCase().includes('mụn') ||
-            s.name.toLowerCase().includes('làm sạch')
-        );
-
-        setRecommendedServices(
-          matched.length > 0 ? matched : services.slice(0, 2)
-        );
-      }, 1800);
-    } catch (err) {
-      console.error('Lỗi khi fetch spa-services:', err);
-
-      // Kết quả dự phòng khi API gặp sự cố
-      setTimeout(() => {
-        setStatus('ANALYSIS_COMPLETED');
-
-        setResult({
-          acneScore: 68,
-          pigmentationScore: 42,
-          skinType: 'Da hỗn hợp thiên dầu',
-          recommendations: [
-            'Tình trạng: Có dấu hiệu mụn viêm vùng chữ T',
-          ],
-        });
-
-        setRecommendedServices([]);
-      }, 1500);
-    }
-  };
-
+  /* ------------------------------ Giao diện ------------------------------ */
   return (
-    <div className="space-y-8 max-w-5xl mx-auto p-4">
-      {/* Tiêu đề */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-base-content">
-          Sàng Lọc Da Thông Minh Bằng AI
-        </h1>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <PhotoConsentModal open={showConsent} onAccept={handleConsentAccepted} onClose={() => setShowConsent(false)} />
 
-        <p className="text-base-content/60 mt-2">
-          Chụp ảnh trực tiếp hoặc tải ảnh cận cảnh gương mặt
-          để nhận diện chỉ số da và phác đồ đề xuất.
-        </p>
+      <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
+        <h2 className="text-lg font-bold text-slate-800">Khu vực Phân Tích Khuyết Điểm Da</h2>
+
+        <button
+          type="button"
+          onClick={openConsent}
+          disabled={isUploading}
+          className="btn btn-sm btn-outline flex items-center gap-2"
+        >
+          {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+          {isUploading ? 'Đang tải ảnh...' : 'Thêm ảnh'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleMultipleUpload}
+        />
       </div>
 
-      {/* Hai khối: Cung cấp hình ảnh và Kết quả gợi ý */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* CỘT BÊN TRÁI: CUNG CẤP HÌNH ẢNH */}
-        <div className="card bg-base-100 shadow-xl border border-base-200 p-6 flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-              <Camera className="text-primary w-5 h-5" />
-              Cung cấp hình ảnh
-            </h2>
-
-            {/* Nút chụp ảnh và tải ảnh */}
-            <div className="flex gap-2 mb-4">
+      {images.length > 0 && (
+        <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
+          {images.map((img, idx) => (
+            <div
+              key={img.url}
+              onClick={() => setActiveIndex(idx)}
+              className={`relative w-20 h-20 rounded-lg overflow-hidden cursor-pointer border-2 transition-all flex-shrink-0 ${
+                activeIndex === idx ? 'border-primary shadow-md' : 'border-slate-200 hover:border-primary/50'
+              }`}
+            >
+              <img src={img.url} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
               <button
-                type="button"
-                className="btn btn-outline btn-primary flex-1 gap-2"
-                onClick={startCamera}
+                onClick={(e) => removeImage(idx, e)}
+                className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white rounded p-1"
               >
-                <Camera className="w-5 h-5" />
-                Chụp trực tiếp
+                <Trash2 className="w-3 h-3" />
               </button>
-
-              <div className="flex-1 relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-
-                <button
-                  type="button"
-                  className="btn btn-outline flex-1 w-full gap-2"
-                >
-                  <UploadCloud className="w-5 h-5" />
-                  Tải ảnh lên
-                </button>
-              </div>
-            </div>
-
-            {/* Khung camera và xem trước ảnh */}
-            <div className="border-2 border-dashed border-base-300 rounded-2xl p-2 text-center bg-base-200/50 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden">
-              {isCameraOpen ? (
-                <div className="w-full flex flex-col items-center">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    className="w-full rounded-lg max-h-60 object-cover"
-                  />
-
-                  <canvas
-                    ref={canvasRef}
-                    className="hidden"
-                  />
-
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      type="button"
-                      onClick={capturePhoto}
-                      className="btn btn-sm btn-primary"
-                    >
-                      Bấm chụp
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="btn btn-sm btn-ghost gap-1"
-                    >
-                      <X className="w-4 h-4" />
-                      Hủy
-                    </button>
-                  </div>
+              {img.result && (
+                <div className="absolute bottom-0 w-full bg-green-500/90 text-white text-[10px] text-center font-bold py-0.5">
+                  Đã quét
                 </div>
-              ) : preview ? (
-                <img
-                  src={preview}
-                  className="max-h-60 rounded-lg object-cover shadow"
-                  alt="Preview"
-                />
-              ) : (
-                <span className="text-sm text-base-content/60">
-                  Hình ảnh phân tích sẽ hiển thị tại đây
-                </span>
               )}
             </div>
-          </div>
+          ))}
+        </div>
+      )}
 
-          {/* Nút bắt đầu phân tích */}
-          <button
-            onClick={handleAnalyze}
-            disabled={!file || status === 'ANALYZING'}
-            className="btn btn-primary w-full mt-6"
-          >
-            {status === 'ANALYZING' ? (
-              <>
-                <span className="loading loading-spinner"></span>
-                Đang phân tích ma trận da...
-              </>
-            ) : (
-              'Bắt đầu phân tích AI'
-            )}
-          </button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Khu vực ảnh */}
+        <div className="md:col-span-2 relative">
+          {images.length > 0 && activeImage ? (
+            <div className="relative inline-block w-full rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-black min-h-[300px]">
+              {isAnalyzing && (
+                <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center">
+                  <Loader2 className="w-10 h-10 animate-spin text-white mb-3" />
+                  <span className="text-white font-medium">Đang khoanh vùng tổn thương...</span>
+                </div>
+              )}
+              <img
+                ref={imageRef}
+                src={activeImage.url}
+                alt="Main Analysis"
+                onLoad={drawAiResults}
+                className="w-full h-auto block object-contain max-h-[600px] mx-auto"
+              />
+              <canvas ref={canvasRef} className="absolute pointer-events-none" />
+            </div>
+          ) : (
+            <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-300">
+              <Camera className="w-12 h-12 text-slate-300 mb-3" />
+              <span className="text-slate-400">Hãy nhấn "Thêm ảnh" để bắt đầu</span>
+            </div>
+          )}
         </div>
 
-        {/* CỘT BÊN PHẢI: KẾT QUẢ VÀ DỊCH VỤ GỢI Ý */}
-        <div className="card bg-base-100 shadow-xl border border-base-200 p-6">
-          <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-            <Sparkles className="text-secondary w-5 h-5" />
-            Kết quả & Phác đồ gợi ý
-          </h2>
+        {/* Khu vực kết quả */}
+        <div className="md:col-span-1 flex flex-col gap-4">
+          <button
+            onClick={handleAnalyzeAI}
+            disabled={images.length === 0 || isAnalyzing || !!activeResult}
+            className={`btn w-full flex items-center justify-center gap-2 ${activeResult ? 'btn-success text-white' : 'btn-primary'}`}
+          >
+            <Scan className="w-5 h-5" />
+            {activeResult ? 'Đã quét ảnh này' : 'Tiến hành Quét AI'}
+          </button>
 
-          {/* Trạng thái ban đầu */}
-          {status === 'IDLE' && (
-            <div className="h-72 flex items-center justify-center text-base-content/40 text-center">
-              Chưa có dữ liệu. Vui lòng cung cấp ảnh chân dung và bấm phân tích.
-            </div>
-          )}
+          {activeResult && (
+            <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-xl flex-1">
+              <h3 className="font-bold text-blue-800 border-b border-blue-100 pb-2 mb-4">Kết quả tham khảo</h3>
 
-          {/* Trạng thái đang phân tích */}
-          {status === 'ANALYZING' && (
-            <div className="h-72 flex flex-col items-center justify-center">
-              <span className="loading loading-ring loading-lg text-primary"></span>
-
-              <p className="mt-4 text-sm font-medium animate-pulse">
-                Đang định vị tổn thương và cấu trúc da...
-              </p>
-            </div>
-          )}
-
-          {/* Kết quả phân tích */}
-          {status === 'ANALYSIS_COMPLETED' && result && (
-            <div className="space-y-4">
-              <span className="badge badge-success text-white py-3 px-4 font-semibold">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                HOÀN TẤT PHÂN TÍCH
-              </span>
-
-              {/* Phân loại da */}
-              <div>
-                <p className="text-xs text-base-content/60 uppercase tracking-wide">
-                  Phân loại da
+              <div className="space-y-3 mb-4 text-sm">
+                <p className="flex justify-between items-center">
+                  <span className="text-slate-500">Mức độ:</span>
+                  <span className="font-bold text-slate-800 bg-white px-3 py-1 rounded border shadow-sm">
+                    {activeResult.severity || 'Chưa xác định'}
+                  </span>
                 </p>
-
-                <p className="font-bold text-xl text-primary">
-                  {result.skinType}
+                <p className="flex justify-between items-center border-t border-blue-100 pt-3">
+                  <span className="text-slate-600 font-medium">Điểm tổng quan:</span>
+                  <span className="font-bold text-blue-600 text-2xl">
+                    {activeResult.overall_score ?? '--'}
+                    {activeResult.overall_score != null && '/100'}
+                  </span>
                 </p>
               </div>
 
-              {/* Chỉ số mụn */}
-              <div>
-                <div className="flex justify-between text-xs mb-1 font-semibold">
-                  <span>Chỉ số Mụn & Kháng viêm</span>
-
-                  <span className="text-error">
-                    {result.acneScore}%
+              {activeResult.level === 'none' && (
+                <div className="flex gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 mb-3">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    AI chưa nhận diện được khuyết điểm nào. Điều này <b>không đồng nghĩa da khỏe</b>. Hãy chụp lại
+                    ảnh đủ sáng, rõ nét, chính diện, hoặc đặt lịch để chuyên viên kiểm tra trực tiếp.
                   </span>
                 </div>
-
-                <progress
-                  className="progress progress-error w-full"
-                  value={result.acneScore}
-                  max="100"
-                ></progress>
-              </div>
-
-              {/* Đánh giá sơ bộ */}
-              <div className="bg-base-200 p-4 rounded-xl border border-primary/20">
-                <h3 className="text-sm font-bold mb-2 text-primary">
-                  Đánh giá chuyên môn sơ bộ:
-                </h3>
-
-                <ul className="list-disc list-inside text-sm space-y-1">
-                  {result.recommendations.map((r, i) => (
-                    <li key={i}>{r}</li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Dịch vụ đề xuất từ database */}
-              {recommendedServices.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-bold text-base-content mb-2 flex items-center gap-1">
-                    <Calendar className="w-4 h-4 text-primary" />
-                    Liệu trình đề xuất tại Spa:
-                  </h3>
-
-                  <div className="space-y-2">
-                    {recommendedServices.map((svc) => (
-                      <div
-                        key={svc.id}
-                        className="p-3 bg-base-100 rounded-lg border border-base-200 shadow-sm flex items-center justify-between gap-3 hover:border-primary transition-all"
-                      >
-                        <img
-                          src={svc.image_url}
-                          alt={svc.name}
-                          className="w-14 h-14 rounded-lg object-cover bg-base-300 flex-shrink-0"
-                        />
-
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">
-                            {svc.name}
-                          </p>
-
-                          <p className="text-xs text-base-content/60 truncate">
-                            {svc.description}
-                          </p>
-
-                          <p className="text-xs font-bold text-primary mt-1">
-                            {Number(svc.price).toLocaleString('vi-VN')} đ
-
-                            <span className="text-xs font-normal text-base-content/50 ml-1">
-                              ({svc.duration_minutes} phút)
-                            </span>
-                          </p>
-                        </div>
-
-                        <button
-                          className="btn btn-xs btn-primary text-white"
-                          onClick={() =>
-                            alert(`Đặt lịch ngay cho liệu trình: ${svc.name}`)
-                          }
-                        >
-                          Chọn gói
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+              )}
+              {activeResult.level === 'uncertain' && (
+                <div className="flex gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 mb-3">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>AI chỉ phát hiện các vùng nghi ngờ (độ tin cậy thấp). Kết quả cần chuyên viên xác nhận.</span>
                 </div>
               )}
 
-              <p className="text-xs italic opacity-60 mt-3">
-                *Lưu ý: Kết quả AI chỉ mang tính sàng lọc ban đầu.
-                Bác sĩ chuyên khoa tại cơ sở sẽ trực tiếp thăm khám
-                trước khi tiến hành thủ thuật.
+              <div>
+                <span className="text-slate-500 text-sm font-medium mb-2 block">
+                  Khuyết điểm phát hiện: {activeResult.issues?.length || 0}
+                </span>
+                <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto pr-2">
+                  {activeResult.issues?.map((issue, idx) => (
+                    <span
+                      key={idx}
+                      className={`badge badge-outline py-2 px-3 text-xs ${
+                        issue.certainty === 'confirmed'
+                          ? 'badge-error bg-red-50 text-red-700'
+                          : 'border-amber-400 bg-amber-50 text-amber-700'
+                      }`}
+                    >
+                      {issue.certainty === 'possible' && '? '}
+                      {issue.issue_name} · {Math.round(issue.confidence)}%
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {activeResult.level === 'detected' && (
+                <p className="text-xs text-slate-500 mt-3">
+                  Đây là các vùng AI nhận diện được. AI có thể bỏ sót tổn thương, nên số lượng và mức độ chỉ mang tính
+                  tham khảo.
+                </p>
+              )}
+
+              {/* Nhận xét bổ sung từ model thị giác (chỉ có khi detection không chắc và đã bật ANTHROPIC_API_KEY) */}
+              {aiSummary && (
+                <div className="mt-4 border-t border-blue-100 pt-4 text-sm">
+                  <h4 className="font-semibold text-slate-700 mb-2">Nhận xét tham khảo</h4>
+                  {aiSummary.is_face === false && (
+                    <p className="text-amber-700 mb-2">Ảnh có vẻ không phải khuôn mặt. Hãy chụp lại.</p>
+                  )}
+                  {aiSummary.image_quality && !aiSummary.image_quality.ok && (
+                    <p className="text-amber-700 mb-2">Chất lượng ảnh: {aiSummary.image_quality.notes}</p>
+                  )}
+                  <ul className="space-y-2">
+                    {aiSummary.observations?.map((o, i) => (
+                      <li key={i} className="bg-white border border-slate-200 rounded-lg p-2">
+                        <span className="font-medium text-slate-800">{o.type}</span>
+                        <span className="text-slate-500"> ({o.region}, {o.severity})</span>
+                        <p className="text-slate-600 mt-0.5">{o.description}</p>
+                      </li>
+                    ))}
+                  </ul>
+                  {aiSummary.staff_note && <p className="text-slate-600 mt-2">{aiSummary.staff_note}</p>}
+                  {aiSummary.needs_professional_review && (
+                    <p className="mt-2 font-medium text-red-700">
+                      Nên đặt lịch để chuyên viên hoặc bác sĩ da liễu kiểm tra trực tiếp.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400 mt-4">
+                Kết quả do AI hỗ trợ, chỉ mang tính tham khảo, không thay thế chẩn đoán của bác sĩ da liễu.
               </p>
             </div>
           )}
         </div>
       </div>
-
-      {/* Khối Thấu hiểu nỗi lo khách hàng */}
-      <CustomerConcerns />
-
-      {/* 3 Khối Giá Trị & Phác Đồ GlowSkin (Style O2 SKIN) */}
-      <GlowSkinValueProp />
     </div>
   );
 }

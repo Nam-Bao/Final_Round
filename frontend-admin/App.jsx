@@ -11,7 +11,7 @@ import MySchedulePage from './pages/MySchedulePage';
 import DoctorWorkspacePage from './pages/DoctorWorkspacePage';
 import ConsultantWorkspacePage from './pages/ConsultantWorkspacePage';
 import TechnicianWorkspacePage from './pages/TechnicianWorkspacePage';
-import SalesWorkspacePage from './pages/SalesWorkspacePage';
+import SaleOrderManagement from './pages/SaleOrderManagement';
 import SpaServicesPage from './pages/SpaServicesPage';
 import PromotionsPage from './pages/PromotionsPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
@@ -35,7 +35,7 @@ function App() {
           <Route path="/workspace" element={<DoctorWorkspacePage />} />
           <Route path="/consultant-workspace" element={<ConsultantWorkspacePage />} />
           <Route path="/technician-workspace" element={<TechnicianWorkspacePage />} />
-          <Route path="/sales-workspace" element={<SalesWorkspacePage />} />
+          <Route path="/sales-management" element={<SaleOrderManagement />} />
           <Route path="/spa-services" element={<SpaServicesPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/customer-profiles" element={<CustomerProfilePage />} />

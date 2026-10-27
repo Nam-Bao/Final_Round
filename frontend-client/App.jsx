@@ -23,6 +23,7 @@ import NewsPage from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import PromotionsPage from './pages/PromotionsPage'; 
 import ReviewsPage from './pages/ReviewsPage';
+import CustomerShopPage from './pages/CustomerShopPage';
 
 // ====== CẤU HÌNH AI ======
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -228,6 +229,7 @@ function App() {
             <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/promotions" element={<PromotionsPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
+            <Route path="/shops" element={<CustomerShopPage />} />
           </Routes>
         </main>
 

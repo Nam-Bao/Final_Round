@@ -51,6 +51,16 @@ export default function DoctorBookingPage() {
         const docData = await docRes.json();
         if (docRes.ok) setDoctors(docData.data || []); 
 
+        // Lấy danh sách Hồ sơ khám bệnh của tài khoản (trước đây chưa được tải nên dropdown rỗng)
+        const profRes = await fetch('http://localhost:4000/api/identity/profile/patients', { headers: { 'Authorization': `Bearer ${token}` } });
+        const profData = await profRes.json();
+        if (profRes.ok) {
+          const list = profData.data || [];
+          setPatientProfiles(list);
+          const self = list.find(p => p.relationship === 'Bản thân') || list[0];
+          if (self) setSelectedProfileId(self.id); // Chọn sẵn hồ sơ "Bản thân"
+        }
+
         const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers: { 'Authorization': `Bearer ${token}` } });
         const histData = await histRes.json();
         if (histRes.ok && histData.data && histData.data.length > 0) {
@@ -246,6 +256,11 @@ export default function DoctorBookingPage() {
                  <option disabled value="">-- Chọn hồ sơ khám bệnh --</option>
                  {patientProfiles.map(p => (<option key={p.id} value={p.id}>{p.full_name} ({p.relationship})</option>))}
                </select>
+               {patientProfiles.length === 0 && (
+                 <p className="text-sm text-warning italic mt-2">
+                   Chưa có hồ sơ khám bệnh. <button type="button" className="link link-primary" onClick={() => navigate('/profile')}>Thêm hồ sơ tại trang Hồ sơ của tôi</button>
+                 </p>
+               )}
             </div>
 
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
