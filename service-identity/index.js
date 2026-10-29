@@ -36,6 +36,10 @@ server.listen(PORT, async () => {
   console.log(`🚀 [Identity & Socket] đang chạy tại port ${PORT}`);
   try {
     await sequelize.authenticate();
-    await sequelize.sync();
+    // Mặc định chỉ tạo bảng còn thiếu. DB_SYNC_ALTER=true mới sửa cấu trúc bảng theo model —
+    // chế độ này có thể XÓA cột không còn trong model, chỉ bật khi cần và nên backup DB trước.
+    const alter = process.env.DB_SYNC_ALTER === 'true';
+    if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
+    await sequelize.sync({ alter });
   } catch (error) { console.error(error); }
 });
