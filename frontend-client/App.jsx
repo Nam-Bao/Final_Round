@@ -226,7 +226,6 @@ function App() {
             <Route path="/services/:id" element={<ServiceDetailPage />} />  
             <Route path="/news" element={<NewsPage />} />
             <Route path="/news/:slug" element={<NewsDetailPage />} />
-            <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/promotions" element={<PromotionsPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/shops" element={<CustomerShopPage />} />

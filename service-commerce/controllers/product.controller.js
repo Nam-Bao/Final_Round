@@ -1,5 +1,6 @@
 const { Product, Category, Review, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { getRatingStats } = require('./review.controller');
 
 // 1. Lấy danh sách Sản phẩm (Dành cho Admin)
 const getProducts = async(req, res) => {
@@ -11,9 +12,14 @@ const getProducts = async(req, res) => {
             ]
         });
 
+        // Điểm đánh giá thật từ bảng Reviews
+        const ratingStats = await getRatingStats();
+
         // Chuẩn hóa dữ liệu trả về cho frontend (đảm bảo stock_quantity luôn có giá trị)
         const formattedProducts = products.map(p => {
             const item = p.toJSON();
+            item.avg_rating = ratingStats[item.id]?.avg_rating || 0;
+            item.review_count = ratingStats[item.id]?.review_count || 0;
             item.stock_quantity = item.stock_quantity !== undefined && item.stock_quantity !== null ?
                 item.stock_quantity :
                 (item.stock || 0);

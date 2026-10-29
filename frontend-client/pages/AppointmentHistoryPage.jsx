@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag } from 'lucide-react';
+import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import VideoCallModal from '../components/VideoCallModal';
+import ReviewModal from '../components/ReviewModal';
+import { useAuthStore } from '../store/authStore';
+
+// Các trạng thái lịch online mà khách có thể vào phòng khám video
+const VIDEO_JOINABLE_STATUSES = ['CONFIRMED', 'WAITING', 'IN_PROGRESS'];
 
 export default function AppointmentHistoryPage() {
   const navigate = useNavigate();
@@ -18,31 +23,21 @@ export default function AppointmentHistoryPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   
-  // State quản lý phòng gọi ZegoCloud Video Call
-  const [activeRoomId, setActiveRoomId] = useState(null);
+  // Lịch hẹn đang mở phòng khám video (server tự kiểm tra quyền và khung giờ)
+  const [videoAppointmentId, setVideoAppointmentId] = useState(null);
+  const user = useAuthStore((state) => state.user);
 
-  // Hàm xử lý kiểm tra giờ hẹn và mở Video Call
-  const handleJoinVideoCall = (appointment) => {
-    if (!appointment.appointment_date || !appointment.appointment_time) {
-      setActiveRoomId(`glowskin_room_${appointment.id}`);
-      return;
-    }
+  // Đánh giá bác sĩ: { [appointment_id]: review } và lịch hẹn đang mở hộp thoại đánh giá
+  const [myReviews, setMyReviews] = useState({});
+  const [reviewApt, setReviewApt] = useState(null);
 
-    // Ghép Ngày + Giờ của lịch hẹn (Ví dụ: "2026-10-27 15:00")
-    const timeClean = String(appointment.appointment_time).slice(0, 5);
-    const appointmentDateTime = dayjs(`${appointment.appointment_date} ${timeClean}`, 'YYYY-MM-DD HH:mm');
-    const now = dayjs();
-
-    // Cho phép vào phòng khám trước 10 phút
-    const isAllowed = now.isAfter(appointmentDateTime.subtract(10, 'minute'));
-
-    if (!isAllowed) {
-      alert(`Chưa đến giờ hẹn khám! Lịch hẹn của bạn lúc ${timeClean} ngày ${dayjs(appointment.appointment_date).format('DD/MM/YYYY')}. Vui lòng quay lại đúng giờ.`);
-      return;
-    }
-
-    // Mở phòng gọi với RoomID duy nhất theo ID lịch hẹn
-    setActiveRoomId(`glowskin_room_${appointment.id}`);
+  const handleSubmitReview = async ({ rating, comment }) => {
+    const token = localStorage.getItem('token');
+    await axios.post('http://localhost:4000/api/booking/reviews', { appointment_id: reviewApt.id, rating, comment }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    setMyReviews(prev => ({ ...prev, [reviewApt.id]: { appointment_id: reviewApt.id, rating } }));
+    setReviewApt(null);
   };
 
   const fetchData = async () => {
@@ -50,7 +45,7 @@ export default function AppointmentHistoryPage() {
       const token = localStorage.getItem('token'); 
       if (!token) return navigate('/client-login');
       const headers = { 'Authorization': `Bearer ${token}` };
-      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes] = await Promise.all([
+      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes, reviewRes] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments/my-history', { headers }),
         axios.get('http://localhost:4000/api/identity/users/doctors', { headers }),
         axios.get('http://localhost:4000/api/identity/medical-records/my-records', { headers }).catch(() => ({ data: { data: [] } })),
@@ -58,9 +53,11 @@ export default function AppointmentHistoryPage() {
         axios.get('http://localhost:4000/api/booking/sessions/my-sessions', { headers }).catch(() => ({ data: { data: [] } })),
         axios.get('http://localhost:4000/api/booking/spa-services'),
         axios.get('http://localhost:4000/api/booking/packages'),
-        axios.get('http://localhost:4000/api/commerce/products')
+        axios.get('http://localhost:4000/api/commerce/products'),
+        axios.get('http://localhost:4000/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
       setApts(aptRes.data?.data || []);
+      setMyReviews(Object.fromEntries((reviewRes.data?.data || []).map(r => [r.appointment_id, r])));
       setDoctors(docRes.data?.data || []);
       setRecords(recRes.data?.data || []);
       setMyProfiles(profRes.data?.data?.PatientProfiles || []);
@@ -172,9 +169,9 @@ export default function AppointmentHistoryPage() {
 
                     <div className="flex flex-wrap gap-2 w-full justify-end">
                       {/* NÚT GẶP BÁC SĨ (CHỈ HIỂN THỊ DÀNH CHO KHÁM ONLINE VÀ CHƯA HỦY) */}
-                      {isOnline && apt.status !== 'CANCELLED' && (
-                        <button 
-                          onClick={() => handleJoinVideoCall(apt)}
+                      {isOnline && VIDEO_JOINABLE_STATUSES.includes(apt.status) && (
+                        <button
+                          onClick={() => setVideoAppointmentId(apt.id)}
                           className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 flex-1 md:flex-none shadow-sm"
                         >
                           🎥 Gặp bác sĩ
@@ -187,6 +184,19 @@ export default function AppointmentHistoryPage() {
                       
                       {(hasData || apt.status === 'COMPLETED' || apt.status === 'WAITING_FOR_SALE') && (
                         <button onClick={() => handleViewRecord(apt)} className="btn btn-sm btn-primary flex-1 md:flex-none gap-1"><FileText className="w-4 h-4"/> Xem hồ sơ</button>
+                      )}
+
+                      {/* ĐÁNH GIÁ BÁC SĨ: chỉ khi buổi khám đã hoàn tất */}
+                      {apt.status === 'COMPLETED' && apt.doctor_id && (
+                        myReviews[apt.id] ? (
+                          <span className="btn btn-sm btn-ghost text-amber-500 no-animation cursor-default gap-1">
+                            <Star className="w-4 h-4 fill-current"/> Đã đánh giá {myReviews[apt.id].rating}/5
+                          </span>
+                        ) : (
+                          <button onClick={() => setReviewApt({ id: apt.id, doctorName: doc?.Profile?.full_name })} className="btn btn-sm btn-outline btn-warning flex-1 md:flex-none gap-1">
+                            <Star className="w-4 h-4"/> Đánh giá bác sĩ
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -323,11 +333,19 @@ export default function AppointmentHistoryPage() {
       )}
 
       {/* MODAL POPUP VIDEO CALL ZEGOCLOUD KHI BẤM NÚT GẶP BÁC SĨ */}
+      <ReviewModal
+        isOpen={!!reviewApt}
+        title="Đánh giá bác sĩ"
+        subtitle={reviewApt?.doctorName}
+        onClose={() => setReviewApt(null)}
+        onSubmit={handleSubmitReview}
+      />
+
       <VideoCallModal
-        isOpen={!!activeRoomId}
-        onClose={() => setActiveRoomId(null)}
-        roomID={activeRoomId}
-        userName="Khách hàng GlowSkin"
+        isOpen={!!videoAppointmentId}
+        onClose={() => setVideoAppointmentId(null)}
+        appointmentId={videoAppointmentId}
+        userName={user?.Profile?.full_name || 'Khách hàng GlowSkin'}
       />
     </div>
   );

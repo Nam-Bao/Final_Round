@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, Divider, DatePicker, Drawer, Timeline, Spin, Empty, Image, Modal } from 'antd';
-import { UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined } from '@ant-design/icons';
+import { UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import VideoCallModal from '../components/VideoCallModal';
 
 const { Title, Text } = Typography;
+
+const isOnlinePatient = (patient) => Boolean(patient?.pre_notes?.startsWith('[ONLINE]'));
 
 export default function DoctorWorkspacePage() {
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -17,6 +20,7 @@ export default function DoctorWorkspacePage() {
   const [isNotesModalVisible, setIsNotesModalVisible] = useState(false); 
   const [patientHistory, setPatientHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [form] = Form.useForm();
 
@@ -141,6 +145,7 @@ export default function DoctorWorkspacePage() {
                   description={
                     <Space size="small" className="mt-1">
                       <Tag icon={<ClockCircleOutlined />} color="default">{item.time}</Tag>
+                      {isOnlinePatient(item) && <Tag icon={<VideoCameraOutlined />} color="green">Online</Tag>}
                       {item.status === 'WAITING' && <Tag color="warning">Đang chờ</Tag>}
                       {item.status === 'IN_PROGRESS' && <Tag color="processing">Đang khám</Tag>}
                       {(item.status === 'COMPLETED' || item.status === 'WAITING_FOR_SALE') && <Tag color="success">Đã xong</Tag>}
@@ -175,7 +180,12 @@ export default function DoctorWorkspacePage() {
                     </div>
                   </div>
                 </Space>
-                <Button type="default" icon={<HistoryOutlined />} onClick={() => setIsHistoryVisible(true)}>Tra cứu Sổ y bạ</Button>
+                <Space direction="vertical" align="end">
+                  {isOnlinePatient(selectedPatient) && selectedPatient.status !== 'COMPLETED' && selectedPatient.status !== 'WAITING_FOR_SALE' && (
+                    <Button type="primary" className="bg-green-600" icon={<VideoCameraOutlined />} onClick={() => setIsVideoOpen(true)}>Vào phòng khám online</Button>
+                  )}
+                  <Button type="default" icon={<HistoryOutlined />} onClick={() => setIsHistoryVisible(true)}>Tra cứu Sổ y bạ</Button>
+                </Space>
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto">
@@ -194,6 +204,13 @@ export default function DoctorWorkspacePage() {
           )}
         </Card>
       </Col>
+
+      <VideoCallModal
+        open={isVideoOpen}
+        onClose={() => setIsVideoOpen(false)}
+        appointmentId={selectedPatient?.id}
+        patientName={selectedPatient?.name}
+      />
 
       <Modal title="Thông tin sơ bộ từ CSKH" open={isNotesModalVisible} onCancel={() => setIsNotesModalVisible(false)} footer={<Button type="primary" onClick={() => setIsNotesModalVisible(false)}>Đóng</Button>} width={600}>
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">

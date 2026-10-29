@@ -1,8 +1,15 @@
 const { Cart, CartItem, Product } = require('../models');
 
+// Tìm món trong giỏ và đảm bảo nó thuộc giỏ của khách đang đăng nhập
+const findOwnCartItem = (item_id, customer_id) =>
+  CartItem.findOne({
+    where: { id: item_id },
+    include: [Product, { model: Cart, where: { customer_id }, attributes: [] }]
+  });
+
 // 1. Lấy giỏ hàng của user (Tạo mới nếu chưa có)
 exports.getCart = async (req, res) => {
-  const { customer_id } = req.query; // Thường lấy từ req.user.id thông qua token middleware
+  const customer_id = req.user.id;
   try {
     let cart = await Cart.findOne({ where: { customer_id } });
     if (!cart) {
@@ -21,7 +28,8 @@ exports.getCart = async (req, res) => {
 
 // 2. Thêm sản phẩm vào giỏ
 exports.addToCart = async (req, res) => {
-  const { customer_id, product_id, quantity = 1 } = req.body;
+  const customer_id = req.user.id;
+  const { product_id, quantity = 1 } = req.body;
   try {
     let cart = await Cart.findOne({ where: { customer_id } });
     if (!cart) cart = await Cart.create({ customer_id });
@@ -55,7 +63,7 @@ exports.updateCartItem = async (req, res) => {
   const { item_id } = req.params;
   const { quantity } = req.body;
   try {
-    const cartItem = await CartItem.findByPk(item_id, { include: [Product] });
+    const cartItem = await findOwnCartItem(item_id, req.user.id);
     if (!cartItem) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm trong giỏ' });
 
     if (quantity <= 0) {
@@ -79,7 +87,9 @@ exports.updateCartItem = async (req, res) => {
 exports.removeFromCart = async (req, res) => {
   const { item_id } = req.params;
   try {
-    await CartItem.destroy({ where: { id: item_id } });
+    const cartItem = await findOwnCartItem(item_id, req.user.id);
+    if (!cartItem) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm trong giỏ' });
+    await cartItem.destroy();
     return res.status(200).json({ success: true, message: 'Đã xóa sản phẩm' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

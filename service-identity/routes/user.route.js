@@ -16,8 +16,9 @@ router.get('/employees', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), ge
 // Các đường dẫn API
 router.get('/doctors', verifyToken, getDoctors);
 router.post('/quick-customer', verifyToken, authorizeRoles('ADMIN', 'CONSULTANT', 'SALES'), createQuickCustomer);
-router.post('/', createUser);           // Tạo mới (Body JSON)
-router.put('/:id', updateUser);         // Cập nhật (Cần truyền ID lên URL)
-router.delete('/:id', deleteUser);      // Xóa (Cần truyền ID lên URL)
+// Quản lý tài khoản: chỉ ADMIN (trang Quản lý Người dùng)
+router.post('/', verifyToken, authorizeRoles('ADMIN'), createUser);
+router.put('/:id', verifyToken, authorizeRoles('ADMIN'), updateUser);
+router.delete('/:id', verifyToken, authorizeRoles('ADMIN'), deleteUser);
 
 module.exports = router;

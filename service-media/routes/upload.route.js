@@ -23,7 +23,8 @@ const storage = new CloudinaryStorage({
     allowedFormats: ['jpg', 'png', 'jpeg', 'webp'],
   },
 });
-const upload = multer({ storage: storage });
+// Tối đa 5MB / ảnh để tránh lạm dụng dung lượng Cloudinary
+const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // API Nhận file
 router.post('/', (req, res) => {
@@ -31,6 +32,9 @@ router.post('/', (req, res) => {
   const uploadImage = upload.single('image');
 
   uploadImage(req, res, function (err) {
+    if (err?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ message: 'Ảnh quá lớn, tối đa 5MB' });
+    }
     if (err) {
       console.error("Lỗi từ Cloudinary/Multer:", err);
       // Trả về lỗi 500 kèm chi tiết lỗi thật sự để debug

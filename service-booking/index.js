@@ -1,3 +1,7 @@
+// Nạp biến môi trường từ .env (Node >= 20.12)
+try { process.loadEnvFile(); } catch { /* không có file .env */ }
+if (!process.env.JWT_SECRET) throw new Error("Thiếu JWT_SECRET trong file .env của service");
+
 const express = require('express');
 const { sequelize } = require('./models');
 const packageRoute = require('./routes/package.route.js');
@@ -19,7 +23,6 @@ app.use('/appointments', appointmentRoute);
 app.use('/sessions', sessionRoute);
 app.use('/spa-services', spaServiceRoute);
 app.use('/reviews', reviewRoutes);
-app.use('/api/booking/reviews', reviewRoutes);
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);

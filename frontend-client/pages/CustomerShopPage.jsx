@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, AlertCircle, MapPin, Search, CheckCircle, Percent } from 'lucide-react';
 import axios from 'axios';
+import { useAuthStore } from '../store/authStore';
 
 export default function CustomerShopPage() {
   const [activeView, setActiveView] = useState('SHOP'); // SHOP | CART | CHECKOUT
@@ -11,6 +12,20 @@ export default function CustomerShopPage() {
   // States Modal và Thông báo
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  // Đánh giá thật của 1 sản phẩm (chỉ từ khách đã nhận hàng)
+  const [reviewProduct, setReviewProduct] = useState(null);
+  const [productReviews, setProductReviews] = useState(null);
+
+  const openProductReviews = async (product) => {
+    setReviewProduct(product);
+    setProductReviews(null);
+    try {
+      const res = await axios.get(`http://localhost:4000/api/commerce/reviews/product/${product.id}`);
+      setProductReviews(res.data.data);
+    } catch (err) {
+      setProductReviews({ avg_rating: 0, review_count: 0, reviews: [] });
+    }
+  };
 
   // States Sổ địa chỉ
   const [addressBook, setAddressBook] = useState([]);
@@ -27,9 +42,11 @@ export default function CustomerShopPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
 
-  const userStr = localStorage.getItem('user') || localStorage.getItem('customer');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const customer_id = user ? (user.id || user.customer_id) : '34db86b5-5cd8-4ba7-979f-29d95f87a8b3';
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+  const customer_id = user?.id || null;
+  // Backend lấy định danh khách từ token, không tin customer_id gửi lên
+  const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
   const [checkoutForm, setCheckoutForm] = useState({
     recipient_name: user?.full_name || user?.name || '',
@@ -80,14 +97,14 @@ export default function CustomerShopPage() {
   const fetchCart = async () => {
     if (!customer_id) return;
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/carts?customer_id=${customer_id}`);
+      const res = await axios.get(`http://localhost:4000/api/commerce/carts`, authConfig);
       setCartItems(res.data.data?.items || res.data.items || []);
     } catch (err) { console.error('Lỗi giỏ hàng:', err); }
   };
 
   const fetchAddressBook = async () => {
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/orders/addresses?customer_id=${customer_id}`);
+      const res = await axios.get(`http://localhost:4000/api/commerce/orders/addresses`, authConfig);
       const addresses = res.data.data || [];
       setAddressBook(addresses);
       
@@ -112,8 +129,8 @@ export default function CustomerShopPage() {
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
         code: voucherCode, 
         order_value: cartTotal,
-        customer_id: customer_id
-      });
+        scope_values: { PRODUCT: cartTotal } // Giỏ hàng chỉ có sản phẩm
+      }, authConfig);
       const amount = res.data.data?.discount_amount || 0;
       setDiscountAmount(amount);
       setAppliedVoucher({ code: voucherCode.toUpperCase(), amount });
@@ -163,9 +180,9 @@ export default function CustomerShopPage() {
   const handleSaveAddressModal = async () => {
     try {
       if (addressModal.mode === 'ADD') {
-        await axios.post('http://localhost:4000/api/commerce/orders/addresses', { ...modalForm, customer_id });
+        await axios.post('http://localhost:4000/api/commerce/orders/addresses', modalForm, authConfig);
       } else {
-        await axios.put(`http://localhost:4000/api/commerce/orders/addresses/${addressModal.data.id}`, modalForm);
+        await axios.put(`http://localhost:4000/api/commerce/orders/addresses/${addressModal.data.id}`, modalForm, authConfig);
       }
       setAddressModal({ isOpen: false, mode: 'ADD', data: null });
       fetchAddressBook();
@@ -178,7 +195,7 @@ export default function CustomerShopPage() {
   const handleAddToCart = async (productId) => {
     if (!customer_id) { setShowLoginModal(true); return; }
     try {
-      await axios.post('http://localhost:4000/api/commerce/carts/add', { customer_id, product_id: productId, quantity: 1 });
+      await axios.post('http://localhost:4000/api/commerce/carts/add', { product_id: productId, quantity: 1 }, authConfig);
       fetchCart();
       setToastMsg('Đã thêm sản phẩm vào giỏ hàng thành công!');
       setTimeout(() => setToastMsg(''), 3000);
@@ -188,8 +205,8 @@ export default function CustomerShopPage() {
   const handleUpdateQuantity = async (itemId, currentQty, delta) => {
     const newQty = currentQty + delta;
     try {
-      if (newQty <= 0) await axios.delete(`http://localhost:4000/api/commerce/carts/item/${itemId}`);
-      else await axios.put(`http://localhost:4000/api/commerce/carts/item/${itemId}`, { quantity: newQty });
+      if (newQty <= 0) await axios.delete(`http://localhost:4000/api/commerce/carts/item/${itemId}`, authConfig);
+      else await axios.put(`http://localhost:4000/api/commerce/carts/item/${itemId}`, { quantity: newQty }, authConfig);
       fetchCart();
     } catch (err) { alert('Lỗi cập nhật số lượng'); }
   };
@@ -203,13 +220,12 @@ export default function CustomerShopPage() {
     try {
       const payload = { 
         ...checkoutForm, 
-        customer_id, 
         promotion_code: appliedVoucher ? appliedVoucher.code : null, 
         discount_amount: discountAmount,
         save_address_to_book: true 
       };
       
-      const res = await axios.post('http://localhost:4000/api/commerce/orders/checkout', payload);
+      const res = await axios.post('http://localhost:4000/api/commerce/orders/checkout', payload, authConfig);
       
       if (res.data?.success) {
         alert(`🎉 Đặt hàng thành công! (Thanh toán: ${checkoutForm.payment_method})`);
@@ -272,7 +288,12 @@ export default function CustomerShopPage() {
                 <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
                   <div>
                     <div className="aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden"><img src={getProductImage(p.image_url)} alt={p.name} className="w-full h-full object-cover" /></div>
-                    <div className="flex items-center gap-1 mb-2"><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /><span className="text-sm text-slate-600 font-medium">{Number(p.avg_rating || 0).toFixed(1)} ({p.review_count || 0})</span></div>
+                    <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 mb-2 hover:underline">
+                      <Star className={`w-4 h-4 ${p.review_count ? 'text-yellow-400 fill-yellow-400' : 'text-slate-300'}`} />
+                      <span className="text-sm text-slate-600 font-medium">
+                        {p.review_count ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count} đánh giá)` : 'Chưa có đánh giá'}
+                      </span>
+                    </button>
                     <h3 className="font-bold text-lg text-slate-800 line-clamp-1">{p.name}</h3>
                     <p className="text-primary font-bold text-lg my-2">{Number(p.price).toLocaleString()} ₫</p>
                   </div>
@@ -501,6 +522,60 @@ export default function CustomerShopPage() {
             <div className="flex gap-3 mt-6">
               <button onClick={() => setAddressModal({ isOpen: false, mode: 'ADD', data: null })} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200">Hủy</button>
               <button onClick={handleSaveAddressModal} className="flex-1 py-2.5 bg-primary text-white font-medium rounded-xl hover:bg-primary/90">Lưu thông tin</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Yêu cầu đăng nhập khi khách vãng lai thêm giỏ / thanh toán */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl text-center">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Yêu cầu đăng nhập</h3>
+            <p className="text-slate-600 mb-6">Bạn cần đăng nhập tài khoản khách hàng để thêm sản phẩm vào giỏ và đặt hàng.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowLoginModal(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition">Để sau</button>
+              <button onClick={() => window.location.href = '/login'} className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition shadow-sm">Đăng nhập</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal đánh giá thật của sản phẩm */}
+      {reviewProduct && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewProduct(null)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start border-b pb-3 mb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{reviewProduct.name}</h3>
+                {productReviews && productReviews.review_count > 0 && (
+                  <p className="text-sm text-slate-500 flex items-center gap-1">
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /> {Number(productReviews.avg_rating).toFixed(1)} / 5 · {productReviews.review_count} đánh giá
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setReviewProduct(null)} className="p-1 text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="overflow-y-auto space-y-4">
+              {!productReviews ? (
+                <div className="text-center py-8 text-slate-400">Đang tải đánh giá...</div>
+              ) : productReviews.reviews.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">Chưa có đánh giá nào. Đánh giá chỉ đến từ khách đã mua và nhận hàng.</div>
+              ) : productReviews.reviews.map((r) => (
+                <div key={r.id} className="border-b border-slate-100 pb-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-sm text-slate-700">{r.customer_name} <span className="text-xs text-green-600 font-normal">· Đã mua hàng</span></span>
+                    <span className="text-xs text-slate-400">{new Date(r.createdAt).toLocaleDateString('vi-VN')}</span>
+                  </div>
+                  <div className="flex my-1">
+                    {[1, 2, 3, 4, 5].map((n) => <Star key={n} className={`w-3.5 h-3.5 ${n <= r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-300'}`} />)}
+                  </div>
+                  {r.comment && <p className="text-sm text-slate-600 whitespace-pre-line">{r.comment}</p>}
+                </div>
+              ))}
             </div>
           </div>
         </div>

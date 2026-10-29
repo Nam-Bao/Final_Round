@@ -10,6 +10,8 @@ const STATUS_MAP = {
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-100 text-red-700', icon: XCircle }
 };
 
+const authConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` } });
+
 export default function SaleOrderManagement() {
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('ALL');
@@ -19,7 +21,7 @@ export default function SaleOrderManagement() {
   const fetchOrders = async () => {
     try {
       // Nhớ cấu hình đúng URL trỏ vào Backend của bạn
-      const res = await axios.get('http://localhost:4000/api/commerce/orders/admin');
+      const res = await axios.get('http://localhost:4000/api/commerce/orders/admin', authConfig());
       setOrders(res.data.data || []);
     } catch (error) {
       console.error('Lỗi tải đơn hàng:', error);
@@ -33,7 +35,7 @@ export default function SaleOrderManagement() {
   const handleUpdateStatus = async (orderId, newStatus) => {
     if (!window.confirm(`Bạn muốn chuyển đơn hàng sang trạng thái: ${STATUS_MAP[newStatus].label}?`)) return;
     try {
-      await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/status`, { status: newStatus });
+      await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/status`, { status: newStatus }, authConfig());
       alert('Cập nhật trạng thái thành công!');
       fetchOrders();
       setSelectedOrder(null);
@@ -45,7 +47,7 @@ export default function SaleOrderManagement() {
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Cảnh báo: Việc này sẽ hủy đơn và tự động cộng lại tồn kho. Bạn có chắc chắn?')) return;
     try {
-      await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/cancel`);
+      await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/cancel`, {}, authConfig());
       alert('Đã hủy đơn và hoàn kho!');
       fetchOrders();
       setSelectedOrder(null);

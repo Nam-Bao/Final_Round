@@ -57,21 +57,32 @@ export default function ConsultantCheckoutPage() {
     });
   };
 
+  // Tiền theo từng nhóm — voucher có phạm vi riêng chỉ giảm trên nhóm tương ứng
+  const getScopeValues = () => {
+    const sum = (ids, list, priceOf) => ids.reduce((s, id) => { const item = list.find(x => x.id === id); return item ? s + Number(priceOf(item)) : s; }, 0);
+    return {
+      SPA_SERVICE: sum(selectedItems.services, spaServices, i => i.price),
+      TREATMENT_PACKAGE: sum(selectedItems.packages, packages, i => i.promotional_price || i.price),
+      PRODUCT: sum(selectedItems.medicines, products, i => i.price),
+    };
+  };
+
+  // Phí khám = tiền cọc lúc đặt lịch (server trả về exam_fee); tổng hóa đơn = phí khám + dịch vụ/sản phẩm
   const getSubtotal = () => {
-    let sub = selectedCustomer?.deposit_paid === 0 ? 100000 : 0; 
-    selectedItems.services.forEach(id => { const item = spaServices.find(s => s.id === id); if (item) sub += Number(item.price); });
-    selectedItems.packages.forEach(id => { const item = packages.find(p => p.id === id); if (item) sub += Number(item.promotional_price || item.price); });
-    selectedItems.medicines.forEach(id => { const item = products.find(p => p.id === id); if (item) sub += Number(item.price); });
-    return sub;
+    const scopes = getScopeValues();
+    return Number(selectedCustomer?.exam_fee || 0) + scopes.SPA_SERVICE + scopes.TREATMENT_PACKAGE + scopes.PRODUCT;
   };
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) return;
     try {
+      const token = localStorage.getItem('admin_token');
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
         code: voucherCode,
-        order_value: getSubtotal()
-      });
+        order_value: getSubtotal(),
+        scope_values: getScopeValues(),
+        customer_id: selectedCustomer?.customer_id // Kiểm tra khách đã dùng mã này chưa
+      }, { headers: { Authorization: `Bearer ${token}` } });
       const amount = res.data.data.discount_amount;
       setDiscountAmount(amount);
       setAppliedVoucher({ code: voucherCode.toUpperCase(), amount }); // Lưu trạng thái thành công
@@ -85,30 +96,29 @@ export default function ConsultantCheckoutPage() {
 
   const handleSubmitCheckout = async () => {
     setLoading(true);
-    const currentSubtotal = getSubtotal();
-    const currentFinalTotal = Math.max(0, currentSubtotal - discountAmount);
-
     try {
       const token = localStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
+      // Server tự tính lại tổng tiền và kiểm tra lại voucher, không gửi số tiền lên
+      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
         selected_services: selectedItems.services,
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,
-        discount_amount: discountAmount,
         voucher_code: appliedVoucher ? appliedVoucher.code : null, // Gửi đúng mã đã được xác nhận
-        total_bill: currentFinalTotal,
-        payment_method: 'VIETQR' 
+        payment_method: 'VIETQR'
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
-      message.success('Chốt Sale & Xuất hóa đơn thành công!');
+      message.success(`Chốt Sale thành công! Đã thu: ${Number(res.data.bill?.amount_due_now || 0).toLocaleString('vi-VN')} ₫`);
       setSelectedCustomer(null);
-      fetchData(); 
-    } catch (error) { message.error('Lỗi khi chốt hóa đơn!'); }
+      fetchData();
+    } catch (error) { message.error(error.response?.data?.message || 'Lỗi khi chốt hóa đơn!'); }
     finally { setLoading(false); }
   };
 
+  const examFee = Number(selectedCustomer?.exam_fee || 0);
+  const depositPaid = Number(selectedCustomer?.deposit_paid || 0);
   const subtotal = getSubtotal();
   const finalTotal = Math.max(0, subtotal - discountAmount);
+  const amountDue = Math.max(0, finalTotal - depositPaid);
 
   return (
     <Row gutter={16} className="h-[85vh]">
@@ -199,15 +209,13 @@ export default function ConsultantCheckoutPage() {
                     
                     <div className="flex justify-between mb-2 mt-2">
                        <Text>Tiền Dịch vụ/Sản phẩm:</Text>
-                       <Text strong>{(subtotal - (selectedCustomer.deposit_paid === 0 ? 100000 : 0)).toLocaleString('vi-VN')} ₫</Text>
+                       <Text strong>{(subtotal - examFee).toLocaleString('vi-VN')} ₫</Text>
                     </div>
 
-                    {selectedCustomer.deposit_paid === 0 && (
-                       <div className="flex justify-between mb-2">
-                          <Text>Phí khám bác sĩ:</Text>
-                          <Text strong>100.000 ₫</Text>
-                       </div>
-                    )}
+                    <div className="flex justify-between mb-2">
+                       <Text>Phí khám bác sĩ:</Text>
+                       <Text strong>{examFee.toLocaleString('vi-VN')} ₫</Text>
+                    </div>
 
                     <div className="flex justify-between mb-4 border-t border-gray-200 pt-2">
                        <Text>Tạm tính:</Text>
@@ -247,10 +255,21 @@ export default function ConsultantCheckoutPage() {
                     </div>
 
                     <Divider className="my-2"/>
-                    
+
+                    <div className="flex justify-between mb-2">
+                       <Text>Tổng hóa đơn:</Text>
+                       <Text strong>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
+                    </div>
+                    {depositPaid > 0 && (
+                       <div className="flex justify-between mb-2 text-green-600">
+                          <Text className="text-green-600">Đã cọc khi đặt lịch:</Text>
+                          <Text strong className="text-green-600">- {depositPaid.toLocaleString('vi-VN')} ₫</Text>
+                       </div>
+                    )}
+
                     <div className="flex justify-between mb-6 bg-blue-50 p-3 border border-blue-200 rounded">
                        <Text strong className="text-blue-700 text-lg">TỔNG CẦN THU:</Text>
-                       <Text strong className="text-2xl text-blue-700">{finalTotal.toLocaleString('vi-VN')} ₫</Text>
+                       <Text strong className="text-2xl text-blue-700">{amountDue.toLocaleString('vi-VN')} ₫</Text>
                     </div>
 
                     <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} onClick={handleSubmitCheckout}>

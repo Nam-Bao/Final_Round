@@ -213,7 +213,7 @@ exports.analyzeFace = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: record,
-      ...(req.query.debug === '1' && {
+      ...(req.query.debug === '1' && process.env.NODE_ENV !== 'production' && {
         debug: {
           sent_url: sentUrl,
           image_size: imgSize,

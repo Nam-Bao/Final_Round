@@ -19,6 +19,44 @@ app.use((req, res, next) => {
     next();
 });
 
+// Giới hạn số request theo IP (lưu trong bộ nhớ, đủ cho 1 instance gateway).
+// Đặt ở gateway vì các service phía sau chỉ thấy IP của gateway.
+// onlyFailures: chỉ đếm request lỗi (vd. đăng nhập sai) để nhân viên dùng chung IP phòng khám không bị chặn oan.
+const rateLimit = ({ windowMs, max, message, onlyFailures = false }) => {
+    const hits = new Map();
+    setInterval(() => {
+        const now = Date.now();
+        for (const [ip, entry] of hits) if (entry.resetAt <= now) hits.delete(ip);
+    }, windowMs).unref();
+
+    return (req, res, next) => {
+        const now = Date.now();
+        let entry = hits.get(req.ip);
+        if (!entry || entry.resetAt <= now) {
+            entry = { count: 0, resetAt: now + windowMs };
+            hits.set(req.ip, entry);
+        }
+        if (entry.count >= max) {
+            res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+            return res.status(429).json({ message });
+        }
+        if (onlyFailures) {
+            res.on('finish', () => { if (res.statusCode >= 400) entry.count++; });
+        } else {
+            entry.count++;
+        }
+        next();
+    };
+};
+
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+// Chống dò mật khẩu
+app.post('/api/identity/auth/login', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, onlyFailures: true, message: 'Đăng nhập sai quá nhiều lần, vui lòng thử lại sau 15 phút' }));
+app.post('/api/identity/auth/register', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, message: 'Bạn đăng ký quá nhiều lần, vui lòng thử lại sau' }));
+// Upload ảnh và phân tích AI mở cho khách vãng lai (trang chủ) nên giới hạn để tránh lạm dụng Cloudinary / Roboflow
+app.post('/api/media/upload', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 30, message: 'Bạn tải ảnh quá nhiều, vui lòng thử lại sau ít phút' }));
+app.post('/api/ai/analyze', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 20, message: 'Bạn phân tích quá nhiều lần, vui lòng thử lại sau ít phút' }));
+
 // Middleware chuyển tiếp Header Authorization sang các Microservice phía sau
 const handleProxyReq = (proxyReq, req, res) => {
     if (req.headers.authorization) {

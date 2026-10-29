@@ -85,7 +85,7 @@ const login = async (req, res) => {
       role: user.role
     };
 
-    const JWT_SECRET = 'O2O_SKINCARE_SECRET_KEY_2026'; 
+    const JWT_SECRET = process.env.JWT_SECRET;
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
 
     res.status(200).json({

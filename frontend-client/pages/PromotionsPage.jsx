@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Copy, Check, Sparkles, Clock, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react';
 import axios from 'axios';
+import { useAuthStore } from '../store/authStore';
 
 const SCOPE_LABELS = {
   ALL: 'Toàn bộ dịch vụ & sản phẩm',
@@ -18,10 +19,10 @@ export default function PromotionsPage() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [usedPromoIds, setUsedPromoIds] = useState([]);
 
-  // Lấy User từ LocalStorage
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const customer_id = user ? user.id : null;
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+  const customer_id = user?.id || null;
+  const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
   useEffect(() => {
     fetchPromotions();
@@ -44,14 +45,14 @@ export default function PromotionsPage() {
 
   const fetchUsedPromotions = async () => {
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/used?customer_id=${customer_id}`);
+      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/used`, authConfig);
       setUsedPromoIds(res.data.data || []);
     } catch (err) { console.error('Lỗi lấy mã đã dùng:', err); }
   };
 
   const fetchSavedPromotions = async () => {
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/saved?customer_id=${customer_id}`);
+      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/saved`, authConfig);
       setSavedPromoIds(res.data.data || []);
     } catch (err) { console.error('Lỗi lấy mã đã lưu:', err); }
   };
@@ -68,7 +69,7 @@ export default function PromotionsPage() {
       return;
     }
     try {
-      await axios.post('http://localhost:4000/api/commerce/promotions/save', { customer_id, promotion_id });
+      await axios.post('http://localhost:4000/api/commerce/promotions/save', { promotion_id }, authConfig);
       setSavedPromoIds(prev => [...prev, promotion_id]); // Cập nhật UI ngay lập tức
     } catch (error) {
       alert(error.response?.data?.message || 'Lỗi lưu mã');

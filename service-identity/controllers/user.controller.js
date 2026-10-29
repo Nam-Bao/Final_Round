@@ -26,6 +26,15 @@ const getAllUsers = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { email, password, role, full_name, phone } = req.body;
+    if (!email || !password || !full_name || !role) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ email, mật khẩu, họ tên và vai trò' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ message: 'Mật khẩu tối thiểu 6 ký tự' });
+    }
+    if (await User.findOne({ where: { email } })) {
+      return res.status(409).json({ message: 'Email này đã được sử dụng' });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);

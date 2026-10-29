@@ -34,6 +34,8 @@ const ShiftRequest = sequelize.define('ShiftRequest', {
 const Appointment = sequelize.define('Appointment', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     customer_id: { type: DataTypes.UUID, allowNull: false },
+    // Lịch tạo trước khi khôi phục cột này (bị mất ở commit 27bf31d) không còn giá trị nên tạm cho phép null
+    patient_profile_id: { type: DataTypes.UUID, allowNull: true },
     doctor_id: { type: DataTypes.UUID, allowNull: true },
     consultant_id: { type: DataTypes.UUID, allowNull: true },
     appointment_date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -49,6 +51,12 @@ const Appointment = sequelize.define('Appointment', {
         defaultValue: 'NEW_EXAM'
     },
     symptoms: { type: DataTypes.TEXT },
+    pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] },
+    diagnosis: { type: DataTypes.STRING },
+    doctor_notes: { type: DataTypes.TEXT },
+    prescribed_services: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_packages: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
 // --- THÊM MỚI: BẢNG NHẬT KÝ CHĂM SÓC KHÁCH HÀNG (FOLLOW-UP) ---
@@ -61,11 +69,19 @@ const FollowUpLog = sequelize.define('FollowUpLog', {
     call_note: { type: DataTypes.TEXT }
 });
 
+// Đánh giá bác sĩ sau buổi khám đã hoàn tất (mỗi lịch hẹn 1 đánh giá).
+// customer_name / doctor_name là ảnh chụp tên thật từ service-identity lúc đánh giá.
 const AppointmentReview = sequelize.define('AppointmentReview', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     customer_id: { type: DataTypes.UUID, allowNull: false },
-    rating: { type: DataTypes.INTEGER },
-    comment: { type: DataTypes.TEXT }
+    doctor_id: { type: DataTypes.UUID },
+    customer_name: { type: DataTypes.STRING },
+    doctor_name: { type: DataTypes.STRING },
+    rating: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 5 } },
+    comment: { type: DataTypes.TEXT },
+    status: { type: DataTypes.ENUM('VISIBLE', 'HIDDEN'), defaultValue: 'VISIBLE' }
+}, {
+    indexes: [{ unique: true, fields: ['appointment_id'] }]
 });
 
 const CustomerPackage = sequelize.define('CustomerPackage', {
@@ -161,6 +177,7 @@ module.exports = {
     CustomerPackage,
     TreatmentSession,
     SpaService,
+    ServiceSession,
     Invoice,
     Transaction // Export bảng mới
 };

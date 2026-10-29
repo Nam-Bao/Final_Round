@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/authStore';
-import VideoCallModal from '../components/VideoCallModal';
 
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
@@ -16,11 +15,9 @@ export default function DoctorBookingPage() {
   const getToken = () => storeToken || localStorage.getItem('token') || '';
 
   const [doctors, setDoctors] = useState([]);
+  const [doctorStats, setDoctorStats] = useState({}); // Điểm đánh giá thật { [doctor_id]: { avg_rating, review_count } }
   const [patientProfiles, setPatientProfiles] = useState([]); 
   const [selectedProfileId, setSelectedProfileId] = useState(''); 
-  
-  // State mở Popup Video Call ZegoCloud thử nghiệm
-  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -78,12 +75,15 @@ export default function DoctorBookingPage() {
           const docData = await docRes.json();
           setDoctors(docData.data || []); 
         }
+        const statsRes = await fetch('http://localhost:4000/api/booking/reviews/doctor-stats').catch(() => null);
+        if (statsRes && statsRes.ok) setDoctorStats((await statsRes.json()).data || {});
 
         // Kiểm tra Khách cũ / Khách mới để áp dụng miễn phí khám
         const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers }).catch(() => null);
         if (histRes && histRes.ok) {
           const histData = await histRes.json();
-          if (histData.data && histData.data.length > 0) {
+          // Chỉ để hiển thị — số tiền thật do server tính (khách cũ = đã từng hoàn tất 1 buổi khám)
+          if ((histData.data || []).some(a => a.status === 'COMPLETED')) {
             setIsOldCustomer(true);
             setFee(0);
           }
@@ -220,7 +220,7 @@ export default function DoctorBookingPage() {
       }
 
       const resData = await res.json(); 
-      navigate(`/payment/${resData.data.id}?fee=${fee}&type=${appointmentType}`);
+      navigate(`/payment/${resData.data.id}`);
     } catch (error) {
       console.error(error);
       alert(error.message || 'Đã có lỗi xảy ra khi đặt lịch!');
@@ -317,15 +317,6 @@ export default function DoctorBookingPage() {
                   <h3 className="font-bold text-info flex items-center gap-2">
                     <AlertCircle className="w-5 h-5"/> Khai thác thông tin sơ bộ
                   </h3>
-                  
-                  {/* NÚT TEST PHÒNG KHÁM VIDEO CALL ZEGOCLOUD */}
-                  <button 
-                    type="button"
-                    onClick={() => setIsVideoOpen(true)}
-                    className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
-                  >
-                    <Video className="w-4 h-4"/> 🎥 Test Phòng Khám Online
-                  </button>
                 </div>
 
                 <p className="text-sm opacity-80">Dữ liệu này sẽ được chuyển thẳng cho Bác sĩ. Bạn cũng có thể nhờ CSKH hỗ trợ trực tiếp nếu cần.</p>
@@ -388,7 +379,11 @@ export default function DoctorBookingPage() {
                     </div>
                     <div>
                       <p className="font-bold">{doc.Profile?.full_name || 'Bác sĩ Da Liễu'}</p>
-                      <p className="text-sm opacity-70">{doc.email}</p>
+                      <p className="text-sm opacity-70 flex items-center gap-1">
+                        {doctorStats[doc.id] ? (
+                          <><Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {doctorStats[doc.id].avg_rating} · {doctorStats[doc.id].review_count} đánh giá</>
+                        ) : 'Chưa có đánh giá'}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -461,14 +456,6 @@ export default function DoctorBookingPage() {
           </div>
         </div>
       )}
-
-      {/* MODAL VIDEO CALL ZEGOCLOUD POPUP TEST */}
-      <VideoCallModal
-        isOpen={isVideoOpen}
-        onClose={() => setIsVideoOpen(false)}
-        roomID="glowskin_room_demo"
-        userName="Khách hàng GlowSkin"
-      />
     </div>
   );
 }
