@@ -58,11 +58,12 @@ export default function AdminLayout() {
         .then(res => setCustomers(res.data?.data || []))
         .catch(err => console.log('Lỗi lấy danh sách khách', err));
 
-      const newSocket = io('http://localhost:4001');
+      // Server xác thực tư vấn viên qua token, không tin userId gửi lên
+      const newSocket = io('http://localhost:4001', { auth: { token } });
       setChatSocket(newSocket);
 
       newSocket.on('connect', () => {
-         newSocket.emit('consultant_online', { userId: currentUser.id });
+         newSocket.emit('consultant_online');
       });
 
       newSocket.on('new_customer_assigned', (data) => {
@@ -111,19 +112,14 @@ export default function AdminLayout() {
          return s;
       }));
 
-      chatSocket.emit('send_message', {
-         sessionId: activeSessionId,
-         senderType: 'CONSULTANT',
-         content: chatInput,
-         toSocketId: currentSession.customerSocket
-      });
+      chatSocket.emit('send_message', { sessionId: activeSessionId, content: chatInput });
       setChatInput('');
   };
 
   const handleCloseSession = (sessionId) => {
       const session = chatSessions.find(s => s.sessionId === sessionId);
       if (chatSocket && session) {
-          chatSocket.emit('close_session', { sessionId, customerSocketId: session.customerSocket });
+          chatSocket.emit('close_session', { sessionId });
       }
       setChatSessions(prev => prev.filter(s => s.sessionId !== sessionId));
       if (activeSessionId === sessionId) {

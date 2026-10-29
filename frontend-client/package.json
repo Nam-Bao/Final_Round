@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@zegocloud/zego-uikit-prebuilt": "^2.18.5",
     "axios": "^1.20.0",
     "dayjs": "^1.11.23",

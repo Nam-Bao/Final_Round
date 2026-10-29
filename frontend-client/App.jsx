@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { MessageCircle, X, Send, User, Clock, PhoneCall } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { io } from 'socket.io-client'; 
 import dayjs from 'dayjs';
 
@@ -25,42 +24,26 @@ import PromotionsPage from './pages/PromotionsPage';
 import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
 
-// ====== CẤU HÌNH AI ======
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-const MODEL_NAMES = [
-  import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash-lite',
-  import.meta.env.VITE_GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite',
-].filter((name, index, arr) => name && arr.indexOf(name) === index);
-
-const SYSTEM_PROMPT = `Bạn là nhân viên tư vấn nhiệt tình của phòng khám da liễu GlowSkin O2O...`;
-
-const genAI = new GoogleGenerativeAI(API_KEY || '');
-
-const getModel = (name) =>
-  genAI.getGenerativeModel({
-    model: name,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+// ====== CHATBOT AI ======
+// Gemini chạy ở service-ai-analysis, frontend không giữ API key
+async function streamConsultReply(messages, onText) {
+  const res = await fetch('http://localhost:4000/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
   });
+  if (!res.ok || !res.body) throw new Error(`Chatbot lỗi ${res.status}`);
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function startStream(contents) {
-  let lastError;
-  for (const name of MODEL_NAMES) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        return await getModel(name).generateContentStream({ contents });
-      } catch (err) {
-        lastError = err;
-        const canRetry = err.status === 503 || err.status === 429 || /overload|high demand|unavailable/i.test(err.message || '');
-        if (!canRetry) throw err; 
-        await sleep(1000);
-      }
-    }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value, { stream: true });
+    onText(fullText);
   }
-  throw lastError;
+  return fullText;
 }
 
 function ProtectedRoute({ children }) {
@@ -85,6 +68,7 @@ function App() {
   const [outOfOffice, setOutOfOffice] = useState(false); 
 
   const user = useAuthStore((state) => state.user); 
+  const token = useAuthStore((state) => state.token);
 
   const [messages, setMessages] = useState([
     { id: 1, sender: 'cs', text: 'Chào bạn! Kỹ thuật viên GlowSkin có thể giúp gì cho bạn hôm nay?' }
@@ -128,11 +112,20 @@ function App() {
     }
 
     setChatMode('WAITING'); 
-    const newSocket = io('http://localhost:4001'); 
+    // Gửi token để server biết khách là ai (khách vãng lai thì không có token)
+    const newSocket = io('http://localhost:4001', { auth: token ? { token } : {} });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);
-    newSocket.emit('request_human_chat', { customerId: user?.id || null });
+    newSocket.emit('request_human_chat');
+
+    // Token hết hạn / không hợp lệ: server từ chối kết nối -> quay về chat AI và báo khách đăng nhập lại
+    newSocket.on('connect_error', () => {
+      newSocket.disconnect();
+      setSocket(null);
+      setChatMode('AI');
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', isSystem: true, text: 'Không kết nối được với CSKH. Phiên đăng nhập có thể đã hết hạn, vui lòng đăng nhập lại.' }]);
+    });
   
     newSocket.on('chat_accepted', (data) => {
       setChatMode('HUMAN'); 
@@ -168,24 +161,19 @@ function App() {
 
     if (chatMode === 'HUMAN' && socket && currentSessionId) {
       socket.emit('send_message', { 
-        sessionId: currentSessionId, senderType: 'CUSTOMER', content: userText 
+        sessionId: currentSessionId, content: userText 
       });
     } else {
       setIsLoading(true);
       try {
-        if (!API_KEY) throw new Error('Chưa có VITE_GEMINI_API_KEY');
-        const contents = newMessages.filter((m) => m.id !== 1 && !m.isError).slice(-6).map((m) => ({
+        const history = newMessages.filter((m) => m.id !== 1 && !m.isError && !m.isSystem).slice(-6).map((m) => ({
           role: m.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: m.text }],
+          text: m.text,
         }));
 
-        const result = await startStream(contents);
         const aiId = Date.now() + 1;
-        let fullText = '';
         let started = false;
-
-        for await (const chunk of result.stream) {
-          fullText += chunk.text();
+        await streamConsultReply(history, (fullText) => {
           if (!started) {
             started = true;
             setIsLoading(false);
@@ -193,7 +181,7 @@ function App() {
           } else {
             setMessages((prev) => prev.map((m) => (m.id === aiId ? { ...m, text: fullText } : m)));
           }
-        }
+        });
       } catch (error) {
         setMessages((prev) => [...prev, {
           id: Date.now() + 2, sender: 'cs', isError: true,
