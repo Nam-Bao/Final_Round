@@ -3,28 +3,53 @@ import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, Fi
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import VideoCallModal from '../components/VideoCallModal';
 
 export default function AppointmentHistoryPage() {
   const navigate = useNavigate();
   const [apts, setApts] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [records, setRecords] = useState([]);
-  
   const [myProfiles, setMyProfiles] = useState([]);
   const [mySessions, setMySessions] = useState([]);
   const [catalogs, setCatalogs] = useState({ services: [], packages: [], products: [] });
-  
   const [loading, setLoading] = useState(true);
   const [selectedApt, setSelectedApt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null); // BỔ SUNG: State lưu ảnh đang xem phóng to
+  const [previewImage, setPreviewImage] = useState(null);
+  
+  // State quản lý phòng gọi ZegoCloud Video Call
+  const [activeRoomId, setActiveRoomId] = useState(null);
+
+  // Hàm xử lý kiểm tra giờ hẹn và mở Video Call
+  const handleJoinVideoCall = (appointment) => {
+    if (!appointment.appointment_date || !appointment.appointment_time) {
+      setActiveRoomId(`glowskin_room_${appointment.id}`);
+      return;
+    }
+
+    // Ghép Ngày + Giờ của lịch hẹn (Ví dụ: "2026-10-27 15:00")
+    const timeClean = String(appointment.appointment_time).slice(0, 5);
+    const appointmentDateTime = dayjs(`${appointment.appointment_date} ${timeClean}`, 'YYYY-MM-DD HH:mm');
+    const now = dayjs();
+
+    // Cho phép vào phòng khám trước 10 phút
+    const isAllowed = now.isAfter(appointmentDateTime.subtract(10, 'minute'));
+
+    if (!isAllowed) {
+      alert(`Chưa đến giờ hẹn khám! Lịch hẹn của bạn lúc ${timeClean} ngày ${dayjs(appointment.appointment_date).format('DD/MM/YYYY')}. Vui lòng quay lại đúng giờ.`);
+      return;
+    }
+
+    // Mở phòng gọi với RoomID duy nhất theo ID lịch hẹn
+    setActiveRoomId(`glowskin_room_${appointment.id}`);
+  };
 
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token'); 
       if (!token) return navigate('/client-login');
       const headers = { 'Authorization': `Bearer ${token}` };
-
       const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments/my-history', { headers }),
         axios.get('http://localhost:4000/api/identity/users/doctors', { headers }),
@@ -35,21 +60,21 @@ export default function AppointmentHistoryPage() {
         axios.get('http://localhost:4000/api/booking/packages'),
         axios.get('http://localhost:4000/api/commerce/products')
       ]);
-
       setApts(aptRes.data?.data || []);
       setDoctors(docRes.data?.data || []);
       setRecords(recRes.data?.data || []);
       setMyProfiles(profRes.data?.data?.PatientProfiles || []);
       setMySessions(sessionRes.data?.data || []);
-      
       setCatalogs({
         services: srvRes.data?.data || [],
         packages: pkgRes.data?.data || [],
         products: prodRes.data?.data || []
       });
-
-    } catch (error) { console.error("Lỗi lấy dữ liệu:", error); } 
-    finally { setLoading(false); }
+    } catch (error) { 
+      console.error("Lỗi lấy dữ liệu:", error); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -61,7 +86,9 @@ export default function AppointmentHistoryPage() {
       await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
       alert('Hủy lịch thành công!');
       fetchData(); 
-    } catch (error) { alert('Không thể hủy lịch, vui lòng liên hệ CSKH.'); }
+    } catch (error) { 
+      alert('Không thể hủy lịch, vui lòng liên hệ CSKH.'); 
+    }
   };
 
   const handleViewRecord = (apt) => {
@@ -69,7 +96,6 @@ export default function AppointmentHistoryPage() {
     setIsModalOpen(true);
   };
 
-  // BỔ SUNG: Hàm xử lý mở modal xem ảnh phóng to
   const handleImageClick = (imgUrl) => {
     setPreviewImage(imgUrl);
   };
@@ -93,11 +119,11 @@ export default function AppointmentHistoryPage() {
   const sessionsInModal = selectedApt ? mySessions.filter(s => s.session_date === selectedApt.appointment_date && s.patient_profile_id === selectedApt.patient_profile_id) : [];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 relative">
+    <div className="max-w-4xl mx-auto space-y-6 relative pb-10">
       <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
         <ClipboardList className="text-primary" /> Sổ Lịch Khám & Y Bạ
       </h1>
-
+      
       {apts.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -114,6 +140,7 @@ export default function AppointmentHistoryPage() {
              const profileName = myProfiles.find(p => p.id === apt.patient_profile_id)?.full_name || 'Khách hàng';
              const timeStr = apt.appointment_time ? String(apt.appointment_time).slice(0,5) : '--:--';
              const hasData = records.some(r => r.appointment_id === apt.id) || mySessions.some(s => s.session_date === apt.appointment_date);
+             const isOnline = apt.pre_notes?.includes('[ONLINE]') || apt.type === 'ONLINE';
 
              return (
                 <div key={apt.id} className="card bg-white shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-primary/40 transition-colors">
@@ -130,18 +157,30 @@ export default function AppointmentHistoryPage() {
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[240px] space-y-3">
                       <p className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Thời gian:</span>
-                        <span className="font-bold text-slate-800 flex items-center gap-1"><Calendar className="w-4 h-4 text-primary"/> {timeStr} - {dayjs(apt.appointment_date).format('DD/MM/YYYY')}</span>
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          <Calendar className="w-4 h-4 text-primary"/> {timeStr} - {dayjs(apt.appointment_date).format('DD/MM/YYYY')}
+                        </span>
                       </p>
                       <p className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Hình thức:</span>
-                        <span className={`font-bold flex items-center gap-1 ${apt.type === 'OFFLINE' ? 'text-orange-600' : 'text-info'}`}>
-                          {apt.pre_notes?.includes('[ONLINE]') ? <Video className="w-4 h-4"/> : <MapPin className="w-4 h-4"/>} 
-                          {apt.pre_notes?.includes('[ONLINE]') ? 'Tư vấn Online' : 'Khám trực tiếp'}
+                        <span className={`font-bold flex items-center gap-1 ${!isOnline ? 'text-orange-600' : 'text-info'}`}>
+                          {isOnline ? <Video className="w-4 h-4"/> : <MapPin className="w-4 h-4"/>} 
+                          {isOnline ? 'Tư vấn Online' : 'Khám trực tiếp'}
                         </span>
                       </p>
                     </div>
 
-                    <div className="flex gap-2 w-full justify-end">
+                    <div className="flex flex-wrap gap-2 w-full justify-end">
+                      {/* NÚT GẶP BÁC SĨ (CHỈ HIỂN THỊ DÀNH CHO KHÁM ONLINE VÀ CHƯA HỦY) */}
+                      {isOnline && apt.status !== 'CANCELLED' && (
+                        <button 
+                          onClick={() => handleJoinVideoCall(apt)}
+                          className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 flex-1 md:flex-none shadow-sm"
+                        >
+                          🎥 Gặp bác sĩ
+                        </button>
+                      )}
+
                       {(apt.status === 'PENDING' || apt.status === 'CONFIRMED') && (
                         <button onClick={() => handleCancel(apt.id)} className="btn btn-sm btn-error btn-outline flex-1 md:flex-none">Hủy lịch</button>
                       )}
@@ -157,6 +196,7 @@ export default function AppointmentHistoryPage() {
         </div>
       )}
 
+      {/* MODAL XEM CHI TIẾT HỒ SƠ KHÁM */}
       {isModalOpen && selectedApt && (
         <div className="modal modal-open">
           <div className="modal-box max-w-3xl bg-slate-50 p-0 overflow-hidden">
@@ -164,7 +204,6 @@ export default function AppointmentHistoryPage() {
                <h3 className="font-bold text-xl text-primary flex items-center gap-2"><FileText/> Chi tiết Lịch Khám & Dịch Vụ</h3>
                <button onClick={() => setIsModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><X/></button>
             </div>
-            
             <div className="p-5 space-y-6 overflow-y-auto max-h-[70vh]">
                {recordInModal && (
                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -183,11 +222,10 @@ export default function AppointmentHistoryPage() {
                     </div>
                  </div>
                )}
-
+               
                {(selectedApt.prescribed_services?.length > 0 || selectedApt.prescribed_packages?.length > 0 || selectedApt.prescribed_medicines?.length > 0) && (
                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <h4 className="font-bold text-purple-800 text-lg flex items-center gap-2 border-b pb-2 mb-3"><ShoppingBag className="w-5 h-5"/> Sản phẩm & Dịch vụ được chỉ định</h4>
-                    
                     {selectedApt.prescribed_services?.length > 0 && (
                       <div className="mb-2">
                         <p className="text-sm font-bold text-slate-700 mb-1">Dịch vụ Spa (Làm ngay):</p>
@@ -236,7 +274,6 @@ export default function AppointmentHistoryPage() {
                       </div>
                     ) : <p className="text-sm text-slate-400 italic">Không có ảnh chụp</p>}
                   </div>
-
                   <div>
                     <h4 className="font-bold text-green-700 mb-2 border-b pb-1">✨ Da sau dịch vụ (After)</h4>
                     {sessionsInModal.length > 0 && sessionsInModal.some(s => s.post_treatment_images?.length > 0) ? (
@@ -264,7 +301,7 @@ export default function AppointmentHistoryPage() {
         </div>
       )}
 
-      {/* BỔ SUNG: Modal xem ảnh phóng to bằng Tailwind & HTML chuẩn */}
+      {/* MODAL XEM ẢNH PHÓNG TO */}
       {previewImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewImage(null)}>
           <button 
@@ -280,10 +317,18 @@ export default function AppointmentHistoryPage() {
             src={previewImage} 
             alt="Preview" 
             className="max-w-full max-h-full object-contain rounded"
-            onClick={(e) => e.stopPropagation()} // Ngăn click vào ảnh bị đóng modal
+            onClick={(e) => e.stopPropagation()} 
           />
         </div>
       )}
+
+      {/* MODAL POPUP VIDEO CALL ZEGOCLOUD KHI BẤM NÚT GẶP BÁC SĨ */}
+      <VideoCallModal
+        isOpen={!!activeRoomId}
+        onClose={() => setActiveRoomId(null)}
+        roomID={activeRoomId}
+        userName="Khách hàng GlowSkin"
+      />
     </div>
   );
 }

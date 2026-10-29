@@ -21,8 +21,12 @@ const CategoriesTab = () => {
     try {
       const res = await fetch('http://localhost:4000/api/commerce/categories');
       const data = await res.json();
-      setCategories(data.data);
-    } catch (error) { message.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+      setCategories(data.data || []);
+    } catch (error) { 
+      message.error('Lỗi tải danh mục'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const openModal = (record = null) => {
@@ -37,9 +41,16 @@ const CategoriesTab = () => {
       const isUpdate = !!editingItem;
       const url = isUpdate ? `http://localhost:4000/api/commerce/categories/${editingItem.id}` : 'http://localhost:4000/api/commerce/categories';
       const res = await fetch(url, {
-        method: isUpdate ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(values)
+        method: isUpdate ? 'PUT' : 'POST', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        body: JSON.stringify(values)
       });
-      if (!res.ok) throw new Error('Thao tác thất bại');
+
+      const textData = await res.text();
+      let resData;
+      try { resData = JSON.parse(textData); } catch (e) { throw new Error(textData); }
+
+      if (!res.ok) throw new Error(resData.message || 'Thao tác thất bại');
       message.success(isUpdate ? 'Cập nhật danh mục thành công!' : 'Thêm mới thành công!');
       setIsModalVisible(false);
       fetchCategories();
@@ -49,12 +60,16 @@ const CategoriesTab = () => {
   const handleDelete = async (id) => { 
     try {
       const token = localStorage.getItem('admin_token');
-      await fetch(`http://localhost:4000/api/commerce/categories/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      message.success('Đã xóa danh mục!'); fetchCategories();
+      await fetch(`http://localhost:4000/api/commerce/categories/${id}`, { 
+        method: 'DELETE', 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+      message.success('Đã xóa danh mục!'); 
+      fetchCategories();
     } catch (error) { message.error('Lỗi khi xóa'); }
   };
 
-  const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(searchText.toLowerCase()));
+  const filteredCategories = categories.filter(c => c.name?.toLowerCase().includes(searchText.toLowerCase()));
 
   const columns = [
     { title: 'Tên danh mục', dataIndex: 'name', key: 'name', render: text => <b>{text}</b> },
@@ -66,7 +81,7 @@ const CategoriesTab = () => {
         { text: 'Ẩn (INACTIVE)', value: 'INACTIVE' },
       ],
       onFilter: (value, record) => record.status === value,
-      render: (status) => <Tag color={status === 'ACTIVE' ? 'success' : 'error'}>{status}</Tag>
+      render: (status) => <Tag color={status === 'ACTIVE' ? 'success' : 'error'}>{status || 'ACTIVE'}</Tag>
     },
     {
       title: 'Hành động', key: 'action',
@@ -93,7 +108,7 @@ const CategoriesTab = () => {
       <Table columns={columns} dataSource={filteredCategories} rowKey="id" loading={loading} />
       <Modal title={editingItem ? "Sửa danh mục" : "Thêm danh mục mới"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item label="Tên danh mục" name="name" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Tên danh mục" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên danh mục' }]}><Input /></Form.Item>
           <Form.Item label="Mô tả" name="description"><Input.TextArea rows={3} /></Form.Item>
           {editingItem && (
             <Form.Item label="Trạng thái" name="status"><Select><Select.Option value="ACTIVE">Hoạt động</Select.Option><Select.Option value="INACTIVE">Ẩn</Select.Option></Select></Form.Item>
@@ -127,15 +142,21 @@ const ProductsTab = () => {
     try {
       const res = await fetch('http://localhost:4000/api/commerce/products');
       const data = await res.json();
-      setProducts(data.data);
-    } catch (error) { message.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+      setProducts(data.data || []);
+    } catch (error) { 
+      message.error('Lỗi tải sản phẩm'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const fetchCategories = async () => { 
     try {
       const res = await fetch('http://localhost:4000/api/commerce/categories');
       const data = await res.json();
-      setCategories(data.data.filter(c => c.status === 'ACTIVE'));
+      if(data.data) {
+        setCategories(data.data.filter(c => c.status === 'ACTIVE' || !c.status));
+      }
     } catch (error) {}
   };
 
@@ -150,17 +171,26 @@ const ProductsTab = () => {
         try {
           parsedImages = typeof record.image_url === 'string' ? JSON.parse(record.image_url) : record.image_url;
           if (!Array.isArray(parsedImages)) parsedImages = [record.image_url];
-        } catch (e) { parsedImages = [record.image_url]; }
+        } catch (e) { 
+          parsedImages = [record.image_url]; 
+        }
       }
       form.setFieldsValue({
         ...record,
-        start_date: record.start_date ? dayjs(record.start_date) : null,
-        end_date: record.end_date ? dayjs(record.end_date) : null,
+        stock_quantity: record.stock_quantity !== undefined ? record.stock_quantity : record.stock,
+        start_date: record.start_date ? dayjs(record.start_date) : dayjs(),
+        end_date: record.end_date ? dayjs(record.end_date) : dayjs().add(1, 'year'),
         image_url: parsedImages 
       });
       setImageMode('url');
     } else { 
       form.resetFields(); 
+      form.setFieldsValue({
+        type: 'PRODUCT',
+        start_date: dayjs(),
+        end_date: dayjs().add(1, 'year'),
+        stock_quantity: 100
+      });
       setImageMode('url');
     }
     setIsModalVisible(true);
@@ -169,12 +199,10 @@ const ProductsTab = () => {
   const handleSubmit = async (values) => { 
     try {
       const token = localStorage.getItem('admin_token');
-      
       let finalImages = values.image_url || [];
 
       if (imageMode === 'file' && fileList.length > 0) {
         const uploadedUrls = [];
-        
         for (const file of fileList) {
           const formData = new FormData();
           formData.append('image', file.originFileObj || file);
@@ -189,38 +217,67 @@ const ProductsTab = () => {
           if (!uploadRes.ok) throw new Error('Không thể tải ảnh lên máy chủ!');
           uploadedUrls.push(uploadData.url);
         }
-        
         finalImages = uploadedUrls;
       } else {
-        if(!Array.isArray(finalImages)) {
+        if (!Array.isArray(finalImages)) {
            finalImages = [finalImages];
         }
       }
 
       const isUpdate = !!editingItem;
-      const url = isUpdate ? `http://localhost:4000/api/commerce/products/${editingItem.id}` : 'http://localhost:4000/api/commerce/products';
+      const url = isUpdate 
+        ? `http://localhost:4000/api/commerce/products/${editingItem.id}` 
+        : 'http://localhost:4000/api/commerce/products';
       
       const payload = {
         ...values,
+        stock_quantity: Number(values.stock_quantity),
+        stock: Number(values.stock_quantity), // Gửi đồng bộ cả 2 biến
         start_date: values.start_date ? values.start_date.toISOString() : null,
         end_date: values.end_date ? values.end_date.toISOString() : null,
         image_url: finalImages 
       };
 
       const res = await fetch(url, {
-        method: isUpdate ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload)
+        method: isUpdate ? 'PUT' : 'POST', 
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        }, 
+        body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('Thất bại');
-      message.success('Thành công!'); setIsModalVisible(false); fetchProducts();
-    } catch (error) { message.error(error.message); }
+
+      const resText = await res.text();
+      let resData;
+      try {
+        resData = JSON.parse(resText);
+      } catch(e) {
+        throw new Error("Lỗi máy chủ: " + resText);
+      }
+
+      if (!res.ok) throw new Error(resData.message || 'Thao tác thất bại');
+
+      message.success(isUpdate ? 'Cập nhật tồn kho thành công!' : 'Thêm sản phẩm thành công!'); 
+      setIsModalVisible(false); 
+      fetchProducts();
+    } catch (error) { 
+      console.error('Lỗi Submit Form:', error);
+      message.error(error.message); 
+    }
   };
 
   const handleDelete = async (id) => { 
     try {
       const token = localStorage.getItem('admin_token');
-      await fetch(`http://localhost:4000/api/commerce/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      message.success('Đã xóa!'); fetchProducts();
-    } catch (error) {}
+      await fetch(`http://localhost:4000/api/commerce/products/${id}`, { 
+        method: 'DELETE', 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+      message.success('Đã xóa sản phẩm!'); 
+      fetchProducts();
+    } catch (error) {
+      message.error('Lỗi khi xóa sản phẩm');
+    }
   };
   
   const uploadProps = {
@@ -243,7 +300,7 @@ const ProductsTab = () => {
     maxCount: 5,
   };
 
-  const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchText.toLowerCase()));
+  const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchText.toLowerCase()));
 
   const columns = [
     { title: 'Tên Sản phẩm/Vật tư', dataIndex: 'name', key: 'name', render: text => <b>{text}</b> },
@@ -251,7 +308,7 @@ const ProductsTab = () => {
       title: 'Danh mục', dataIndex: 'Category', key: 'category', 
       filters: categories.map(c => ({ text: c.name, value: c.id })),
       onFilter: (value, record) => record.category_id === value || record.Category?.id === value,
-      render: (cat) => <Tag color="blue">{cat?.name || 'Chưa phân loại'}</Tag> 
+      render: (cat, record) => <Tag color="blue">{cat?.name || record.category || 'Dược Mỹ Phẩm'}</Tag> 
     },
     { 
       title: 'Loại', dataIndex: 'type', key: 'type',
@@ -262,8 +319,11 @@ const ProductsTab = () => {
       onFilter: (value, record) => record.type === value,
       render: (type) => <Tag color={type === 'PRODUCT' ? 'green' : 'orange'}>{type === 'PRODUCT' ? 'Sản phẩm' : 'Vật tư'}</Tag>
     },
-    { title: 'Giá bán', dataIndex: 'price', key: 'price', render: (price) => Number(price).toLocaleString('vi-VN') + ' ₫' },
-    { title: 'Tồn kho', dataIndex: 'stock_quantity', key: 'stock' },
+    { title: 'Giá bán', dataIndex: 'price', key: 'price', render: (price) => Number(price || 0).toLocaleString('vi-VN') + ' ₫' },
+    { 
+      title: 'Tồn kho', key: 'stock', 
+      render: (_, record) => <b>{record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0)}</b> 
+    },
     {
       title: 'Hành động', key: 'action',
       render: (_, record) => (
@@ -313,16 +373,29 @@ const ProductsTab = () => {
              )}
           </div>
 
-          <Form.Item label="Tên sản phẩm" name="name" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Tên sản phẩm" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên sản phẩm' }]}><Input /></Form.Item>
           
           <Space className="w-full justify-between">
-            <Form.Item label="Danh mục" name="category_id" className="w-[220px]" rules={[{ required: true }]}><Select>{categories.map(c => (<Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>))}</Select></Form.Item>
-            <Form.Item label="Phân loại" name="type" className="w-[220px]" rules={[{ required: true }]}><Select><Select.Option value="PRODUCT">Sản phẩm bán</Select.Option><Select.Option value="MATERIAL">Vật tư nội bộ</Select.Option></Select></Form.Item>
+            <Form.Item label="Danh mục" name="category_id" className="w-[220px]">
+              <Select placeholder="Chọn danh mục">
+                {categories.map(c => (<Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>))}
+              </Select>
+            </Form.Item>
+            <Form.Item label="Phân loại" name="type" className="w-[220px]" rules={[{ required: true }]}>
+              <Select>
+                <Select.Option value="PRODUCT">Sản phẩm bán</Select.Option>
+                <Select.Option value="MATERIAL">Vật tư nội bộ</Select.Option>
+              </Select>
+            </Form.Item>
           </Space>
           
           <Space className="w-full justify-between">
-            <Form.Item label="Giá bán (VNĐ)" name="price" className="w-[220px]" rules={[{ required: true }]}><InputNumber className="w-full" min={0} step={1000} /></Form.Item>
-            <Form.Item label="Tồn kho" name="stock_quantity" className="w-[220px]" rules={[{ required: true }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            <Form.Item label="Giá bán (VNĐ)" name="price" className="w-[220px]" rules={[{ required: true, message: 'Nhập giá bán' }]}>
+              <InputNumber className="w-full" min={0} step={1000} />
+            </Form.Item>
+            <Form.Item label="Tồn kho" name="stock_quantity" className="w-[220px]" rules={[{ required: true, message: 'Nhập tồn kho' }]}>
+              <InputNumber className="w-full" min={0} />
+            </Form.Item>
           </Space>
 
           <Space className="w-full justify-between">
@@ -334,7 +407,12 @@ const ProductsTab = () => {
             </Form.Item>
           </Space>
           
-          <Form.Item className="text-right mb-0 mt-4"><Space><Button onClick={() => setIsModalVisible(false)}>Hủy</Button><Button type="primary" htmlType="submit">Lưu</Button></Space></Form.Item>
+          <Form.Item className="text-right mb-0 mt-4">
+            <Space>
+              <Button onClick={() => setIsModalVisible(false)}>Hủy</Button>
+              <Button type="primary" htmlType="submit">Lưu</Button>
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
     </div>
@@ -357,7 +435,7 @@ const ExpiringProductsTab = () => {
       const data = await res.json();
       
       const today = dayjs();
-      const expiring = data.data
+      const expiring = (data.data || [])
         .filter(p => p.end_date)
         .map(p => {
           const daysLeft = dayjs(p.end_date).diff(today, 'day');
@@ -376,8 +454,8 @@ const ExpiringProductsTab = () => {
 
   const columns = [
     { title: 'Tên Sản phẩm/Vật tư', dataIndex: 'name', key: 'name', render: text => <b>{text}</b> },
-    { title: 'Danh mục', dataIndex: 'Category', key: 'category', render: (cat) => <Tag color="blue">{cat?.name || 'Chưa phân loại'}</Tag> },
-    { title: 'Tồn kho', dataIndex: 'stock_quantity', key: 'stock' },
+    { title: 'Danh mục', dataIndex: 'Category', key: 'category', render: (cat, record) => <Tag color="blue">{cat?.name || record.category || 'Chưa phân loại'}</Tag> },
+    { title: 'Tồn kho', key: 'stock', render: (_, record) => record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0) },
     { title: 'Ngày sản xuất', dataIndex: 'start_date', key: 'start_date', render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-' },
     { title: 'Hạn sử dụng', dataIndex: 'end_date', key: 'end_date', render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-' },
     {

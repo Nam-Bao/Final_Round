@@ -27,22 +27,30 @@ export default function CustomerShopPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
 
-  const userStr = localStorage.getItem('user');
+  const userStr = localStorage.getItem('user') || localStorage.getItem('customer');
   const user = userStr ? JSON.parse(userStr) : null;
-  const customer_id = user ? user.id : null;
+  const customer_id = user ? (user.id || user.customer_id) : '34db86b5-5cd8-4ba7-979f-29d95f87a8b3';
 
   const [checkoutForm, setCheckoutForm] = useState({
-    recipient_name: '', shipping_phone: '', shipping_address: '', latitude: null, longitude: null,
-    note: '', payment_method: 'COD'
+    recipient_name: user?.full_name || user?.name || '',
+    shipping_phone: user?.phone || '',
+    shipping_address: '',
+    latitude: null,
+    longitude: null,
+    note: '',
+    payment_method: 'COD'
   });
 
   useEffect(() => {
     fetchProducts();
-    if (customer_id) { fetchCart(); fetchAddressBook(); }
+    if (customer_id) { 
+      fetchCart(); 
+      fetchAddressBook(); 
+    }
   }, [customer_id]);
 
-  // Hủy voucher khi giỏ hàng thay đổi (Giống ConsultantCheckoutPage)
-  const cartTotal = cartItems.reduce((sum, item) => sum + (item.Product.price * item.quantity), 0);
+  // Hủy voucher khi giỏ hàng thay đổi
+  const cartTotal = cartItems.reduce((sum, item) => sum + (Number(item.Product?.price || 0) * item.quantity), 0);
   useEffect(() => {
     if (appliedVoucher) {
        setDiscountAmount(0);
@@ -73,7 +81,7 @@ export default function CustomerShopPage() {
     if (!customer_id) return;
     try {
       const res = await axios.get(`http://localhost:4000/api/commerce/carts?customer_id=${customer_id}`);
-      setCartItems(res.data.data.items || []);
+      setCartItems(res.data.data?.items || res.data.items || []);
     } catch (err) { console.error('Lỗi giỏ hàng:', err); }
   };
 
@@ -86,8 +94,12 @@ export default function CustomerShopPage() {
       // Mặc định chọn địa chỉ đầu tiên
       if (addresses.length > 0) {
         setCheckoutForm(prev => ({
-          ...prev, recipient_name: addresses[0].recipient_name, shipping_phone: addresses[0].phone,
-          shipping_address: addresses[0].address, latitude: addresses[0].latitude, longitude: addresses[0].longitude
+          ...prev, 
+          recipient_name: addresses[0].recipient_name || prev.recipient_name, 
+          shipping_phone: addresses[0].phone || prev.shipping_phone,
+          shipping_address: addresses[0].address, 
+          latitude: addresses[0].latitude, 
+          longitude: addresses[0].longitude
         }));
       }
     } catch (err) { console.error('Lỗi sổ địa chỉ:', err); }
@@ -98,10 +110,11 @@ export default function CustomerShopPage() {
     if (!voucherCode.trim()) return;
     try {
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
-        code: voucherCode, order_value: cartTotal,
+        code: voucherCode, 
+        order_value: cartTotal,
         customer_id: customer_id
       });
-      const amount = res.data.data.discount_amount;
+      const amount = res.data.data?.discount_amount || 0;
       setDiscountAmount(amount);
       setAppliedVoucher({ code: voucherCode.toUpperCase(), amount });
       
@@ -143,7 +156,7 @@ export default function CustomerShopPage() {
     if (mode === 'EDIT' && data) {
       setModalForm({ recipient_name: data.recipient_name, phone: data.phone, address: data.address, latitude: data.latitude, longitude: data.longitude });
     } else {
-      setModalForm({ recipient_name: user?.Profile?.full_name || '', phone: user?.Profile?.phone || '', address: '', latitude: null, longitude: null });
+      setModalForm({ recipient_name: checkoutForm.recipient_name || '', phone: checkoutForm.shipping_phone || '', address: '', latitude: null, longitude: null });
     }
   };
 
@@ -188,14 +201,30 @@ export default function CustomerShopPage() {
     
     setLoading(true);
     try {
-      const payload = { ...checkoutForm, customer_id, promotion_code: appliedVoucher ? appliedVoucher.code : null, save_address_to_book: false };
-      await axios.post('http://localhost:4000/api/commerce/orders/checkout', payload);
-      alert(`🎉 Đặt hàng thành công! (Thanh toán: ${checkoutForm.payment_method})`);
-      setCartItems([]);
-      setActiveView('SHOP');
-      fetchAddressBook();
-    } catch (err) { alert(err.response?.data?.message || 'Lỗi thanh toán'); } 
-    finally { setLoading(false); }
+      const payload = { 
+        ...checkoutForm, 
+        customer_id, 
+        promotion_code: appliedVoucher ? appliedVoucher.code : null, 
+        discount_amount: discountAmount,
+        save_address_to_book: true 
+      };
+      
+      const res = await axios.post('http://localhost:4000/api/commerce/orders/checkout', payload);
+      
+      if (res.data?.success) {
+        alert(`🎉 Đặt hàng thành công! (Thanh toán: ${checkoutForm.payment_method})`);
+        setCartItems([]);
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+        
+        // Tự động chuyển hướng tới trang Lịch sử đơn hàng
+        window.location.href = '/orders';
+      }
+    } catch (err) { 
+      alert(err.response?.data?.message || 'Lỗi thanh toán'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const finalTotal = Math.max(0, cartTotal - discountAmount);
@@ -203,7 +232,15 @@ export default function CustomerShopPage() {
   const getProductImage = (img) => {
     if (!img) return 'https://placehold.co/300x300?text=No+Image';
     if (Array.isArray(img) && img.length > 0) return img[0];
-    return typeof img === 'string' ? img : 'https://placehold.co/300x300?text=No+Image';
+    if (typeof img === 'string') {
+      try {
+        const parsed = JSON.parse(img);
+        return Array.isArray(parsed) ? parsed[0] : parsed;
+      } catch (e) {
+        return img;
+      }
+    }
+    return 'https://placehold.co/300x300?text=No+Image';
   };
 
   return (
@@ -260,10 +297,10 @@ export default function CustomerShopPage() {
               <div className="md:col-span-2 space-y-4">
                 {cartItems.map(item => (
                   <div key={item.id} className="flex gap-4 bg-white p-4 rounded-2xl border">
-                    <img src={getProductImage(item.Product.image_url)} className="w-20 h-20 bg-slate-100 rounded-lg object-cover"/>
+                    <img src={getProductImage(item.Product?.image_url)} className="w-20 h-20 bg-slate-100 rounded-lg object-cover"/>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800">{item.Product.name}</h3>
-                      <p className="text-primary font-medium">{Number(item.Product.price).toLocaleString()} ₫</p>
+                      <h3 className="font-bold text-slate-800">{item.Product?.name}</h3>
+                      <p className="text-primary font-medium">{Number(item.Product?.price || 0).toLocaleString()} ₫</p>
                     </div>
                     <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-lg border">
                       <button onClick={() => handleUpdateQuantity(item.id, item.quantity, -1)} className="p-1 hover:bg-white rounded"><Minus className="w-4 h-4"/></button>
@@ -295,7 +332,7 @@ export default function CustomerShopPage() {
           <form onSubmit={handleCheckout} className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
               
-              {/* UI GIAO HÀNG RÚT GỌN (Yêu cầu 3) */}
+              {/* UI GIAO HÀNG */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                 <h3 className="font-bold text-lg text-slate-800 border-b pb-2 mb-4">Thông tin giao hàng</h3>
                 
@@ -366,8 +403,8 @@ export default function CustomerShopPage() {
                  <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto pr-2">
                    {cartItems.map(item => (
                       <div key={item.id} className="flex justify-between text-sm items-start gap-4">
-                        <span className="text-slate-600 flex-1">{item.quantity} x {item.Product.name}</span>
-                        <span className="font-medium text-slate-800 shrink-0">{(item.Product.price * item.quantity).toLocaleString()} ₫</span>
+                        <span className="text-slate-600 flex-1">{item.quantity} x {item.Product?.name}</span>
+                        <span className="font-medium text-slate-800 shrink-0">{(Number(item.Product?.price || 0) * item.quantity).toLocaleString()} ₫</span>
                       </div>
                    ))}
                  </div>

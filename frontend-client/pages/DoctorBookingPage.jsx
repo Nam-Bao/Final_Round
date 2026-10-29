@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle, UploadCloud } from 'lucide-react';
+import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/authStore';
+import VideoCallModal from '../components/VideoCallModal';
 
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
@@ -12,19 +13,21 @@ const SHIFT_SLOTS = {
 
 export default function DoctorBookingPage() {
   const storeToken = useAuthStore((state) => state.token);
-  // Lấy token từ Zustand hoặc localStorage dự phòng
   const getToken = () => storeToken || localStorage.getItem('token') || '';
 
   const [doctors, setDoctors] = useState([]);
   const [patientProfiles, setPatientProfiles] = useState([]); 
   const [selectedProfileId, setSelectedProfileId] = useState(''); 
+  
+  // State mở Popup Video Call ZegoCloud thử nghiệm
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slot, setSlot] = useState('');
   
-  // STATE MỚI: LƯU TRỮ CÁC GIỜ ĐÃ BỊ ĐẶT VÀ GIỜ ĐÃ QUA ĐỂ ĐỔI MÀU
+  // State lưu trữ các giờ đã bị đặt và giờ đã trôi qua
   const [disabledSlots, setDisabledSlots] = useState([]);
   const [appointmentType, setAppointmentType] = useState('OFFLINE'); 
   const [skinCondition, setSkinCondition] = useState('');
@@ -32,42 +35,62 @@ export default function DoctorBookingPage() {
   const [allergies, setAllergies] = useState('');
   
   const [uploadedImages, setUploadedImages] = useState([]);
-  const [uploadLoading, setUploadLoading] = useState(false);
 
-  // Lưu lịch sử raw thay vì cờ global
-  const [appointmentHistory, setAppointmentHistory] = useState([]);
+  // Lịch sử khám & Phí
   const [isOldCustomer, setIsOldCustomer] = useState(false);
   const [fee, setFee] = useState(100000); 
   const [status, setStatus] = useState('IDLE');
   
   const navigate = useNavigate();
 
-  // 1. LẤY DANH SÁCH BÁC SĨ & LỊCH SỬ KHÁCH HÀNG
+  // 1. LẤY DANH SÁCH BÁC SĨ, HỒ SƠ KHÁCH HÀNG & LỊCH SỬ KHÁCH HÀNG
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const token = localStorage.getItem('token'); 
-        const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', { headers: { 'Authorization': `Bearer ${token}` } });
-        const docData = await docRes.json();
-        if (docRes.ok) setDoctors(docData.data || []); 
+        const token = getToken(); 
+        const headers = { 'Authorization': `Bearer ${token}` };
 
-        // Lấy danh sách Hồ sơ khám bệnh của tài khoản (trước đây chưa được tải nên dropdown rỗng)
-        const profRes = await fetch('http://localhost:4000/api/identity/profile/patients', { headers: { 'Authorization': `Bearer ${token}` } });
-        const profData = await profRes.json();
-        if (profRes.ok) {
-          const list = profData.data || [];
-          setPatientProfiles(list);
-          const self = list.find(p => p.relationship === 'Bản thân') || list[0];
-          if (self) setSelectedProfileId(self.id); // Chọn sẵn hồ sơ "Bản thân"
+        // Lấy danh sách Hồ sơ người bệnh (Có Fallback nếu API 404/Lỗi)
+        let profiles = [];
+        try {
+          const profileRes = await fetch('http://localhost:4000/api/identity/users/patient-profiles', { headers });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            profiles = profileData.data || profileData || [];
+          }
+        } catch (e) {
+          console.warn('Không thể kết nối API hồ sơ, sử dụng hồ sơ mặc định');
         }
 
-        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers: { 'Authorization': `Bearer ${token}` } });
-        const histData = await histRes.json();
-        if (histRes.ok && histData.data && histData.data.length > 0) {
-          setIsOldCustomer(true);
-          setFee(0);
+        // Tự động tạo Hồ sơ mặc định nếu danh sách rỗng hoặc API chưa hỗ trợ
+        if (profiles.length === 0) {
+          profiles = [
+            { id: 'default_self_profile', full_name: 'Bản thân (Tài khoản chính)', relationship: 'Bản thân' }
+          ];
         }
-      } catch (error) { console.error('Lỗi lấy dữ liệu ban đầu', error); }
+
+        setPatientProfiles(profiles);
+        setSelectedProfileId(profiles[0].id);
+
+        // Lấy danh sách Bác sĩ
+        const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', { headers }).catch(() => null);
+        if (docRes && docRes.ok) {
+          const docData = await docRes.json();
+          setDoctors(docData.data || []); 
+        }
+
+        // Kiểm tra Khách cũ / Khách mới để áp dụng miễn phí khám
+        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers }).catch(() => null);
+        if (histRes && histRes.ok) {
+          const histData = await histRes.json();
+          if (histData.data && histData.data.length > 0) {
+            setIsOldCustomer(true);
+            setFee(0);
+          }
+        }
+      } catch (error) { 
+        console.error('Lỗi lấy dữ liệu ban đầu:', error); 
+      }
     };
 
     fetchInitialData();
@@ -86,13 +109,24 @@ export default function DoctorBookingPage() {
           'Content-Type': 'application/json'
         };
 
-        const shiftRes = await fetch(`http://localhost:4000/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, { headers });
-        if (!shiftRes.ok) throw new Error('Lỗi truy cập API ca làm việc');
-        const doctorShifts = (await shiftRes.json()).data || [];
+        const shiftRes = await fetch(`http://localhost:4000/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, { headers }).catch(() => null);
         
-        const takenRes = await fetch(`http://localhost:4000/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, { headers });
+        let doctorShifts = [];
+        if (shiftRes && shiftRes.ok) {
+          const shiftData = await shiftRes.json();
+          doctorShifts = shiftData.data || [];
+        } else {
+          // Ca làm việc mặc định nếu chưa cấu hình ca trong Database
+          doctorShifts = [
+            { shift_type: 'MORNING' },
+            { shift_type: 'AFTERNOON' },
+            { shift_type: 'EVENING' }
+          ];
+        }
+        
+        const takenRes = await fetch(`http://localhost:4000/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, { headers }).catch(() => null);
         let takenTimes = [];
-        if (takenRes.ok) {
+        if (takenRes && takenRes.ok) {
           const takenData = await takenRes.json();
           takenTimes = takenData.data || [];
         }
@@ -119,7 +153,7 @@ export default function DoctorBookingPage() {
                isDisabled = true;
            }
            
-           // LOGIC KHÓA GIỜ ĐÃ QUA (So với hiện tại)
+           // Khóa giờ đã qua trong ngày
            if (isToday) {
                const slotTime = dayjs(`${date} ${time}`, 'YYYY-MM-DD HH:mm');
                if (slotTime.isBefore(now)) {
@@ -135,9 +169,11 @@ export default function DoctorBookingPage() {
         });
 
         setAvailableSlots(freeSlotsArr);
-        setDisabledSlots(disabledSlotsArr); // Lưu danh sách các giờ cần bôi đen
+        setDisabledSlots(disabledSlotsArr);
 
-      } catch (error) { console.error('Lỗi lấy giờ trống', error); }
+      } catch (error) { 
+        console.error('Lỗi lấy giờ trống:', error); 
+      }
     };
 
     fetchAvailability();
@@ -146,7 +182,9 @@ export default function DoctorBookingPage() {
   // 3. XỬ LÝ LƯU LỊCH HẸN
   const handleSaveAppointment = async () => {
     if (!selectedProfileId) return alert('Vui lòng chọn Hồ sơ người khám!');
-    if (appointmentType === 'ONLINE' && !skinCondition.trim()) return alert('Vui lòng điền tình trạng da!');
+    if (!selectedDoc) return alert('Vui lòng chọn Bác sĩ!');
+    if (!slot) return alert('Vui lòng chọn Giờ khám!');
+    if (appointmentType === 'ONLINE' && !skinCondition.trim()) return alert('Vui lòng điền tình trạng da hiện tại!');
 
     let finalSymptoms = '';
     if (appointmentType === 'ONLINE') {
@@ -163,8 +201,12 @@ export default function DoctorBookingPage() {
         appointment_time: `${slot}:00`,
         symptoms: finalSymptoms, 
         pre_exam_images: uploadedImages,
-        pre_notes: `[Khám ${appointmentType}] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`
+        pre_notes: `[ONLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`
       };
+
+      if (appointmentType === 'OFFLINE') {
+        payload.pre_notes = `[OFFLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`;
+      }
 
       const res = await fetch('http://localhost:4000/api/booking/appointments', {
         method: 'POST',
@@ -181,7 +223,7 @@ export default function DoctorBookingPage() {
       navigate(`/payment/${resData.data.id}?fee=${fee}&type=${appointmentType}`);
     } catch (error) {
       console.error(error);
-      alert('Đã có lỗi xảy ra khi đặt lịch!');
+      alert(error.message || 'Đã có lỗi xảy ra khi đặt lịch!');
       setStatus('IDLE');
     }
   };
@@ -195,13 +237,10 @@ export default function DoctorBookingPage() {
     let btnClass = 'btn btn-sm ';
     
     if (isDisabled) {
-        // GIỜ ĐÃ BỊ ĐẶT HOẶC ĐÃ QUA: Nền xám, chữ mờ, không bấm được
         btnClass += 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed opacity-70';
     } else if (slot === s) {
-        // GIỜ ĐANG ĐƯỢC CHỌN: Nền xanh lá (success), chữ trắng
         btnClass += 'btn-success text-white border-success';
     } else {
-        // GIỜ TRỐNG (MẶC ĐỊNH): Viền nhạt, nền trắng
         btnClass += 'btn-outline border-gray-300 text-gray-700 hover:bg-gray-100';
     }
 
@@ -222,7 +261,7 @@ export default function DoctorBookingPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 relative pb-10">
-      <h1 className="text-2xl font-bold">Đặt Lịch Khám & Tư Vấn</h1>
+      <h1 className="text-2xl font-bold text-slate-800">Đặt Lịch Khám & Tư Vấn</h1>
       
       {status === 'APPOINTMENT_CONFIRMED' ? (
         <div className="card bg-base-100 shadow-xl border border-success p-8 text-center space-y-6">
@@ -240,29 +279,25 @@ export default function DoctorBookingPage() {
           ) : (
             <div className="bg-info/10 p-6 rounded-xl border border-info mx-auto max-w-sm">
                <Video className="w-10 h-10 text-info mx-auto mb-2"/>
-               <p className="font-bold text-info">Link phòng Khám Video sẽ hiển thị trong sổ khám bệnh trước 10 phút.</p>
+               <p className="font-bold text-info">Vào mục "Sổ Lịch Khám & Y Bạ" bấm nút "Gặp bác sĩ" khi đến giờ hẹn.</p>
             </div>
           )}
 
-          <button onClick={() => navigate('/client-appointments')} className="btn btn-primary mt-4">Xem sổ khám bệnh</button>
+          <button onClick={() => navigate('/appointments')} className="btn btn-primary mt-4">Xem sổ khám bệnh</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">
             
+            {/* 1. CHỌN HỒ SƠ KHÁM BỆNH */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
                <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><User className="w-5 h-5"/> Đặt lịch cho ai?</h2>
                <select className="select select-bordered w-full" value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-                 <option disabled value="">-- Chọn hồ sơ khám bệnh --</option>
                  {patientProfiles.map(p => (<option key={p.id} value={p.id}>{p.full_name} ({p.relationship})</option>))}
                </select>
-               {patientProfiles.length === 0 && (
-                 <p className="text-sm text-warning italic mt-2">
-                   Chưa có hồ sơ khám bệnh. <button type="button" className="link link-primary" onClick={() => navigate('/profile')}>Thêm hồ sơ tại trang Hồ sơ của tôi</button>
-                 </p>
-               )}
             </div>
 
+            {/* 2. HÌNH THỨC KHÁM */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
                <h2 className="font-bold text-lg mb-4">Hình thức khám</h2>
                <div className="flex gap-4">
@@ -277,11 +312,23 @@ export default function DoctorBookingPage() {
 
             {/* FORM KHAI THÁC THÔNG TIN (ONLINE) */}
             {appointmentType === 'ONLINE' && (
-              <div className="card bg-info/5 p-6 shadow-xl border border-info">
-                <h3 className="font-bold text-info flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-5 h-5"/> Khai thác thông tin sơ bộ
-                </h3>
-                <p className="text-sm opacity-80 mb-4">Dữ liệu này sẽ được chuyển thẳng cho Bác sĩ. Bạn cũng có thể nhờ CSKH hỗ trợ trực tiếp nếu cần.</p>
+              <div className="card bg-info/5 p-6 shadow-xl border border-info space-y-4">
+                <div className="flex items-center justify-between border-b border-info/20 pb-3">
+                  <h3 className="font-bold text-info flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5"/> Khai thác thông tin sơ bộ
+                  </h3>
+                  
+                  {/* NÚT TEST PHÒNG KHÁM VIDEO CALL ZEGOCLOUD */}
+                  <button 
+                    type="button"
+                    onClick={() => setIsVideoOpen(true)}
+                    className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
+                  >
+                    <Video className="w-4 h-4"/> 🎥 Test Phòng Khám Online
+                  </button>
+                </div>
+
+                <p className="text-sm opacity-80">Dữ liệu này sẽ được chuyển thẳng cho Bác sĩ. Bạn cũng có thể nhờ CSKH hỗ trợ trực tiếp nếu cần.</p>
                 
                 <div className="space-y-4">
                   <div>
@@ -326,6 +373,7 @@ export default function DoctorBookingPage() {
               </div>
             )}
 
+            {/* 3. CHỌN BÁC SĨ */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
               <h2 className="font-bold text-lg flex items-center gap-2 mb-4">
                 <User/> Chọn Bác sĩ
@@ -339,7 +387,7 @@ export default function DoctorBookingPage() {
                       </div>
                     </div>
                     <div>
-                      <p className="font-bold">{doc.Profile?.full_name || 'Bác sĩ'}</p>
+                      <p className="font-bold">{doc.Profile?.full_name || 'Bác sĩ Da Liễu'}</p>
                       <p className="text-sm opacity-70">{doc.email}</p>
                     </div>
                   </div>
@@ -348,6 +396,7 @@ export default function DoctorBookingPage() {
               </div>
             </div>
             
+            {/* 4. CHỌN NGÀY & GIỜ */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
               <h2 className="font-bold text-lg flex items-center gap-2 mb-4">
                 <Calendar/> Chọn Ngày & Giờ
@@ -385,6 +434,7 @@ export default function DoctorBookingPage() {
             </div>
           </div>
           
+          {/* TÓM TẮT LỊCH HẸN */}
           <div className="card bg-base-100 p-6 shadow-xl border border-primary/20 h-fit space-y-4 sticky top-24">
             <h2 className="font-bold border-b pb-2">Tóm tắt lịch hẹn</h2>
             <div className="text-sm space-y-2 opacity-80">
@@ -411,6 +461,14 @@ export default function DoctorBookingPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL VIDEO CALL ZEGOCLOUD POPUP TEST */}
+      <VideoCallModal
+        isOpen={isVideoOpen}
+        onClose={() => setIsVideoOpen(false)}
+        roomID="glowskin_room_demo"
+        userName="Khách hàng GlowSkin"
+      />
     </div>
   );
 }
