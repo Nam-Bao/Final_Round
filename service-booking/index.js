@@ -23,6 +23,7 @@ app.use('/appointments', appointmentRoute);
 app.use('/sessions', sessionRoute);
 app.use('/spa-services', spaServiceRoute);
 app.use('/reviews', reviewRoutes);
+app.use('/stats', require('./routes/stats.route'));
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);

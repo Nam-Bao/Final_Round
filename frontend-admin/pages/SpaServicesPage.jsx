@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, Radio, Upload } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 
+// Danh mục hiển thị ở trang Dịch vụ của khách (khám online đặt ở trang Đặt lịch, không phải dịch vụ spa)
+const CATEGORIES = ['Trị mụn', 'Trị nám và tàn nhang', 'Trẻ hóa da', 'Phục hồi da', 'Chăm sóc da cơ bản'];
+
+// Nội dung trang chi tiết: lưu dạng mảng, nhập trong ô văn bản mỗi dòng một ý
+const LIST_FIELDS = [
+  { name: 'includes', label: 'Dịch vụ bao gồm', placeholder: 'VD: Khám và soi da trước khi làm' },
+  { name: 'procedure_steps', label: 'Quy trình thực hiện (theo thứ tự)', placeholder: 'VD: Tẩy trang, làm sạch da' },
+  { name: 'suitable_for', label: 'Phù hợp với', placeholder: 'VD: Da mụn đầu đen, mụn ẩn' },
+  { name: 'aftercare', label: 'Chăm sóc sau điều trị', placeholder: 'VD: Không trang điểm trong 24 giờ' },
+];
+const toLines = (arr) => (Array.isArray(arr) ? arr.join('\n') : '');
+const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
+
 export default function SpaServicesPage() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -38,7 +51,10 @@ export default function SpaServicesPage() {
     setEditingItem(record);
     setFileList([]); 
     if (record) {
-      form.setFieldsValue(record);
+      form.setFieldsValue({
+        ...record,
+        ...Object.fromEntries(LIST_FIELDS.map((f) => [f.name, toLines(record[f.name])]))
+      });
       setImageMode(record.image_url ? 'url' : 'url'); 
     } else {
       form.resetFields();
@@ -71,6 +87,7 @@ export default function SpaServicesPage() {
 
       const payload = {
         ...values,
+        ...Object.fromEntries(LIST_FIELDS.map((f) => [f.name, toList(values[f.name])])),
         image_url: finalImageUrl 
       };
 
@@ -127,6 +144,7 @@ export default function SpaServicesPage() {
       title: 'Đơn giá', dataIndex: 'price', key: 'price',
       render: (price) => <b className="text-red-500">{Number(price).toLocaleString('vi-VN')} ₫</b>
     },
+    { title: 'Danh mục', dataIndex: 'category', key: 'category', render: (cat) => <Tag color="blue">{cat}</Tag> },
     { title: 'Thời gian (Phút)', dataIndex: 'duration_minutes', key: 'duration', render: val => `${val} phút` },
     {
       title: 'Trạng thái', dataIndex: 'status', key: 'status',
@@ -159,7 +177,7 @@ export default function SpaServicesPage() {
         open={isModalVisible} 
         onCancel={() => setIsModalVisible(false)} 
         footer={null}
-        width={600}
+        width={720}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           
@@ -203,9 +221,23 @@ export default function SpaServicesPage() {
             </Col>
           </Row>
 
-          <Form.Item label="Mô tả chi tiết" name="description">
-            <Input.TextArea rows={4} placeholder="Nhập mô tả các bước thực hiện..." />
+          <Form.Item label="Danh mục" name="category" rules={[{ required: true, message: 'Vui lòng chọn danh mục!' }]}>
+            <Select size="large" placeholder="Chọn danh mục">
+              {CATEGORIES.map((cat) => <Select.Option key={cat} value={cat}>{cat}</Select.Option>)}
+            </Select>
           </Form.Item>
+
+          <Form.Item label="Mô tả ngắn" name="description">
+            <Input.TextArea rows={3} placeholder="Giới thiệu ngắn gọn về dịch vụ" />
+          </Form.Item>
+
+          <Card size="small" title="Nội dung trang chi tiết (mỗi dòng một ý)" className="mb-4 bg-gray-50">
+            {LIST_FIELDS.map((f) => (
+              <Form.Item key={f.name} label={f.label} name={f.name}>
+                <Input.TextArea rows={3} placeholder={f.placeholder} />
+              </Form.Item>
+            ))}
+          </Card>
 
           <Form.Item label="Trạng thái" name="status" initialValue="ACTIVE">
             <Select size="large">

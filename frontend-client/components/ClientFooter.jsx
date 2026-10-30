@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, MapPin, Phone, Mail, Clock } from 'lucide-react';
+import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS } from '../utils/contact';
 
 export default function ClientFooter() {
   return (
@@ -14,6 +15,7 @@ export default function ClientFooter() {
           <Link to="/sang-loc-da" className="link link-hover">Sàng lọc da AI</Link>
           <Link to="/booking" className="link link-hover">Khám Bác sĩ online</Link>
           <Link to="/services" className="link link-hover">Trị liệu tại phòng khám</Link>
+          <Link to="/doi-ngu-bac-si" className="link link-hover">Đội ngũ bác sĩ</Link>
           <Link to="/reviews" className="link link-hover">Đánh giá khách hàng</Link>
         </div> 
 
@@ -35,11 +37,11 @@ export default function ClientFooter() {
           </div>
           <div className="flex items-center gap-2 text-xs text-base-content/70">
             <Phone className="w-4 h-4 text-primary shrink-0" />
-            <span>Hotline: 1900 63 68 83</span>
+            <span>Hotline: <a href={`tel:${HOTLINE}`} className="link link-hover font-semibold">{HOTLINE_DISPLAY}</a></span>
           </div>
           <div className="flex items-center gap-2 text-xs text-base-content/70">
             <Clock className="w-4 h-4 text-primary shrink-0" />
-            <span>08:30 - 20:00 (Hàng ngày)</span>
+            <span>{WORKING_HOURS}</span>
           </div>
         </div> 
 

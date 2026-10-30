@@ -61,17 +61,57 @@ const getArticleByIdForAdmin = async (req, res) => {
   }
 };
 
+// [PUBLIC] GET /news/categories — danh mục đang có bài đăng và số bài (để trang Tin tức hiện tab theo dữ liệu thật)
+const getCategories = async (req, res) => {
+  try {
+    const rows = await Article.findAll({
+      where: { status: 'PUBLISHED' },
+      attributes: ['category', [Article.sequelize.fn('COUNT', Article.sequelize.col('id')), 'count']],
+      group: ['category'],
+      order: [[Article.sequelize.literal('count'), 'DESC']],
+      raw: true
+    });
+    res.status(200).json({ data: rows.map(r => ({ category: r.category, count: Number(r.count) })) });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+const STATUSES = ['PUBLISHED', 'DRAFT', 'HIDDEN'];
+
+// Kiểm tra dữ liệu bài viết từ admin; trả về { data } hoặc { error }
+const pickArticleFields = (body, isCreate) => {
+  const data = {};
+  for (const key of ['title', 'summary', 'content', 'category', 'author_name']) {
+    if (body[key] !== undefined) data[key] = String(body[key] ?? '').trim();
+  }
+  if (isCreate && !data.title) return { error: 'Vui lòng nhập tiêu đề' };
+  if (data.title !== undefined && (!data.title || data.title.length > 200)) return { error: 'Tiêu đề từ 1 đến 200 ký tự' };
+  if (data.category !== undefined && (!data.category || data.category.length > 50)) return { error: 'Danh mục từ 1 đến 50 ký tự' };
+  if (data.content !== undefined && data.content.length > 20000) return { error: 'Nội dung tối đa 20.000 ký tự' };
+  if (body.thumbnail_url !== undefined) {
+    const url = body.thumbnail_url ? String(body.thumbnail_url).trim() : null;
+    if (url && !/^https:\/\/\S{1,500}$/.test(url)) return { error: 'Ảnh bìa phải là đường dẫn https hợp lệ' };
+    data.thumbnail_url = url;
+  }
+  if (body.status !== undefined) {
+    if (!STATUSES.includes(body.status)) return { error: 'Trạng thái không hợp lệ' };
+    data.status = body.status;
+  }
+  return { data };
+};
+
 const createArticle = async (req, res) => {
   try {
-    const { title, summary, content, thumbnail_url, category, status, author_name } = req.body;
-    if (!title) return res.status(400).json({ message: 'Vui lòng nhập tiêu đề' });
+    const { data, error } = pickArticleFields(req.body, true);
+    if (error) return res.status(400).json({ message: error });
 
     const article = await Article.create({
-      title,
-      slug: `${toSlug(title)}-${Date.now().toString(36)}`,
-      summary, content, thumbnail_url, category, status,
+      ...data,
+      slug: `${toSlug(data.title)}-${Date.now().toString(36)}`,
       author_id: req.user.id,
-      author_name: author_name || 'GlowSkin'
+      author_name: data.author_name || 'Ban biên tập GlowSkin',
+      published_at: new Date()
     });
     res.status(201).json({ message: 'Tạo bài viết thành công', data: article });
   } catch (error) {
@@ -83,8 +123,11 @@ const updateArticle = async (req, res) => {
   try {
     const article = await Article.findByPk(req.params.id);
     if (!article) return res.status(404).json({ message: 'Không tìm thấy bài viết' });
-    const { title, summary, content, thumbnail_url, category, status, author_name } = req.body;
-    await article.update({ title, summary, content, thumbnail_url, category, status, author_name });
+    const { data, error } = pickArticleFields(req.body, false);
+    if (error) return res.status(400).json({ message: error });
+    // Bài nháp / đã ẩn được đăng lần đầu: ngày đăng là lúc chuyển sang PUBLISHED
+    if (data.status === 'PUBLISHED' && article.status !== 'PUBLISHED') data.published_at = new Date();
+    await article.update(data);
     res.status(200).json({ message: 'Cập nhật thành công', data: article });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi cập nhật', error: error.message });
@@ -103,6 +146,6 @@ const deleteArticle = async (req, res) => {
 };
 
 module.exports = {
-  getPublishedArticles, getArticleBySlug, getAllArticlesForAdmin,
+  getPublishedArticles, getArticleBySlug, getCategories, getAllArticlesForAdmin,
   getArticleByIdForAdmin, createArticle, updateArticle, deleteArticle
 };

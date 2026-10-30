@@ -25,7 +25,28 @@ export default function AppointmentHistoryPage() {
   
   // Lịch hẹn đang mở phòng khám video (server tự kiểm tra quyền và khung giờ)
   const [videoAppointmentId, setVideoAppointmentId] = useState(null);
+  const [videoNotice, setVideoNotice] = useState(null); // { title, message } khi chưa đến / đã quá giờ khám
   const user = useAuthStore((state) => state.user);
+
+  // Khách chỉ vào phòng video từ đúng giờ hẹn đến 2 tiếng sau (server cũng kiểm tra lại)
+  const handleJoinVideo = (apt) => {
+    const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
+    const now = dayjs();
+    if (now.isBefore(start)) {
+      const minutes = start.diff(now, 'minute') + 1;
+      const remaining = minutes >= 1440
+        ? `${Math.floor(minutes / 1440)} ngày ${Math.floor((minutes % 1440) / 60)} giờ`
+        : minutes >= 60 ? `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút` : `${minutes} phút`;
+      return setVideoNotice({
+        title: 'Chưa đến giờ hẹn',
+        message: `Buổi khám online của bạn bắt đầu lúc ${start.format('HH:mm')} ngày ${start.format('DD/MM/YYYY')} (còn khoảng ${remaining}). Vui lòng quay lại đúng giờ để gặp bác sĩ.`
+      });
+    }
+    if (now.isAfter(start.add(2, 'hour'))) {
+      return setVideoNotice({ title: 'Đã quá giờ khám', message: 'Phòng khám video của lịch hẹn này đã đóng. Vui lòng liên hệ CSKH nếu bạn cần đặt lại lịch.' });
+    }
+    setVideoAppointmentId(apt.id);
+  };
 
   // Đánh giá bác sĩ: { [appointment_id]: review } và lịch hẹn đang mở hộp thoại đánh giá
   const [myReviews, setMyReviews] = useState({});
@@ -191,7 +212,7 @@ export default function AppointmentHistoryPage() {
                       {/* NÚT GẶP BÁC SĨ (CHỈ HIỂN THỊ DÀNH CHO KHÁM ONLINE VÀ CHƯA HỦY) */}
                       {isOnline && VIDEO_JOINABLE_STATUSES.includes(apt.status) && (
                         <button
-                          onClick={() => setVideoAppointmentId(apt.id)}
+                          onClick={() => handleJoinVideo(apt)}
                           className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 flex-1 md:flex-none shadow-sm"
                         >
                           🎥 Gặp bác sĩ
@@ -309,7 +330,11 @@ export default function AppointmentHistoryPage() {
                       <div className="mb-2">
                         <p className="text-sm font-bold text-slate-700 mb-1">Dược Mỹ Phẩm (Mua về):</p>
                         <ul className="list-disc list-inside text-sm text-slate-600">
-                           {selectedApt.prescribed_medicines.map(id => <li key={id}>{catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'}</li>)}
+                           {selectedApt.prescribed_medicines.map(m => {
+                             const id = typeof m === 'string' ? m : m?.product_id; // dữ liệu cũ là mã sản phẩm
+                             const qty = typeof m === 'string' ? 1 : m?.quantity || 1;
+                             return <li key={id}>{catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'} × {qty}</li>;
+                           })}
                         </ul>
                       </div>
                     )}
@@ -401,6 +426,20 @@ export default function AppointmentHistoryPage() {
         onClose={() => setReviewSession(null)}
         onSubmit={handleSubmitServiceReview}
       />
+
+      {videoNotice && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-sm text-center">
+            <Clock className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+            <h3 className="font-bold text-lg text-slate-800">{videoNotice.title}</h3>
+            <p className="text-sm text-slate-600 mt-2">{videoNotice.message}</p>
+            <div className="modal-action justify-center">
+              <button onClick={() => setVideoNotice(null)} className="btn btn-primary btn-sm">Đã hiểu</button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setVideoNotice(null)}></div>
+        </div>
+      )}
 
       <VideoCallModal
         isOpen={!!videoAppointmentId}

@@ -1,175 +1,120 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Newspaper } from 'lucide-react';
-import { NEWS_TABS, ARTICLES, PAGE_SIZE, formatDate } from '../data/mockNews';
+import React, { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import dayjs from 'dayjs';
+import { ArrowLeft, Calendar, User, Newspaper } from 'lucide-react';
 
-export default function NewsPage() {
-  const [tab, setTab] = useState('news');
-  const [page, setPage] = useState(1);
-  const [articles, setArticles] = useState(ARTICLES);
-  const [loading, setLoading] = useState(true);
+const API = 'http://localhost:4000/api/media/news';
 
-  // Ánh xạ danh mục tiếng Việt từ database sang mã tab của frontend
-  const mapCategoryToTab = (cat) => {
-    if (!cat) return 'news';
-    const lower = cat.toLowerCase();
-    if (lower.includes('sự kiện') || lower.includes('event')) return 'event';
-    if (lower.includes('giới thiệu') || lower.includes('about')) return 'about';
-    return 'news';
-  };
+// Nội dung bài viết là văn bản thuần: đoạn cách nhau bằng dòng trống, dòng "- " là gạch đầu dòng, "1. " là danh sách số.
+// Hiển thị bằng React (không dùng HTML thô) nên nội dung không chèn được mã độc.
+function ArticleContent({ content }) {
+  const blocks = String(content || '').replace(/\r\n/g, '\n').split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <div className="space-y-4 text-base-content/80 leading-relaxed">
+      {blocks.map((block, idx) => {
+        const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+        const bullets = lines.filter((l) => /^[-•]\s+/.test(l));
+        const numbered = lines.filter((l) => /^\d+[.)]\s+/.test(l));
+        // Đoạn có tiêu đề + danh sách (vd. "Quyền lợi:" rồi các dòng "- ...")
+        if (bullets.length || numbered.length) {
+          const isNumbered = numbered.length > bullets.length;
+          const items = isNumbered ? numbered : bullets;
+          const intro = lines.filter((l) => !items.includes(l));
+          const List = isNumbered ? 'ol' : 'ul';
+          return (
+            <div key={idx} className="space-y-2">
+              {intro.map((l, i) => <p key={i} className="font-medium text-base-content">{l}</p>)}
+              <List className={`${isNumbered ? 'list-decimal' : 'list-disc'} pl-6 space-y-1`}>
+                {items.map((l, i) => <li key={i}>{l.replace(/^([-•]|\d+[.)])\s+/, '')}</li>)}
+              </List>
+            </div>
+          );
+        }
+        return <p key={idx} className="whitespace-pre-line">{block}</p>;
+      })}
+    </div>
+  );
+}
+
+export default function NewsDetailPage() {
+  const { slug } = useParams();
+  const [article, setArticle] = useState(null);
+  const [related, setRelated] = useState([]);
+  const [status, setStatus] = useState('loading'); // loading | ok | notfound | error
 
   useEffect(() => {
     let isMounted = true;
-
-    fetch('http://localhost:4000/api/media/news')
-      .then((res) => {
-        if (!res.ok) throw new Error('Không thể kết nối API tin tức');
-        return res.json();
-      })
-      .then((data) => {
+    setStatus('loading');
+    window.scrollTo({ top: 0 });
+    fetch(`${API}/${encodeURIComponent(slug)}`)
+      .then(async (res) => {
+        if (res.status === 404) return isMounted && setStatus('notfound');
+        if (!res.ok) throw new Error(res.status);
+        const data = (await res.json()).data;
         if (!isMounted) return;
-
-        const rawList = Array.isArray(data) ? data : (data.data || []);
-        if (rawList.length > 0) {
-          const normalized = rawList.map((item) => ({
-            id: item.id,
-            slug: item.slug,
-            category: mapCategoryToTab(item.category),
-            categoryLabel: item.category || 'Tin tức',
-            date: item.published_at || item.createdAt || item.date || new Date().toISOString(),
-            image: item.image_url || item.thumbnail_url || item.image || null,
-            title: item.title,
-            summary: item.summary || item.description || (Array.isArray(item.content) ? item.content[0] : item.content) || '',
-            content: item.content
-          }));
-          setArticles(normalized);
-        }
-        setLoading(false);
+        setArticle(data);
+        setStatus('ok');
+        // Bài cùng danh mục
+        const list = await fetch(`${API}?limit=4&category=${encodeURIComponent(data.category)}`).then((r) => (r.ok ? r.json() : { data: [] }));
+        if (isMounted) setRelated((list.data || []).filter((a) => a.id !== data.id).slice(0, 3));
       })
-      .catch((err) => {
-        console.warn('Dùng dữ liệu fallback do chưa kết nối được API:', err);
-        if (isMounted) setLoading(false);
-      });
+      .catch(() => isMounted && setStatus('error'));
+    return () => { isMounted = false; };
+  }, [slug]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const list = useMemo(() => {
-    return articles
-      .filter((a) => a.category === tab)
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [articles, tab]);
-
-  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
-  const pageItems = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const changeTab = (id) => {
-    setTab(id);
-    setPage(1);
-  };
-
-  const goTo = (n) => {
-    setPage(n);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  if (loading) {
+  if (status === 'loading') {
+    return <div className="flex justify-center py-24"><span className="loading loading-spinner loading-lg text-primary"></span></div>;
+  }
+  if (status !== 'ok') {
     return (
-      <div className="flex justify-center items-center py-24">
-        <span className="loading loading-spinner loading-lg text-primary"></span>
+      <div className="text-center py-16 space-y-4">
+        <p className="text-base-content/60">
+          {status === 'notfound' ? 'Bài viết không tồn tại hoặc đã được gỡ.' : 'Không tải được bài viết, vui lòng thử lại sau.'}
+        </p>
+        <Link to="/news" className="btn btn-primary btn-sm">Quay lại Tin tức</Link>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-secondary">Tin tức và sự kiện</h1>
-        <p className="text-base-content/60 mt-1">Kiến thức chăm sóc da và hoạt động mới nhất từ GlowSkin.</p>
-      </div>
+    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+      <Link to="/news" className="btn btn-ghost btn-sm gap-1">
+        <ArrowLeft className="w-4 h-4" /> Tin tức
+      </Link>
 
-      <div role="tablist" className="flex flex-wrap gap-2">
-        {NEWS_TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => changeTab(t.id)}
-            className={`btn btn-sm rounded-full ${tab === t.id ? 'btn-primary' : 'btn-outline btn-primary'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {list.length === 0 ? (
-        <div className="text-center py-16 bg-base-100 rounded-xl border border-base-200">
-          <p className="text-base-content/60">Chưa có bài viết nào trong danh mục này.</p>
+      <article className="space-y-5">
+        <Link to={`/news?category=${encodeURIComponent(article.category)}`} className="badge badge-primary badge-outline">
+          {article.category}
+        </Link>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-secondary leading-snug">{article.title}</h1>
+        <div className="flex flex-wrap gap-4 text-sm text-base-content/60">
+          <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {dayjs(article.published_at).format('DD/MM/YYYY')}</span>
+          {article.author_name && <span className="flex items-center gap-1"><User className="w-4 h-4" /> {article.author_name}</span>}
         </div>
-      ) : (
-        <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {pageItems.map((a) => (
-              <Link
-                key={a.slug || a.id}
-                to={`/news/${a.slug || a.id}`}
-                className="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300 overflow-hidden border border-base-200"
-              >
-                <figure>
-                  {a.image ? (
-                    <img src={a.image} alt={a.title} className="h-44 w-full object-cover" />
-                  ) : (
-                    <div className="h-44 w-full bg-primary/10 flex items-center justify-center">
-                      <Newspaper className="w-10 h-10 text-primary/50" />
-                    </div>
-                  )}
-                </figure>
-                <div className="card-body">
-                  <div className="flex justify-between items-center text-xs text-base-content/60">
-                    <span>{formatDate(a.date)}</span>
-                    <span className="badge badge-sm badge-outline badge-primary">{a.categoryLabel}</span>
-                  </div>
-                  <h2 className="card-title text-secondary line-clamp-2 mt-1">{a.title}</h2>
-                  <p className="text-gray-600 line-clamp-3">{a.summary}</p>
-                </div>
+
+        {article.thumbnail_url && (
+          <img src={article.thumbnail_url} alt={article.title} className="w-full max-h-96 object-cover rounded-2xl" />
+        )}
+        {article.summary && <p className="text-lg font-medium text-base-content/80 leading-relaxed">{article.summary}</p>}
+        <ArticleContent content={article.content} />
+      </article>
+
+      {related.length > 0 && (
+        <section className="space-y-3 border-t border-base-200 pt-6">
+          <h2 className="text-lg font-bold text-secondary">Bài viết cùng chủ đề</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {related.map((a) => (
+              <Link key={a.id} to={`/news/${a.slug}`} className="card bg-base-100 border border-base-200 overflow-hidden hover:shadow-md transition-shadow">
+                {a.thumbnail_url ? (
+                  <img src={a.thumbnail_url} alt={a.title} className="h-24 w-full object-cover" />
+                ) : (
+                  <div className="h-24 bg-primary/10 flex items-center justify-center"><Newspaper className="w-6 h-6 text-primary/50" /></div>
+                )}
+                <span className="p-3 text-sm font-semibold text-secondary line-clamp-2">{a.title}</span>
               </Link>
             ))}
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex justify-center">
-              <div className="join">
-                <button
-                  className="join-item btn btn-sm"
-                  disabled={page === 1}
-                  onClick={() => goTo(page - 1)}
-                  aria-label="Trang trước"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    className={`join-item btn btn-sm ${n === page ? 'btn-primary' : ''}`}
-                    onClick={() => goTo(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <button
-                  className="join-item btn btn-sm"
-                  disabled={page === totalPages}
-                  onClick={() => goTo(page + 1)}
-                  aria-label="Trang sau"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        </section>
       )}
     </div>
   );

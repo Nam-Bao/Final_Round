@@ -1,5 +1,6 @@
 const { TreatmentSession, ServiceSession, CustomerPackage, TreatmentPackage, SpaService } = require('../models');
 const axios = require('axios');
+const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 
 const getTechnicianQueues = async (req, res) => {
@@ -9,13 +10,13 @@ const getTechnicianQueues = async (req, res) => {
     const myId = req.user.id;
 
     const tSessions = await TreatmentSession.findAll({
-      where: { session_date: today, technician_id: myId },
+      where: { session_date: today, [Op.or]: [{ technician_id: myId }, { technician_id: null }] }, // buổi chưa giao ai: KTV nào rảnh thì nhận
       include: [{ model: CustomerPackage, include: [{ model: TreatmentPackage, attributes: ['name'] }] }],
       raw: true, nest: true
     });
 
     const sSessions = await ServiceSession.findAll({
-      where: { session_date: today, technician_id: myId },
+      where: { session_date: today, [Op.or]: [{ technician_id: myId }, { technician_id: null }] }, // buổi chưa giao ai: KTV nào rảnh thì nhận
       include: [{ model: SpaService, attributes: ['name'] }],
       raw: true, nest: true
     });
@@ -84,35 +85,39 @@ const updateSessionStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, technician_note, type, post_treatment_images } = req.body; // THÊM nhận mảng ảnh
-    
-    if (type === 'PACKAGE') {
-        const session = await TreatmentSession.findByPk(id);
-        if (!session) return res.status(404).json({ message: 'Không tìm thấy ca làm' });
-        const wasCompleted = session.status === 'COMPLETED';
-        
-        session.status = status;
-        if (technician_note) session.technician_note = technician_note;
-        if (post_treatment_images) session.post_treatment_images = post_treatment_images; // Lưu ảnh
-        await session.save();
+    if (!['WAITING', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+    }
+    if (type !== 'PACKAGE' && type !== 'SINGLE') {
+      return res.status(400).json({ message: 'Loại dịch vụ không hợp lệ' });
+    }
 
-        // Chỉ trừ buổi khi lần đầu chuyển sang COMPLETED (bấm lại không trừ thêm)
-        if (status === 'COMPLETED' && !wasCompleted) {
-          const customerPkg = await CustomerPackage.findByPk(session.customer_package_id);
-          if (customerPkg && customerPkg.remaining_sessions > 0) {
-            customerPkg.remaining_sessions -= 1;
-            await customerPkg.save();
-          }
-        }
-    } else if (type === 'SINGLE') {
-        const session = await ServiceSession.findByPk(id);
-        if (!session) return res.status(404).json({ message: 'Không tìm thấy ca làm' });
-        
-        session.status = status;
-        if (technician_note) session.technician_note = technician_note;
-        if (post_treatment_images) session.post_treatment_images = post_treatment_images; // Lưu ảnh
-        await session.save();
-    } else {
-        return res.status(400).json({ message: 'Loại dịch vụ không hợp lệ' });
+    const session = type === 'PACKAGE' ? await TreatmentSession.findByPk(id) : await ServiceSession.findByPk(id);
+    if (!session) return res.status(404).json({ message: 'Không tìm thấy ca làm' });
+    // KTV chỉ xử lý buổi được giao cho mình; buổi chưa giao ai thì KTV bấm đầu tiên nhận buổi đó
+    if (session.technician_id && session.technician_id !== req.user.id) {
+      return res.status(403).json({ message: 'Buổi này được giao cho kỹ thuật viên khác' });
+    }
+    // Buổi đặt trước cho ngày sau chưa được làm sớm
+    if (status !== 'WAITING' && session.session_date > dayjs().format('YYYY-MM-DD')) {
+      return res.status(400).json({ message: 'Chưa đến ngày hẹn của buổi này' });
+    }
+    const wasCompleted = session.status === 'COMPLETED';
+
+    session.technician_id = session.technician_id || req.user.id;
+    session.status = status;
+    if (technician_note) session.technician_note = technician_note;
+    if (post_treatment_images) session.post_treatment_images = post_treatment_images; // Lưu ảnh
+    await session.save();
+
+    // Buổi liệu trình: chỉ trừ buổi khi lần đầu chuyển sang COMPLETED (bấm lại không trừ thêm); hết buổi thì gói hoàn thành
+    if (type === 'PACKAGE' && status === 'COMPLETED' && !wasCompleted) {
+      const customerPkg = await CustomerPackage.findByPk(session.customer_package_id);
+      if (customerPkg && customerPkg.remaining_sessions > 0) {
+        customerPkg.remaining_sessions -= 1;
+        if (customerPkg.remaining_sessions === 0) customerPkg.status = 'COMPLETED';
+        await customerPkg.save();
+      }
     }
 
     res.status(200).json({ message: 'Đã cập nhật ca làm' });

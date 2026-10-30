@@ -37,7 +37,34 @@ export default function AdminLayout() {
   const role = currentUser.role || 'GUEST';
   const fullName = currentUser.Profile?.full_name || currentUser.full_name || 'Chưa cập nhật tên';
   const phone = currentUser.Profile?.phone || currentUser.phone || 'Chưa cập nhật số ĐT';
-  const avatarUrl = currentUser.Profile?.avatar || currentUser.avatar || null;
+  const [avatarOverride, setAvatarOverride] = useState(undefined); // ảnh vừa tải lên trong phiên này
+  const avatarUrl = avatarOverride !== undefined ? avatarOverride : (currentUser.Profile?.avatar || currentUser.avatar || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  // Tải ảnh đại diện: upload lên Cloudinary (service-media) rồi lưu link vào hồ sơ (PUT /profile/me)
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return message.error('Vui lòng chọn file ảnh');
+    if (file.size > 5 * 1024 * 1024) return message.error('Ảnh tối đa 5MB');
+    setUploadingAvatar(true);
+    try {
+      const headers = { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` };
+      const formData = new FormData();
+      formData.append('image', file);
+      const uploadRes = await axios.post('http://localhost:4000/api/media/upload', formData, { headers });
+      await axios.put('http://localhost:4000/api/identity/profile/me', { avatar: uploadRes.data.url }, { headers });
+      sessionStorage.setItem('admin_user', JSON.stringify({ ...currentUser, Profile: { ...(currentUser.Profile || {}), avatar: uploadRes.data.url } }));
+      setAvatarOverride(uploadRes.data.url);
+      message.success('Đã cập nhật ảnh đại diện');
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Không tải được ảnh, vui lòng thử lại');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // ==========================================
   // REAL-TIME CHAT LOGIC CHO TƯ VẤN VIÊN
@@ -207,6 +234,24 @@ export default function AdminLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {/* HỘP THÔNG TIN CÁ NHÂN + ĐỔI ẢNH ĐẠI DIỆN */}
+      <Modal title="Thông tin cá nhân" open={isProfileModalVisible} onCancel={() => setIsProfileModalVisible(false)} footer={null}>
+        <div className="flex flex-col items-center gap-3 mb-4">
+          <Avatar size={96} src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500" />
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+          <Button loading={uploadingAvatar} onClick={() => avatarInputRef.current?.click()}>
+            {avatarUrl ? 'Đổi ảnh đại diện' : 'Tải ảnh đại diện'}
+          </Button>
+          {role === 'DOCTOR' && <span className="text-xs text-gray-500">Ảnh này hiển thị ở trang Đội ngũ bác sĩ của website khách hàng.</span>}
+        </div>
+        <Descriptions column={1} bordered size="small">
+          <Descriptions.Item label="Họ tên">{fullName}</Descriptions.Item>
+          <Descriptions.Item label="Email">{email}</Descriptions.Item>
+          <Descriptions.Item label="Số điện thoại">{phone}</Descriptions.Item>
+          <Descriptions.Item label="Vai trò"><Tag color="blue">{role}</Tag></Descriptions.Item>
+        </Descriptions>
+      </Modal>
 
       {/* Ô CHAT WIDGET DÀNH CHO CSKH */}
       {role === 'CONSULTANT' && (

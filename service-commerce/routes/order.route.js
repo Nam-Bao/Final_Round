@@ -15,6 +15,9 @@ router.put('/addresses/:id', customerOnly, orderController.updateUserAddress);
 // 2. API Checkout Đơn hàng (POST /api/commerce/orders/checkout)
 router.post('/checkout', customerOnly, orderController.checkout);
 
+// 2b. Đơn mỹ phẩm mua tại quầy sau buổi khám (service-booking gọi khi CSKH chốt sale)
+router.post('/counter', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), orderController.createCounterOrder);
+
 // 3. API Quản lý dành cho Admin / Sale (Đặt trước route '/')
 router.get('/admin', salesStaff, orderController.getAllOrdersForAdmin);
 router.put('/admin/:id/status', salesStaff, orderController.updateOrderStatus);

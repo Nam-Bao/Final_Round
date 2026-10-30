@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, Alert } from 'antd';
+import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert } from 'antd';
 import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Title, Text } = Typography;
+
+// Đơn thuốc: [{ product_id, quantity }]; dữ liệu cũ là mảng mã sản phẩm (mỗi mã = 1 sản phẩm)
+const toMedicineLines = (list) => (list || []).map(m => (typeof m === 'string' ? { product_id: m, quantity: 1 } : { product_id: m.product_id, quantity: m.quantity || 1 }));
 
 export default function ConsultantCheckoutPage() {
   const [hotLeads, setHotLeads] = useState([]);
@@ -53,7 +56,7 @@ export default function ConsultantCheckoutPage() {
     setSelectedItems({
       services: customer.prescribed_services || [],
       packages: customer.prescribed_packages || [],
-      medicines: customer.prescribed_medicines || []
+      medicines: toMedicineLines(customer.prescribed_medicines)
     });
   };
 
@@ -63,7 +66,10 @@ export default function ConsultantCheckoutPage() {
     return {
       SPA_SERVICE: sum(selectedItems.services, spaServices, i => i.price),
       TREATMENT_PACKAGE: sum(selectedItems.packages, packages, i => i.promotional_price || i.price),
-      PRODUCT: sum(selectedItems.medicines, products, i => i.price),
+      PRODUCT: selectedItems.medicines.reduce((s, m) => {
+        const product = products.find(p => p.id === m.product_id);
+        return product ? s + Number(product.price) * m.quantity : s;
+      }, 0),
     };
   };
 
@@ -195,12 +201,40 @@ export default function ConsultantCheckoutPage() {
                        <Text strong className="block mb-2 text-gray-700">3. Dược Mỹ Phẩm (Mang về)</Text>
                        <Select
                           mode="multiple" className="w-full" placeholder="-- Chọn thêm sản phẩm --"
-                          value={selectedItems.medicines} onChange={(vals) => setSelectedItems(prev => ({...prev, medicines: vals}))}
+                          value={selectedItems.medicines.map(m => m.product_id)}
+                          onChange={(ids) => setSelectedItems(prev => ({
+                             ...prev,
+                             // giữ số lượng của sản phẩm đã chọn, sản phẩm mới mặc định 1
+                             medicines: ids.map(id => prev.medicines.find(m => m.product_id === id) || { product_id: id, quantity: 1 })
+                          }))}
                        >
                           {products.map(p => (
                              <Select.Option key={p.id} value={p.id}>{p.name} - <span className="text-red-500 font-medium">{Number(p.price).toLocaleString('vi-VN')}đ</span></Select.Option>
                           ))}
                        </Select>
+
+                       {/* Số lượng từng sản phẩm, đối chiếu tồn kho */}
+                       {selectedItems.medicines.map(m => {
+                          const product = products.find(p => p.id === m.product_id);
+                          const stock = Number(product?.stock_quantity || 0);
+                          return (
+                             <div key={m.product_id} className="flex items-center justify-between gap-3 mt-2 px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                                <div className="min-w-0">
+                                   <Text className="block truncate">{product?.name || 'Sản phẩm không còn bán'}</Text>
+                                   <Text type={m.quantity > stock ? 'danger' : 'secondary'} className="text-xs">
+                                      Còn {stock} trong kho{m.quantity > stock ? ' — không đủ hàng' : ''}
+                                   </Text>
+                                </div>
+                                <InputNumber
+                                   min={1} max={20} value={m.quantity} addonAfter="SL" style={{ width: 120 }}
+                                   onChange={(qty) => setSelectedItems(prev => ({
+                                      ...prev,
+                                      medicines: prev.medicines.map(x => x.product_id === m.product_id ? { ...x, quantity: qty || 1 } : x)
+                                   }))}
+                                />
+                             </div>
+                          );
+                       })}
                     </div>
                  </div>
 

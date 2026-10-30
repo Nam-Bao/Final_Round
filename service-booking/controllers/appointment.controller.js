@@ -33,19 +33,42 @@ const markDepositPaid = async (apt, invoice, paymentMethod, note) => {
   }
 };
 
+// Đơn thuốc / mỹ phẩm: [{ product_id, quantity }]. Vẫn nhận dữ liệu cũ dạng mảng mã sản phẩm (mỗi mã = 1 sản phẩm).
+// Gộp dòng trùng, số lượng 1 - 20.
+const normalizeMedicines = (list) => {
+  const qty = {};
+  (Array.isArray(list) ? list : []).forEach((m) => {
+    const productId = typeof m === 'string' ? m : (m?.product_id || m?.id);
+    const quantity = typeof m === 'string' ? 1 : Math.min(Math.max(parseInt(m?.quantity, 10) || 1, 1), 20);
+    if (productId) qty[productId] = Math.min((qty[productId] || 0) + quantity, 20);
+  });
+  return Object.entries(qty).map(([product_id, quantity]) => ({ product_id, quantity }));
+};
+
+class CheckoutError extends Error {}
+
 // Tính hóa đơn chốt sale từ giá trong DB: phí khám + dịch vụ/gói/thuốc, tiền cọc đã thu được trừ đúng 1 lần.
+// selected_medicines đã được normalizeMedicines; báo lỗi nếu sản phẩm không còn bán hoặc không đủ hàng.
 const calculateCheckoutBill = async ({ invoice, selected_services, selected_packages, selected_medicines }) => {
   const [services, packages, productsRes] = await Promise.all([
     selected_services.length ? SpaService.findAll({ where: { id: selected_services }, raw: true }) : [],
     selected_packages.length ? TreatmentPackage.findAll({ where: { id: selected_packages }, raw: true }) : [],
     selected_medicines.length ? axios.get('http://localhost:4000/api/commerce/products') : { data: { data: [] } },
   ]);
-  const products = (productsRes.data.data || []).filter(p => selected_medicines.includes(p.id));
+  const catalog = productsRes.data.data || [];
+  const productLines = selected_medicines.map((m) => {
+    const product = catalog.find(p => p.id === m.product_id);
+    if (!product) throw new CheckoutError('Có sản phẩm trong đơn không còn bán, vui lòng chọn lại');
+    if (Number(product.stock_quantity || 0) < m.quantity) {
+      throw new CheckoutError(`Sản phẩm ${product.name} chỉ còn ${product.stock_quantity || 0} trong kho`);
+    }
+    return Number(product.price) * m.quantity;
+  });
 
   const scope_values = {
     SPA_SERVICE: services.reduce((s, x) => s + Number(x.price), 0),
     TREATMENT_PACKAGE: packages.reduce((s, x) => s + Number(x.promotional_price || x.price), 0),
-    PRODUCT: products.reduce((s, x) => s + Number(x.price), 0),
+    PRODUCT: productLines.reduce((s, x) => s + x, 0),
   };
   const items_total = scope_values.SPA_SERVICE + scope_values.TREATMENT_PACKAGE + scope_values.PRODUCT;
   const exam_fee = getExamFee(invoice);
@@ -399,6 +422,13 @@ const finishExam = async (req, res) => {
     const { symptoms, diagnosis, doctor_notes, follow_up_date, post_exam_images, spa_services, treatment_package, prescriptions } = req.body; 
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    // Chỉ bác sĩ phụ trách (hoặc quản lý) kết thúc buổi khám đang diễn ra; lịch đã chốt sale không mở lại được
+    if (req.user.role === 'DOCTOR' && apt.doctor_id !== req.user.id) {
+      return res.status(403).json({ message: 'Lịch khám này không phải của bạn' });
+    }
+    if (!['WAITING', 'IN_PROGRESS'].includes(apt.status)) {
+      return res.status(400).json({ message: 'Lịch hẹn không ở trạng thái đang chờ / đang khám' });
+    }
 
     try {
       await axios.post('http://localhost:4000/api/identity/medical-records', {
@@ -419,7 +449,7 @@ const finishExam = async (req, res) => {
     apt.doctor_notes = doctor_notes;
     apt.prescribed_services = spa_services || [];
     apt.prescribed_packages = treatment_package ? [treatment_package] : []; 
-    apt.prescribed_medicines = prescriptions || [];
+    apt.prescribed_medicines = normalizeMedicines(prescriptions);
     
     apt.status = 'WAITING_FOR_SALE'; 
     await apt.save();
@@ -518,7 +548,8 @@ const checkoutAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     // Tổng tiền và số tiền giảm KHÔNG lấy từ client — server tự tính lại từ giá trong DB
-    const { selected_services = [], selected_packages = [], selected_medicines = [], voucher_code, payment_method } = req.body;
+    const { selected_services = [], selected_packages = [], voucher_code, payment_method } = req.body;
+    const selected_medicines = normalizeMedicines(req.body.selected_medicines);
 
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
@@ -527,7 +558,13 @@ const checkoutAppointment = async (req, res) => {
     }
 
     const invoice = await Invoice.findOne({ where: { appointment_id: id } });
-    const bill = await calculateCheckoutBill({ invoice, selected_services, selected_packages, selected_medicines });
+    let bill;
+    try {
+      bill = await calculateCheckoutBill({ invoice, selected_services, selected_packages, selected_medicines });
+    } catch (err) {
+      if (err instanceof CheckoutError) return res.status(400).json({ message: err.message });
+      throw err;
+    }
 
     // Kiểm tra lại voucher + ghi nhận khách đã dùng (trước khi thay đổi dữ liệu, mã sai thì dừng luôn)
     let discountAmount = 0;
@@ -548,6 +585,26 @@ const checkoutAppointment = async (req, res) => {
     const totalBill = Math.max(0, bill.gross - discountAmount);
     // Tiền cọc đã thu chính là phí khám → chỉ trừ 1 lần
     const amountDueNow = Math.max(0, totalBill - bill.deposit_paid);
+
+    // Mỹ phẩm mua tại quầy: ghi thành đơn hàng của khách bên commerce (trừ kho trong cùng giao dịch),
+    // để khách xem lại trong "Đơn hàng Mỹ phẩm" và đánh giá được sản phẩm
+    if (selected_medicines.length > 0) {
+      const headers = { Authorization: req.headers.authorization };
+      const customersRes = await axios.get('http://localhost:4000/api/identity/users/customers', { headers }).catch(() => null);
+      const customer = (customersRes?.data?.data || []).find(u => u.id === apt.customer_id);
+      try {
+        await axios.post('http://localhost:4000/api/commerce/orders/counter', {
+          customer_id: apt.customer_id,
+          appointment_id: apt.id,
+          items: selected_medicines,
+          recipient_name: customer?.Profile?.full_name,
+          shipping_phone: customer?.Profile?.phone,
+          payment_method: payment_method || 'CASH'
+        }, { headers });
+      } catch (err) {
+        return res.status(400).json({ message: err.response?.data?.message || 'Không ghi được đơn mỹ phẩm, vui lòng thử lại' });
+      }
+    }
 
     apt.prescribed_services = selected_services;
     apt.prescribed_packages = selected_packages;
@@ -620,12 +677,6 @@ const checkoutAppointment = async (req, res) => {
               technician_id: chosenTechnicianId, session_date: today, status: 'WAITING'
            });
        }
-    }
-
-    if (selected_medicines && selected_medicines.length > 0) {
-       try {
-         await axios.post('http://localhost:4000/api/commerce/products/deduct', { product_ids: selected_medicines }, { headers: { 'Authorization': req.headers.authorization } });
-       } catch (err) { console.warn('Lỗi đồng bộ trừ tồn kho:', err.message); }
     }
 
     res.status(200).json({

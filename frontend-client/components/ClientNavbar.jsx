@@ -21,14 +21,27 @@ export default function ClientNavbar() {
       </div>
       <div className="flex-none gap-2">
         <ul className="menu menu-horizontal px-1 hidden lg:flex font-medium">
-          <li><Link to="/sang-loc-da">Sàng lọc AI</Link></li>
-          <li><Link to="/booking">Đặt lịch</Link></li>
+          <li className="dropdown dropdown-hover">
+            <a tabIndex={0}>Về GlowSkin ▾</a>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56">
+              <li><Link to="/gioi-thieu">Giới thiệu phòng khám</Link></li>
+              <li><Link to="/doi-ngu-bac-si">Đội ngũ bác sĩ</Link></li>
+              <li><Link to="/reviews">Đánh giá khách hàng</Link></li>
+              <li><Link to="/contact">Liên hệ</Link></li>
+            </ul>
+          </li>
           <li><Link to="/services">Dịch vụ</Link></li>
           <li><Link to="/shops">Mỹ phẩm</Link></li>
-          <li><Link to="/news">Tin tức</Link></li>
-          <li><Link to="/promotions">Khuyến mãi</Link></li>
-          <li><Link to="/reviews">Đánh giá dịch vụ</Link></li>
-          
+          <li><Link to="/booking">Đặt lịch</Link></li>
+          <li><Link to="/sang-loc-da">Sàng lọc AI</Link></li>
+          <li className="dropdown dropdown-hover">
+            <a tabIndex={0}>Ưu đãi & Tin tức ▾</a>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-48">
+              <li><Link to="/promotions">Khuyến mãi</Link></li>
+              <li><Link to="/news">Tin tức</Link></li>
+            </ul>
+          </li>
+
           {user && (
             <li className="dropdown dropdown-hover">
               <a tabIndex={0}>Hồ sơ của tôi ▾</a>

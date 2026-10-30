@@ -98,7 +98,10 @@ export default function CustomerProfilePage() {
                 <Text strong className="text-purple-700 mb-2 block"><ShoppingOutlined/> Dịch vụ & Sản phẩm đã mua:</Text>
                 {record.prescribed_services?.length > 0 && <div><Text strong>Dịch vụ:</Text> {record.prescribed_services.map(id => catalogs.services.find(s=>s.id === id)?.name).join(', ')}</div>}
                 {record.prescribed_packages?.length > 0 && <div><Text strong>Lộ trình:</Text> {record.prescribed_packages.map(id => catalogs.packages.find(p=>p.id === id)?.name).join(', ')}</div>}
-                {record.prescribed_medicines?.length > 0 && <div><Text strong>Thuốc/Mỹ phẩm:</Text> {record.prescribed_medicines.map(id => catalogs.products.find(p=>p.id === id)?.name).join(', ')}</div>}
+                {record.prescribed_medicines?.length > 0 && <div><Text strong>Thuốc/Mỹ phẩm:</Text> {record.prescribed_medicines.map(m => {
+                  const id = typeof m === 'string' ? m : m?.product_id; // dữ liệu cũ là mã sản phẩm
+                  return `${catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'} x${typeof m === 'string' ? 1 : m?.quantity || 1}`;
+                }).join(', ')}</div>}
               </div>
             )}
 

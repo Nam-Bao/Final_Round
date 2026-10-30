@@ -128,6 +128,9 @@ const SpaService = sequelize.define('SpaService', {
     description: { type: DataTypes.TEXT },
     category: { type: DataTypes.STRING, defaultValue: 'basic' }, // acne | pigment | rejuvenation | recovery | basic | online
     includes: { type: DataTypes.JSONB, defaultValue: [] }, // Danh sách "Dịch vụ bao gồm" hiển thị ở trang chi tiết
+    procedure_steps: { type: DataTypes.JSONB, defaultValue: [] }, // Các bước thực hiện (trang chi tiết)
+    suitable_for: { type: DataTypes.JSONB, defaultValue: [] }, // Tình trạng da / đối tượng phù hợp
+    aftercare: { type: DataTypes.JSONB, defaultValue: [] }, // Lưu ý chăm sóc sau điều trị
     duration_minutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 60 },
     price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     image_url: { type: DataTypes.STRING },

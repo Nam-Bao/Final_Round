@@ -24,6 +24,10 @@ import NewsDetailPage from './pages/NewsDetailPage';
 import PromotionsPage from './pages/PromotionsPage'; 
 import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
+import ContactPage from './pages/ContactPage';
+import AboutPage from './pages/AboutPage';
+import DoctorsPage from './pages/DoctorsPage';
+import ContactButtons from './components/ContactButtons';
 
 // ====== CHATBOT AI ======
 // Gemini chạy ở service-ai-analysis, frontend không giữ API key; bắt buộc đăng nhập
@@ -219,7 +223,9 @@ function App() {
             <Route path="/orders" element={<ProtectedRoute><PharmacyOrdersPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
-            <Route path="/contact" element={<div className="text-center p-20 text-xl font-bold">Trang Liên hệ Hotline: 1900 xxxx</div>} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/gioi-thieu" element={<AboutPage />} />
+            <Route path="/doi-ngu-bac-si" element={<DoctorsPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/services/:id" element={<ServiceDetailPage />} />  
             <Route path="/news" element={<NewsPage />} />
@@ -235,6 +241,8 @@ function App() {
 
         {/* NÚT BẤM VÀ KHUNG CHAT AI / CSKH */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+          {/* Hotline + Zalo: ẩn khi đang mở khung chat cho gọn */}
+          {!isChatOpen && <ContactButtons />}
           {isChatOpen && (
             <div className="card w-80 bg-base-100 shadow-2xl border border-base-200 mb-4 overflow-hidden animate-fade-in-up">
               <div className="bg-primary text-white p-3 flex justify-between items-center">

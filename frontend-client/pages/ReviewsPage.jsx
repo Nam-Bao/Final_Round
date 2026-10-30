@@ -58,7 +58,8 @@ export default function ReviewsPage() {
   const [reviewsByTab, setReviewsByTab] = useState({ doctor: [], service: [], product: [] });
   const [loading, setLoading] = useState(true);
   const [filterRating, setFilterRating] = useState('ALL');
-  const [filterSubject, setFilterSubject] = useState('ALL');
+  // ?doctor=<id> (từ trang Đội ngũ bác sĩ) lọc sẵn đánh giá của bác sĩ đó
+  const [filterSubject, setFilterSubject] = useState(tab === 'doctor' && searchParams.get('doctor') ? searchParams.get('doctor') : 'ALL');
 
   useEffect(() => {
     let isMounted = true;

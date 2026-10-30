@@ -2,10 +2,11 @@ const dayjs = require('dayjs');
 const { Appointment } = require('../models');
 const { generateRoomToken } = require('../utils/zegoToken');
 
-const isOnlineAppointment = (apt) => Boolean(apt?.pre_notes?.startsWith('[ONLINE]'));
+// Dùng includes: lịch đã dời được thêm tiền tố "[ĐÃ DỜI LỊCH: ...] - " trước "[ONLINE]"
+const isOnlineAppointment = (apt) => Boolean(apt?.pre_notes?.includes('[ONLINE]'));
 
-// Phòng mở trước giờ hẹn 15 phút và đóng sau giờ hẹn 2 tiếng
-const OPEN_BEFORE_MINUTES = 15;
+// Khách vào phòng đúng từ giờ hẹn; bác sĩ được vào sớm 15 phút để chuẩn bị. Phòng đóng sau giờ hẹn 2 tiếng
+const DOCTOR_OPEN_BEFORE_MINUTES = 15;
 const CLOSE_AFTER_MINUTES = 120;
 const JOINABLE_STATUSES = ['CONFIRMED', 'WAITING', 'IN_PROGRESS'];
 
@@ -33,18 +34,26 @@ const getVideoToken = async (req, res) => {
     }
 
     const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`, 'YYYY-MM-DD HH:mm');
+    const end = start.add(CLOSE_AFTER_MINUTES, 'minute');
+    const isDoctor = userID === apt.doctor_id;
+    const opensAt = isDoctor ? start.subtract(DOCTOR_OPEN_BEFORE_MINUTES, 'minute') : start;
     const now = dayjs();
-    if (now.isBefore(start.subtract(OPEN_BEFORE_MINUTES, 'minute'))) {
+    if (now.isBefore(opensAt)) {
       return res.status(400).json({
-        message: `Phòng khám mở trước giờ hẹn ${OPEN_BEFORE_MINUTES} phút. Lịch của bạn lúc ${start.format('HH:mm DD/MM/YYYY')}.`
+        code: 'NOT_STARTED',
+        opens_at: opensAt.toISOString(),
+        message: isDoctor
+          ? `Phòng khám mở trước giờ hẹn ${DOCTOR_OPEN_BEFORE_MINUTES} phút (lúc ${opensAt.format('HH:mm DD/MM/YYYY')}).`
+          : `Chưa đến giờ hẹn. Buổi khám online bắt đầu lúc ${start.format('HH:mm')} ngày ${start.format('DD/MM/YYYY')}, bạn vui lòng quay lại đúng giờ.`
       });
     }
-    if (now.isAfter(start.add(CLOSE_AFTER_MINUTES, 'minute'))) {
-      return res.status(400).json({ message: 'Đã quá giờ khám của lịch hẹn này' });
+    if (now.isAfter(end)) {
+      return res.status(400).json({ code: 'ENDED', message: 'Đã quá giờ khám của lịch hẹn này' });
     }
 
     const roomID = `glowskin_${apt.id}`;
-    const token = generateRoomToken(appID, userID, serverSecret, roomID, CLOSE_AFTER_MINUTES * 60);
+    // Token chỉ dùng được tới lúc phòng đóng
+    const token = generateRoomToken(appID, userID, serverSecret, roomID, Math.max(end.diff(now, 'second'), 60));
     res.status(200).json({ data: { appID, userID, roomID, token } });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo phòng khám video', error: error.message });
