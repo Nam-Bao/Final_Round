@@ -4,6 +4,8 @@ require('dotenv').config();
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+const { verifyToken } = require('../middlewares/auth.middleware.js');
+
 const router = express.Router();
 
 // 1. Kiểm tra xem file .env có được load thành công không
@@ -26,8 +28,8 @@ const storage = new CloudinaryStorage({
 // Tối đa 5MB / ảnh để tránh lạm dụng dung lượng Cloudinary
 const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// API Nhận file
-router.post('/', (req, res) => {
+// API Nhận file — bắt buộc đăng nhập (khách và nhân viên) để tránh người lạ dùng Cloudinary
+router.post('/', verifyToken, (req, res) => {
   // Bọc hàm upload lại để bắt lỗi chi tiết từ Multer & Cloudinary
   const uploadImage = upload.single('image');
 

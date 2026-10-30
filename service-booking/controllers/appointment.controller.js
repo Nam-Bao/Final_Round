@@ -128,6 +128,55 @@ const getTakenSlots = async (req, res) => {
   }
 };
 
+// Khung giờ khám theo ca (khớp với getAvailableSlots và trang đặt lịch)
+const SHIFT_SLOTS = {
+  MORNING: ['08:00', '09:00', '10:00', '11:00'],
+  AFTERNOON: ['13:00', '14:00', '15:00', '16:00'],
+  EVENING: ['18:00', '19:00', '20:00']
+};
+
+// Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
+const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId }) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(appointment_date) || !/^\d{2}:\d{2}(:\d{2})?$/.test(appointment_time)) {
+    return { status: 400, message: 'Ngày hoặc giờ khám không hợp lệ' };
+  }
+  const time = appointment_time.slice(0, 5);
+  const slotStart = dayjs(`${appointment_date} ${time}`);
+  if (!slotStart.isValid() || slotStart.format('YYYY-MM-DD') !== appointment_date) {
+    return { status: 400, message: 'Ngày hoặc giờ khám không hợp lệ' };
+  }
+  // Khách chỉ đặt giờ trong tương lai; nhân viên được xếp lịch trong ngày (khách vãng lai tới quầy) nhưng không lùi ngày
+  if (isCustomer ? !slotStart.isAfter(dayjs()) : slotStart.isBefore(dayjs(), 'day')) {
+    return { status: 400, message: 'Không thể đặt lịch vào thời gian đã qua, vui lòng chọn ngày giờ khác' };
+  }
+  if (!doctor_id) return null;
+
+  const shifts = await WorkShift.findAll({ where: { employee_id: doctor_id, date: appointment_date, status: 'SCHEDULED' }, raw: true });
+  if (!shifts.some(s => (SHIFT_SLOTS[s.shift_type] || []).includes(time))) {
+    return { status: 400, message: 'Bác sĩ không có lịch làm việc vào giờ này, vui lòng chọn giờ khác' };
+  }
+  const taken = await Appointment.count({
+    where: {
+      doctor_id, appointment_date, appointment_time: { [Op.in]: [time, `${time}:00`] }, status: { [Op.notIn]: ['CANCELLED'] },
+      ...(excludeId ? { id: { [Op.ne]: excludeId } } : {})
+    }
+  });
+  if (taken > 0) return { status: 409, message: 'Giờ này vừa có người đặt, vui lòng chọn giờ khác' };
+  return null;
+};
+
+// Khi nhân viên đổi bác sĩ / ngày / giờ của lịch có sẵn: kiểm tra lại khung giờ mới
+const validateSlotChange = (apt, { doctor_id, appointment_date, appointment_time }) => {
+  const next = {
+    doctor_id: doctor_id !== undefined ? doctor_id : apt.doctor_id,
+    appointment_date: appointment_date || apt.appointment_date,
+    appointment_time: String(appointment_time || apt.appointment_time)
+  };
+  const changed = next.doctor_id !== apt.doctor_id || next.appointment_date !== apt.appointment_date
+    || next.appointment_time.slice(0, 5) !== String(apt.appointment_time).slice(0, 5);
+  return changed ? validateAppointmentSlot({ ...next, isCustomer: false, excludeId: apt.id }) : null;
+};
+
 const createAppointment = async (req, res) => {
   try {
     const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : req.body.customer_id; 
@@ -137,7 +186,25 @@ const createAppointment = async (req, res) => {
        return res.status(400).json({ message: 'Vui lòng điền đủ thông tin hồ sơ và thời gian' });
     }
 
-    let finalPreNotes = pre_notes; 
+    // Ngày giờ hợp lệ, không ở quá khứ, đúng ca làm của bác sĩ và chưa ai đặt
+    const slotError = await validateAppointmentSlot({ doctor_id, appointment_date, appointment_time, isCustomer: req.user.role === 'CUSTOMER' });
+    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
+
+    // Hồ sơ người khám phải là hồ sơ thật thuộc tài khoản khách (tra ở service-identity)
+    const profileUrl = req.user.role === 'CUSTOMER'
+      ? 'http://localhost:4000/api/identity/profile/patients'
+      : `http://localhost:4000/api/identity/profile/patients/user/${encodeURIComponent(customer_id)}`;
+    // identity trả lỗi (không có quyền / không tìm thấy) -> coi như hồ sơ không hợp lệ; không gọi được -> 503
+    const profilesRes = await axios.get(profileUrl, { headers: { Authorization: req.headers.authorization } })
+      .catch(err => (err.response ? { data: { data: [] } } : null));
+    if (!profilesRes) {
+      return res.status(503).json({ message: 'Không kiểm tra được hồ sơ người khám, vui lòng thử lại sau' });
+    }
+    if (!(profilesRes.data?.data || []).some(p => p.id === patient_profile_id)) {
+      return res.status(400).json({ message: 'Hồ sơ người khám không hợp lệ, vui lòng chọn lại' });
+    }
+
+    let finalPreNotes = pre_notes;
     if (isOnlineAppointment({ pre_notes }) && symptoms) {
        const formattedSymptomsForDoctor = symptoms.replace(/\n/g, ' - ');
        finalPreNotes = `${pre_notes} - ${formattedSymptomsForDoctor}`;
@@ -287,6 +354,8 @@ const rescheduleAppointment = async (req, res) => {
     const { doctor_id, appointment_date, appointment_time, note } = req.body;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    const slotError = await validateSlotChange(apt, { doctor_id: doctor_id || undefined, appointment_date, appointment_time });
+    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
     
     apt.doctor_id = doctor_id || apt.doctor_id;
     apt.appointment_date = appointment_date || apt.appointment_date;
@@ -371,6 +440,8 @@ const updateAppointment = async (req, res) => {
     const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes, status } = req.body;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    const slotError = await validateSlotChange(apt, { doctor_id, appointment_date, appointment_time });
+    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
     apt.doctor_id = doctor_id !== undefined ? doctor_id : apt.doctor_id;
     apt.type = type || apt.type;
     apt.appointment_date = appointment_date || apt.appointment_date;
@@ -426,6 +497,7 @@ const getAvailableDoctors = async (req, res) => {
 const getAvailableSlots = async (req, res) => {
   try {
     const { date, doctorId } = req.query;
+    if (!date || !doctorId) return res.status(400).json({ message: 'Thiếu ngày khám hoặc bác sĩ' });
     const shifts = await WorkShift.findAll({ where: { date, employee_id: doctorId, status: 'SCHEDULED' }, raw: true });
     let allSlots = [];
     shifts.forEach(shift => {

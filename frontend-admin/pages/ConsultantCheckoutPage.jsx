@@ -22,7 +22,7 @@ export default function ConsultantCheckoutPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       fetch('http://localhost:4000/api/booking/packages').then(res => res.json()).then(data => setPackages(data.data || []));
       fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
       fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
@@ -76,7 +76,7 @@ export default function ConsultantCheckoutPage() {
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) return;
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
         code: voucherCode,
         order_value: getSubtotal(),
@@ -97,7 +97,7 @@ export default function ConsultantCheckoutPage() {
   const handleSubmitCheckout = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       // Server tự tính lại tổng tiền và kiểm tra lại voucher, không gửi số tiền lên
       const res = await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
         selected_services: selectedItems.services,

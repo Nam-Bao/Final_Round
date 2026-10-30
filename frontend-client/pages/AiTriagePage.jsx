@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle, CalendarCheck } from 'lucide-react';
 import axios from 'axios';
 import PhotoConsentModal from '../components/PhotoConsentModal';
-import CustomerConcerns from '../components/CustomerConcerns';
-import GlowSkinValueProp from '../components/GlowSkinValueProp';
 
 // Vite: đặt VITE_API_URL trong frontend-client/.env nếu gateway không chạy ở cổng 4000
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -38,7 +37,7 @@ export default function AiTriagePage() {
     const consent = pendingConsentRef.current;
     if (!consent) return openConsent(); // phòng trường hợp chưa đồng ý
 
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const startIndex = images.length;
     const uploaded = [];
 
@@ -81,10 +80,9 @@ export default function AiTriagePage() {
     try {
       // ?debug=1 chỉ bật khi chạy dev (vite dev server)
       const res = await axios.post(`${API_URL}/api/ai/analyze${import.meta.env.DEV ? '?debug=1' : ''}`, {
-        customer_id: 'GUEST_ANALYSIS',
         image_url: target.url,
         consent: target.consent,
-      });
+      }, { headers: { Authorization: 'Bearer ' + sessionStorage.getItem('token') } });
       if (res.data.debug) console.log('[AI debug]', res.data.debug);
 
       const metrics = res.data.data.parsed_metrics;
@@ -180,7 +178,14 @@ export default function AiTriagePage() {
 
   /* ------------------------------ Giao diện ------------------------------ */
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-secondary">Sàng lọc da bằng AI</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Tải ảnh khuôn mặt rõ nét, đủ sáng để AI khoanh vùng khuyết điểm. Kết quả chỉ mang tính tham khảo.
+        </p>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <PhotoConsentModal open={showConsent} onAccept={handleConsentAccepted} onClose={() => setShowConsent(false)} />
 
@@ -367,17 +372,15 @@ export default function AiTriagePage() {
                 <p className="text-[11px] text-slate-400 mt-4">
                   Kết quả do AI hỗ trợ, chỉ mang tính tham khảo, không thay thế chẩn đoán của bác sĩ da liễu.
                 </p>
+
+                <Link to="/booking" className="btn btn-primary btn-sm w-full gap-2 mt-4">
+                  <CalendarCheck className="w-4 h-4" /> Đặt lịch khám với bác sĩ
+                </Link>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Khối Thấu hiểu nỗi lo khách hàng */}
-      <CustomerConcerns />
-
-      {/* 3 Khối Giá Trị & Phác Đồ GlowSkin (Style O2 SKIN) */}
-      <GlowSkinValueProp />
     </div>
   );
 }

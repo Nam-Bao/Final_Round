@@ -10,7 +10,7 @@ const STATUS_MAP = {
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-100 text-red-700', icon: XCircle }
 };
 
-const authConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` } });
+const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 
 export default function SaleOrderManagement() {
   const [orders, setOrders] = useState([]);

@@ -22,13 +22,13 @@ const VideoCallModal = ({ appointmentId, patientName, open, onClose }) => {
 
     const joinRoom = async () => {
       try {
-        const token = localStorage.getItem('admin_token');
+        const token = sessionStorage.getItem('admin_token');
         const res = await axios.get(`http://localhost:4000/api/booking/appointments/${appointmentId}/video-token`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cancelled) return;
 
-        const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
+        const adminUser = JSON.parse(sessionStorage.getItem('admin_user') || '{}');
         const doctorName = adminUser?.Profile?.full_name ? `BS. ${adminUser.Profile.full_name}` : 'Bác sĩ GlowSkin';
 
         const { appID, userID, roomID, token: zegoToken } = res.data.data;

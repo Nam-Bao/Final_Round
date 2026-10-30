@@ -37,7 +37,7 @@ const CategoriesTab = () => {
 
   const handleSubmit = async (values) => { 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const isUpdate = !!editingItem;
       const url = isUpdate ? `http://localhost:4000/api/commerce/categories/${editingItem.id}` : 'http://localhost:4000/api/commerce/categories';
       const res = await fetch(url, {
@@ -59,7 +59,7 @@ const CategoriesTab = () => {
 
   const handleDelete = async (id) => { 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await fetch(`http://localhost:4000/api/commerce/categories/${id}`, { 
         method: 'DELETE', 
         headers: { 'Authorization': `Bearer ${token}` } 
@@ -198,7 +198,7 @@ const ProductsTab = () => {
 
   const handleSubmit = async (values) => { 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let finalImages = values.image_url || [];
 
       if (imageMode === 'file' && fileList.length > 0) {
@@ -268,7 +268,7 @@ const ProductsTab = () => {
 
   const handleDelete = async (id) => { 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await fetch(`http://localhost:4000/api/commerce/products/${id}`, { 
         method: 'DELETE', 
         headers: { 'Authorization': `Bearer ${token}` } 

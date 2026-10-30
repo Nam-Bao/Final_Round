@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star } from 'lucide-react';
+import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -32,7 +32,7 @@ export default function AppointmentHistoryPage() {
   const [reviewApt, setReviewApt] = useState(null);
 
   const handleSubmitReview = async ({ rating, comment }) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     await axios.post('http://localhost:4000/api/booking/reviews', { appointment_id: reviewApt.id, rating, comment }, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -40,12 +40,30 @@ export default function AppointmentHistoryPage() {
     setReviewApt(null);
   };
 
+  // Đánh giá buổi dịch vụ / liệu trình: { [session_id]: review } và buổi đang mở hộp thoại đánh giá
+  const [myServiceReviews, setMyServiceReviews] = useState({});
+  const [reviewSession, setReviewSession] = useState(null);
+
+  const handleSubmitServiceReview = async ({ rating, comment }) => {
+    const token = sessionStorage.getItem('token');
+    await axios.post('http://localhost:4000/api/booking/reviews/services', {
+      session_id: reviewSession.id, session_type: reviewSession.session_type, rating, comment
+    }, { headers: { 'Authorization': `Bearer ${token}` } });
+    setMyServiceReviews(prev => ({ ...prev, [reviewSession.id]: { session_id: reviewSession.id, rating } }));
+    setReviewSession(null);
+  };
+
+  // Tên dịch vụ lẻ hoặc gói liệu trình của một buổi đã hoàn thành
+  const getSessionName = (s) => s.session_type === 'PACKAGE'
+    ? catalogs.packages.find(p => p.id === s.CustomerPackage?.package_id)?.name || 'Gói liệu trình'
+    : catalogs.services.find(sv => sv.id === s.spa_service_id)?.name || 'Dịch vụ';
+
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token'); 
+      const token = sessionStorage.getItem('token'); 
       if (!token) return navigate('/client-login');
       const headers = { 'Authorization': `Bearer ${token}` };
-      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes, reviewRes] = await Promise.all([
+      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes, reviewRes, serviceReviewRes] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments/my-history', { headers }),
         axios.get('http://localhost:4000/api/identity/users/doctors', { headers }),
         axios.get('http://localhost:4000/api/identity/medical-records/my-records', { headers }).catch(() => ({ data: { data: [] } })),
@@ -54,10 +72,12 @@ export default function AppointmentHistoryPage() {
         axios.get('http://localhost:4000/api/booking/spa-services'),
         axios.get('http://localhost:4000/api/booking/packages'),
         axios.get('http://localhost:4000/api/commerce/products'),
-        axios.get('http://localhost:4000/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get('http://localhost:4000/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('http://localhost:4000/api/booking/reviews/services/mine', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
       setApts(aptRes.data?.data || []);
       setMyReviews(Object.fromEntries((reviewRes.data?.data || []).map(r => [r.appointment_id, r])));
+      setMyServiceReviews(Object.fromEntries((serviceReviewRes.data?.data || []).map(r => [r.session_id, r])));
       setDoctors(docRes.data?.data || []);
       setRecords(recRes.data?.data || []);
       setMyProfiles(profRes.data?.data?.PatientProfiles || []);
@@ -79,7 +99,7 @@ export default function AppointmentHistoryPage() {
   const handleCancel = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.')) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
       alert('Hủy lịch thành công!');
       fetchData(); 
@@ -203,6 +223,39 @@ export default function AppointmentHistoryPage() {
                 </div>
              );
           })}
+        </div>
+      )}
+
+      {/* BUỔI DỊCH VỤ / LIỆU TRÌNH ĐÃ HOÀN THÀNH (my-sessions chỉ trả buổi COMPLETED) */}
+      {mySessions.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+            <Sparkles className="w-5 h-5 text-primary" /> Buổi dịch vụ đã hoàn thành
+          </h2>
+          {[...mySessions]
+            .sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
+            .map((s) => (
+              <div key={s.id} className="card bg-white shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <div>
+                  <p className="font-bold text-slate-800">
+                    {getSessionName(s)}
+                    {s.session_type === 'PACKAGE' && <span className="text-sm font-normal text-slate-500"> · Buổi {s.session_number}</span>}
+                  </p>
+                  <p className="text-sm text-slate-500 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> {dayjs(s.session_date).format('DD/MM/YYYY')}
+                  </p>
+                </div>
+                {myServiceReviews[s.id] ? (
+                  <span className="btn btn-sm btn-ghost text-amber-500 no-animation cursor-default gap-1">
+                    <Star className="w-4 h-4 fill-current"/> Đã đánh giá {myServiceReviews[s.id].rating}/5
+                  </span>
+                ) : (
+                  <button onClick={() => setReviewSession({ ...s, name: getSessionName(s) })} className="btn btn-sm btn-outline btn-warning gap-1">
+                    <Star className="w-4 h-4"/> Đánh giá dịch vụ
+                  </button>
+                )}
+              </div>
+            ))}
         </div>
       )}
 
@@ -339,6 +392,14 @@ export default function AppointmentHistoryPage() {
         subtitle={reviewApt?.doctorName}
         onClose={() => setReviewApt(null)}
         onSubmit={handleSubmitReview}
+      />
+
+      <ReviewModal
+        isOpen={!!reviewSession}
+        title="Đánh giá dịch vụ"
+        subtitle={reviewSession?.name}
+        onClose={() => setReviewSession(null)}
+        onSubmit={handleSubmitServiceReview}
       />
 
       <VideoCallModal

@@ -1,6 +1,7 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
 const { User, Profile, PatientProfile, sequelize } = require('../models');
 const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
 
 const getAllUsers = async (req, res) => {
   try {

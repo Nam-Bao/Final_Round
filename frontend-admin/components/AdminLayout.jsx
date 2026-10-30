@@ -6,7 +6,7 @@ import {
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined
 } from '@ant-design/icons';
-import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
@@ -22,14 +22,14 @@ export default function AdminLayout() {
 
   const handleMenuClick = ({ key }) => navigate(key);
   const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
     navigate('/login');
   };
 
   let currentUser = { role: 'GUEST' };
   try {
-    const userStr = localStorage.getItem('admin_token') ? localStorage.getItem('admin_user') : null;
+    const userStr = sessionStorage.getItem('admin_token') ? sessionStorage.getItem('admin_user') : null;
     if (userStr && userStr !== "undefined") currentUser = JSON.parse(userStr);
   } catch (error) { console.error(error); }
 
@@ -53,7 +53,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (role === 'CONSULTANT') {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => setCustomers(res.data?.data || []))
         .catch(err => console.log('Lỗi lấy danh sách khách', err));
@@ -179,6 +179,10 @@ export default function AdminLayout() {
       { key: '/technician-workspace', icon: <PlayCircleOutlined />, label: 'Không Gian Kỹ Thuật' },
     ] : []),
   ];
+
+
+  // Chưa đăng nhập (hoặc phiên đã hết hạn và bị xoá) -> về trang đăng nhập
+  if (!sessionStorage.getItem('admin_token')) return <Navigate to="/login" replace />;
 
   return (
     <Layout className="min-h-screen relative">

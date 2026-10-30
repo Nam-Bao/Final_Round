@@ -12,7 +12,7 @@ const SHIFT_SLOTS = {
 
 export default function DoctorBookingPage() {
   const storeToken = useAuthStore((state) => state.token);
-  const getToken = () => storeToken || localStorage.getItem('token') || '';
+  const getToken = () => storeToken || sessionStorage.getItem('token') || '';
 
   const [doctors, setDoctors] = useState([]);
   const [doctorStats, setDoctorStats] = useState({}); // Điểm đánh giá thật { [doctor_id]: { avg_rating, review_count } }
@@ -20,7 +20,9 @@ export default function DoctorBookingPage() {
   const [selectedProfileId, setSelectedProfileId] = useState(''); 
 
   const [selectedDoc, setSelectedDoc] = useState(null);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  // Ngày theo giờ máy khách (VN). Không dùng toISOString(): đó là ngày UTC, trước 7h sáng sẽ ra ngày hôm qua
+  const today = dayjs().format('YYYY-MM-DD');
+  const [date, setDate] = useState(today);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slot, setSlot] = useState('');
   
@@ -47,27 +49,20 @@ export default function DoctorBookingPage() {
         const token = getToken(); 
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // Lấy danh sách Hồ sơ người bệnh (Có Fallback nếu API 404/Lỗi)
+        // Lấy danh sách Hồ sơ người khám thật (server tự tạo hồ sơ "Bản thân" từ thông tin tài khoản nếu chưa có)
         let profiles = [];
         try {
-          const profileRes = await fetch('http://localhost:4000/api/identity/users/patient-profiles', { headers });
+          const profileRes = await fetch('http://localhost:4000/api/identity/profile/patients', { headers });
           if (profileRes.ok) {
             const profileData = await profileRes.json();
-            profiles = profileData.data || profileData || [];
+            profiles = profileData.data || [];
           }
         } catch (e) {
-          console.warn('Không thể kết nối API hồ sơ, sử dụng hồ sơ mặc định');
-        }
-
-        // Tự động tạo Hồ sơ mặc định nếu danh sách rỗng hoặc API chưa hỗ trợ
-        if (profiles.length === 0) {
-          profiles = [
-            { id: 'default_self_profile', full_name: 'Bản thân (Tài khoản chính)', relationship: 'Bản thân' }
-          ];
+          console.warn('Không thể tải hồ sơ người khám', e);
         }
 
         setPatientProfiles(profiles);
-        setSelectedProfileId(profiles[0].id);
+        setSelectedProfileId(profiles[0]?.id || '');
 
         // Lấy danh sách Bác sĩ
         const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', { headers }).catch(() => null);
@@ -141,6 +136,7 @@ export default function DoctorBookingPage() {
         const now = dayjs();
         const selectedDate = dayjs(date);
         const isToday = selectedDate.isSame(now, 'day');
+        const isPastDay = selectedDate.isBefore(now, 'day'); // gõ tay ngày cũ vẫn bị khóa hết
 
         let freeSlotsArr = [];
         let disabledSlotsArr = [];
@@ -153,7 +149,8 @@ export default function DoctorBookingPage() {
                isDisabled = true;
            }
            
-           // Khóa giờ đã qua trong ngày
+           // Khóa giờ đã qua trong ngày và mọi giờ của ngày đã qua
+           if (isPastDay) isDisabled = true;
            if (isToday) {
                const slotTime = dayjs(`${date} ${time}`, 'YYYY-MM-DD HH:mm');
                if (slotTime.isBefore(now)) {
@@ -184,6 +181,7 @@ export default function DoctorBookingPage() {
     if (!selectedProfileId) return alert('Vui lòng chọn Hồ sơ người khám!');
     if (!selectedDoc) return alert('Vui lòng chọn Bác sĩ!');
     if (!slot) return alert('Vui lòng chọn Giờ khám!');
+    if (!dayjs(`${date} ${slot}`).isAfter(dayjs())) return alert('Giờ khám đã qua, vui lòng chọn ngày giờ khác!');
     if (appointmentType === 'ONLINE' && !skinCondition.trim()) return alert('Vui lòng điền tình trạng da hiện tại!');
 
     let finalSymptoms = '';
@@ -292,9 +290,19 @@ export default function DoctorBookingPage() {
             {/* 1. CHỌN HỒ SƠ KHÁM BỆNH */}
             <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
                <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><User className="w-5 h-5"/> Đặt lịch cho ai?</h2>
-               <select className="select select-bordered w-full" value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-                 {patientProfiles.map(p => (<option key={p.id} value={p.id}>{p.full_name} ({p.relationship})</option>))}
-               </select>
+               {patientProfiles.length === 0 ? (
+                 <div className="alert alert-warning text-sm">
+                   <span>
+                     Bạn chưa có hồ sơ người khám. Vui lòng cập nhật họ tên trong{' '}
+                     <button type="button" className="link link-primary font-semibold" onClick={() => navigate('/profile')}>Hồ sơ cá nhân</button>
+                     {' '}hoặc thêm hồ sơ người thân trước khi đặt lịch.
+                   </span>
+                 </div>
+               ) : (
+                 <select className="select select-bordered w-full" value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
+                   {patientProfiles.map(p => (<option key={p.id} value={p.id}>{p.full_name} ({p.relationship})</option>))}
+                 </select>
+               )}
             </div>
 
             {/* 2. HÌNH THỨC KHÁM */}
@@ -399,7 +407,7 @@ export default function DoctorBookingPage() {
               <input 
                 type="date" 
                 value={date} 
-                min={new Date().toISOString().split('T')[0]} 
+                min={today} 
                 onChange={e => setDate(e.target.value)} 
                 className="input input-bordered w-full mb-4" 
               />

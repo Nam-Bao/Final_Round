@@ -11,7 +11,7 @@ export default function ClientFooter() {
         {/* Cột 1: Dịch vụ O2O */}
         <div>
           <span className="footer-title text-primary opacity-100 font-bold">Dịch vụ O2O</span> 
-          <Link to="/" className="link link-hover">Sàng lọc da AI</Link>
+          <Link to="/sang-loc-da" className="link link-hover">Sàng lọc da AI</Link>
           <Link to="/booking" className="link link-hover">Khám Bác sĩ online</Link>
           <Link to="/services" className="link link-hover">Trị liệu tại phòng khám</Link>
           <Link to="/reviews" className="link link-hover">Đánh giá khách hàng</Link>

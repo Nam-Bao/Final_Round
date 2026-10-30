@@ -122,3 +122,107 @@ exports.createReview = async(req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/* ------------------------- Đánh giá dịch vụ / liệu trình ------------------------- */
+const { ServiceReview, ServiceSession, TreatmentSession, CustomerPackage, SpaService, TreatmentPackage } = require('../models');
+
+const toPublicServiceReview = (r) => ({
+    id: r.id,
+    customer_name: maskName(r.customer_name),
+    session_type: r.session_type,
+    service_id: r.service_id,
+    service_name: r.service_name,
+    rating: r.rating,
+    comment: r.comment || '',
+    createdAt: r.createdAt
+});
+
+// [PUBLIC] GET /reviews/services?service_id=
+exports.getPublicServiceReviews = async(req, res) => {
+    try {
+        const where = { status: 'VISIBLE' };
+        if (req.query.service_id) where.service_id = req.query.service_id;
+        const reviews = await ServiceReview.findAll({ where, order: [['createdAt', 'DESC']], limit: 100 });
+        return res.status(200).json({ success: true, data: reviews.map(toPublicServiceReview) });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Lỗi server khi lấy đánh giá dịch vụ', error: error.message });
+    }
+};
+
+// [CUSTOMER] GET /reviews/services/mine — các buổi dịch vụ mình đã đánh giá
+exports.getMyServiceReviews = async(req, res) => {
+    try {
+        const reviews = await ServiceReview.findAll({
+            where: { customer_id: req.user.id },
+            attributes: ['id', 'session_id', 'session_type', 'rating', 'comment', 'createdAt']
+        });
+        return res.status(200).json({ success: true, data: reviews });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// [CUSTOMER] POST /reviews/services — body: { session_id, session_type: 'SINGLE' | 'PACKAGE', rating, comment }
+// Chỉ đánh giá được buổi của chính mình và đã hoàn thành
+exports.createServiceReview = async(req, res) => {
+    try {
+        const { session_id, session_type, comment } = req.body;
+        const rating = Number(req.body.rating);
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+            return res.status(400).json({ message: 'Số sao phải từ 1 đến 5' });
+        }
+        if (comment && String(comment).length > 1000) {
+            return res.status(400).json({ message: 'Nhận xét tối đa 1000 ký tự' });
+        }
+
+        let ownerId, status, serviceId, serviceName;
+        if (session_type === 'SINGLE') {
+            const session = session_id && await ServiceSession.findByPk(session_id, { include: [{ model: SpaService }] });
+            if (session) {
+                ownerId = session.customer_id;
+                status = session.status;
+                serviceId = session.spa_service_id;
+                serviceName = session.SpaService?.name;
+            }
+        } else if (session_type === 'PACKAGE') {
+            const session = session_id && await TreatmentSession.findByPk(session_id, {
+                include: [{ model: CustomerPackage, include: [{ model: TreatmentPackage }] }]
+            });
+            if (session?.CustomerPackage) {
+                ownerId = session.CustomerPackage.customer_id;
+                status = session.status;
+                serviceId = session.CustomerPackage.package_id;
+                serviceName = session.CustomerPackage.TreatmentPackage?.name;
+            }
+        } else {
+            return res.status(400).json({ message: 'Loại dịch vụ không hợp lệ' });
+        }
+
+        if (!ownerId || ownerId !== req.user.id) {
+            return res.status(404).json({ message: 'Không tìm thấy buổi dịch vụ của bạn' });
+        }
+        if (status !== 'COMPLETED') {
+            return res.status(400).json({ message: 'Chỉ đánh giá được sau khi buổi dịch vụ đã hoàn thành' });
+        }
+        const existing = await ServiceReview.findOne({ where: { session_id } });
+        if (existing) return res.status(400).json({ message: 'Bạn đã đánh giá buổi dịch vụ này rồi' });
+
+        const profileRes = await axios.get('http://localhost:4000/api/identity/profile/me', {
+            headers: { Authorization: req.headers.authorization }
+        }).catch(() => null);
+
+        const review = await ServiceReview.create({
+            customer_id: req.user.id,
+            session_type,
+            session_id,
+            service_id: serviceId,
+            service_name: serviceName || null,
+            customer_name: profileRes?.data?.Profile?.full_name || null,
+            rating,
+            comment: comment ? String(comment).trim() : null
+        });
+        return res.status(201).json({ success: true, message: 'Cảm ơn bạn đã đánh giá!', data: toPublicServiceReview(review) });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};

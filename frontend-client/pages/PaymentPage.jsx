@@ -29,7 +29,7 @@ export default function PaymentPage() {
 
     const checkPayment = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });

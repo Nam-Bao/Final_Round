@@ -75,6 +75,21 @@ const updateMyProfile = async (req, res) => {
 const getMyPatientProfiles = async (req, res) => {
     try {
         const userId = req.user.id;
+        // Khách chưa có hồ sơ "Bản thân" -> tạo từ thông tin tài khoản để đặt lịch được ngay
+        if (req.user.role === 'CUSTOMER') {
+            const hasSelf = await PatientProfile.count({ where: { user_id: userId, relationship: 'Bản thân' } });
+            const account = !hasSelf && await Profile.findOne({ where: { user_id: userId } });
+            if (account?.full_name) {
+                await PatientProfile.create({
+                    user_id: userId,
+                    full_name: account.full_name,
+                    relationship: 'Bản thân',
+                    phone: account.phone || null,
+                    dob: account.dob || null,
+                    gender: account.gender || null
+                });
+            }
+        }
         const profiles = await PatientProfile.findAll({
             where: { user_id: userId },
             order: [['createdAt', 'ASC']] // Bản thân thường sẽ đứng đầu

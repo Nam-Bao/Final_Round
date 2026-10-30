@@ -88,13 +88,15 @@ const updateSessionStatus = async (req, res) => {
     if (type === 'PACKAGE') {
         const session = await TreatmentSession.findByPk(id);
         if (!session) return res.status(404).json({ message: 'Không tìm thấy ca làm' });
+        const wasCompleted = session.status === 'COMPLETED';
         
         session.status = status;
         if (technician_note) session.technician_note = technician_note;
         if (post_treatment_images) session.post_treatment_images = post_treatment_images; // Lưu ảnh
         await session.save();
 
-        if (status === 'COMPLETED') {
+        // Chỉ trừ buổi khi lần đầu chuyển sang COMPLETED (bấm lại không trừ thêm)
+        if (status === 'COMPLETED' && !wasCompleted) {
           const customerPkg = await CustomerPackage.findByPk(session.customer_package_id);
           if (customerPkg && customerPkg.remaining_sessions > 0) {
             customerPkg.remaining_sessions -= 1;
@@ -152,7 +154,12 @@ const getMySessions = async (req, res) => {
     const sSessions = await ServiceSession.findAll({
       where: { customer_id: req.user.id, status: 'COMPLETED' }, raw: true, nest: true
     });
-    res.status(200).json({ data: [...tSessions, ...sSessions] });
+    res.status(200).json({
+      data: [
+        ...tSessions.map(s => ({ ...s, session_type: 'PACKAGE' })),
+        ...sSessions.map(s => ({ ...s, session_type: 'SINGLE' }))
+      ]
+    });
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
 

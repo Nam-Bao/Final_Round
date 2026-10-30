@@ -21,7 +21,7 @@ export default function ClientNavbar() {
       </div>
       <div className="flex-none gap-2">
         <ul className="menu menu-horizontal px-1 hidden lg:flex font-medium">
-          <li><Link to="/">Sàng lọc AI</Link></li>
+          <li><Link to="/sang-loc-da">Sàng lọc AI</Link></li>
           <li><Link to="/booking">Đặt lịch</Link></li>
           <li><Link to="/services">Dịch vụ</Link></li>
           <li><Link to="/shops">Mỹ phẩm</Link></li>

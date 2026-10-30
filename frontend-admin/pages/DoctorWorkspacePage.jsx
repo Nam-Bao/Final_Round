@@ -26,7 +26,7 @@ export default function DoctorWorkspacePage() {
 
   const fetchTodayAppointments = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.get('http://localhost:4000/api/booking/appointments/my-today', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.data?.data) {
         setPatients(res.data.data.map(apt => ({
@@ -49,7 +49,7 @@ export default function DoctorWorkspacePage() {
   const fetchPatientHistory = async (patientProfileId) => {
     setLoadingHistory(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [medRes, sessionRes, aptRes] = await Promise.all([
@@ -80,7 +80,7 @@ export default function DoctorWorkspacePage() {
     fetchPatientHistory(patient.patient_profile_id); 
     if (patient.status === 'WAITING') {
        try {
-         const token = localStorage.getItem('admin_token');
+         const token = sessionStorage.getItem('admin_token');
          await axios.put(`http://localhost:4000/api/booking/appointments/${patient.id}`, { status: 'IN_PROGRESS' }, { headers: { 'Authorization': `Bearer ${token}` } });
          handleUpdateStatus('IN_PROGRESS', patient.id);
        } catch (e) {}
@@ -94,7 +94,7 @@ export default function DoctorWorkspacePage() {
 
   const handleSubmitRecord = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
         symptoms: values.symptoms, diagnosis: values.diagnosis, doctor_notes: values.doctor_notes,
         follow_up_date: values.follow_up_date ? values.follow_up_date.format('YYYY-MM-DD') : null, 

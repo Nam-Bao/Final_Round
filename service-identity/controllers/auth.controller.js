@@ -86,7 +86,8 @@ const login = async (req, res) => {
     };
 
     const JWT_SECRET = process.env.JWT_SECRET;
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+    // Hết hạn sau 8 giờ (1 ca làm), sau đó phải đăng nhập lại
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
 
     res.status(200).json({
       message: 'Đăng nhập thành công',

@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { sequelize, Review, Order, OrderDetail } = require('../models');
+const { sequelize, Review, Order, OrderDetail, Product } = require('../models');
 
 // "Nguyễn Văn An" -> "Nguyễn V. A." (che bớt tên thật khi hiển thị công khai)
 const maskName = (fullName) => {
@@ -26,6 +26,33 @@ exports.getRatingStats = async (productIds) => {
     stats[r.product_id] = { avg_rating: Number(Number(r.avg_rating).toFixed(1)), review_count: Number(r.review_count) };
   });
   return stats;
+};
+
+// [PUBLIC] GET /reviews — toàn bộ đánh giá mỹ phẩm (trang Đánh giá), kèm tên & ảnh sản phẩm
+exports.getAllProductReviews = async (req, res) => {
+  try {
+    const reviews = await Review.findAll({
+      where: { status: 'VISIBLE' },
+      include: [{ model: Product, attributes: ['id', 'name', 'image_url'] }],
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+    return res.status(200).json({
+      success: true,
+      data: reviews.map(r => ({
+        id: r.id,
+        customer_name: maskName(r.customer_name),
+        product_id: r.product_id,
+        product_name: r.Product?.name || 'Sản phẩm',
+        product_image: Array.isArray(r.Product?.image_url) ? r.Product.image_url[0] : r.Product?.image_url || null,
+        rating: r.rating,
+        comment: r.comment || '',
+        createdAt: r.createdAt
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // [PUBLIC] GET /reviews/product/:productId

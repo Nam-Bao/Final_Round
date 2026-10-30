@@ -89,7 +89,9 @@ const tryDescribeSkin = async (imageUrl) => {
 exports.analyzeFace = async (req, res) => {
   console.log('[analyzeFace] HIT', new Date().toISOString()); // không thấy dòng này => request không vào controller này
 
-  const { customer_id, image_url, consent } = req.body;
+  const { image_url, consent } = req.body;
+  // Khách hàng: luôn lấy từ token; nhân viên phân tích hộ khách thì được truyền customer_id
+  const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : (req.body.customer_id || req.user.id);
 
   if (!customer_id || !image_url) {
     return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });

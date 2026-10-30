@@ -11,13 +11,10 @@ const sessions = new Map();    // sessionId -> { customerSocket, consultantSocke
 let waitingQueue = [];         // [socketId của khách đang chờ]
 
 module.exports = function(io) {
-  // Xác thực khi kết nối: token hợp lệ -> biết user là ai; không có token -> khách vãng lai; token sai -> từ chối
+  // Xác thực khi kết nối: bắt buộc đăng nhập (khách hoặc CSKH); không có token / token sai -> từ chối
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
-    if (!token) {
-      socket.data.user = null;
-      return next();
-    }
+    if (!token) return next(new Error('Vui lòng đăng nhập để chat với CSKH'));
     try {
       const { id, role } = jwt.verify(token, process.env.JWT_SECRET);
       socket.data.user = { id, role };
@@ -47,7 +44,7 @@ module.exports = function(io) {
       if (cskh.isReady) checkQueue();
     });
 
-    // 2. KHÁCH YÊU CẦU CHAT — customer_id lấy từ token, khách vãng lai là null
+    // 2. KHÁCH YÊU CẦU CHAT — customer_id lấy từ token
     socket.on('request_human_chat', async () => {
       if (consultants.has(socket.id) || findSessionByCustomerSocket(socket.id) || waitingQueue.includes(socket.id)) return;
 

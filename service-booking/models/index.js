@@ -84,6 +84,23 @@ const AppointmentReview = sequelize.define('AppointmentReview', {
     indexes: [{ unique: true, fields: ['appointment_id'] }]
 });
 
+// Đánh giá buổi dịch vụ lẻ (ServiceSession) hoặc buổi liệu trình (TreatmentSession) đã hoàn thành.
+// Mỗi buổi 1 đánh giá; service_name / customer_name là ảnh chụp tên thật lúc đánh giá.
+const ServiceReview = sequelize.define('ServiceReview', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    customer_id: { type: DataTypes.UUID, allowNull: false },
+    session_type: { type: DataTypes.ENUM('SINGLE', 'PACKAGE'), allowNull: false },
+    session_id: { type: DataTypes.UUID, allowNull: false },
+    service_id: { type: DataTypes.UUID, allowNull: false }, // spa_service_id hoặc package_id
+    service_name: { type: DataTypes.STRING },
+    customer_name: { type: DataTypes.STRING },
+    rating: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 5 } },
+    comment: { type: DataTypes.TEXT },
+    status: { type: DataTypes.ENUM('VISIBLE', 'HIDDEN'), defaultValue: 'VISIBLE' }
+}, {
+    indexes: [{ unique: true, fields: ['session_id'] }]
+});
+
 const CustomerPackage = sequelize.define('CustomerPackage', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     customer_id: { type: DataTypes.UUID, allowNull: false },
@@ -172,6 +189,7 @@ module.exports = {
     ShiftRequest,
     Appointment,
     AppointmentReview,
+    ServiceReview,
     FollowUpLog,
     CustomerPackage,
     TreatmentSession,

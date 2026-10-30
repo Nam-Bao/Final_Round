@@ -20,7 +20,7 @@ export default function SpaServicesPage() {
   const fetchServices = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/booking/spa-services/admin', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -49,7 +49,7 @@ export default function SpaServicesPage() {
 
   const handleSubmit = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let finalImageUrl = values.image_url;
 
       // 1. XỬ LÝ UPLOAD ẢNH (NẾU CÓ)
@@ -98,7 +98,7 @@ export default function SpaServicesPage() {
 
   const handleDelete = async (id) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch(`http://localhost:4000/api/booking/spa-services/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

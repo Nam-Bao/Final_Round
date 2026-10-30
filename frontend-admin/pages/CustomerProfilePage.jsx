@@ -20,7 +20,7 @@ export default function CustomerProfilePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('admin_token');
+        const token = sessionStorage.getItem('admin_token');
         const [custRes, srvRes, pkgRes, prodRes] = await Promise.all([
           axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } }),
           axios.get('http://localhost:4000/api/booking/spa-services'),
@@ -50,7 +50,7 @@ export default function CustomerProfilePage() {
     setSelectedProfile(profile);
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [medRes, sessionRes, aptRes] = await Promise.all([

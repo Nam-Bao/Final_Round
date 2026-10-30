@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import { MessageCircle, X, Send, User, Clock, PhoneCall } from 'lucide-react';
+import { MessageCircle, X, Send, User, Clock, PhoneCall, LogIn } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import dayjs from 'dayjs';
 
@@ -10,6 +10,7 @@ import ClientFooter from './components/ClientFooter';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AiTriagePage from './pages/AiTriagePage';
+import HomePage from './pages/HomePage';
 import DoctorBookingPage from './pages/DoctorBookingPage';
 import AppointmentHistoryPage from './pages/AppointmentHistoryPage';
 import TreatmentPackagesPage from './pages/TreatmentPackagesPage';
@@ -25,13 +26,17 @@ import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
 
 // ====== CHATBOT AI ======
-// Gemini chạy ở service-ai-analysis, frontend không giữ API key
-async function streamConsultReply(messages, onText) {
+// Gemini chạy ở service-ai-analysis, frontend không giữ API key; bắt buộc đăng nhập
+async function streamConsultReply(messages, token, onText) {
   const res = await fetch('http://localhost:4000/api/ai/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ messages }),
   });
+  if (res.status === 401) {
+    useAuthStore.getState().logout();
+    throw new Error('Phiên đăng nhập đã hết hạn');
+  }
   if (!res.ok || !res.body) throw new Error(`Chatbot lỗi ${res.status}`);
 
   const reader = res.body.getReader();
@@ -46,9 +51,12 @@ async function streamConsultReply(messages, onText) {
   return fullText;
 }
 
+// Chưa đăng nhập -> sang trang đăng nhập, đăng nhập xong quay lại đúng trang đang mở
 function ProtectedRoute({ children }) {
   const token = useAuthStore((state) => state.token);
-  return token ? children : <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (token) return children;
+  return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
 const isWorkingHour = () => {
@@ -101,6 +109,7 @@ function App() {
 
   const handleSwitchToHuman = () => {
     setIsLoading(false); 
+    if (!token) return; // khung chat sẽ hiện nút đăng nhập
 
     if (!isWorkingHour()) {
       setOutOfOffice(true);
@@ -112,8 +121,8 @@ function App() {
     }
 
     setChatMode('WAITING'); 
-    // Gửi token để server biết khách là ai (khách vãng lai thì không có token)
-    const newSocket = io('http://localhost:4001', { auth: token ? { token } : {} });
+    // Gửi token để server biết khách là ai (server từ chối kết nối nếu chưa đăng nhập)
+    const newSocket = io('http://localhost:4001', { auth: { token } });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);
@@ -173,7 +182,7 @@ function App() {
 
         const aiId = Date.now() + 1;
         let started = false;
-        await streamConsultReply(history, (fullText) => {
+        await streamConsultReply(history, token, (fullText) => {
           if (!started) {
             started = true;
             setIsLoading(false);
@@ -200,7 +209,8 @@ function App() {
         
         <main className="flex-1 container mx-auto px-4 py-6 max-w-7xl">
           <Routes>
-            <Route path="/" element={<AiTriagePage />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/sang-loc-da" element={<ProtectedRoute><AiTriagePage /></ProtectedRoute>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/booking" element={<ProtectedRoute><DoctorBookingPage /></ProtectedRoute>} />
@@ -262,6 +272,14 @@ function App() {
                 <div ref={chatEndRef} />
               </div>
 
+              {!user ? (
+                <div className="p-3 bg-base-100 border-t text-center space-y-2">
+                  <p className="text-xs text-base-content/70">Vui lòng đăng nhập để chat với AI hoặc nhân viên CSKH.</p>
+                  <Link to="/login?next=/" onClick={() => setIsChatOpen(false)} className="btn btn-primary btn-sm gap-1">
+                    <LogIn className="w-4 h-4" /> Đăng nhập
+                  </Link>
+                </div>
+              ) : (
               <div className="p-2 bg-base-100 border-t flex flex-col gap-2">
                 {chatMode === 'AI' && !outOfOffice && (
                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
@@ -287,6 +305,7 @@ function App() {
                   </button>
                 </div>
               </div>
+              )}
             </div>
           )}
 

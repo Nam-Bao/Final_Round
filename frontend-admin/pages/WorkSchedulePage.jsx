@@ -33,7 +33,7 @@ export default function WorkSchedulePage() {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/identity/users', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -46,7 +46,7 @@ export default function WorkSchedulePage() {
   const fetchShifts = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const startDate = startOfWeek.format('YYYY-MM-DD');
       const endDate = startOfWeek.add(6, 'day').format('YYYY-MM-DD');
       
@@ -60,7 +60,7 @@ export default function WorkSchedulePage() {
 
   const fetchRequests = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/booking/shifts/requests', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -71,7 +71,7 @@ export default function WorkSchedulePage() {
 
   const handleProcessRequest = async (requestId, status) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch(`http://localhost:4000/api/booking/shifts/requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -103,7 +103,7 @@ export default function WorkSchedulePage() {
 
   const handleSubmit = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const payload = {
         employee_id: values.employee_id,
         startDate: values.dateRange[0].format('YYYY-MM-DD'),
@@ -127,7 +127,7 @@ export default function WorkSchedulePage() {
 
   const handleDelete = async (shiftId) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await fetch(`http://localhost:4000/api/booking/shifts/${shiftId}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
