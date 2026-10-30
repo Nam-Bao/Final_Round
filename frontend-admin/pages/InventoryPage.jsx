@@ -348,7 +348,7 @@ const ProductsTab = () => {
       </div>
       <Table columns={columns} dataSource={filteredProducts} rowKey="id" loading={loading} />
       
-      <Modal title={editingItem ? "Sửa sản phẩm" : "Thêm sản phẩm mới"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
+      <Modal title={editingItem ? "Sửa sản phẩm" : "Thêm sản phẩm mới"} width={700} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           
           <div className="mb-4 p-3 bg-gray-50 border rounded">
@@ -375,37 +375,26 @@ const ProductsTab = () => {
 
           <Form.Item label="Tên sản phẩm" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên sản phẩm' }]}><Input /></Form.Item>
           
-          <Space className="w-full justify-between">
-            <Form.Item label="Danh mục" name="category_id" className="w-[220px]">
-              <Select placeholder="Chọn danh mục">
-                {categories.map(c => (<Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>))}
-              </Select>
-            </Form.Item>
-            <Form.Item label="Phân loại" name="type" className="w-[220px]" rules={[{ required: true }]}>
-              <Select>
-                <Select.Option value="PRODUCT">Sản phẩm bán</Select.Option>
-                <Select.Option value="MATERIAL">Vật tư nội bộ</Select.Option>
-              </Select>
-            </Form.Item>
-          </Space>
+          <div className="flex gap-4">
+            <Form.Item label="Danh mục" name="category_id" className="flex-1" rules={[{ required: true }]}><Select>{categories.map(c => (<Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>))}</Select></Form.Item>
+            <Form.Item label="Phân loại" name="type" className="flex-1" rules={[{ required: true }]}><Select><Select.Option value="PRODUCT">Sản phẩm bán</Select.Option><Select.Option value="MATERIAL">Vật tư nội bộ</Select.Option></Select></Form.Item>
+          </div>
           
-          <Space className="w-full justify-between">
-            <Form.Item label="Giá bán (VNĐ)" name="price" className="w-[220px]" rules={[{ required: true, message: 'Nhập giá bán' }]}>
-              <InputNumber className="w-full" min={0} step={1000} />
-            </Form.Item>
-            <Form.Item label="Tồn kho" name="stock_quantity" className="w-[220px]" rules={[{ required: true, message: 'Nhập tồn kho' }]}>
-              <InputNumber className="w-full" min={0} />
-            </Form.Item>
-          </Space>
+          {/* ĐÃ THÊM Ô NHẬP TRỌNG LƯỢNG VÀO ĐÂY, SẮP XẾP LẠI THÀNH 3 CỘT */}
+          <div className="flex gap-4">
+            <Form.Item label="Giá bán (VNĐ)" name="price" className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} step={1000} /></Form.Item>
+            <Form.Item label="Trọng lượng (gram)" name="weight" initialValue={200} className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            <Form.Item label="Tồn kho" name="stock_quantity" className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} /></Form.Item>
+          </div>
 
-          <Space className="w-full justify-between">
-            <Form.Item label="Ngày sản xuất" name="start_date" className="w-[220px]" rules={[{ required: true }]}>
+          <div className="flex gap-4">
+            <Form.Item label="Ngày sản xuất" name="start_date" className="flex-1" rules={[{ required: true }]}>
                <DatePicker format="DD/MM/YYYY" className="w-full" />
             </Form.Item>
-            <Form.Item label="Hạn sử dụng" name="end_date" className="w-[220px]" rules={[{ required: true }]}>
+            <Form.Item label="Hạn sử dụng" name="end_date" className="flex-1" rules={[{ required: true }]}>
                <DatePicker format="DD/MM/YYYY" className="w-full" />
             </Form.Item>
-          </Space>
+          </div>
           
           <Form.Item className="text-right mb-0 mt-4">
             <Space>

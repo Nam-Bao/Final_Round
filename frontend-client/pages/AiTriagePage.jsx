@@ -288,14 +288,33 @@ export default function AiTriagePage() {
                       {activeResult.severity || 'Chưa xác định'}
                     </span>
                   </p>
-                  <p className="flex justify-between items-center border-t border-blue-100 pt-3">
-                    <span className="text-slate-600 font-medium">Điểm tổng quan:</span>
-                    <span className="font-bold text-blue-600 text-2xl">
-                      {activeResult.overall_score ?? '--'}
-                      {activeResult.overall_score != null && '/100'}
-                    </span>
-                  </p>
+                  {activeResult.overall_score != null && (
+                    <p className="flex justify-between items-center border-t border-blue-100 pt-3">
+                      <span className="text-slate-600 font-medium">Điểm tổng quan (nốt mụn):</span>
+                      <span className="font-bold text-blue-600 text-2xl">{activeResult.overall_score}/100</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* Kết luận theo nhóm: có/không có, kể cả khi chưa vẽ được khung */}
+                {activeResult.groups?.some((g) => g.present) && (
+                  <div className="mb-4 text-sm">
+                    <span className="text-slate-500 font-medium mb-2 block">Nhóm vấn đề AI nhận thấy:</span>
+                    <ul className="space-y-1.5">
+                      {activeResult.groups
+                        .filter((g) => g.present)
+                        .map((g) => (
+                          <li key={g.group} className="flex justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                            <span className="text-slate-700">{g.name}</span>
+                            <span className="text-slate-500 text-right">
+                              {g.confirmed > 0 ? `${g.confirmed} vị trí chắc chắn` : 'có dấu hiệu, cần xác nhận'}
+                              {g.possible > 0 ? ` · ${g.possible} nghi ngờ` : ''}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
 
                 {activeResult.level === 'none' && (
                   <div className="flex gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 mb-3">

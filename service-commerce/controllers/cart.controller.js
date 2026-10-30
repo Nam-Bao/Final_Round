@@ -17,7 +17,7 @@ exports.getCart = async (req, res) => {
     }
     const cartItems = await CartItem.findAll({
       where: { cart_id: cart.id },
-      include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url', 'stock_quantity'] }],
+      include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url', 'stock_quantity', 'weight'] }],
       order: [['createdAt', 'DESC']]
     });
     return res.status(200).json({ success: true, data: { cart_id: cart.id, items: cartItems } });
