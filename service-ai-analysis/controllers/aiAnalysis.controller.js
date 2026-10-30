@@ -1,33 +1,15 @@
 const axios = require('axios');
 const { AiAnalysis } = require('../models');
+const pp = require('../services/postprocess'); // dùng chung với scripts/evaluate.js
+const cfg = pp.config;                         // config/aiConfig.json: class, nhóm, ngưỡng
 
 /* ------------------------------------------------------------------ */
 /* Cấu hình                                                            */
 /* ------------------------------------------------------------------ */
 const RF_BASE = process.env.ROBOFLOW_BASE_URL || 'https://detect.roboflow.com';
-const FETCH_CONF = Number(process.env.ROBOFLOW_FETCH_CONF || 10); // % - lấy về thấp, tự lọc phía server
-const MIN_SHOW_CONF = Number(process.env.MIN_SHOW_CONF || 20);     // dưới mức này bỏ hẳn
-const CONFIRM_CONF = Number(process.env.CONFIRM_CONF || 40);       // >= mức này: "phát hiện chắc"
+const FETCH_CONF = Number(process.env.ROBOFLOW_FETCH_CONF || cfg.fetchConf); // % - lấy về thấp, tự lọc theo từng nhóm
 const ALLOWED_IMAGE_HOST = process.env.ALLOWED_IMAGE_HOST || 'res.cloudinary.com';
-
-// 12 class của model skin-problems-detection-jp4jv/4 (key viết thường)
-// maxArea: diện tích box tối đa so với diện tích ảnh (0-1). Box lớn hơn mức này coi là nhiễu.
-// Giá trị lấy từ phân vị 99% kích thước box thật trong dataset x 1.3 (xem scripts/dataset_stats.js).
-// Lưu ý: dataset gán nhãn freckles/melasma/wrinkle theo VÙNG (nhiều box dạng thanh dài), nên ngưỡng của chúng rộng.
-const CLASS_MAP = {
-  pustule: { vi: 'Mụn mủ', weight: 3, maxArea: 0.03 },
-  nodule: { vi: 'Mụn viêm/nang', weight: 4, maxArea: 0.08 },
-  papule: { vi: 'Mụn sẩn đỏ', weight: 2, maxArea: 0.08 },
-  blackhead: { vi: 'Mụn đầu đen', weight: 1, maxArea: 0.06 },
-  whitehead: { vi: 'Mụn ẩn/đầu trắng', weight: 1, maxArea: 0.02 },
-  cyst: { vi: 'Mụn bọc', weight: 5, maxArea: 0.11 },
-  pih: { vi: 'Thâm sau mụn (PIH)', weight: 2, maxArea: 0.03 },
-  melasma: { vi: 'Nám da', weight: 3, maxArea: 1 },
-  freckles: { vi: 'Tàn nhang', weight: 1, maxArea: 0.36 },
-  'dark circle': { vi: 'Quầng thâm', weight: 2, maxArea: 0.2 },
-  wrinkle: { vi: 'Nếp nhăn', weight: 2, maxArea: 0.06 },
-  'skin-pore': { vi: 'Lỗ chân lông to', weight: 1, maxArea: 0.02 },
-};
+const VISION_DAILY_CAP = Number(process.env.VISION_DAILY_CAP || 50);         // giới hạn số lượt gọi model mô tả mỗi ngày
 
 /* ------------------------------------------------------------------ */
 /* Hàm hỗ trợ                                                          */
@@ -48,32 +30,14 @@ const isAllowedUrl = (url) => {
   }
 };
 
-const iou = (a, b) => {
-  const x1 = Math.max(a.left, b.left);
-  const y1 = Math.max(a.top, b.top);
-  const x2 = Math.min(a.left + a.width, b.left + b.width);
-  const y2 = Math.min(a.top + a.height, b.top + b.height);
-  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-  const union = a.width * a.height + b.width * b.height - inter;
-  return union ? inter / union : 0;
-};
-
-// Cùng class trùng > 50% hoặc khác class trùng > 80% => giữ box có độ tin cậy cao hơn
-const dedupe = (issues) => {
-  const sorted = [...issues].sort((a, b) => b.confidence - a.confidence);
-  const kept = [];
-  for (const it of sorted) {
-    const dup = kept.some(
-      (k) => iou(k.bounding_box, it.bounding_box) > (k.raw_class === it.raw_class ? 0.5 : 0.8)
-    );
-    if (!dup) kept.push(it);
-  }
-  return kept;
-};
-
-// Fallback mô tả bằng model thị giác. Tùy chọn: thiếu SDK/API key thì bỏ qua, không làm sập server.
+// Fallback mô tả bằng model thị giác. Tùy chọn: thiếu SDK/API key hoặc hết hạn mức ngày thì bỏ qua.
+let visionCalls = 0;
+let visionDay = new Date().toDateString();
 const tryDescribeSkin = async (imageUrl) => {
   if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (visionDay !== new Date().toDateString()) { visionDay = new Date().toDateString(); visionCalls = 0; }
+  if (visionCalls >= VISION_DAILY_CAP) return null;
+  visionCalls++;
   try {
     const { describeSkin } = require('../services/skinVision');
     return await describeSkin(imageUrl);
@@ -82,6 +46,8 @@ const tryDescribeSkin = async (imageUrl) => {
     return null;
   }
 };
+
+const lesionGroups = new Set(Object.entries(cfg.groups).filter(([, g]) => g.countsForScore).map(([k]) => k));
 
 /* ------------------------------------------------------------------ */
 /* Controller                                                          */
@@ -122,60 +88,68 @@ exports.analyzeFace = async (req, res) => {
       JSON.stringify(imgSize)
     );
 
-    const imgArea = (imgSize?.width || 1) * (imgSize?.height || 1);
+    const imgW = imgSize?.width || 1;
+    const imgH = imgSize?.height || 1;
+    const imgArea = imgW * imgH;
+
+    // 1) Xử lý chung với evaluate.js: bỏ class không dùng, bỏ box quá lớn, gộp theo nhóm, khử trùng lặp
     const dropped = [];
+    const items = pp.postprocess(predictions.map(pp.fromRoboflow), imgW, imgH, 'g2', {
+      minConf: FETCH_CONF,
+      useMaxArea: true,
+      dropDisabled: true,
+      dropped,
+    });
+    if (dropped.length) console.log('[Roboflow] bỏ:', dropped.join('; '));
 
-    // 1) Lọc theo độ tin cậy và kích thước hợp lý, map class, gắn mức chắc chắn
-    let issues = predictions
-      .filter((p) => p.confidence * 100 >= MIN_SHOW_CONF)
-      .filter((p) => {
-        const meta = CLASS_MAP[p.class.trim().toLowerCase()];
-        const areaRatio = (p.width * p.height) / imgArea;
-        if (meta?.maxArea && areaRatio > meta.maxArea) {
-          dropped.push(`${p.class}:${Math.round(p.confidence * 100)}% (box chiếm ${(areaRatio * 100).toFixed(1)}% ảnh)`);
-          return false;
-        }
-        return true;
-      })
-      .map((p) => {
-        const meta = CLASS_MAP[p.class.trim().toLowerCase()];
-        const confidence = p.confidence * 100;
-        return {
-          raw_class: p.class,
-          issue_name: meta?.vi || p.class,
-          weight: meta?.weight ?? 1,
-          confidence,
-          certainty: confidence >= CONFIRM_CONF ? 'confirmed' : 'possible',
-          bounding_box: {
-            top: p.y - p.height / 2,
-            left: p.x - p.width / 2,
-            width: p.width,
-            height: p.height,
-          },
-        };
-      });
-    if (dropped.length) console.log('[Roboflow] bỏ box quá lớn:', dropped.join('; '));
+    // 2) Khung để hiển thị: theo ngưỡng "show" của từng nhóm; "confirm" quyết định nét liền hay nét đứt
+    const issues = items
+      .filter((i) => cfg.groups[i.cls] && i.conf >= cfg.groups[i.cls].show)
+      .map((i) => ({
+        raw_class: i.raw,
+        group: i.cls,
+        issue_name: cfg.classes[i.raw]?.vi || i.raw,
+        weight: cfg.classes[i.raw]?.weight ?? 1,
+        confidence: i.conf,
+        certainty: i.conf >= cfg.groups[i.cls].confirm ? 'confirmed' : 'possible',
+        bounding_box: i.box,
+      }));
 
-    // 2) Khử trùng lặp
-    issues = dedupe(issues);
+    // 3) Kết luận theo nhóm cho cả ảnh ("có/không có"), kể cả khi không vẽ khung (ngưỡng "presence")
+    const groups = Object.entries(cfg.groups).map(([g, gc]) => {
+      const maxConf = items.filter((i) => i.cls === g).reduce((m, i) => Math.max(m, i.conf), 0);
+      const shown = issues.filter((i) => i.group === g);
+      return {
+        group: g,
+        name: gc.vi,
+        present: maxConf >= gc.presence,
+        max_confidence: Math.round(maxConf * 10) / 10,
+        confirmed: shown.filter((i) => i.certainty === 'confirmed').length,
+        possible: shown.filter((i) => i.certainty === 'possible').length,
+      };
+    });
 
-    // 3) Chấm điểm: trọng số loại lỗi x độ tin cậy x diện tích tổn thương
-    const penalty = issues.reduce((sum, i) => {
-      const areaFactor = 1 + Math.min(3, ((i.bounding_box.width * i.bounding_box.height) / imgArea) * 20);
+    // 4) Điểm và mức độ: chỉ tính các nhóm dạng nốt (mụn viêm, mụn đầu đen/trắng, thâm); nám/tàn nhang chỉ hiển thị
+    const lesionIssues = issues.filter((i) => lesionGroups.has(i.group));
+    const lesionConfirmed = lesionIssues.filter((i) => i.certainty === 'confirmed').length;
+    const penalty = lesionIssues.reduce((sum, i) => {
+      const b = i.bounding_box;
+      const areaFactor = 1 + Math.min(3, ((b.width * b.height) / imgArea) * 20);
       const certaintyFactor = i.certainty === 'confirmed' ? 1 : 0.5;
       return sum + i.weight * (i.confidence / 100) * 3 * areaFactor * certaintyFactor;
     }, 0);
 
-    // 4) 3 trạng thái - "không phát hiện" KHÔNG có nghĩa là "da khỏe".
-    //    Chỉ chấm điểm khi có phát hiện chắc chắn; còn lại để null để giao diện không hiện điểm gây hiểu lầm.
+    // 5) 3 trạng thái - "không phát hiện" KHÔNG có nghĩa là "da khỏe"
     const hasConfirmed = issues.some((i) => i.certainty === 'confirmed');
-    const level = hasConfirmed ? 'detected' : issues.length ? 'uncertain' : 'none';
-    const overall_score = level === 'detected' ? Math.round(Math.max(0, 100 - penalty)) : null;
+    const anyPresent = groups.some((g) => g.present);
+    const level = hasConfirmed ? 'detected' : issues.length || anyPresent ? 'uncertain' : 'none';
+    const overall_score = level === 'detected' && lesionConfirmed > 0 ? Math.round(Math.max(0, 100 - penalty)) : null;
     const severity =
       level === 'none' ? 'Chưa xác định'
       : level === 'uncertain' ? 'Cần xác nhận'
-      : penalty >= 25 ? 'Nghiêm trọng'
-      : penalty >= 10 ? 'Trung bình'
+      : lesionConfirmed === 0 ? cfg.severity.noLesionLabel
+      : penalty >= cfg.severity.highFrom ? 'Nghiêm trọng'
+      : penalty >= cfg.severity.mediumFrom ? 'Trung bình'
       : 'Nhẹ';
 
     const summary = issues.reduce((acc, i) => {
@@ -183,7 +157,7 @@ exports.analyzeFace = async (req, res) => {
       return acc;
     }, {});
 
-    // 5) Detection không chắc => nhờ model thị giác mô tả để nhân viên tham khảo
+    // 6) Detection không chắc => nhờ model thị giác mô tả để nhân viên tham khảo
     const ai_summary = level !== 'detected' ? await tryDescribeSkin(sentUrl) : null;
 
     const record = await AiAnalysis.create({
@@ -203,6 +177,7 @@ exports.analyzeFace = async (req, res) => {
         severity,
         level,
         summary,
+        groups,
         image_size: imgSize,
         raw_count: predictions.length,
         issues,
@@ -218,7 +193,7 @@ exports.analyzeFace = async (req, res) => {
           sent_url: sentUrl,
           image_size: imgSize,
           raw: predictions.map((p) => ({ class: p.class, confidence: Math.round(p.confidence * 1000) / 10 })),
-          dropped_too_large: dropped,
+          dropped,
         },
       }),
     });

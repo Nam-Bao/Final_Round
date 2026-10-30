@@ -22,11 +22,13 @@ const aiAnalysisSchema = new mongoose.Schema(
       severity: String,
       level: { type: String, enum: ['detected', 'uncertain', 'none'] },
       summary: mongoose.Schema.Types.Mixed, // { 'Mụn mủ': 2, ... }
+      groups: mongoose.Schema.Types.Mixed, // kết luận theo nhóm: [{ group, name, present, confirmed, possible, max_confidence }]
       image_size: { width: Number, height: Number },
       raw_count: Number,
       issues: [
         {
           raw_class: String,
+          group: String,
           issue_name: String,
           weight: Number,
           confidence: Number,
