@@ -22,7 +22,7 @@ export default function PackagesPage() {
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/booking/packages/admin', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -62,7 +62,7 @@ export default function PackagesPage() {
 
   const handleSubmit = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let finalThumbnailUrl = values.thumbnail_url;
 
       // 1. XỬ LÝ UPLOAD ẢNH (NẾU CÓ)
@@ -113,7 +113,7 @@ export default function PackagesPage() {
 
   const handleDelete = async (id) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch(`http://localhost:4000/api/booking/packages/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

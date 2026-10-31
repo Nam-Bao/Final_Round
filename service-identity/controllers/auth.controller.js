@@ -85,8 +85,9 @@ const login = async (req, res) => {
       role: user.role
     };
 
-    const JWT_SECRET = 'O2O_SKINCARE_SECRET_KEY_2026'; 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+    const JWT_SECRET = process.env.JWT_SECRET;
+    // Hết hạn sau 8 giờ (1 ca làm), sau đó phải đăng nhập lại
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
 
     res.status(200).json({
       message: 'Đăng nhập thành công',

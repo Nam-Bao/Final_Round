@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, QrCode, AlertTriangle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
 export default function PaymentPage() {
   const { id } = useParams(); 
-  const location = useLocation();
   const navigate = useNavigate();
   const [isPaid, setIsPaid] = useState(false);
+  // Số tiền lấy từ hóa đơn trên server, không lấy từ URL (tránh khách tự sửa ?fee=0)
+  const [payment, setPayment] = useState(null); // { amount, exam_fee, is_online }
 
-  const searchParams = new URLSearchParams(location.search);
-  const totalFee = parseInt(searchParams.get('fee') || '100000', 10);
-  
-  const isOnline = searchParams.get('type') === 'ONLINE';
-  const amountToPay = totalFee === 0 ? 0 : (isOnline ? totalFee : 50000); 
+  const amountToPay = payment?.amount ?? 0;
+  const totalFee = payment?.exam_fee ?? 0;
+  const isOnline = !!payment?.is_online;
 
   // TẠO MÃ GIAO DỊCH DUY NHẤT (6 ký tự đầu của ID Lịch hẹn)
   const orderCode = id.slice(0, 6).toUpperCase();
@@ -23,41 +22,28 @@ export default function PaymentPage() {
   const ACCOUNT_NO = import.meta.env.VITE_ACCOUNT_NO;
   const ACCOUNT_NAME = import.meta.env.VITE_ACCOUNT_NAME;
 
-  // 1. Nếu khách cũ (0đ) -> Bỏ qua QR, gọi API chốt luôn
+  // CƠ CHẾ POLLING: hỏi Backend mỗi 3 giây xem SePay đã báo nhận tiền chưa.
+  // Khách cũ (miễn phí khám) được server chốt lịch ngay khi đặt nên lần hỏi đầu tiên đã là isPaid.
   useEffect(() => {
-    if (amountToPay === 0) {
-       const confirmZeroFee = async () => {
-          const token = localStorage.getItem('token');
-          await axios.put(`http://localhost:4000/api/booking/appointments/${id}/confirm-payment`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
-          setIsPaid(true);
-       };
-       confirmZeroFee();
-    }
-  }, [amountToPay, id]);
+    if (isPaid) return;
 
-  // 2. CƠ CHẾ POLLING (LÀM THẬT): Cứ 3 giây hỏi Backend 1 lần xem SePay đã bắn tiền về chưa
-  useEffect(() => {
-    if (amountToPay === 0 || isPaid) return;
-
-    const interval = setInterval(async () => {
+    const checkPayment = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
-        // Nếu Backend báo là trạng thái không còn là PENDING_PAYMENT nữa -> Đã thu tiền
-        if (res.data.isPaid) {
-          setIsPaid(true);
-          clearInterval(interval);
-        }
+        setPayment(res.data);
+        if (res.data.isPaid) setIsPaid(true);
       } catch (error) {
         console.error("Đang chờ thanh toán...");
       }
-    }, 3000); // 3 giây quét 1 lần
+    };
 
+    checkPayment();
+    const interval = setInterval(checkPayment, 3000); // 3 giây quét 1 lần
     return () => clearInterval(interval); // Dọn dẹp khi rời trang
-  }, [id, amountToPay, isPaid]);
+  }, [id, isPaid]);
 
 
   if (isPaid) {
@@ -70,6 +56,12 @@ export default function PaymentPage() {
           Vào Sổ Y Bạ của bạn <ArrowRight className="w-4 h-4"/>
         </button>
       </div>
+    );
+  }
+
+  if (!payment) {
+    return (
+      <div className="flex justify-center py-28"><Loader2 className="w-10 h-10 text-primary animate-spin" /></div>
     );
   }
 

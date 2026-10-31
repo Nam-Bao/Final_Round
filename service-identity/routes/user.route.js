@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
+const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -14,10 +14,15 @@ router.get('/profile', verifyToken, getCusProfile);
 router.get('/employees', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getEmployees);
 
 // Các đường dẫn API
+// Công khai cho trang Đội ngũ bác sĩ (chỉ tên + ảnh); đặt trước các route có tham số
+router.get('/doctors/public', getPublicDoctors);
 router.get('/doctors', verifyToken, getDoctors);
+// Mã KTV đang làm việc (service-booking dùng khi khách đặt buổi liệu trình)
+router.get('/technician-ids', verifyToken, getTechnicianIds);
 router.post('/quick-customer', verifyToken, authorizeRoles('ADMIN', 'CONSULTANT', 'SALES'), createQuickCustomer);
-router.post('/', createUser);           // Tạo mới (Body JSON)
-router.put('/:id', updateUser);         // Cập nhật (Cần truyền ID lên URL)
-router.delete('/:id', deleteUser);      // Xóa (Cần truyền ID lên URL)
+// Quản lý tài khoản: chỉ ADMIN (trang Quản lý Người dùng)
+router.post('/', verifyToken, authorizeRoles('ADMIN'), createUser);
+router.put('/:id', verifyToken, authorizeRoles('ADMIN'), updateUser);
+router.delete('/:id', verifyToken, authorizeRoles('ADMIN'), deleteUser);
 
 module.exports = router;

@@ -11,7 +11,7 @@ const verifyToken = (req, res, next) => {
 
   try {
     // Dùng khóa bí mật để giải mã Token (Phải khớp với khóa lúc sinh ra ở hàm login)
-    const JWT_SECRET = 'O2O_SKINCARE_SECRET_KEY_2026';
+    const JWT_SECRET = process.env.JWT_SECRET;
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // Giải mã thành công, ta nhét thông tin user (id, role) vào req để các hàm phía sau dùng

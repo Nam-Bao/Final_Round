@@ -4,7 +4,8 @@ const {
     getAllServicesForAdmin,
     createService,
     updateService,
-    deleteService
+    deleteService,
+    getServiceById
 } = require('../controllers/spaService.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
@@ -15,6 +16,7 @@ router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAll
 router.post('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), createService);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), updateService);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), deleteService);
-//router.get('/:id', getServiceById);
+// Đặt sau '/admin' để không bị nhận nhầm là id
+router.get('/:id', getServiceById);
 
 module.exports = router;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export default function LoginPage() {
@@ -8,6 +8,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const [searchParams] = useSearchParams();
+  // Trang cần quay lại sau khi đăng nhập; chỉ nhận đường dẫn nội bộ (chặn chuyển hướng sang web lạ)
+  const next = searchParams.get('next') || '';
+  const redirectTo = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const expired = searchParams.get('expired') === '1';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,7 +41,7 @@ export default function LoginPage() {
       
       // Lưu trạng thái đăng nhập vào Zustand với Token xịn từ Backend
       login(finalUser, data.token); 
-      navigate('/'); 
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(err.message);
     }
@@ -47,6 +52,12 @@ export default function LoginPage() {
       <div className="card w-96 bg-base-100 shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl font-bold justify-center mb-4">Đăng Nhập</h2>
+          {expired && !error && (
+            <div className="alert alert-warning py-2 text-sm">Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.</div>
+          )}
+          {!expired && next && !error && (
+            <div className="alert alert-info py-2 text-sm">Vui lòng đăng nhập để sử dụng dịch vụ.</div>
+          )}
           {error && <div className="alert alert-error py-2 text-sm">{error}</div>}
           
           <form onSubmit={handleSubmit}>

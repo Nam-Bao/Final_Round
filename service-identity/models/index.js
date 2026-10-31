@@ -102,6 +102,5 @@ ChatSession.belongsTo(User, { foreignKey: 'consultant_id', as: 'Consultant' });
 ChatSession.hasMany(ChatMessage, { foreignKey: 'session_id', as: 'Messages' });
 ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
-sequelize.sync({ alter: true }).then(() => console.log("✅ Đã đồng bộ Database cho service-identity!"));
 
 module.exports = { sequelize, User, Profile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

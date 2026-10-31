@@ -1,4 +1,5 @@
-const { Promotion, SavedPromotion, PromotionUsage } = require('../models');
+const { sequelize, Promotion, SavedPromotion, PromotionUsage } = require('../models');
+const { evaluatePromotion, redeemPromotion, PromotionError } = require('../utils/promotionRules');
 const { Op } = require('sequelize');
 
 // [PUBLIC] Lấy danh sách mã khuyến mãi đang hoạt động cho trang Khách hàng (/promotions)
@@ -101,64 +102,17 @@ exports.deletePromotion = async (req, res) => {
   }
 };
 
-// [PUBLIC] API Kiểm tra và tính toán giảm giá (Dùng khi checkout/áp mã)
+// Kiểm tra mã và tính số tiền giảm (chưa ghi nhận lượt dùng)
 exports.applyPromotion = async (req, res) => {
   try {
-    // 1. [THÊM MỚI] Lấy thêm customer_id từ req.body
-    const { code, order_value, customer_id } = req.body; 
-    
+    const { code, order_value, scope_values } = req.body;
     if (!code || order_value == null) {
       return res.status(400).json({ message: 'Thiếu mã code hoặc tổng đơn hàng' });
     }
+    // Khách chỉ áp mã cho chính mình; nhân viên áp hộ thì truyền customer_id của khách
+    const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : req.body.customer_id;
 
-    const promo = await Promotion.findOne({
-      where: { code: code.toUpperCase(), status: 'ACTIVE' }
-    });
-
-    if (!promo) return res.status(400).json({ message: 'Mã không tồn tại hoặc đã bị khóa.' });
-
-    // 2. [THÊM MỚI] Kiểm tra xem khách hàng này đã dùng mã chưa
-    if (customer_id) {
-      const isUsed = await PromotionUsage.findOne({ where: { customer_id, promotion_id: promo.id } });
-      if (isUsed) {
-        return res.status(400).json({ message: 'Bạn đã dùng mã này' });
-      }
-    }
-
-    // --- TỪ ĐÂY TRỞ XUỐNG GIỮ NGUYÊN 100% LOGIC CŨ CỦA BẠN ---
-    const now = new Date();
-    if (promo.start_date && now < new Date(promo.start_date)) {
-      return res.status(400).json({ message: 'Mã này chưa đến thời gian áp dụng.' });
-    }
-    if (promo.end_date && now > new Date(promo.end_date)) {
-      return res.status(400).json({ message: 'Mã này đã hết hạn.' });
-    }
-
-    if (promo.usage_limit != null && Number(promo.used_count || 0) >= Number(promo.usage_limit)) {
-      return res.status(400).json({ message: 'Mã này đã hết lượt sử dụng.' });
-    }
-
-    const minOrderVal = Number(promo.min_order_value || 0);
-    if (Number(order_value) < minOrderVal) {
-      return res.status(400).json({
-        message: `Đơn hàng tối thiểu ${minOrderVal.toLocaleString('vi-VN')}đ để áp dụng.`
-      });
-    }
-
-    // Tính toán số tiền được giảm
-    let discount = 0;
-    if (promo.discount_type === 'PERCENTAGE' || promo.discount_type === 'PERCENT') {
-      discount = (Number(order_value) * Number(promo.discount_value)) / 100;
-      if (promo.max_discount && discount > Number(promo.max_discount)) {
-        discount = Number(promo.max_discount);
-      }
-    } else {
-      discount = Number(promo.discount_value);
-    }
-
-    // Không cho phép giảm vượt quá tổng tiền đơn hàng
-    if (discount > Number(order_value)) discount = Number(order_value);
-
+    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id });
     return res.status(200).json({
       message: 'Áp dụng mã thành công',
       data: {
@@ -169,30 +123,35 @@ exports.applyPromotion = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof PromotionError) return res.status(400).json({ message: error.message });
     return res.status(500).json({ message: 'Lỗi xử lý khuyến mãi', error: error.message });
   }
 };
 
-exports.incrementUsage = async (req, res) => {
+// [STAFF / service-booking] Kiểm tra lại mã và ghi nhận lượt dùng khi chốt hóa đơn tại quầy
+exports.redeemPromotion = async (req, res) => {
+  const { code, customer_id, order_value, scope_values } = req.body;
+  if (!customer_id) return res.status(400).json({ message: 'Thiếu customer_id của khách' });
+
+  const t = await sequelize.transaction();
   try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ message: 'Thiếu mã code' });
-    
-    await Promotion.increment('used_count', { 
-      by: 1, 
-      where: { code: code.toUpperCase() } 
-    });
-    res.status(200).json({ message: 'Đã tăng lượt sử dụng voucher' });
+    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id, transaction: t });
+    await redeemPromotion({ promo, customer_id, transaction: t });
+    await t.commit();
+    return res.status(200).json({ data: { promotion_id: promo.id, code: promo.code, discount_amount: discount } });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi cập nhật lượt dùng voucher', error: error.message });
+    await t.rollback();
+    if (error instanceof PromotionError) return res.status(400).json({ message: error.message });
+    return res.status(500).json({ message: 'Lỗi ghi nhận voucher', error: error.message });
   }
 };
 
-// [PUBLIC] Khách hàng lưu mã khuyến mãi
+// [CUSTOMER] Khách hàng lưu mã khuyến mãi
 exports.savePromotion = async (req, res) => {
   try {
-    const { customer_id, promotion_id } = req.body;
-    if (!customer_id || !promotion_id) return res.status(400).json({ message: 'Thiếu thông tin lưu mã' });
+    const customer_id = req.user.id;
+    const { promotion_id } = req.body;
+    if (!promotion_id) return res.status(400).json({ message: 'Thiếu thông tin lưu mã' });
 
     // Kiểm tra xem đã lưu chưa
     const existing = await SavedPromotion.findOne({ where: { customer_id, promotion_id } });
@@ -205,11 +164,10 @@ exports.savePromotion = async (req, res) => {
   }
 };
 
-// [PUBLIC] Lấy danh sách mã đã lưu của khách hàng
+// [CUSTOMER] Lấy danh sách mã đã lưu của khách hàng
 exports.getSavedPromotions = async (req, res) => {
   try {
-    const { customer_id } = req.query;
-    if (!customer_id) return res.status(400).json({ message: 'Thiếu định danh khách hàng' });
+    const customer_id = req.user.id;
 
     const saved = await SavedPromotion.findAll({
       where: { customer_id },
@@ -226,9 +184,8 @@ exports.getSavedPromotions = async (req, res) => {
 
 exports.getUsedPromotions = async (req, res) => {
   try {
-    const { customer_id } = req.query;
-    if (!customer_id) return res.status(400).json({ message: 'Thiếu định danh' });
-    
+    const customer_id = req.user.id;
+
     const used = await PromotionUsage.findAll({ where: { customer_id }, attributes: ['promotion_id'] });
     return res.status(200).json({ success: true, data: used.map(u => u.promotion_id) });
   } catch (error) {

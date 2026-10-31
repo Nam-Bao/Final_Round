@@ -1,6 +1,7 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
 const { User, Profile, PatientProfile, sequelize } = require('../models');
 const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -26,6 +27,15 @@ const getAllUsers = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { email, password, role, full_name, phone } = req.body;
+    if (!email || !password || !full_name || !role) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ email, mật khẩu, họ tên và vai trò' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ message: 'Mật khẩu tối thiểu 6 ký tự' });
+    }
+    if (await User.findOne({ where: { email } })) {
+      return res.status(409).json({ message: 'Email này đã được sử dụng' });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
@@ -161,6 +171,30 @@ const resetPassword = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi cập nhật mật khẩu' }); }
 };
 
+// [PUBLIC] Đội ngũ bác sĩ cho trang giới thiệu: chỉ tên và ảnh, không lộ email / số điện thoại
+const getPublicDoctors = async (req, res) => {
+  try {
+    const doctors = await User.findAll({
+      where: { role: 'DOCTOR', status: 'ACTIVE' },
+      attributes: ['id'],
+      include: [{ model: Profile, attributes: ['full_name', 'avatar', 'gender'] }],
+      order: [['createdAt', 'ASC']]
+    });
+    res.status(200).json({
+      data: doctors.map(d => ({ id: d.id, full_name: d.Profile?.full_name || 'Bác sĩ', avatar: d.Profile?.avatar || null, gender: d.Profile?.gender || null }))
+    });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// Chỉ trả về mã các kỹ thuật viên đang làm việc (không kèm thông tin cá nhân).
+// service-booking dùng để biết ngày nào có KTV trực khi khách đặt buổi liệu trình.
+const getTechnicianIds = async (req, res) => {
+  try {
+    const technicians = await User.findAll({ where: { role: 'TECHNICIAN', status: 'ACTIVE' }, attributes: ['id'], raw: true });
+    res.status(200).json({ data: technicians.map(t => t.id) });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
 const getDoctors = async (req, res) => {
   try {
     const doctors = await User.findAll({
@@ -227,4 +261,4 @@ const getEmployees = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };
+module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };

@@ -1,31 +1,90 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag } from 'lucide-react';
+import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import VideoCallModal from '../components/VideoCallModal';
+import ReviewModal from '../components/ReviewModal';
+import { useAuthStore } from '../store/authStore';
+
+// Các trạng thái lịch online mà khách có thể vào phòng khám video
+const VIDEO_JOINABLE_STATUSES = ['CONFIRMED', 'WAITING', 'IN_PROGRESS'];
 
 export default function AppointmentHistoryPage() {
   const navigate = useNavigate();
   const [apts, setApts] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [records, setRecords] = useState([]);
-  
   const [myProfiles, setMyProfiles] = useState([]);
   const [mySessions, setMySessions] = useState([]);
   const [catalogs, setCatalogs] = useState({ services: [], packages: [], products: [] });
-  
   const [loading, setLoading] = useState(true);
   const [selectedApt, setSelectedApt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null); // BỔ SUNG: State lưu ảnh đang xem phóng to
+  const [previewImage, setPreviewImage] = useState(null);
+  
+  // Lịch hẹn đang mở phòng khám video (server tự kiểm tra quyền và khung giờ)
+  const [videoAppointmentId, setVideoAppointmentId] = useState(null);
+  const [videoNotice, setVideoNotice] = useState(null); // { title, message } khi chưa đến / đã quá giờ khám
+  const user = useAuthStore((state) => state.user);
+
+  // Khách chỉ vào phòng video từ đúng giờ hẹn đến 2 tiếng sau (server cũng kiểm tra lại)
+  const handleJoinVideo = (apt) => {
+    const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
+    const now = dayjs();
+    if (now.isBefore(start)) {
+      const minutes = start.diff(now, 'minute') + 1;
+      const remaining = minutes >= 1440
+        ? `${Math.floor(minutes / 1440)} ngày ${Math.floor((minutes % 1440) / 60)} giờ`
+        : minutes >= 60 ? `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút` : `${minutes} phút`;
+      return setVideoNotice({
+        title: 'Chưa đến giờ hẹn',
+        message: `Buổi khám online của bạn bắt đầu lúc ${start.format('HH:mm')} ngày ${start.format('DD/MM/YYYY')} (còn khoảng ${remaining}). Vui lòng quay lại đúng giờ để gặp bác sĩ.`
+      });
+    }
+    if (now.isAfter(start.add(2, 'hour'))) {
+      return setVideoNotice({ title: 'Đã quá giờ khám', message: 'Phòng khám video của lịch hẹn này đã đóng. Vui lòng liên hệ CSKH nếu bạn cần đặt lại lịch.' });
+    }
+    setVideoAppointmentId(apt.id);
+  };
+
+  // Đánh giá bác sĩ: { [appointment_id]: review } và lịch hẹn đang mở hộp thoại đánh giá
+  const [myReviews, setMyReviews] = useState({});
+  const [reviewApt, setReviewApt] = useState(null);
+
+  const handleSubmitReview = async ({ rating, comment }) => {
+    const token = sessionStorage.getItem('token');
+    await axios.post('http://localhost:4000/api/booking/reviews', { appointment_id: reviewApt.id, rating, comment }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    setMyReviews(prev => ({ ...prev, [reviewApt.id]: { appointment_id: reviewApt.id, rating } }));
+    setReviewApt(null);
+  };
+
+  // Đánh giá buổi dịch vụ / liệu trình: { [session_id]: review } và buổi đang mở hộp thoại đánh giá
+  const [myServiceReviews, setMyServiceReviews] = useState({});
+  const [reviewSession, setReviewSession] = useState(null);
+
+  const handleSubmitServiceReview = async ({ rating, comment }) => {
+    const token = sessionStorage.getItem('token');
+    await axios.post('http://localhost:4000/api/booking/reviews/services', {
+      session_id: reviewSession.id, session_type: reviewSession.session_type, rating, comment
+    }, { headers: { 'Authorization': `Bearer ${token}` } });
+    setMyServiceReviews(prev => ({ ...prev, [reviewSession.id]: { session_id: reviewSession.id, rating } }));
+    setReviewSession(null);
+  };
+
+  // Tên dịch vụ lẻ hoặc gói liệu trình của một buổi đã hoàn thành
+  const getSessionName = (s) => s.session_type === 'PACKAGE'
+    ? catalogs.packages.find(p => p.id === s.CustomerPackage?.package_id)?.name || 'Gói liệu trình'
+    : catalogs.services.find(sv => sv.id === s.spa_service_id)?.name || 'Dịch vụ';
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token'); 
+      const token = sessionStorage.getItem('token'); 
       if (!token) return navigate('/client-login');
       const headers = { 'Authorization': `Bearer ${token}` };
-
-      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes] = await Promise.all([
+      const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes, reviewRes, serviceReviewRes] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments/my-history', { headers }),
         axios.get('http://localhost:4000/api/identity/users/doctors', { headers }),
         axios.get('http://localhost:4000/api/identity/medical-records/my-records', { headers }).catch(() => ({ data: { data: [] } })),
@@ -33,23 +92,27 @@ export default function AppointmentHistoryPage() {
         axios.get('http://localhost:4000/api/booking/sessions/my-sessions', { headers }).catch(() => ({ data: { data: [] } })),
         axios.get('http://localhost:4000/api/booking/spa-services'),
         axios.get('http://localhost:4000/api/booking/packages'),
-        axios.get('http://localhost:4000/api/commerce/products')
+        axios.get('http://localhost:4000/api/commerce/products'),
+        axios.get('http://localhost:4000/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('http://localhost:4000/api/booking/reviews/services/mine', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
-
       setApts(aptRes.data?.data || []);
+      setMyReviews(Object.fromEntries((reviewRes.data?.data || []).map(r => [r.appointment_id, r])));
+      setMyServiceReviews(Object.fromEntries((serviceReviewRes.data?.data || []).map(r => [r.session_id, r])));
       setDoctors(docRes.data?.data || []);
       setRecords(recRes.data?.data || []);
       setMyProfiles(profRes.data?.data?.PatientProfiles || []);
       setMySessions(sessionRes.data?.data || []);
-      
       setCatalogs({
         services: srvRes.data?.data || [],
         packages: pkgRes.data?.data || [],
         products: prodRes.data?.data || []
       });
-
-    } catch (error) { console.error("Lỗi lấy dữ liệu:", error); } 
-    finally { setLoading(false); }
+    } catch (error) { 
+      console.error("Lỗi lấy dữ liệu:", error); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -57,11 +120,13 @@ export default function AppointmentHistoryPage() {
   const handleCancel = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.')) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
       alert('Hủy lịch thành công!');
       fetchData(); 
-    } catch (error) { alert('Không thể hủy lịch, vui lòng liên hệ CSKH.'); }
+    } catch (error) { 
+      alert('Không thể hủy lịch, vui lòng liên hệ CSKH.'); 
+    }
   };
 
   const handleViewRecord = (apt) => {
@@ -69,7 +134,6 @@ export default function AppointmentHistoryPage() {
     setIsModalOpen(true);
   };
 
-  // BỔ SUNG: Hàm xử lý mở modal xem ảnh phóng to
   const handleImageClick = (imgUrl) => {
     setPreviewImage(imgUrl);
   };
@@ -93,11 +157,11 @@ export default function AppointmentHistoryPage() {
   const sessionsInModal = selectedApt ? mySessions.filter(s => s.session_date === selectedApt.appointment_date && s.patient_profile_id === selectedApt.patient_profile_id) : [];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 relative">
+    <div className="max-w-4xl mx-auto space-y-6 relative pb-10">
       <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
         <ClipboardList className="text-primary" /> Sổ Lịch Khám & Y Bạ
       </h1>
-
+      
       {apts.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -114,6 +178,7 @@ export default function AppointmentHistoryPage() {
              const profileName = myProfiles.find(p => p.id === apt.patient_profile_id)?.full_name || 'Khách hàng';
              const timeStr = apt.appointment_time ? String(apt.appointment_time).slice(0,5) : '--:--';
              const hasData = records.some(r => r.appointment_id === apt.id) || mySessions.some(s => s.session_date === apt.appointment_date);
+             const isOnline = apt.pre_notes?.includes('[ONLINE]') || apt.type === 'ONLINE';
 
              return (
                 <div key={apt.id} className="card bg-white shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-primary/40 transition-colors">
@@ -130,24 +195,49 @@ export default function AppointmentHistoryPage() {
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[240px] space-y-3">
                       <p className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Thời gian:</span>
-                        <span className="font-bold text-slate-800 flex items-center gap-1"><Calendar className="w-4 h-4 text-primary"/> {timeStr} - {dayjs(apt.appointment_date).format('DD/MM/YYYY')}</span>
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          <Calendar className="w-4 h-4 text-primary"/> {timeStr} - {dayjs(apt.appointment_date).format('DD/MM/YYYY')}
+                        </span>
                       </p>
                       <p className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Hình thức:</span>
-                        <span className={`font-bold flex items-center gap-1 ${apt.type === 'OFFLINE' ? 'text-orange-600' : 'text-info'}`}>
-                          {apt.pre_notes?.includes('[ONLINE]') ? <Video className="w-4 h-4"/> : <MapPin className="w-4 h-4"/>} 
-                          {apt.pre_notes?.includes('[ONLINE]') ? 'Tư vấn Online' : 'Khám trực tiếp'}
+                        <span className={`font-bold flex items-center gap-1 ${!isOnline ? 'text-orange-600' : 'text-info'}`}>
+                          {isOnline ? <Video className="w-4 h-4"/> : <MapPin className="w-4 h-4"/>} 
+                          {isOnline ? 'Tư vấn Online' : 'Khám trực tiếp'}
                         </span>
                       </p>
                     </div>
 
-                    <div className="flex gap-2 w-full justify-end">
+                    <div className="flex flex-wrap gap-2 w-full justify-end">
+                      {/* NÚT GẶP BÁC SĨ (CHỈ HIỂN THỊ DÀNH CHO KHÁM ONLINE VÀ CHƯA HỦY) */}
+                      {isOnline && VIDEO_JOINABLE_STATUSES.includes(apt.status) && (
+                        <button
+                          onClick={() => handleJoinVideo(apt)}
+                          className="btn btn-sm btn-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 flex-1 md:flex-none shadow-sm"
+                        >
+                          🎥 Gặp bác sĩ
+                        </button>
+                      )}
+
                       {(apt.status === 'PENDING' || apt.status === 'CONFIRMED') && (
                         <button onClick={() => handleCancel(apt.id)} className="btn btn-sm btn-error btn-outline flex-1 md:flex-none">Hủy lịch</button>
                       )}
                       
                       {(hasData || apt.status === 'COMPLETED' || apt.status === 'WAITING_FOR_SALE') && (
                         <button onClick={() => handleViewRecord(apt)} className="btn btn-sm btn-primary flex-1 md:flex-none gap-1"><FileText className="w-4 h-4"/> Xem hồ sơ</button>
+                      )}
+
+                      {/* ĐÁNH GIÁ BÁC SĨ: chỉ khi buổi khám đã hoàn tất */}
+                      {apt.status === 'COMPLETED' && apt.doctor_id && (
+                        myReviews[apt.id] ? (
+                          <span className="btn btn-sm btn-ghost text-amber-500 no-animation cursor-default gap-1">
+                            <Star className="w-4 h-4 fill-current"/> Đã đánh giá {myReviews[apt.id].rating}/5
+                          </span>
+                        ) : (
+                          <button onClick={() => setReviewApt({ id: apt.id, doctorName: doc?.Profile?.full_name })} className="btn btn-sm btn-outline btn-warning flex-1 md:flex-none gap-1">
+                            <Star className="w-4 h-4"/> Đánh giá bác sĩ
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -157,6 +247,40 @@ export default function AppointmentHistoryPage() {
         </div>
       )}
 
+      {/* BUỔI DỊCH VỤ / LIỆU TRÌNH ĐÃ HOÀN THÀNH (my-sessions chỉ trả buổi COMPLETED) */}
+      {mySessions.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+            <Sparkles className="w-5 h-5 text-primary" /> Buổi dịch vụ đã hoàn thành
+          </h2>
+          {[...mySessions]
+            .sort((a, b) => String(b.session_date).localeCompare(String(a.session_date)))
+            .map((s) => (
+              <div key={s.id} className="card bg-white shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <div>
+                  <p className="font-bold text-slate-800">
+                    {getSessionName(s)}
+                    {s.session_type === 'PACKAGE' && <span className="text-sm font-normal text-slate-500"> · Buổi {s.session_number}</span>}
+                  </p>
+                  <p className="text-sm text-slate-500 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> {dayjs(s.session_date).format('DD/MM/YYYY')}
+                  </p>
+                </div>
+                {myServiceReviews[s.id] ? (
+                  <span className="btn btn-sm btn-ghost text-amber-500 no-animation cursor-default gap-1">
+                    <Star className="w-4 h-4 fill-current"/> Đã đánh giá {myServiceReviews[s.id].rating}/5
+                  </span>
+                ) : (
+                  <button onClick={() => setReviewSession({ ...s, name: getSessionName(s) })} className="btn btn-sm btn-outline btn-warning gap-1">
+                    <Star className="w-4 h-4"/> Đánh giá dịch vụ
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+
+      {/* MODAL XEM CHI TIẾT HỒ SƠ KHÁM */}
       {isModalOpen && selectedApt && (
         <div className="modal modal-open">
           <div className="modal-box max-w-3xl bg-slate-50 p-0 overflow-hidden">
@@ -164,7 +288,6 @@ export default function AppointmentHistoryPage() {
                <h3 className="font-bold text-xl text-primary flex items-center gap-2"><FileText/> Chi tiết Lịch Khám & Dịch Vụ</h3>
                <button onClick={() => setIsModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><X/></button>
             </div>
-            
             <div className="p-5 space-y-6 overflow-y-auto max-h-[70vh]">
                {recordInModal && (
                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -183,11 +306,10 @@ export default function AppointmentHistoryPage() {
                     </div>
                  </div>
                )}
-
+               
                {(selectedApt.prescribed_services?.length > 0 || selectedApt.prescribed_packages?.length > 0 || selectedApt.prescribed_medicines?.length > 0) && (
                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <h4 className="font-bold text-purple-800 text-lg flex items-center gap-2 border-b pb-2 mb-3"><ShoppingBag className="w-5 h-5"/> Sản phẩm & Dịch vụ được chỉ định</h4>
-                    
                     {selectedApt.prescribed_services?.length > 0 && (
                       <div className="mb-2">
                         <p className="text-sm font-bold text-slate-700 mb-1">Dịch vụ Spa (Làm ngay):</p>
@@ -208,7 +330,11 @@ export default function AppointmentHistoryPage() {
                       <div className="mb-2">
                         <p className="text-sm font-bold text-slate-700 mb-1">Dược Mỹ Phẩm (Mua về):</p>
                         <ul className="list-disc list-inside text-sm text-slate-600">
-                           {selectedApt.prescribed_medicines.map(id => <li key={id}>{catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'}</li>)}
+                           {selectedApt.prescribed_medicines.map(m => {
+                             const id = typeof m === 'string' ? m : m?.product_id; // dữ liệu cũ là mã sản phẩm
+                             const qty = typeof m === 'string' ? 1 : m?.quantity || 1;
+                             return <li key={id}>{catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'} × {qty}</li>;
+                           })}
                         </ul>
                       </div>
                     )}
@@ -236,7 +362,6 @@ export default function AppointmentHistoryPage() {
                       </div>
                     ) : <p className="text-sm text-slate-400 italic">Không có ảnh chụp</p>}
                   </div>
-
                   <div>
                     <h4 className="font-bold text-green-700 mb-2 border-b pb-1">✨ Da sau dịch vụ (After)</h4>
                     {sessionsInModal.length > 0 && sessionsInModal.some(s => s.post_treatment_images?.length > 0) ? (
@@ -264,7 +389,7 @@ export default function AppointmentHistoryPage() {
         </div>
       )}
 
-      {/* BỔ SUNG: Modal xem ảnh phóng to bằng Tailwind & HTML chuẩn */}
+      {/* MODAL XEM ẢNH PHÓNG TO */}
       {previewImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewImage(null)}>
           <button 
@@ -280,10 +405,48 @@ export default function AppointmentHistoryPage() {
             src={previewImage} 
             alt="Preview" 
             className="max-w-full max-h-full object-contain rounded"
-            onClick={(e) => e.stopPropagation()} // Ngăn click vào ảnh bị đóng modal
+            onClick={(e) => e.stopPropagation()} 
           />
         </div>
       )}
+
+      {/* MODAL POPUP VIDEO CALL ZEGOCLOUD KHI BẤM NÚT GẶP BÁC SĨ */}
+      <ReviewModal
+        isOpen={!!reviewApt}
+        title="Đánh giá bác sĩ"
+        subtitle={reviewApt?.doctorName}
+        onClose={() => setReviewApt(null)}
+        onSubmit={handleSubmitReview}
+      />
+
+      <ReviewModal
+        isOpen={!!reviewSession}
+        title="Đánh giá dịch vụ"
+        subtitle={reviewSession?.name}
+        onClose={() => setReviewSession(null)}
+        onSubmit={handleSubmitServiceReview}
+      />
+
+      {videoNotice && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-sm text-center">
+            <Clock className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+            <h3 className="font-bold text-lg text-slate-800">{videoNotice.title}</h3>
+            <p className="text-sm text-slate-600 mt-2">{videoNotice.message}</p>
+            <div className="modal-action justify-center">
+              <button onClick={() => setVideoNotice(null)} className="btn btn-primary btn-sm">Đã hiểu</button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setVideoNotice(null)}></div>
+        </div>
+      )}
+
+      <VideoCallModal
+        isOpen={!!videoAppointmentId}
+        onClose={() => setVideoAppointmentId(null)}
+        appointmentId={videoAppointmentId}
+        userName={user?.Profile?.full_name || 'Khách hàng GlowSkin'}
+      />
     </div>
   );
 }

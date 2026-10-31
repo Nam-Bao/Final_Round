@@ -34,6 +34,8 @@ const ShiftRequest = sequelize.define('ShiftRequest', {
 const Appointment = sequelize.define('Appointment', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     customer_id: { type: DataTypes.UUID, allowNull: false },
+    // Lịch tạo trước khi khôi phục cột này (bị mất ở commit 27bf31d) không còn giá trị nên tạm cho phép null
+    patient_profile_id: { type: DataTypes.UUID, allowNull: true },
     doctor_id: { type: DataTypes.UUID, allowNull: true },
     consultant_id: { type: DataTypes.UUID, allowNull: true },
     appointment_date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -49,6 +51,12 @@ const Appointment = sequelize.define('Appointment', {
         defaultValue: 'NEW_EXAM'
     },
     symptoms: { type: DataTypes.TEXT },
+    pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] },
+    diagnosis: { type: DataTypes.STRING },
+    doctor_notes: { type: DataTypes.TEXT },
+    prescribed_services: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_packages: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
 // --- THÊM MỚI: BẢNG NHẬT KÝ CHĂM SÓC KHÁCH HÀNG (FOLLOW-UP) ---
@@ -61,11 +69,36 @@ const FollowUpLog = sequelize.define('FollowUpLog', {
     call_note: { type: DataTypes.TEXT }
 });
 
+// Đánh giá bác sĩ sau buổi khám đã hoàn tất (mỗi lịch hẹn 1 đánh giá).
+// customer_name / doctor_name là ảnh chụp tên thật từ service-identity lúc đánh giá.
 const AppointmentReview = sequelize.define('AppointmentReview', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     customer_id: { type: DataTypes.UUID, allowNull: false },
-    rating: { type: DataTypes.INTEGER },
-    comment: { type: DataTypes.TEXT }
+    doctor_id: { type: DataTypes.UUID },
+    customer_name: { type: DataTypes.STRING },
+    doctor_name: { type: DataTypes.STRING },
+    rating: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 5 } },
+    comment: { type: DataTypes.TEXT },
+    status: { type: DataTypes.ENUM('VISIBLE', 'HIDDEN'), defaultValue: 'VISIBLE' }
+}, {
+    indexes: [{ unique: true, fields: ['appointment_id'] }]
+});
+
+// Đánh giá buổi dịch vụ lẻ (ServiceSession) hoặc buổi liệu trình (TreatmentSession) đã hoàn thành.
+// Mỗi buổi 1 đánh giá; service_name / customer_name là ảnh chụp tên thật lúc đánh giá.
+const ServiceReview = sequelize.define('ServiceReview', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    customer_id: { type: DataTypes.UUID, allowNull: false },
+    session_type: { type: DataTypes.ENUM('SINGLE', 'PACKAGE'), allowNull: false },
+    session_id: { type: DataTypes.UUID, allowNull: false },
+    service_id: { type: DataTypes.UUID, allowNull: false }, // spa_service_id hoặc package_id
+    service_name: { type: DataTypes.STRING },
+    customer_name: { type: DataTypes.STRING },
+    rating: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 5 } },
+    comment: { type: DataTypes.TEXT },
+    status: { type: DataTypes.ENUM('VISIBLE', 'HIDDEN'), defaultValue: 'VISIBLE' }
+}, {
+    indexes: [{ unique: true, fields: ['session_id'] }]
 });
 
 const CustomerPackage = sequelize.define('CustomerPackage', {
@@ -95,6 +128,9 @@ const SpaService = sequelize.define('SpaService', {
     description: { type: DataTypes.TEXT },
     category: { type: DataTypes.STRING, defaultValue: 'basic' }, // acne | pigment | rejuvenation | recovery | basic | online
     includes: { type: DataTypes.JSONB, defaultValue: [] }, // Danh sách "Dịch vụ bao gồm" hiển thị ở trang chi tiết
+    procedure_steps: { type: DataTypes.JSONB, defaultValue: [] }, // Các bước thực hiện (trang chi tiết)
+    suitable_for: { type: DataTypes.JSONB, defaultValue: [] }, // Tình trạng da / đối tượng phù hợp
+    aftercare: { type: DataTypes.JSONB, defaultValue: [] }, // Lưu ý chăm sóc sau điều trị
     duration_minutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 60 },
     price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     image_url: { type: DataTypes.STRING },
@@ -148,7 +184,6 @@ Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
 
-sequelize.sync({after:true}).then(() => console.log("✅ Đã đồng bộ Database cho service-booking!"));
 
 module.exports = {
     sequelize,
@@ -157,10 +192,12 @@ module.exports = {
     ShiftRequest,
     Appointment,
     AppointmentReview,
+    ServiceReview,
     FollowUpLog,
     CustomerPackage,
     TreatmentSession,
     SpaService,
+    ServiceSession,
     Invoice,
     Transaction // Export bảng mới
 };

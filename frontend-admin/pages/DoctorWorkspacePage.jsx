@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, Divider, DatePicker, Drawer, Timeline, Spin, Empty, Image, Modal } from 'antd';
-import { UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined } from '@ant-design/icons';
+import { Row, Col, Card, List, Tag, Tabs, Form, Input, InputNumber, Select, Button, Space, Avatar, Typography, message, Divider, DatePicker, Drawer, Timeline, Spin, Empty, Image, Modal } from 'antd';
+import { PlusOutlined, MinusCircleOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import VideoCallModal from '../components/VideoCallModal';
 
 const { Title, Text } = Typography;
+
+// Đơn thuốc: { product_id, quantity } (dữ liệu cũ là mã sản phẩm, mỗi mã = 1 sản phẩm)
+const medicineLabel = (m, products) => {
+  const id = typeof m === 'string' ? m : m?.product_id;
+  const qty = typeof m === 'string' ? 1 : m?.quantity || 1;
+  return `${products.find(p => p.id === id)?.name || 'Sản phẩm'} x${qty}`;
+};
+
+const isOnlinePatient =(patient) => Boolean(patient?.pre_notes?.includes('[ONLINE]')); // lịch đã dời có tiền tố trước [ONLINE]
 
 export default function DoctorWorkspacePage() {
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -17,12 +27,13 @@ export default function DoctorWorkspacePage() {
   const [isNotesModalVisible, setIsNotesModalVisible] = useState(false); 
   const [patientHistory, setPatientHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [form] = Form.useForm();
 
   const fetchTodayAppointments = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.get('http://localhost:4000/api/booking/appointments/my-today', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.data?.data) {
         setPatients(res.data.data.map(apt => ({
@@ -45,7 +56,7 @@ export default function DoctorWorkspacePage() {
   const fetchPatientHistory = async (patientProfileId) => {
     setLoadingHistory(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [medRes, sessionRes, aptRes] = await Promise.all([
@@ -76,7 +87,7 @@ export default function DoctorWorkspacePage() {
     fetchPatientHistory(patient.patient_profile_id); 
     if (patient.status === 'WAITING') {
        try {
-         const token = localStorage.getItem('admin_token');
+         const token = sessionStorage.getItem('admin_token');
          await axios.put(`http://localhost:4000/api/booking/appointments/${patient.id}`, { status: 'IN_PROGRESS' }, { headers: { 'Authorization': `Bearer ${token}` } });
          handleUpdateStatus('IN_PROGRESS', patient.id);
        } catch (e) {}
@@ -90,11 +101,12 @@ export default function DoctorWorkspacePage() {
 
   const handleSubmitRecord = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
         symptoms: values.symptoms, diagnosis: values.diagnosis, doctor_notes: values.doctor_notes,
         follow_up_date: values.follow_up_date ? values.follow_up_date.format('YYYY-MM-DD') : null, 
-        spa_services: values.spa_services, treatment_package: values.treatment_package, prescriptions: values.prescriptions
+        spa_services: values.spa_services, treatment_package: values.treatment_package,
+        prescriptions: (values.prescriptions || []).filter(p => p?.product_id) // [{ product_id, quantity }]
       }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success('Đã lưu Bệnh án! Đang chuyển ra màn hình Thu Ngân.');
       handleUpdateStatus('WAITING_FOR_SALE'); setSelectedPatient(null); fetchTodayAppointments(); 
@@ -121,9 +133,27 @@ export default function DoctorWorkspacePage() {
           <Form.Item name="treatment_package" label={<span className="text-purple-700 font-medium">Chỉ định Gói Lộ Trình (VIP)</span>}>
             <Select allowClear>{packages.map(pkg => <Select.Option key={pkg.id} value={pkg.id}>{pkg.name}</Select.Option>)}</Select>
           </Form.Item>
-          <Form.Item name="prescriptions" label={<span className="text-green-700 font-medium">Kê đơn Dược Mỹ Phẩm (Mua về)</span>}>
-            <Select mode="multiple" allowClear>{products.map(prod => <Select.Option key={prod.id} value={prod.id}>{prod.name}</Select.Option>)}</Select>
-          </Form.Item>
+          <Text className="text-green-700 font-medium block mb-2">Kê đơn Dược Mỹ Phẩm (Mua về)</Text>
+          <Form.List name="prescriptions">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map((field) => (
+                  <Space key={field.key} align="baseline" className="flex mb-1">
+                    <Form.Item name={[field.name, 'product_id']} rules={[{ required: true, message: 'Chọn sản phẩm' }]} className="mb-2">
+                      <Select showSearch optionFilterProp="children" placeholder="Chọn sản phẩm" style={{ width: 340 }}>
+                        {products.map(prod => <Select.Option key={prod.id} value={prod.id}>{prod.name}</Select.Option>)}
+                      </Select>
+                    </Form.Item>
+                    <Form.Item name={[field.name, 'quantity']} initialValue={1} className="mb-2">
+                      <InputNumber min={1} max={20} addonAfter="SL" style={{ width: 110 }} />
+                    </Form.Item>
+                    <MinusCircleOutlined className="text-red-500" onClick={() => remove(field.name)} />
+                  </Space>
+                ))}
+                <Button type="dashed" onClick={() => add({ quantity: 1 })} icon={<PlusOutlined />}>Thêm sản phẩm</Button>
+              </>
+            )}
+          </Form.List>
         </div>
       )
     }
@@ -141,6 +171,7 @@ export default function DoctorWorkspacePage() {
                   description={
                     <Space size="small" className="mt-1">
                       <Tag icon={<ClockCircleOutlined />} color="default">{item.time}</Tag>
+                      {isOnlinePatient(item) && <Tag icon={<VideoCameraOutlined />} color="green">Online</Tag>}
                       {item.status === 'WAITING' && <Tag color="warning">Đang chờ</Tag>}
                       {item.status === 'IN_PROGRESS' && <Tag color="processing">Đang khám</Tag>}
                       {(item.status === 'COMPLETED' || item.status === 'WAITING_FOR_SALE') && <Tag color="success">Đã xong</Tag>}
@@ -175,7 +206,12 @@ export default function DoctorWorkspacePage() {
                     </div>
                   </div>
                 </Space>
-                <Button type="default" icon={<HistoryOutlined />} onClick={() => setIsHistoryVisible(true)}>Tra cứu Sổ y bạ</Button>
+                <Space direction="vertical" align="end">
+                  {isOnlinePatient(selectedPatient) && selectedPatient.status !== 'COMPLETED' && selectedPatient.status !== 'WAITING_FOR_SALE' && (
+                    <Button type="primary" className="bg-green-600" icon={<VideoCameraOutlined />} onClick={() => setIsVideoOpen(true)}>Vào phòng khám online</Button>
+                  )}
+                  <Button type="default" icon={<HistoryOutlined />} onClick={() => setIsHistoryVisible(true)}>Tra cứu Sổ y bạ</Button>
+                </Space>
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto">
@@ -194,6 +230,13 @@ export default function DoctorWorkspacePage() {
           )}
         </Card>
       </Col>
+
+      <VideoCallModal
+        open={isVideoOpen}
+        onClose={() => setIsVideoOpen(false)}
+        appointmentId={selectedPatient?.id}
+        patientName={selectedPatient?.name}
+      />
 
       <Modal title="Thông tin sơ bộ từ CSKH" open={isNotesModalVisible} onCancel={() => setIsNotesModalVisible(false)} footer={<Button type="primary" onClick={() => setIsNotesModalVisible(false)}>Đóng</Button>} width={600}>
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -224,7 +267,7 @@ export default function DoctorWorkspacePage() {
                            <Text strong className="block mb-1 text-purple-700"><ShoppingOutlined/> Dịch vụ & Thuốc:</Text>
                            {item.data.prescribed_services?.length > 0 && <div>• {item.data.prescribed_services.map(id => spaServices.find(s=>s.id === id)?.name).join(', ')}</div>}
                            {item.data.prescribed_packages?.length > 0 && <div>• {item.data.prescribed_packages.map(id => packages.find(p=>p.id === id)?.name).join(', ')}</div>}
-                           {item.data.prescribed_medicines?.length > 0 && <div>• {item.data.prescribed_medicines.map(id => products.find(p=>p.id === id)?.name).join(', ')}</div>}
+                           {item.data.prescribed_medicines?.length > 0 && <div>• {item.data.prescribed_medicines.map(m => medicineLabel(m, products)).join(', ')}</div>}
                          </div>
                        )}
 

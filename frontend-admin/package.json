@@ -14,9 +14,10 @@
   "type": "commonjs",
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@zegocloud/zego-uikit-prebuilt": "^2.18.5",
     "antd": "^6.6.1",
     "axios": "^1.20.0",
-    "lucide-react": "^1.61.0",
+    "lucide-react": "^1.62.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

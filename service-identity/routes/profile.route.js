@@ -1,6 +1,6 @@
 const express = require('express');
 const { getMyProfile, updateMyProfile, getMyPatientProfiles, createPatientProfile, updatePatientProfile, deletePatientProfile, getPatientProfilesByUserId } = require('../controllers/profile.controller.js');
-const { verifyToken } = require('../middlewares/auth.middleware.js');
+const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
 
@@ -15,6 +15,7 @@ router.get('/patients', verifyToken, getMyPatientProfiles);
 router.post('/patients', verifyToken, createPatientProfile);
 router.put('/patients/:id', verifyToken, updatePatientProfile);
 router.delete('/patients/:id', verifyToken, deletePatientProfile);
-router.get('/patients/user/:userId', verifyToken, getPatientProfilesByUserId);
+// Nhân viên tra hồ sơ bệnh nhân của khách khi tạo / sửa lịch hẹn
+router.get('/patients/user/:userId', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT', 'DOCTOR'), getPatientProfilesByUserId);
 
 module.exports = router;

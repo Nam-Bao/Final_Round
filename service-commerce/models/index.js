@@ -31,13 +31,19 @@ const CartItem = sequelize.define('CartItem', {
   quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }
 });
 
+// Đánh giá sản phẩm từ đơn hàng đã nhận (mỗi sản phẩm trong 1 đơn được đánh giá 1 lần).
+// customer_name là ảnh chụp tên thật từ service-identity lúc đánh giá.
 const Review = sequelize.define('Review', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false },
+  order_id: { type: DataTypes.UUID },
+  customer_name: { type: DataTypes.STRING },
   rating: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1, max: 5 } },
   comment: { type: DataTypes.TEXT },
-  images: { type: DataTypes.JSONB }, 
+  images: { type: DataTypes.JSONB },
   status: { type: DataTypes.ENUM('VISIBLE', 'HIDDEN'), defaultValue: 'VISIBLE' }
+}, {
+  indexes: [{ unique: true, fields: ['order_id', 'product_id'] }]
 });
 
 const Order = sequelize.define('Order', {
