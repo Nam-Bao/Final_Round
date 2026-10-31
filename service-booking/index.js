@@ -1,3 +1,4 @@
+require('dotenv').config(); // Nạp .env (JWT_SECRET, SEPAY_API_KEY, DB_*) trước khi load các module khác
 const express = require('express');
 const { sequelize } = require('./models');
 const packageRoute = require('./routes/package.route.js');
@@ -27,6 +28,10 @@ app.listen(PORT, async() => {
         await sequelize.authenticate();
         await sequelize.sync({ alter: true });
         console.log('✅ Đã kết nối DB và tạo xong bảng phân hệ Booking!');
+        // Mỗi phút dọn lịch giữ chỗ quá hạn chưa thanh toán (khách đóng tab, không quay lại)
+        const { releaseExpiredHolds } = require('./controllers/appointment.controller.js');
+        releaseExpiredHolds();
+        setInterval(releaseExpiredHolds, 60 * 1000);
     } catch (error) {
         console.error('❌ Lỗi DB Booking:', error.message);
     }

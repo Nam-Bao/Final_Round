@@ -1,7 +1,13 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
 // Cấu hình kết nối (Sẽ cấu hình chi tiết ở file env sau, tạm thời để code mẫu)
-const sequelize = new Sequelize('identity_db', 'postgres', 'password', { host: 'localhost', port: 5435, dialect: 'postgres' });
+// Đọc từ .env; giá trị mặc định khớp docker-compose cho môi trường dev
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'identity_db',
+  process.env.DB_USER || 'postgres',
+  process.env.DB_PASSWORD || 'password',
+  { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5435), dialect: 'postgres' }
+);
 
 // 1. Bảng Users
 const User = sequelize.define('User', {
@@ -102,6 +108,6 @@ ChatSession.belongsTo(User, { foreignKey: 'consultant_id', as: 'Consultant' });
 ChatSession.hasMany(ChatMessage, { foreignKey: 'session_id', as: 'Messages' });
 ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
-sequelize.sync({ alter: true }).then(() => console.log("✅ Đã đồng bộ Database cho service-identity!"));
+// Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi ở cả 2 nơi)
 
 module.exports = { sequelize, User, Profile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

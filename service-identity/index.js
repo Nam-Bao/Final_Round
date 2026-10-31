@@ -1,3 +1,4 @@
+require('dotenv').config(); // Nạp .env (JWT_SECRET, DB_*) trước khi load các module khác
 const express = require('express');
 const { sequelize } = require('./models');
 const http = require('http'); // THÊM DÒNG NÀY

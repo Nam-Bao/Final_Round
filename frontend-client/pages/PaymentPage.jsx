@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, QrCode, AlertTriangle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
@@ -8,12 +8,17 @@ export default function PaymentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isPaid, setIsPaid] = useState(false);
+  // Số tiền cần trả LẤY TỪ SERVER (hóa đơn), không đọc từ URL => khách không sửa được
+  const [amountToPay, setAmountToPay] = useState(null);
+  const [isOnline, setIsOnline] = useState(new URLSearchParams(location.search).get('type') === 'ONLINE');
+  const [loadError, setLoadError] = useState('');
+  const [holdExpiresAt, setHoldExpiresAt] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const paidRef = useRef(false);   // đọc được trong cleanup khi rời trang
+  const mountedRef = useRef(false);
 
-  const searchParams = new URLSearchParams(location.search);
-  const totalFee = parseInt(searchParams.get('fee') || '100000', 10);
-  
-  const isOnline = searchParams.get('type') === 'ONLINE';
-  const amountToPay = totalFee === 0 ? 0 : (isOnline ? totalFee : 50000); 
+  const EXAM_FEE = 100000; // Phí thăm khám niêm yết (khám trực tiếp chỉ cọc trước 1 phần)
+  const totalFee = amountToPay === 0 ? 0 : (isOnline ? amountToPay : EXAM_FEE);
 
   // TẠO MÃ GIAO DỊCH DUY NHẤT (6 ký tự đầu của ID Lịch hẹn)
   const orderCode = id.slice(0, 6).toUpperCase();
@@ -23,21 +28,32 @@ export default function PaymentPage() {
   const ACCOUNT_NO = import.meta.env.VITE_ACCOUNT_NO;
   const ACCOUNT_NAME = import.meta.env.VITE_ACCOUNT_NAME;
 
-  // 1. Nếu khách cũ (0đ) -> Bỏ qua QR, gọi API chốt luôn
+  // 0. Hỏi server số tiền cần trả. Nếu 0đ (khách cũ) -> server cho phép tự chốt, bỏ qua QR
   useEffect(() => {
-    if (amountToPay === 0) {
-       const confirmZeroFee = async () => {
-          const token = localStorage.getItem('token');
-          await axios.put(`http://localhost:4000/api/booking/appointments/${id}/confirm-payment`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
+    const loadInvoice = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, { headers });
+        setIsOnline(res.data.isOnline);
+        if (res.data.isPaid) { setIsPaid(true); return; }
+        if (res.data.amount === 0) {
+          await axios.put(`http://localhost:4000/api/booking/appointments/${id}/confirm-payment`, {}, { headers });
           setIsPaid(true);
-       };
-       confirmZeroFee();
-    }
-  }, [amountToPay, id]);
+          return;
+        }
+        setAmountToPay(res.data.amount);
+        setHoldExpiresAt(res.data.holdExpiresAt);
+      } catch (error) {
+        setLoadError(error.response?.data?.message || 'Không tải được thông tin thanh toán');
+      }
+    };
+    loadInvoice();
+  }, [id]);
 
   // 2. CƠ CHẾ POLLING (LÀM THẬT): Cứ 3 giây hỏi Backend 1 lần xem SePay đã bắn tiền về chưa
   useEffect(() => {
-    if (amountToPay === 0 || isPaid) return;
+    if (!amountToPay || isPaid) return;
 
     const interval = setInterval(async () => {
       try {
@@ -59,6 +75,42 @@ export default function PaymentPage() {
     return () => clearInterval(interval); // Dọn dẹp khi rời trang
   }, [id, amountToPay, isPaid]);
 
+  useEffect(() => { paidRef.current = isPaid; }, [isPaid]);
+
+  // 3. RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
+  // Đóng tab thì không gọi được => server tự xóa khi hết thời gian giữ chỗ.
+  const releaseHold = () => {
+    const token = localStorage.getItem('token');
+    return axios.delete(`http://localhost:4000/api/booking/appointments/${id}/unpaid`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .catch(() => {}); // 409 = vừa thanh toán xong, giữ nguyên lịch
+  };
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Chờ 1 nhịp: React StrictMode (dev) gỡ rồi gắn lại component ngay lập tức, không phải khách rời trang
+      setTimeout(() => {
+        if (!mountedRef.current && !paidRef.current) releaseHold();
+      }, 0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // 4. ĐẾM NGƯỢC THỜI GIAN GIỮ CHỖ
+  useEffect(() => {
+    if (!holdExpiresAt || isPaid) return;
+    const tick = () => setSecondsLeft(Math.max(0, Math.floor((new Date(holdExpiresAt) - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [holdExpiresAt, isPaid]);
+
+  const handleChangeSchedule = async () => {
+    await releaseHold();
+    paidRef.current = true; // đã hủy rồi, cleanup khỏi gọi lại
+    navigate('/booking');
+  };
+
 
   if (isPaid) {
     return (
@@ -71,6 +123,18 @@ export default function PaymentPage() {
         </button>
       </div>
     );
+  }
+
+  if (loadError || secondsLeft === 0) {
+    return (
+      <div className="max-w-xl mx-auto mt-10 text-center space-y-4">
+        <p className="text-error font-medium">{loadError || 'Đã hết thời gian giữ chỗ, ca khám đã được trả lại. Vui lòng đặt lịch lại.'}</p>
+        <button onClick={() => navigate('/booking')} className="btn btn-primary">Đặt lịch lại</button>
+      </div>
+    );
+  }
+  if (amountToPay === null) {
+    return <div className="max-w-xl mx-auto mt-10 flex justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
   }
 
   return (
@@ -124,6 +188,13 @@ export default function PaymentPage() {
           </div>
 
           <div className="space-y-4">
+            {secondsLeft !== null && (
+              <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm text-center">
+                Ca khám được giữ trong <b className="font-mono">{String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}</b>.
+                Hết giờ hoặc rời trang mà chưa thanh toán, lịch sẽ bị hủy.
+              </div>
+            )}
+            <button onClick={handleChangeSchedule} className="btn btn-outline btn-sm w-full">Hủy & chọn lại lịch khác</button>
             <div className="bg-blue-50/50 text-slate-600 p-4 rounded-xl border border-blue-100 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm font-medium animate-pulse text-center">Hệ thống đang chờ bạn quét mã...<br/><span className="text-xs font-normal">Trang sẽ tự động chuyển khi nhận được tiền.</span></p>

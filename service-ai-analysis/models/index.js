@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const aiAnalysisSchema = new mongoose.Schema(
   {
     customer_id: { type: String, required: true, index: true },
+    client_ip: { type: String, index: true }, // Đếm hạn mức phân tích của khách vãng lai (chưa đăng nhập)
     image_url: { type: String, required: true },
     provider: { type: String, required: true },
     status: { type: String, enum: ['success', 'failed'], default: 'success' },

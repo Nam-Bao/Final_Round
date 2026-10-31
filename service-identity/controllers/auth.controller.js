@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User, Profile, PatientProfile, sequelize } = require('../models');
+const { getSecret } = require('../middlewares/auth.middleware.js');
 
 const register = async (req, res) => {
   try {
@@ -71,13 +72,13 @@ const login = async (req, res) => {
       ] 
     });
     
-    if (!user) {
-      return res.status(404).json({ message: 'Tài khoản không tồn tại' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    // Cùng 1 thông báo cho "sai email" và "sai mật khẩu" để không lộ email nào đã đăng ký
+    const isMatch = user ? await bcrypt.compare(password, user.password_hash) : false;
     if (!isMatch) {
-      return res.status(401).json({ message: 'Mật khẩu không chính xác' });
+      return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác' });
+    }
+    if (user.status !== 'ACTIVE') {
+      return res.status(403).json({ message: 'Tài khoản đã bị khóa hoặc ngừng hoạt động' });
     }
 
     const payload = {
@@ -85,8 +86,7 @@ const login = async (req, res) => {
       role: user.role
     };
 
-    const JWT_SECRET = 'O2O_SKINCARE_SECRET_KEY_2026'; 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign(payload, getSecret(), { expiresIn: '1d' });
 
     res.status(200).json({
       message: 'Đăng nhập thành công',
@@ -100,12 +100,8 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-  console.error('[Register Error]:', error);
-  return res.status(500).json({ 
-    success: false, 
-    message: 'Lỗi hệ thống khi đăng ký', 
-    error: error.message 
-  });
+  console.error('[Login Error]:', error);
+  return res.status(500).json({ success: false, message: 'Lỗi hệ thống khi đăng nhập' });
   }
 };
 

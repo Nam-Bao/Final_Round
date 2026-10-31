@@ -1,6 +1,7 @@
 const { WorkShift, ShiftRequest, Appointment } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
+dayjs.extend(require('dayjs/plugin/isoWeek')); // cần cho startOf('isoWeek'); thiếu plugin thì dayjs trả về "hôm nay"
 
 // 1. Lấy danh sách ca làm việc theo tuần/tháng
 const getShifts = async (req, res) => {
@@ -171,7 +172,7 @@ const handleShiftRequest = async (req, res) => {
     if (!request) return res.status(404).json({ message: 'Không tìm thấy đơn' });
 
     request.status = status;
-    request.approver_id = req.user.id;
+    request.approved_by = req.user.id; // model dùng cột approved_by (trước đây gán nhầm approver_id => không lưu)
     await request.save();
 
     // NẾU QUẢN LÝ DUYỆT ĐƠN KHẨN CẤP -> Hủy ca làm & Chuyển khách sang cho CSKH

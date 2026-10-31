@@ -60,18 +60,28 @@ export default function DoctorBookingPage() {
           const self = list.find(p => p.relationship === 'Bản thân') || list[0];
           if (self) setSelectedProfileId(self.id); // Chọn sẵn hồ sơ "Bản thân"
         }
-
-        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers: { 'Authorization': `Bearer ${token}` } });
-        const histData = await histRes.json();
-        if (histRes.ok && histData.data && histData.data.length > 0) {
-          setIsOldCustomer(true);
-          setFee(0);
-        }
       } catch (error) { console.error('Lỗi lấy dữ liệu ban đầu', error); }
     };
 
     fetchInitialData();
   }, []);
+
+  // Hỏi server hồ sơ đang chọn có phải khách cũ (miễn cọc + phí khám) không - xét theo TỪNG hồ sơ,
+  // người thân lần đầu khám vẫn phải cọc. Cùng công thức server dùng khi tạo hóa đơn.
+  useEffect(() => {
+    if (!selectedProfileId) return;
+    const fetchQuote = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const quoteRes = await fetch(`http://localhost:4000/api/booking/appointments/deposit-quote?patient_profile_id=${selectedProfileId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const quoteData = await quoteRes.json();
+        const old = quoteRes.ok && !!quoteData.data?.isOldCustomer;
+        setIsOldCustomer(old);
+        setFee(old ? 0 : (quoteData.data?.examFee || 100000));
+      } catch (error) { console.error('Lỗi lấy báo giá cọc', error); }
+    };
+    fetchQuote();
+  }, [selectedProfileId]);
 
   // 2. LẤY GIỜ TRỐNG THEO BÁC SĨ VÀ NGÀY
   useEffect(() => {
@@ -178,10 +188,11 @@ export default function DoctorBookingPage() {
       }
 
       const resData = await res.json(); 
-      navigate(`/payment/${resData.data.id}?fee=${fee}&type=${appointmentType}`);
+      // Số tiền cần trả do trang thanh toán tự hỏi server, không truyền qua URL nữa
+      navigate(`/payment/${resData.data.id}?type=${appointmentType}`);
     } catch (error) {
       console.error(error);
-      alert('Đã có lỗi xảy ra khi đặt lịch!');
+      alert(error.message || 'Đã có lỗi xảy ra khi đặt lịch!'); // vd: "Khung giờ này của bác sĩ đã có người đặt"
       setStatus('IDLE');
     }
   };

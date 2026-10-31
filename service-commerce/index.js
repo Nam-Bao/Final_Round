@@ -1,3 +1,4 @@
+require('dotenv').config(); // Nạp .env (JWT_SECRET, SEPAY_API_KEY, GHN_*, DB_*) trước khi load các module khác
 const express = require('express');
 const { sequelize } = require('./models');
 const categoryRoute = require('./routes/category.route.js');

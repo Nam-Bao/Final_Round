@@ -1,8 +1,10 @@
-﻿const express = require('express');
+﻿require('dotenv').config(); // Nạp .env (JWT_SECRET, CLOUDINARY_*, DB_*) trước khi load các module khác
+const express = require('express');
 const cors = require('cors');
 const { sequelize } = require('./models');
 
 const app = express();
+app.set('trust proxy', 'loopback'); // tin X-Forwarded-For từ gateway chạy cùng máy => req.ip là IP thật của khách
 app.use(cors());
 app.use(express.json());
 

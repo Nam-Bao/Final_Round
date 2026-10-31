@@ -55,9 +55,11 @@ const lesionGroups = new Set(Object.entries(cfg.groups).filter(([, g]) => g.coun
 exports.analyzeFace = async (req, res) => {
   console.log('[analyzeFace] HIT', new Date().toISOString()); // không thấy dòng này => request không vào controller này
 
-  const { customer_id, image_url, consent } = req.body;
+  const { image_url, consent } = req.body;
+  // Định danh lấy từ token: khách đã đăng nhập thì gắn kết quả vào tài khoản, chưa đăng nhập thì là khách vãng lai
+  const customer_id = req.user?.role === 'CUSTOMER' ? req.user.id : 'GUEST_ANALYSIS';
 
-  if (!customer_id || !image_url) {
+  if (!image_url) {
     return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });
   }
   // Bắt buộc có xác nhận chính sách sử dụng hình ảnh (modal ở frontend)
@@ -162,6 +164,7 @@ exports.analyzeFace = async (req, res) => {
 
     const record = await AiAnalysis.create({
       customer_id,
+      client_ip: req.ip,
       image_url,
       provider: 'Roboflow',
       status: 'success',
@@ -204,6 +207,7 @@ exports.analyzeFace = async (req, res) => {
     try {
       await AiAnalysis.create({
         customer_id,
+        client_ip: req.ip,
         image_url,
         provider: 'Roboflow',
         status: 'failed',
@@ -214,5 +218,28 @@ exports.analyzeFace = async (req, res) => {
     }
 
     return res.status(500).json({ success: false, message: 'Lỗi phân tích AI', error: errorMessage });
+  }
+};
+/* ------------------------------------------------------------------ */
+/* Chatbot tư vấn (Gemini chạy ở server)                               */
+/* ------------------------------------------------------------------ */
+exports.chat = async (req, res) => {
+  const { contents } = req.body;
+  // Chỉ nhận tối đa 10 lượt gần nhất, mỗi lượt <= 2000 ký tự, đúng định dạng của Gemini
+  if (!Array.isArray(contents) || contents.length === 0 || contents.length > 10) {
+    return res.status(400).json({ success: false, message: 'Nội dung hội thoại không hợp lệ' });
+  }
+  const clean = contents.map((m) => ({
+    role: m?.role === 'model' ? 'model' : 'user',
+    parts: [{ text: String(m?.parts?.[0]?.text || '').slice(0, 2000) }],
+  }));
+
+  try {
+    const { chat } = require('../services/geminiChat');
+    const text = await chat(clean);
+    return res.status(200).json({ success: true, data: { text } });
+  } catch (error) {
+    console.error('[Gemini chat]', error.response?.data?.error?.message || error.message);
+    return res.status(503).json({ success: false, message: 'Hệ thống AI đang bận, vui lòng thử lại sau' });
   }
 };

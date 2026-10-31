@@ -1,8 +1,9 @@
 ﻿const { Sequelize, DataTypes } = require('sequelize');
 
-const sequelize = new Sequelize('media_db', 'postgres', 'password', {
-  host: 'localhost',
-  port: 5436,
+// Đọc từ .env; giá trị mặc định khớp docker-compose cho môi trường dev
+const sequelize = new Sequelize(process.env.DB_NAME || 'media_db', process.env.DB_USER || 'postgres', process.env.DB_PASSWORD || 'password', {
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT || 5436),
   dialect: 'postgres',
   logging: false
 });

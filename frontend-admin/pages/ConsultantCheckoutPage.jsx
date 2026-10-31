@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, Alert } from 'antd';
+import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, Alert, Radio } from 'antd';
 import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -19,6 +19,7 @@ export default function ConsultantCheckoutPage() {
   const [voucherCode, setVoucherCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedVoucher, setAppliedVoucher] = useState(null); // Trạng thái lưu mã đã áp dụng thành công
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
 
   const fetchData = async () => {
     try {
@@ -50,6 +51,7 @@ export default function ConsultantCheckoutPage() {
     setDiscountAmount(0); 
     setVoucherCode('');
     setAppliedVoucher(null);
+    setPaymentMethod('CASH');
     setSelectedItems({
       services: customer.prescribed_services || [],
       packages: customer.prescribed_packages || [],
@@ -57,8 +59,12 @@ export default function ConsultantCheckoutPage() {
     });
   };
 
+  // Phí khám do server chốt lúc đặt lịch (khách cũ = 0đ); cọc đã trả sẽ được trừ ở dòng "Đã cọc"
+  const examFee = Number(selectedCustomer?.exam_fee) || 0;
+  const depositPaid = Number(selectedCustomer?.deposit_paid) || 0;
+
   const getSubtotal = () => {
-    let sub = selectedCustomer?.deposit_paid === 0 ? 100000 : 0; 
+    let sub = examFee;
     selectedItems.services.forEach(id => { const item = spaServices.find(s => s.id === id); if (item) sub += Number(item.price); });
     selectedItems.packages.forEach(id => { const item = packages.find(p => p.id === id); if (item) sub += Number(item.promotional_price || item.price); });
     selectedItems.medicines.forEach(id => { const item = products.find(p => p.id === id); if (item) sub += Number(item.price); });
@@ -70,7 +76,8 @@ export default function ConsultantCheckoutPage() {
     try {
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
         code: voucherCode,
-        order_value: getSubtotal()
+        order_value: getSubtotal(),
+        customer_id: selectedCustomer.customer_id // Kiểm tra khách này đã dùng mã chưa
       });
       const amount = res.data.data.discount_amount;
       setDiscountAmount(amount);
@@ -90,25 +97,27 @@ export default function ConsultantCheckoutPage() {
 
     try {
       const token = localStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
+      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
         selected_services: selectedItems.services,
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,
         discount_amount: discountAmount,
         voucher_code: appliedVoucher ? appliedVoucher.code : null, // Gửi đúng mã đã được xác nhận
         total_bill: currentFinalTotal,
-        payment_method: 'VIETQR' 
+        payment_method: paymentMethod
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
-      message.success('Chốt Sale & Xuất hóa đơn thành công!');
+      const collected = Number(res.data?.data?.collected) || 0;
+      message.success(`Chốt Sale & Xuất hóa đơn thành công! Đã thu: ${collected.toLocaleString('vi-VN')} ₫`);
       setSelectedCustomer(null);
       fetchData(); 
-    } catch (error) { message.error('Lỗi khi chốt hóa đơn!'); }
+    } catch (error) { message.error(error.response?.data?.message || 'Lỗi khi chốt hóa đơn!'); }
     finally { setLoading(false); }
   };
 
   const subtotal = getSubtotal();
   const finalTotal = Math.max(0, subtotal - discountAmount);
+  const amountDue = Math.max(0, finalTotal - depositPaid);
 
   return (
     <Row gutter={16} className="h-[85vh]">
@@ -199,15 +208,13 @@ export default function ConsultantCheckoutPage() {
                     
                     <div className="flex justify-between mb-2 mt-2">
                        <Text>Tiền Dịch vụ/Sản phẩm:</Text>
-                       <Text strong>{(subtotal - (selectedCustomer.deposit_paid === 0 ? 100000 : 0)).toLocaleString('vi-VN')} ₫</Text>
+                       <Text strong>{(subtotal - examFee).toLocaleString('vi-VN')} ₫</Text>
                     </div>
 
-                    {selectedCustomer.deposit_paid === 0 && (
-                       <div className="flex justify-between mb-2">
-                          <Text>Phí khám bác sĩ:</Text>
-                          <Text strong>100.000 ₫</Text>
-                       </div>
-                    )}
+                    <div className="flex justify-between mb-2">
+                       <Text>Phí khám bác sĩ:</Text>
+                       <Text strong>{examFee > 0 ? `${examFee.toLocaleString('vi-VN')} ₫` : 'Miễn phí (khách cũ)'}</Text>
+                    </div>
 
                     <div className="flex justify-between mb-4 border-t border-gray-200 pt-2">
                        <Text>Tạm tính:</Text>
@@ -247,10 +254,29 @@ export default function ConsultantCheckoutPage() {
                     </div>
 
                     <Divider className="my-2"/>
-                    
-                    <div className="flex justify-between mb-6 bg-blue-50 p-3 border border-blue-200 rounded">
+
+                    <div className="flex justify-between mb-2">
+                       <Text>Tổng hóa đơn:</Text>
+                       <Text strong>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
+                    </div>
+                    {depositPaid > 0 && (
+                       <div className="flex justify-between mb-2">
+                          <Text>Đã cọc khi đặt lịch:</Text>
+                          <Text strong className="text-green-600">- {depositPaid.toLocaleString('vi-VN')} ₫</Text>
+                       </div>
+                    )}
+
+                    <div className="flex justify-between mb-4 bg-blue-50 p-3 border border-blue-200 rounded">
                        <Text strong className="text-blue-700 text-lg">TỔNG CẦN THU:</Text>
-                       <Text strong className="text-2xl text-blue-700">{finalTotal.toLocaleString('vi-VN')} ₫</Text>
+                       <Text strong className="text-2xl text-blue-700">{amountDue.toLocaleString('vi-VN')} ₫</Text>
+                    </div>
+
+                    <div className="mb-6">
+                       <Text className="block mb-1">Hình thức thu:</Text>
+                       <Radio.Group value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} optionType="button" buttonStyle="solid">
+                          <Radio.Button value="CASH">Tiền mặt</Radio.Button>
+                          <Radio.Button value="VIETQR">Chuyển khoản</Radio.Button>
+                       </Radio.Group>
                     </div>
 
                     <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} onClick={handleSubmitCheckout}>

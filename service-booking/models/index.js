@@ -1,5 +1,11 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const sequelize = new Sequelize('booking_db', 'postgres', 'password', { host: 'localhost', port: 5433, dialect: 'postgres' });
+// Đọc từ .env; giá trị mặc định khớp docker-compose cho môi trường dev
+const sequelize = new Sequelize(
+    process.env.DB_NAME || 'booking_db',
+    process.env.DB_USER || 'postgres',
+    process.env.DB_PASSWORD || 'password',
+    { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5433), dialect: 'postgres' }
+);
 
 const TreatmentPackage = sequelize.define('TreatmentPackage', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -49,6 +55,14 @@ const Appointment = sequelize.define('Appointment', {
         defaultValue: 'NEW_EXAM'
     },
     symptoms: { type: DataTypes.TEXT },
+    // Các cột controller đã dùng nhưng trước đây CHƯA khai báo => Sequelize bỏ qua khi lưu, dữ liệu bị mất âm thầm
+    patient_profile_id: { type: DataTypes.UUID, allowNull: true }, // allowNull để không lỗi với lịch cũ đã lưu thiếu cột này
+    pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] },
+    diagnosis: { type: DataTypes.TEXT },
+    doctor_notes: { type: DataTypes.TEXT },
+    prescribed_services: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_packages: { type: DataTypes.JSONB, defaultValue: [] },
+    prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
 // --- THÊM MỚI: BẢNG NHẬT KÝ CHĂM SÓC KHÁCH HÀNG (FOLLOW-UP) ---
@@ -148,7 +162,7 @@ Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
 
-sequelize.sync({after:true}).then(() => console.log("✅ Đã đồng bộ Database cho service-booking!"));
+// Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi thêm ở đây với lỗi gõ {after:true})
 
 module.exports = {
     sequelize,
@@ -161,6 +175,7 @@ module.exports = {
     CustomerPackage,
     TreatmentSession,
     SpaService,
+    ServiceSession, // Trước đây quên export => chốt bill có dịch vụ spa và API lịch sử buổi trị liệu bị lỗi 500
     Invoice,
     Transaction // Export bảng mới
 };

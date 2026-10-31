@@ -1,7 +1,23 @@
-const { Product, Category } = require('../models');
+const { sequelize, Product, Category, Review } = require('../models');
+const { Op } = require('sequelize'); // getAllProducts dùng Op/sequelize/Review (trước đây thiếu import)
 
 // 1. Lấy danh sách Sản phẩm (Kèm theo thông tin Danh mục)
+// API công khai: CHỈ trả mỹ phẩm bán cho khách (type PRODUCT), không lộ vật tư nội bộ (MATERIAL)
 const getProducts = async (req, res) => {
+  try {
+    const products = await Product.findAll({
+      where: { type: 'PRODUCT' },
+      include: [{ model: Category, attributes: ['id', 'name'] }],
+      order: [['createdAt', 'DESC']]
+    });
+    res.status(200).json({ data: products });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// 1b. Quản lý kho: lấy TẤT CẢ (mỹ phẩm + vật tư nội bộ) - chỉ ADMIN/GEN_MANAGER
+const getProductsForAdmin = async (req, res) => {
   try {
     const products = await Product.findAll({
       include: [{ model: Category, attributes: ['id', 'name'] }],
@@ -16,9 +32,9 @@ const getProducts = async (req, res) => {
 // 2. Thêm Sản phẩm (Chỉ Admin)
 const createProduct = async (req, res) => {
   try {
-    const { name, type, price, stock_quantity, category_id, start_date, end_date, image_url } = req.body;
-    const newProduct = await Product.create({ 
-      name, type, price, stock_quantity, category_id, start_date, end_date, image_url 
+    const { name, type, price, weight, stock_quantity, category_id, start_date, end_date, image_url } = req.body;
+    const newProduct = await Product.create({
+      name, type, price, weight, stock_quantity, category_id, start_date, end_date, image_url // weight: dùng để tính phí GHN
     });
     res.status(201).json({ message: 'Thêm sản phẩm thành công', data: newProduct });
   } catch (error) {
@@ -99,4 +115,4 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };
+module.exports = { getProducts, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };

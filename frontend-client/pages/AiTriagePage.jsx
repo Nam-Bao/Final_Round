@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import PhotoConsentModal from '../components/PhotoConsentModal';
 
 // Vite: đặt VITE_API_URL trong frontend-client/.env nếu gateway không chạy ở cổng 4000
@@ -12,14 +13,37 @@ export default function AiTriagePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
+  // Hạn mức do server quản lý: vãng lai 1 lần, đăng nhập 5 lần/ngày => { isGuest, limit, used, remaining }
+  const [quota, setQuota] = useState(null);
 
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const fileInputRef = useRef(null);
   const pendingConsentRef = useRef(null); // consent vừa được khách đồng ý, gắn vào các ảnh sắp tải
 
+  /* ------------------------------ Hạn mức phân tích ------------------------------ */
+  const loadQuota = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/ai/quota`);
+      setQuota(res.data.data);
+    } catch (err) { console.error('Không lấy được hạn mức', err); }
+  };
+  useEffect(() => { loadQuota(); }, []);
+
+  // Số ảnh còn được phép thêm = lượt còn lại - số ảnh đã tải nhưng chưa phân tích (tránh tải ảnh rồi không quét được)
+  const pendingCount = images.filter((im) => !im.result).length;
+  const slotsLeft = quota ? Math.max(0, quota.remaining - pendingCount) : Infinity;
+
+  const quotaMessage = () =>
+    quota?.isGuest
+      ? 'Khách vãng lai chỉ được phân tích 1 lần. Vui lòng đăng nhập/đăng ký để được phân tích 5 lần mỗi ngày.'
+      : `Bạn đã dùng hết ${quota?.limit ?? 5} lượt phân tích hôm nay, vui lòng quay lại vào ngày mai.`;
+
   /* ------------------------------ Đồng ý chính sách ------------------------------ */
-  const openConsent = () => setShowConsent(true);
+  const openConsent = () => {
+    if (slotsLeft <= 0) return alert(quotaMessage());
+    setShowConsent(true);
+  };
 
   const handleConsentAccepted = (consent) => {
     pendingConsentRef.current = consent;
@@ -29,9 +53,13 @@ export default function AiTriagePage() {
 
   /* ------------------------------ Upload ------------------------------ */
   const handleMultipleUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
+    let files = Array.from(e.target.files || []);
     e.target.value = ''; // cho phép chọn lại cùng một file
     if (!files.length) return;
+    if (files.length > slotsLeft) {
+      alert(`Bạn chỉ còn ${slotsLeft} lượt phân tích, hệ thống chỉ tải ${slotsLeft} ảnh đầu tiên.`);
+      files = files.slice(0, slotsLeft);
+    }
 
     const consent = pendingConsentRef.current;
     if (!consent) return openConsent(); // phòng trường hợp chưa đồng ý
@@ -48,7 +76,7 @@ export default function AiTriagePage() {
 
         const uploadRes = await fetch(`${API_URL}/api/media/upload`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData,
         });
         if (!uploadRes.ok) throw new Error('Tải ảnh thất bại!');
@@ -79,7 +107,7 @@ export default function AiTriagePage() {
     try {
       // ?debug=1 chỉ bật khi chạy dev (vite dev server)
       const res = await axios.post(`${API_URL}/api/ai/analyze${import.meta.env.DEV ? '?debug=1' : ''}`, {
-        customer_id: 'GUEST_ANALYSIS',
+        // customer_id không gửi nữa: server lấy từ token (đăng nhập) hoặc ghi là khách vãng lai
         image_url: target.url,
         consent: target.consent,
       });
@@ -90,9 +118,10 @@ export default function AiTriagePage() {
       setImages((prev) => prev.map((im) => (im.url === target.url ? { ...im, result: metrics } : im)));
     } catch (error) {
       console.error(error);
-      alert('Không thể kết nối hoặc phân tích ảnh bằng AI.');
+      alert(error.response?.status === 429 ? error.response.data.message : 'Không thể kết nối hoặc phân tích ảnh bằng AI.');
     } finally {
       setIsAnalyzing(false);
+      loadQuota();
     }
   };
 
@@ -202,6 +231,20 @@ export default function AiTriagePage() {
           onChange={handleMultipleUpload}
         />
       </div>
+
+      {quota && (
+        <div className={`mb-4 p-3 rounded-lg text-sm flex flex-wrap items-center gap-2 ${quota.remaining > 0 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+          <span>
+            {quota.isGuest ? 'Khách vãng lai' : 'Hôm nay'}: còn <b>{quota.remaining}/{quota.limit}</b> lượt phân tích.
+          </span>
+          {quota.isGuest && (
+            <span>
+              <Link to="/login" className="underline font-medium">Đăng nhập</Link> hoặc{' '}
+              <Link to="/register" className="underline font-medium">đăng ký</Link> để được phân tích 5 lần mỗi ngày.
+            </span>
+          )}
+        </div>
+      )}
 
       {images.length > 0 && (
         <div className="flex gap-3 mb-6 overflow-x-auto pb-2">

@@ -125,9 +125,10 @@ const ProductsTab = () => {
   const fetchProducts = async () => { 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/commerce/products');
+      // /admin: lấy cả vật tư nội bộ (API công khai chỉ còn trả mỹ phẩm bán cho khách)
+      const res = await fetch('http://localhost:4000/api/commerce/products/admin', { headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } });
       const data = await res.json();
-      setProducts(data.data);
+      setProducts(data.data || []);
     } catch (error) { message.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
   };
 
@@ -355,9 +356,9 @@ const ExpiringProductsTab = () => {
   const fetchExpiringProducts = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/commerce/products');
+      const res = await fetch('http://localhost:4000/api/commerce/products/admin', { headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } });
       const data = await res.json();
-      
+
       const today = dayjs();
       const expiring = data.data
         .filter(p => p.end_date)

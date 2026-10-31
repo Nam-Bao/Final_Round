@@ -105,7 +105,9 @@ exports.deletePromotion = async (req, res) => {
 exports.applyPromotion = async (req, res) => {
   try {
     // 1. [THÊM MỚI] Lấy thêm customer_id từ req.body
-    const { code, order_value, customer_id } = req.body; 
+    const { code, order_value } = req.body;
+    // Khách: luôn kiểm tra theo chính mình. Nhân viên thu ngân áp mã hộ khách: lấy customer_id gửi kèm (có thể trống)
+    const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : req.body.customer_id;
     
     if (!code || order_value == null) {
       return res.status(400).json({ message: 'Thiếu mã code hoặc tổng đơn hàng' });
@@ -175,13 +177,15 @@ exports.applyPromotion = async (req, res) => {
 
 exports.incrementUsage = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, customer_id } = req.body;
     if (!code) return res.status(400).json({ message: 'Thiếu mã code' });
-    
-    await Promotion.increment('used_count', { 
-      by: 1, 
-      where: { code: code.toUpperCase() } 
-    });
+
+    const promo = await Promotion.findOne({ where: { code: code.toUpperCase() } });
+    if (!promo) return res.status(404).json({ message: 'Không tìm thấy mã' });
+
+    await promo.increment('used_count', { by: 1 });
+    // Ghi nhận khách đã dùng mã (giống luồng mua mỹ phẩm) => khách không dùng lại được lần 2
+    if (customer_id) await PromotionUsage.create({ customer_id, promotion_id: promo.id });
     res.status(200).json({ message: 'Đã tăng lượt sử dụng voucher' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi cập nhật lượt dùng voucher', error: error.message });
@@ -191,7 +195,8 @@ exports.incrementUsage = async (req, res) => {
 // [PUBLIC] Khách hàng lưu mã khuyến mãi
 exports.savePromotion = async (req, res) => {
   try {
-    const { customer_id, promotion_id } = req.body;
+    const customer_id = req.user.id; // luôn là khách đang đăng nhập
+    const { promotion_id } = req.body;
     if (!customer_id || !promotion_id) return res.status(400).json({ message: 'Thiếu thông tin lưu mã' });
 
     // Kiểm tra xem đã lưu chưa
@@ -208,7 +213,7 @@ exports.savePromotion = async (req, res) => {
 // [PUBLIC] Lấy danh sách mã đã lưu của khách hàng
 exports.getSavedPromotions = async (req, res) => {
   try {
-    const { customer_id } = req.query;
+    const customer_id = req.user.id; // luôn là khách đang đăng nhập
     if (!customer_id) return res.status(400).json({ message: 'Thiếu định danh khách hàng' });
 
     const saved = await SavedPromotion.findAll({
@@ -226,7 +231,7 @@ exports.getSavedPromotions = async (req, res) => {
 
 exports.getUsedPromotions = async (req, res) => {
   try {
-    const { customer_id } = req.query;
+    const customer_id = req.user.id; // luôn là khách đang đăng nhập
     if (!customer_id) return res.status(400).json({ message: 'Thiếu định danh' });
     
     const used = await PromotionUsage.findAll({ where: { customer_id }, attributes: ['promotion_id'] });

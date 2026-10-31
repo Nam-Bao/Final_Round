@@ -1,5 +1,6 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
 const { User, Profile, PatientProfile, sequelize } = require('../models');
+const { Op } = require('sequelize'); // getEmployees, resetPassword dùng Op (trước đây thiếu => lỗi 500)
 const bcrypt = require('bcryptjs');
 
 const getAllUsers = async (req, res) => {
@@ -26,6 +27,9 @@ const getAllUsers = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { email, password, role, full_name, phone } = req.body;
+    if (!email || !password || !role) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ email, mật khẩu và vai trò' });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
@@ -82,6 +86,11 @@ const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { role, status, full_name, phone } = req.body;
+
+    // Admin không tự hạ quyền/khóa chính mình (tránh mất hết tài khoản quản trị)
+    if (String(req.user.id) === String(id) && ((role && role !== req.user.role) || (status && status !== 'ACTIVE'))) {
+      return res.status(400).json({ message: 'Bạn không thể tự đổi vai trò hoặc khóa tài khoản của chính mình!' });
+    }
 
     await sequelize.transaction(async (t) => {
       await User.update(

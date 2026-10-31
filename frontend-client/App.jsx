@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { MessageCircle, X, Send, User, Clock, PhoneCall } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import axios from 'axios';
 import { io } from 'socket.io-client'; 
 import dayjs from 'dayjs';
 
@@ -26,42 +26,8 @@ import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
 
 // ====== CẤU HÌNH AI ======
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-const MODEL_NAMES = [
-  import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash-lite',
-  import.meta.env.VITE_GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite',
-].filter((name, index, arr) => name && arr.indexOf(name) === index);
-
-const SYSTEM_PROMPT = `Bạn là nhân viên tư vấn nhiệt tình của phòng khám da liễu GlowSkin O2O...`;
-
-const genAI = new GoogleGenerativeAI(API_KEY || '');
-
-const getModel = (name) =>
-  genAI.getGenerativeModel({
-    model: name,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-  });
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function startStream(contents) {
-  let lastError;
-  for (const name of MODEL_NAMES) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        return await getModel(name).generateContentStream({ contents });
-      } catch (err) {
-        lastError = err;
-        const canRetry = err.status === 503 || err.status === 429 || /overload|high demand|unavailable/i.test(err.message || '');
-        if (!canRetry) throw err; 
-        await sleep(1000);
-      }
-    }
-  }
-  throw lastError;
-}
+// Chatbot gọi qua backend (service-ai-analysis /chat). Key Gemini nằm ở server, không còn nhúng vào code trình duyệt.
+const AI_CHAT_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/chat`;
 
 function ProtectedRoute({ children }) {
   const token = useAuthStore((state) => state.token);
@@ -128,7 +94,8 @@ function App() {
     }
 
     setChatMode('WAITING'); 
-    const newSocket = io('http://localhost:4001'); 
+    // Gửi token để server tự nhận diện khách (không còn tin customerId do client gửi)
+    const newSocket = io('http://localhost:4001', { auth: { token: localStorage.getItem('token') } });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);
@@ -173,31 +140,18 @@ function App() {
     } else {
       setIsLoading(true);
       try {
-        if (!API_KEY) throw new Error('Chưa có VITE_GEMINI_API_KEY');
         const contents = newMessages.filter((m) => m.id !== 1 && !m.isError).slice(-6).map((m) => ({
           role: m.sender === 'user' ? 'user' : 'model',
           parts: [{ text: m.text }],
         }));
 
-        const result = await startStream(contents);
-        const aiId = Date.now() + 1;
-        let fullText = '';
-        let started = false;
-
-        for await (const chunk of result.stream) {
-          fullText += chunk.text();
-          if (!started) {
-            started = true;
-            setIsLoading(false);
-            setMessages((prev) => [...prev, { id: aiId, sender: 'cs', text: fullText }]);
-          } else {
-            setMessages((prev) => prev.map((m) => (m.id === aiId ? { ...m, text: fullText } : m)));
-          }
-        }
+        const res = await axios.post(AI_CHAT_URL, { contents });
+        setMessages((prev) => [...prev, { id: Date.now() + 1, sender: 'cs', text: res.data.data.text }]);
       } catch (error) {
         setMessages((prev) => [...prev, {
           id: Date.now() + 2, sender: 'cs', isError: true,
-          text: 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
+          // 429 = vượt giới hạn lượt gọi của server, hiển thị đúng thông báo server trả về
+          text: error.response?.data?.message || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
         }]);
       } finally {
         setIsLoading(false);

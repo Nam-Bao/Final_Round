@@ -6,7 +6,12 @@ const dayjs = require('dayjs');
 const createMedicalRecord = async (req, res) => {
   try {
     // SỬA ĐỔI: Nhận patient_profile_id thay vì customer_id
-    const { patient_profile_id, doctor_id, appointment_id, symptoms, diagnosis, doctor_notes, follow_up_date, pre_exam_images, post_exam_images } = req.body;
+    const { patient_profile_id, appointment_id, symptoms, diagnosis, doctor_notes, follow_up_date, pre_exam_images, post_exam_images } = req.body;
+    // Bác sĩ tạo hồ sơ => doctor_id lấy từ token, không cho ghi danh bác sĩ khác. Quản lý tạo hộ thì lấy từ body.
+    const doctor_id = req.user.role === 'DOCTOR' ? req.user.id : req.body.doctor_id;
+    if (!patient_profile_id || !appointment_id) {
+      return res.status(400).json({ message: 'Thiếu patient_profile_id hoặc appointment_id' });
+    }
 
     const newRecord = await MedicalRecord.create({
       patient_profile_id, 
@@ -69,7 +74,7 @@ const getUpcomingFollowUps = async (req, res) => {
         { 
           model: PatientProfile, 
           as: 'Patient', 
-          attributes: ['full_name', 'phone'] // Chỉ lấy thông tin người bệnh cụ thể
+          attributes: ['id', 'user_id', 'full_name', 'phone'] // Chỉ lấy thông tin người bệnh cụ thể
         }
       ],
       order: [['follow_up_date', 'ASC']]
