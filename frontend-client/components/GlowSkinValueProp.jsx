@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import ClinicStats from './ClinicStats';
 import { 
   Sparkles, 
   Clock, 
@@ -11,12 +12,14 @@ import {
   Check
 } from 'lucide-react';
 
-const STATS = [
-  { value: '15.000+', label: 'Lượt Sàng Lọc & Thăm Khám' },
-  { value: '30+', label: 'Bác Sĩ Da Liễu Chuyên Khoa' },
-  { value: '100%', label: 'Dược Mỹ Phẩm Chính Hãng' },
-  { value: '98.6%', label: 'Phản Hồi Hài Lòng Sau Liệu Trình' },
-];
+// Phí khám bác sĩ online (khớp EXAM_FEE ở service-booking)
+const ONLINE_EXAM_FEE = 100000;
+// Nhóm dịch vụ (theo danh mục trong DB) của 2 lựa chọn trị liệu tại phòng khám
+const TIER_CATEGORIES = {
+  clinic: ['Trị mụn', 'Phục hồi da', 'Chăm sóc da cơ bản'],
+  advanced: ['Trẻ hóa da', 'Trị nám và tàn nhang'],
+};
+const formatVnd = (n) => Number(n).toLocaleString('vi-VN');
 
 const ADVANTAGES = [
   {
@@ -86,6 +89,38 @@ const TREATMENT_TIERS = [
 
 export default function GlowSkinValueProp() {
   const [showModal, setShowModal] = useState(false);
+  // Khoảng giá thật của từng nhóm dịch vụ: { clinic: [min, max], advanced: [min, max] }
+  const [priceRanges, setPriceRanges] = useState({});
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('http://localhost:4000/api/booking/spa-services')
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then(({ data = [] }) => {
+        if (!isMounted) return;
+        const ranges = {};
+        Object.entries(TIER_CATEGORIES).forEach(([tier, categories]) => {
+          const prices = data.filter((s) => categories.includes(s.category)).map((s) => Number(s.price));
+          if (prices.length) ranges[tier] = [Math.min(...prices), Math.max(...prices)];
+        });
+        setPriceRanges(ranges);
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const renderRange = (tier, highlight) => {
+    const range = priceRanges[tier];
+    if (!range) return <span className="text-slate-400">Đang cập nhật</span>;
+    return (
+      <>
+        <strong className={highlight ? 'text-primary' : 'text-slate-900'}>
+          {range[0] === range[1] ? formatVnd(range[0]) : `${formatVnd(range[0])} - ${formatVnd(range[1])}`}
+        </strong> <br />
+        <span className="text-[11px] text-slate-500">VNĐ/buổi</span>
+      </>
+    );
+  };
 
   return (
     <div className="space-y-20 py-10">
@@ -103,21 +138,8 @@ export default function GlowSkinValueProp() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 relative z-10">
-            {STATS.map((stat, idx) => (
-              <div
-                key={idx}
-                className="bg-white text-slate-800 rounded-2xl p-5 text-center shadow-lg hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-center"
-              >
-                <div className="text-2xl md:text-3xl font-extrabold text-[#0B69A3] tracking-tight">
-                  {stat.value}
-                </div>
-                <div className="text-xs md:text-sm text-slate-600 font-medium mt-1">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Số liệu thật đếm từ hệ thống */}
+          <ClinicStats className="relative z-10" />
         </div>
       </section>
 
@@ -297,16 +319,14 @@ export default function GlowSkinValueProp() {
                         Chi phí dự kiến
                       </td>
                       <td className="p-3 md:p-4 text-center border-r border-slate-200">
-                        <strong className="text-slate-900">150.000 - 300.000</strong> <br />
-                        <span className="text-[11px] text-slate-500">VNĐ/lượt</span>
+                        <strong className="text-slate-900">{formatVnd(ONLINE_EXAM_FEE)}</strong> <br />
+                        <span className="text-[11px] text-slate-500">VNĐ/lượt khám</span>
                       </td>
                       <td className="p-3 md:p-4 text-center border-r border-slate-200">
-                        <strong className="text-primary">350.000 - 490.000</strong> <br />
-                        <span className="text-[11px] text-slate-500">VNĐ/buổi</span>
+                        {renderRange('clinic', true)}
                       </td>
                       <td className="p-3 md:p-4 text-center">
-                        <strong className="text-slate-900">950.000 - 1.500.000</strong> <br />
-                        <span className="text-[11px] text-slate-500">VNĐ/buổi</span>
+                        {renderRange('advanced')}
                       </td>
                     </tr>
 

@@ -26,6 +26,7 @@ const {
   getAppointmentsByPatient,
   abandonUnpaidAppointment
 } = require('../controllers/appointment.controller.js');
+const { getVideoToken } = require('../controllers/video.controller.js');
 
 // ==========================================
 // 1. CÁC ĐƯỜNG DẪN TĨNH (Phải đặt lên trên)
@@ -52,8 +53,11 @@ router.get('/patient/:patientProfileId', verifyToken, authorizeRoles('ADMIN', 'G
 // Khách kiểm tra trạng thái thanh toán
 router.get('/:id/check-payment', verifyToken, checkPaymentStatus);
 
-// Chốt thanh toán: nhân viên thu tiền tại quầy; khách chỉ tự chốt được lịch CỦA MÌNH khi tiền cọc = 0đ (kiểm tra trong controller)
-router.put('/:id/confirm-payment', verifyToken, authorizeRoles('CUSTOMER', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), confirmPayment);
+// Lấy token vào phòng khám video (chỉ khách và bác sĩ của lịch hẹn online)
+router.get('/:id/video-token', verifyToken, authorizeRoles('CUSTOMER', 'DOCTOR'), getVideoToken);
+
+// Nhân viên xác nhận khách đóng cọc tiền mặt tại quầy (khách KHÔNG tự xác nhận được)
+router.put('/:id/confirm-payment', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), confirmPayment);
 
 // Khách rời trang thanh toán mà chưa trả => xóa lịch giữ chỗ, trả ca khám về trống
 router.delete('/:id/unpaid', verifyToken, authorizeRoles('CUSTOMER'), abandonUnpaidAppointment);

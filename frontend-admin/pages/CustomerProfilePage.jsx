@@ -20,7 +20,7 @@ export default function CustomerProfilePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('admin_token');
+        const token = sessionStorage.getItem('admin_token');
         const [custRes, srvRes, pkgRes, prodRes] = await Promise.all([
           axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } }),
           axios.get('http://localhost:4000/api/booking/spa-services'),
@@ -50,7 +50,7 @@ export default function CustomerProfilePage() {
     setSelectedProfile(profile);
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [medRes, sessionRes, aptRes] = await Promise.all([
@@ -98,7 +98,10 @@ export default function CustomerProfilePage() {
                 <Text strong className="text-purple-700 mb-2 block"><ShoppingOutlined/> Dịch vụ & Sản phẩm đã mua:</Text>
                 {record.prescribed_services?.length > 0 && <div><Text strong>Dịch vụ:</Text> {record.prescribed_services.map(id => catalogs.services.find(s=>s.id === id)?.name).join(', ')}</div>}
                 {record.prescribed_packages?.length > 0 && <div><Text strong>Lộ trình:</Text> {record.prescribed_packages.map(id => catalogs.packages.find(p=>p.id === id)?.name).join(', ')}</div>}
-                {record.prescribed_medicines?.length > 0 && <div><Text strong>Thuốc/Mỹ phẩm:</Text> {record.prescribed_medicines.map(id => catalogs.products.find(p=>p.id === id)?.name).join(', ')}</div>}
+                {record.prescribed_medicines?.length > 0 && <div><Text strong>Thuốc/Mỹ phẩm:</Text> {record.prescribed_medicines.map(m => {
+                  const id = typeof m === 'string' ? m : m?.product_id; // dữ liệu cũ là mã sản phẩm
+                  return `${catalogs.products.find(p => p.id === id)?.name || 'Sản phẩm'} x${typeof m === 'string' ? 1 : m?.quantity || 1}`;
+                }).join(', ')}</div>}
               </div>
             )}
 

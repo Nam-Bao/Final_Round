@@ -6,7 +6,7 @@ import {
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined
 } from '@ant-design/icons';
-import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
@@ -22,14 +22,14 @@ export default function AdminLayout() {
 
   const handleMenuClick = ({ key }) => navigate(key);
   const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
     navigate('/login');
   };
 
   let currentUser = { role: 'GUEST' };
   try {
-    const userStr = localStorage.getItem('admin_token') ? localStorage.getItem('admin_user') : null;
+    const userStr = sessionStorage.getItem('admin_token') ? sessionStorage.getItem('admin_user') : null;
     if (userStr && userStr !== "undefined") currentUser = JSON.parse(userStr);
   } catch (error) { console.error(error); }
 
@@ -37,7 +37,34 @@ export default function AdminLayout() {
   const role = currentUser.role || 'GUEST';
   const fullName = currentUser.Profile?.full_name || currentUser.full_name || 'Chưa cập nhật tên';
   const phone = currentUser.Profile?.phone || currentUser.phone || 'Chưa cập nhật số ĐT';
-  const avatarUrl = currentUser.Profile?.avatar || currentUser.avatar || null;
+  const [avatarOverride, setAvatarOverride] = useState(undefined); // ảnh vừa tải lên trong phiên này
+  const avatarUrl = avatarOverride !== undefined ? avatarOverride : (currentUser.Profile?.avatar || currentUser.avatar || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  // Tải ảnh đại diện: upload lên Cloudinary (service-media) rồi lưu link vào hồ sơ (PUT /profile/me)
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return message.error('Vui lòng chọn file ảnh');
+    if (file.size > 5 * 1024 * 1024) return message.error('Ảnh tối đa 5MB');
+    setUploadingAvatar(true);
+    try {
+      const headers = { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` };
+      const formData = new FormData();
+      formData.append('image', file);
+      const uploadRes = await axios.post('http://localhost:4000/api/media/upload', formData, { headers });
+      await axios.put('http://localhost:4000/api/identity/profile/me', { avatar: uploadRes.data.url }, { headers });
+      sessionStorage.setItem('admin_user', JSON.stringify({ ...currentUser, Profile: { ...(currentUser.Profile || {}), avatar: uploadRes.data.url } }));
+      setAvatarOverride(uploadRes.data.url);
+      message.success('Đã cập nhật ảnh đại diện');
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Không tải được ảnh, vui lòng thử lại');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   // ==========================================
   // REAL-TIME CHAT LOGIC CHO TƯ VẤN VIÊN
@@ -53,7 +80,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (role === 'CONSULTANT') {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => setCustomers(res.data?.data || []))
         .catch(err => console.log('Lỗi lấy danh sách khách', err));
@@ -63,7 +90,7 @@ export default function AdminLayout() {
       setChatSocket(newSocket);
 
       newSocket.on('connect', () => {
-         newSocket.emit('consultant_online', { userId: currentUser.id });
+         newSocket.emit('consultant_online');
       });
 
       newSocket.on('new_customer_assigned', (data) => {
@@ -112,19 +139,14 @@ export default function AdminLayout() {
          return s;
       }));
 
-      chatSocket.emit('send_message', {
-         sessionId: activeSessionId,
-         senderType: 'CONSULTANT',
-         content: chatInput,
-         toSocketId: currentSession.customerSocket
-      });
+      chatSocket.emit('send_message', { sessionId: activeSessionId, content: chatInput });
       setChatInput('');
   };
 
   const handleCloseSession = (sessionId) => {
       const session = chatSessions.find(s => s.sessionId === sessionId);
       if (chatSocket && session) {
-          chatSocket.emit('close_session', { sessionId, customerSocketId: session.customerSocket });
+          chatSocket.emit('close_session', { sessionId });
       }
       setChatSessions(prev => prev.filter(s => s.sessionId !== sessionId));
       if (activeSessionId === sessionId) {
@@ -185,6 +207,10 @@ export default function AdminLayout() {
     ] : []),
   ];
 
+
+  // Chưa đăng nhập (hoặc phiên đã hết hạn và bị xoá) -> về trang đăng nhập
+  if (!sessionStorage.getItem('admin_token')) return <Navigate to="/login" replace />;
+
   return (
     <Layout className="min-h-screen relative">
       <Sider trigger={null} collapsible collapsed={collapsed} theme="light" className="shadow-md">
@@ -208,6 +234,24 @@ export default function AdminLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {/* HỘP THÔNG TIN CÁ NHÂN + ĐỔI ẢNH ĐẠI DIỆN */}
+      <Modal title="Thông tin cá nhân" open={isProfileModalVisible} onCancel={() => setIsProfileModalVisible(false)} footer={null}>
+        <div className="flex flex-col items-center gap-3 mb-4">
+          <Avatar size={96} src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500" />
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+          <Button loading={uploadingAvatar} onClick={() => avatarInputRef.current?.click()}>
+            {avatarUrl ? 'Đổi ảnh đại diện' : 'Tải ảnh đại diện'}
+          </Button>
+          {role === 'DOCTOR' && <span className="text-xs text-gray-500">Ảnh này hiển thị ở trang Đội ngũ bác sĩ của website khách hàng.</span>}
+        </div>
+        <Descriptions column={1} bordered size="small">
+          <Descriptions.Item label="Họ tên">{fullName}</Descriptions.Item>
+          <Descriptions.Item label="Email">{email}</Descriptions.Item>
+          <Descriptions.Item label="Số điện thoại">{phone}</Descriptions.Item>
+          <Descriptions.Item label="Vai trò"><Tag color="blue">{role}</Tag></Descriptions.Item>
+        </Descriptions>
+      </Modal>
 
       {/* Ô CHAT WIDGET DÀNH CHO CSKH */}
       {role === 'CONSULTANT' && (

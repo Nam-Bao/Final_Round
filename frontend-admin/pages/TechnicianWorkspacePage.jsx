@@ -18,7 +18,7 @@ export default function TechnicianWorkspacePage() {
 
   const fetchQueues = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.get('http://localhost:4000/api/booking/sessions/technician-queues', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -43,7 +43,7 @@ export default function TechnicianWorkspacePage() {
 
   const handleStartService = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
         { status: 'IN_PROGRESS', type: selectedCustomer.type }, 
         { headers: { 'Authorization': `Bearer ${token}` } }
@@ -58,7 +58,7 @@ export default function TechnicianWorkspacePage() {
   const handleCompleteService = async (values) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
         { 
           status: 'COMPLETED', 
@@ -80,7 +80,7 @@ export default function TechnicianWorkspacePage() {
   // Upload ảnh tùy chỉnh
   const handleCustomUpload = async ({ file, onSuccess, onError }) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const formData = new FormData();
       formData.append('image', file);
       

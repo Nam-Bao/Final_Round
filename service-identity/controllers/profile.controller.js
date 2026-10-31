@@ -47,10 +47,20 @@ const updateMyProfile = async (req, res) => {
         const userId = req.user.id;
         const fields = buildProfileFields(req.body, ['full_name', 'phone', 'dob', 'gender']);
 
+        // Ảnh đại diện: link https (ảnh tải lên Cloudinary hoặc nguồn ảnh khác), gửi null để gỡ ảnh
+        const profileFields = { ...fields };
+        if (req.body.avatar !== undefined) {
+            const avatar = req.body.avatar === null || req.body.avatar === '' ? null : String(req.body.avatar).trim();
+            if (avatar && !/^https:\/\/\S{1,500}$/.test(avatar)) {
+                return res.status(400).json({ message: 'Ảnh đại diện phải là đường dẫn https hợp lệ' });
+            }
+            profileFields.avatar = avatar;
+        }
+
         // Cập nhật bảng Profile chính
         const profile = await Profile.findOne({ where: { user_id: userId } });
         if (profile) {
-            await profile.update(fields);
+            await profile.update(profileFields);
         }
 
         // SỬA LỖI 1: Tự động đồng bộ thông tin sang PatientProfile "Bản thân"
@@ -75,6 +85,21 @@ const updateMyProfile = async (req, res) => {
 const getMyPatientProfiles = async (req, res) => {
     try {
         const userId = req.user.id;
+        // Khách chưa có hồ sơ "Bản thân" -> tạo từ thông tin tài khoản để đặt lịch được ngay
+        if (req.user.role === 'CUSTOMER') {
+            const hasSelf = await PatientProfile.count({ where: { user_id: userId, relationship: 'Bản thân' } });
+            const account = !hasSelf && await Profile.findOne({ where: { user_id: userId } });
+            if (account?.full_name) {
+                await PatientProfile.create({
+                    user_id: userId,
+                    full_name: account.full_name,
+                    relationship: 'Bản thân',
+                    phone: account.phone || null,
+                    dob: account.dob || null,
+                    gender: account.gender || null
+                });
+            }
+        }
         const profiles = await PatientProfile.findAll({
             where: { user_id: userId },
             order: [['createdAt', 'ASC']] // Bản thân thường sẽ đứng đầu

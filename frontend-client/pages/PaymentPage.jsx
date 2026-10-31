@@ -1,24 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, QrCode, AlertTriangle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
+const authHeaders = () => ({ 'Authorization': `Bearer ${sessionStorage.getItem('token')}` });
+
 export default function PaymentPage() {
-  const { id } = useParams(); 
-  const location = useLocation();
+  const { id } = useParams();
   const navigate = useNavigate();
   const [isPaid, setIsPaid] = useState(false);
-  // Số tiền cần trả LẤY TỪ SERVER (hóa đơn), không đọc từ URL => khách không sửa được
-  const [amountToPay, setAmountToPay] = useState(null);
-  const [isOnline, setIsOnline] = useState(new URLSearchParams(location.search).get('type') === 'ONLINE');
+  // Số tiền lấy từ hóa đơn trên server, không lấy từ URL (tránh khách tự sửa ?fee=0)
+  const [payment, setPayment] = useState(null); // { amount, exam_fee, is_online, holdExpiresAt }
   const [loadError, setLoadError] = useState('');
-  const [holdExpiresAt, setHoldExpiresAt] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(null);
   const paidRef = useRef(false);   // đọc được trong cleanup khi rời trang
   const mountedRef = useRef(false);
 
-  const EXAM_FEE = 100000; // Phí thăm khám niêm yết (khám trực tiếp chỉ cọc trước 1 phần)
-  const totalFee = amountToPay === 0 ? 0 : (isOnline ? amountToPay : EXAM_FEE);
+  const amountToPay = payment?.amount ?? 0;
+  const totalFee = payment?.exam_fee ?? 0;
+  const isOnline = !!payment?.is_online;
+  const holdExpiresAt = payment?.holdExpiresAt || null;
 
   // TẠO MÃ GIAO DỊCH DUY NHẤT (6 ký tự đầu của ID Lịch hẹn)
   const orderCode = id.slice(0, 6).toUpperCase();
@@ -28,62 +29,35 @@ export default function PaymentPage() {
   const ACCOUNT_NO = import.meta.env.VITE_ACCOUNT_NO;
   const ACCOUNT_NAME = import.meta.env.VITE_ACCOUNT_NAME;
 
-  // 0. Hỏi server số tiền cần trả. Nếu 0đ (khách cũ) -> server cho phép tự chốt, bỏ qua QR
+  // CƠ CHẾ POLLING: hỏi Backend mỗi 3 giây xem SePay đã báo nhận tiền chưa.
+  // Khách cũ (miễn phí khám) được server chốt lịch ngay khi đặt nên lần hỏi đầu tiên đã là isPaid.
   useEffect(() => {
-    const loadInvoice = async () => {
+    if (isPaid || loadError) return;
+
+    const checkPayment = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, { headers });
-        setIsOnline(res.data.isOnline);
-        if (res.data.isPaid) { setIsPaid(true); return; }
-        if (res.data.amount === 0) {
-          await axios.put(`http://localhost:4000/api/booking/appointments/${id}/confirm-payment`, {}, { headers });
-          setIsPaid(true);
-          return;
-        }
-        setAmountToPay(res.data.amount);
-        setHoldExpiresAt(res.data.holdExpiresAt);
+        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, { headers: authHeaders() });
+        setPayment(res.data);
+        if (res.data.isPaid) setIsPaid(true);
       } catch (error) {
-        setLoadError(error.response?.data?.message || 'Không tải được thông tin thanh toán');
+        // 404 = lịch giữ chỗ đã hết hạn / đã bị hủy => dừng hỏi, báo khách đặt lại
+        if (error.response?.status === 404) setLoadError(error.response.data?.message || 'Lịch giữ chỗ đã hết hạn hoặc đã bị hủy, vui lòng đặt lại');
+        else console.error("Đang chờ thanh toán...");
       }
     };
-    loadInvoice();
-  }, [id]);
 
-  // 2. CƠ CHẾ POLLING (LÀM THẬT): Cứ 3 giây hỏi Backend 1 lần xem SePay đã bắn tiền về chưa
-  useEffect(() => {
-    if (!amountToPay || isPaid) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        // Nếu Backend báo là trạng thái không còn là PENDING_PAYMENT nữa -> Đã thu tiền
-        if (res.data.isPaid) {
-          setIsPaid(true);
-          clearInterval(interval);
-        }
-      } catch (error) {
-        console.error("Đang chờ thanh toán...");
-      }
-    }, 3000); // 3 giây quét 1 lần
-
+    checkPayment();
+    const interval = setInterval(checkPayment, 3000); // 3 giây quét 1 lần
     return () => clearInterval(interval); // Dọn dẹp khi rời trang
-  }, [id, amountToPay, isPaid]);
+  }, [id, isPaid, loadError]);
 
   useEffect(() => { paidRef.current = isPaid; }, [isPaid]);
 
-  // 3. RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
+  // RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
   // Đóng tab thì không gọi được => server tự xóa khi hết thời gian giữ chỗ.
-  const releaseHold = () => {
-    const token = localStorage.getItem('token');
-    return axios.delete(`http://localhost:4000/api/booking/appointments/${id}/unpaid`, { headers: { 'Authorization': `Bearer ${token}` } })
+  const releaseHold = () =>
+    axios.delete(`http://localhost:4000/api/booking/appointments/${id}/unpaid`, { headers: authHeaders() })
       .catch(() => {}); // 409 = vừa thanh toán xong, giữ nguyên lịch
-  };
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -96,7 +70,7 @@ export default function PaymentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // 4. ĐẾM NGƯỢC THỜI GIAN GIỮ CHỖ
+  // ĐẾM NGƯỢC THỜI GIAN GIỮ CHỖ
   useEffect(() => {
     if (!holdExpiresAt || isPaid) return;
     const tick = () => setSecondsLeft(Math.max(0, Math.floor((new Date(holdExpiresAt) - Date.now()) / 1000)));
@@ -133,8 +107,11 @@ export default function PaymentPage() {
       </div>
     );
   }
-  if (amountToPay === null) {
-    return <div className="max-w-xl mx-auto mt-10 flex justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
+
+  if (!payment) {
+    return (
+      <div className="flex justify-center py-28"><Loader2 className="w-10 h-10 text-primary animate-spin" /></div>
+    );
   }
 
   return (
@@ -147,22 +124,22 @@ export default function PaymentPage() {
         {/* CỘT QR CODE */}
         <div className="card bg-white shadow-lg border p-6 flex flex-col items-center text-center space-y-4">
           <p className="text-sm font-bold uppercase text-slate-500">Mã QR Thanh Toán Tự Động</p>
-          
+
           <div className="p-2 border-2 border-primary rounded-xl inline-block bg-white">
-            <img 
-              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=O2O ${orderCode}&accountName=${ACCOUNT_NAME}`} 
-              alt="QR Code" 
+            <img
+              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=O2O ${orderCode}&accountName=${ACCOUNT_NAME}`}
+              alt="QR Code"
               className="w-56 h-56 object-cover"
             />
           </div>
           <p className="text-xs text-slate-400">Sử dụng App Ngân hàng bất kỳ để quét mã</p>
-          
+
           <div className="w-full bg-slate-50 p-4 rounded-lg border text-left text-sm space-y-2">
              <p className="flex justify-between"><span>Ngân hàng:</span> <b>{BANK_ID}</b></p>
              <p className="flex justify-between"><span>Chủ tài khoản:</span> <b>{ACCOUNT_NAME}</b></p>
              <p className="flex justify-between"><span>Số tiền:</span> <b className="text-error text-lg">{amountToPay.toLocaleString()} đ</b></p>
              <p className="flex justify-between items-center">
-                <span>Nội dung CK:</span> 
+                <span>Nội dung CK:</span>
                 <b className="text-primary font-mono bg-blue-50 px-2 py-1 rounded text-lg border border-blue-200">O2O {orderCode}</b>
              </p>
           </div>
@@ -199,9 +176,9 @@ export default function PaymentPage() {
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm font-medium animate-pulse text-center">Hệ thống đang chờ bạn quét mã...<br/><span className="text-xs font-normal">Trang sẽ tự động chuyển khi nhận được tiền.</span></p>
             </div>
-            
+
             <div className="bg-success/10 text-success p-3 rounded-lg flex gap-2 text-xs">
-              <ShieldCheck className="w-8 h-8 flex-shrink-0" /> 
+              <ShieldCheck className="w-8 h-8 flex-shrink-0" />
               Hệ thống tự động đối soát bằng SePay. Lưu ý nhập CHÍNH XÁC nội dung chuyển khoản để được xác nhận tự động.
             </div>
           </div>

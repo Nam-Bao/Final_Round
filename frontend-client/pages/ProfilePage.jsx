@@ -43,7 +43,7 @@ export default function ProfilePage() {
   // Tải thông tin tài khoản mới nhất từ server để đổ vào form
   const loadAccount = async () => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch('http://localhost:4000/api/identity/profile/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -61,7 +61,7 @@ export default function ProfilePage() {
 
   const fetchPatientProfiles = async () => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch('http://localhost:4000/api/identity/profile/patients', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -72,7 +72,7 @@ export default function ProfilePage() {
 
   const handleSaveAccount = async () => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch('http://localhost:4000/api/identity/profile/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -111,7 +111,7 @@ export default function ProfilePage() {
   const handleSavePatient = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const token = sessionStorage.getItem('token');
       const url = editingPatientId 
         ? `http://localhost:4000/api/identity/profile/patients/${editingPatientId}` 
         : 'http://localhost:4000/api/identity/profile/patients';
@@ -139,7 +139,7 @@ export default function ProfilePage() {
   const handleDeletePatient = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa hồ sơ này không?')) return;
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('customer_token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch(`http://localhost:4000/api/identity/profile/patients/${editingPatientId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

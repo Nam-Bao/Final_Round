@@ -25,8 +25,8 @@ export default function AdminLoginPage() {
       }
 
       // Nếu là nhân viên hợp lệ -> Lưu Token
-      localStorage.setItem('admin_token', data.token);
-      localStorage.setItem('admin_user', JSON.stringify(data.user));
+      sessionStorage.setItem('admin_token', data.token);
+      sessionStorage.setItem('admin_user', JSON.stringify(data.user));
       
       message.success(`Chào mừng ${role} đã đăng nhập!`);
       

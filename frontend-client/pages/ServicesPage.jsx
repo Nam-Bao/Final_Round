@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { Clock, Star, Sparkles } from 'lucide-react';
+import { Clock, Star, Sparkles, X } from 'lucide-react';
+import ServiceDetail from '../components/ServiceDetail';
 
 const CATEGORIES = [
   { id: 'all', label: 'Tất cả' },
@@ -9,7 +9,6 @@ const CATEGORIES = [
   { id: 'rejuvenation', label: 'Trẻ hóa da' },
   { id: 'recovery', label: 'Phục hồi da' },
   { id: 'basic', label: 'Chăm sóc da cơ bản' },
-  { id: 'consultation', label: 'Khám da liễu online' },
 ];
 
 export default function ServicesPage() {
@@ -18,19 +17,39 @@ export default function ServicesPage() {
   const [priceFilter, setPriceFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('default');
   const [loading, setLoading] = useState(true);
+  const [detailId, setDetailId] = useState(null); // dịch vụ đang mở popup chi tiết
+
+  // Esc để đóng popup
+  useEffect(() => {
+    if (!detailId) return;
+    const onKey = (e) => e.key === 'Escape' && setDetailId(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detailId]);
 
   useEffect(() => {
     let isMounted = true;
 
-    fetch('http://localhost:4000/api/booking/spa-services')
-      .then((res) => {
+    // Điểm đánh giá thật của từng dịch vụ: { [service_id]: { total, count } }
+    const reviewStatsPromise = fetch('http://localhost:4000/api/booking/reviews/services')
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((data) => (data.data || []).reduce((acc, r) => {
+        acc[r.service_id] ??= { total: 0, count: 0 };
+        acc[r.service_id].total += Number(r.rating);
+        acc[r.service_id].count += 1;
+        return acc;
+      }, {}))
+      .catch(() => ({}));
+
+    Promise.all([
+      fetch('http://localhost:4000/api/booking/spa-services').then((res) => {
         if (!res.ok) throw new Error('Không thể kết nối API dịch vụ');
         return res.json();
-      })
-      .then((resData) => {
+      }),
+      reviewStatsPromise,
+    ])
+      .then(([resData, reviewStats]) => {
         if (!isMounted) return;
-
-        console.log('Dữ liệu thô từ API Spa Services:', resData);
 
         // Bóc tách mọi cấu trúc JSON trả về (hỗ trợ cả findAndCountAll lẫn mảng thuần)
         let rawList = [];
@@ -49,27 +68,27 @@ export default function ServicesPage() {
         }
 
         const normalized = rawList.map((item) => {
-          // Ánh xạ linh hoạt theo tên dịch vụ hoặc danh mục
+          // Ưu tiên danh mục admin đã chọn; chỉ đoán theo tên khi dữ liệu cũ chưa có danh mục chuẩn
           let cat = 'basic';
           const textToMatch = `${item.category || ''} ${item.name || item.service_name || ''}`.toLowerCase();
-          
-          if (textToMatch.includes('mụn') || textToMatch.includes('acne')) cat = 'acne';
+          const knownCategory = CATEGORIES.find((c) => c.label === item.category);
+
+          if (knownCategory) cat = knownCategory.id;
+          else if (textToMatch.includes('mụn') || textToMatch.includes('acne')) cat = 'acne';
           else if (textToMatch.includes('nám') || textToMatch.includes('tàn nhang') || textToMatch.includes('melasma')) cat = 'melasma';
           else if (textToMatch.includes('trẻ hóa') || textToMatch.includes('laser') || textToMatch.includes('rejuvenation') || textToMatch.includes('toning')) cat = 'rejuvenation';
           else if (textToMatch.includes('phục hồi') || textToMatch.includes('recovery')) cat = 'recovery';
-          else if (textToMatch.includes('khám') || textToMatch.includes('bác sĩ') || textToMatch.includes('online')) cat = 'consultation';
-
           return {
             id: item.id,
             name: item.name || item.service_name || 'Dịch vụ Spa',
             category: cat,
             categoryLabel: item.category || 'Chăm sóc da',
-            duration: Number(item.duration) || 60,
+            duration: Number(item.duration_minutes) || 60,
             price: Number(item.price) || 0,
             image: item.image_url || item.image || item.thumbnail || null,
             description: item.description || '',
-            rating: Number(item.rating) || 5.0,
-            reviewCount: Number(item.reviewCount) || 10,
+            rating: reviewStats[item.id] ? reviewStats[item.id].total / reviewStats[item.id].count : null,
+            reviewCount: reviewStats[item.id]?.count || 0,
           };
         });
 
@@ -198,10 +217,14 @@ export default function ServicesPage() {
                       <Clock className="w-3.5 h-3.5 text-primary" />
                       {service.duration} phút
                     </span>
-                    <span className="flex items-center gap-1 text-amber-500 font-semibold">
-                      <Star className="w-3.5 h-3.5 fill-current" />
-                      {service.rating}
-                    </span>
+                    {service.rating !== null ? (
+                      <span className="flex items-center gap-1 text-amber-500 font-semibold">
+                        <Star className="w-3.5 h-3.5 fill-current" />
+                        {service.rating.toFixed(1)} ({service.reviewCount})
+                      </span>
+                    ) : (
+                      <span className="text-base-content/40">Chưa có đánh giá</span>
+                    )}
                   </div>
 
                   <h3 className="card-title text-base font-bold text-secondary line-clamp-1 hover:text-primary transition-colors">
@@ -221,16 +244,37 @@ export default function ServicesPage() {
                     </span>
                   </div>
 
-                  <Link
-                    to={`/services/${service.id}`}
+                  <button
+                    type="button"
+                    onClick={() => setDetailId(service.id)}
                     className="btn btn-sm btn-outline btn-primary rounded-lg"
                   >
                     Chi tiết
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Popup chi tiết dịch vụ: xem ngay trên trang, đóng lại vẫn ở vị trí cũ trong danh sách */}
+      {detailId && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-box max-w-5xl max-h-[90vh] p-0 relative">
+            <button
+              type="button"
+              onClick={() => setDetailId(null)}
+              className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10 bg-base-100/80"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="p-6 overflow-y-auto max-h-[90vh]">
+              <ServiceDetail id={detailId} onSelectService={setDetailId} />
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setDetailId(null)}></div>
         </div>
       )}
     </div>

@@ -17,7 +17,7 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const response = await fetch('http://localhost:4000/api/identity/users', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -40,7 +40,7 @@ export default function UsersPage() {
 
   const handleSubmit = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const isUpdate = !!editingUser;
       const url = isUpdate ? `http://localhost:4000/api/identity/users/${editingUser.id}` : 'http://localhost:4000/api/identity/users';
       const method = isUpdate ? 'PUT' : 'POST';
@@ -58,7 +58,7 @@ export default function UsersPage() {
 
   const handleDelete = async (id) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const response = await fetch(`http://localhost:4000/api/identity/users/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });

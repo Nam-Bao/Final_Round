@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import { MessageCircle, X, Send, User, Clock, PhoneCall } from 'lucide-react';
-import axios from 'axios';
+import { MessageCircle, X, Send, User, Clock, PhoneCall, LogIn } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import dayjs from 'dayjs';
 
@@ -11,6 +10,7 @@ import ClientFooter from './components/ClientFooter';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AiTriagePage from './pages/AiTriagePage';
+import HomePage from './pages/HomePage';
 import DoctorBookingPage from './pages/DoctorBookingPage';
 import AppointmentHistoryPage from './pages/AppointmentHistoryPage';
 import TreatmentPackagesPage from './pages/TreatmentPackagesPage';
@@ -24,14 +24,43 @@ import NewsDetailPage from './pages/NewsDetailPage';
 import PromotionsPage from './pages/PromotionsPage'; 
 import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
+import ContactPage from './pages/ContactPage';
+import AboutPage from './pages/AboutPage';
+import DoctorsPage from './pages/DoctorsPage';
+import ContactButtons from './components/ContactButtons';
 
-// ====== CẤU HÌNH AI ======
-// Chatbot gọi qua backend (service-ai-analysis /chat). Key Gemini nằm ở server, không còn nhúng vào code trình duyệt.
-const AI_CHAT_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ai/chat`;
+// ====== CHATBOT AI ======
+// Gemini chạy ở service-ai-analysis, frontend không giữ API key; bắt buộc đăng nhập
+async function streamConsultReply(messages, token, onText) {
+  const res = await fetch('http://localhost:4000/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ messages }),
+  });
+  if (res.status === 401) {
+    useAuthStore.getState().logout();
+    throw new Error('Phiên đăng nhập đã hết hạn');
+  }
+  if (!res.ok || !res.body) throw new Error(`Chatbot lỗi ${res.status}`);
 
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value, { stream: true });
+    onText(fullText);
+  }
+  return fullText;
+}
+
+// Chưa đăng nhập -> sang trang đăng nhập, đăng nhập xong quay lại đúng trang đang mở
 function ProtectedRoute({ children }) {
   const token = useAuthStore((state) => state.token);
-  return token ? children : <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (token) return children;
+  return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 }
 
 const isWorkingHour = () => {
@@ -51,6 +80,7 @@ function App() {
   const [outOfOffice, setOutOfOffice] = useState(false); 
 
   const user = useAuthStore((state) => state.user); 
+  const token = useAuthStore((state) => state.token);
 
   const [messages, setMessages] = useState([
     { id: 1, sender: 'cs', text: 'Chào bạn! Kỹ thuật viên GlowSkin có thể giúp gì cho bạn hôm nay?' }
@@ -83,6 +113,7 @@ function App() {
 
   const handleSwitchToHuman = () => {
     setIsLoading(false); 
+    if (!token) return; // khung chat sẽ hiện nút đăng nhập
 
     if (!isWorkingHour()) {
       setOutOfOffice(true);
@@ -94,12 +125,20 @@ function App() {
     }
 
     setChatMode('WAITING'); 
-    // Gửi token để server tự nhận diện khách (không còn tin customerId do client gửi)
-    const newSocket = io('http://localhost:4001', { auth: { token: localStorage.getItem('token') } });
+    // Gửi token để server biết khách là ai (server từ chối kết nối nếu chưa đăng nhập)
+    const newSocket = io('http://localhost:4001', { auth: { token } });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);
-    newSocket.emit('request_human_chat', { customerId: user?.id || null });
+    newSocket.emit('request_human_chat');
+
+    // Token hết hạn / không hợp lệ: server từ chối kết nối -> quay về chat AI và báo khách đăng nhập lại
+    newSocket.on('connect_error', () => {
+      newSocket.disconnect();
+      setSocket(null);
+      setChatMode('AI');
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', isSystem: true, text: 'Không kết nối được với CSKH. Phiên đăng nhập có thể đã hết hạn, vui lòng đăng nhập lại.' }]);
+    });
   
     newSocket.on('chat_accepted', (data) => {
       setChatMode('HUMAN'); 
@@ -135,18 +174,27 @@ function App() {
 
     if (chatMode === 'HUMAN' && socket && currentSessionId) {
       socket.emit('send_message', { 
-        sessionId: currentSessionId, senderType: 'CUSTOMER', content: userText 
+        sessionId: currentSessionId, content: userText 
       });
     } else {
       setIsLoading(true);
       try {
-        const contents = newMessages.filter((m) => m.id !== 1 && !m.isError).slice(-6).map((m) => ({
+        const history = newMessages.filter((m) => m.id !== 1 && !m.isError && !m.isSystem).slice(-6).map((m) => ({
           role: m.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: m.text }],
+          text: m.text,
         }));
 
-        const res = await axios.post(AI_CHAT_URL, { contents });
-        setMessages((prev) => [...prev, { id: Date.now() + 1, sender: 'cs', text: res.data.data.text }]);
+        const aiId = Date.now() + 1;
+        let started = false;
+        await streamConsultReply(history, token, (fullText) => {
+          if (!started) {
+            started = true;
+            setIsLoading(false);
+            setMessages((prev) => [...prev, { id: aiId, sender: 'cs', text: fullText }]);
+          } else {
+            setMessages((prev) => prev.map((m) => (m.id === aiId ? { ...m, text: fullText } : m)));
+          }
+        });
       } catch (error) {
         setMessages((prev) => [...prev, {
           id: Date.now() + 2, sender: 'cs', isError: true,
@@ -166,7 +214,8 @@ function App() {
         
         <main className="flex-1 container mx-auto px-4 py-6 max-w-7xl">
           <Routes>
-            <Route path="/" element={<AiTriagePage />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/sang-loc-da" element={<ProtectedRoute><AiTriagePage /></ProtectedRoute>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/booking" element={<ProtectedRoute><DoctorBookingPage /></ProtectedRoute>} />
@@ -175,12 +224,13 @@ function App() {
             <Route path="/orders" element={<ProtectedRoute><PharmacyOrdersPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
-            <Route path="/contact" element={<div className="text-center p-20 text-xl font-bold">Trang Liên hệ Hotline: 1900 xxxx</div>} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/gioi-thieu" element={<AboutPage />} />
+            <Route path="/doi-ngu-bac-si" element={<DoctorsPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/services/:id" element={<ServiceDetailPage />} />  
             <Route path="/news" element={<NewsPage />} />
             <Route path="/news/:slug" element={<NewsDetailPage />} />
-            <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/promotions" element={<PromotionsPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/shops" element={<CustomerShopPage />} />
@@ -192,6 +242,8 @@ function App() {
 
         {/* NÚT BẤM VÀ KHUNG CHAT AI / CSKH */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+          {/* Hotline + Zalo: ẩn khi đang mở khung chat cho gọn */}
+          {!isChatOpen && <ContactButtons />}
           {isChatOpen && (
             <div className="card w-80 bg-base-100 shadow-2xl border border-base-200 mb-4 overflow-hidden animate-fade-in-up">
               <div className="bg-primary text-white p-3 flex justify-between items-center">
@@ -229,6 +281,14 @@ function App() {
                 <div ref={chatEndRef} />
               </div>
 
+              {!user ? (
+                <div className="p-3 bg-base-100 border-t text-center space-y-2">
+                  <p className="text-xs text-base-content/70">Vui lòng đăng nhập để chat với AI hoặc nhân viên CSKH.</p>
+                  <Link to="/login?next=/" onClick={() => setIsChatOpen(false)} className="btn btn-primary btn-sm gap-1">
+                    <LogIn className="w-4 h-4" /> Đăng nhập
+                  </Link>
+                </div>
+              ) : (
               <div className="p-2 bg-base-100 border-t flex flex-col gap-2">
                 {chatMode === 'AI' && !outOfOffice && (
                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
@@ -254,6 +314,7 @@ function App() {
                   </button>
                 </div>
               </div>
+              )}
             </div>
           )}
 

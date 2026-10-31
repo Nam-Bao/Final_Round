@@ -23,7 +23,7 @@ export default function PromotionsPage() {
   const fetchPromotions = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/commerce/promotions/admin', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -56,7 +56,7 @@ export default function PromotionsPage() {
 
   const handleSubmit = async (values) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let finalImageUrl = values.image_url;
 
       // 1. XỬ LÝ UPLOAD ẢNH (NẾU CÓ) TRƯỚC KHI TẠO MÃ
@@ -108,7 +108,7 @@ export default function PromotionsPage() {
 
   const handleDelete = async (id) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch(`http://localhost:4000/api/commerce/promotions/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

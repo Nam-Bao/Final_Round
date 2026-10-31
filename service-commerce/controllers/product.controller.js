@@ -1,5 +1,6 @@
 const { sequelize, Product, Category, Review } = require('../models');
 const { Op } = require('sequelize'); // getAllProducts dùng Op/sequelize/Review (trước đây thiếu import)
+const { getRatingStats } = require('./review.controller');
 
 // 1. Lấy danh sách Sản phẩm (Kèm theo thông tin Danh mục)
 // API công khai: CHỈ trả mỹ phẩm bán cho khách (type PRODUCT), không lộ vật tư nội bộ (MATERIAL)
@@ -10,7 +11,15 @@ const getProducts = async (req, res) => {
       include: [{ model: Category, attributes: ['id', 'name'] }],
       order: [['createdAt', 'DESC']]
     });
-    res.status(200).json({ data: products });
+    // Điểm đánh giá thật từ bảng Reviews (trang shop hiển thị số sao)
+    const ratingStats = await getRatingStats();
+    const data = products.map(p => {
+      const item = p.toJSON();
+      item.avg_rating = ratingStats[item.id]?.avg_rating || 0;
+      item.review_count = ratingStats[item.id]?.review_count || 0;
+      return item;
+    });
+    res.status(200).json({ data });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }

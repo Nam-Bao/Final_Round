@@ -86,7 +86,7 @@ const login = async (req, res) => {
       role: user.role
     };
 
-    const token = jwt.sign(payload, getSecret(), { expiresIn: '1d' });
+    const token = jwt.sign(payload, getSecret(), { expiresIn: '8h' }); // Hết hạn sau 8 giờ (1 ca làm), sau đó phải đăng nhập lại
 
     res.status(200).json({
       message: 'Đăng nhập thành công',

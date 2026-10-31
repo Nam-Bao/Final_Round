@@ -32,7 +32,7 @@ export default function MySchedulePage() {
   const fetchMyShifts = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/booking/shifts/my-shifts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -49,7 +49,7 @@ export default function MySchedulePage() {
 
   const fetchMyRequests = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await fetch('http://localhost:4000/api/booking/shifts/my-requests', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -90,7 +90,7 @@ export default function MySchedulePage() {
          return message.error('Vui lòng chọn ca làm việc hợp lệ để xin nghỉ!');
       }
 
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       
       const finalReason = selectedShiftForModal.appointment_count > 0 
         ? `[KHẨN CẤP - Đã có khách] ${values.reason}` 
@@ -133,7 +133,7 @@ export default function MySchedulePage() {
   // Xác định vai trò của người dùng hiện tại (DOCTOR, CONSULTANT, SALES, ...)
   let role = 'GUEST';
   try {
-    const userStr = localStorage.getItem('admin_user');
+    const userStr = sessionStorage.getItem('admin_user');
     if (userStr && userStr !== "undefined") {
       role = JSON.parse(userStr).role;
     }

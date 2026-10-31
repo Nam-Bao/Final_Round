@@ -4,31 +4,40 @@ const orderController = require('../controllers/order.controller');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 const { verifySepay, verifyGhnOrStaff } = require('../middlewares/webhook.middleware.js');
 
-const staffRoles = ['SALES', 'ADMIN', 'GEN_MANAGER'];
+// Khách hàng chỉ thao tác trên dữ liệu của chính mình (customer_id lấy từ token)
+const customerOnly = [verifyToken, authorizeRoles('CUSTOMER')];
+const salesStaff = [verifyToken, authorizeRoles('SALES', 'ADMIN', 'GEN_MANAGER')];
 
-// Sổ địa chỉ: chỉ của chính khách đang đăng nhập (customer_id lấy từ token)
-router.get('/addresses', verifyToken, orderController.getUserAddresses);
-router.post('/addresses', verifyToken, orderController.addUserAddress); // API Thêm địa chỉ mới
-router.put('/addresses/:id', verifyToken, orderController.updateUserAddress); // API Cập nhật địa chỉ
-
-// Webhook: xác thực bằng khóa bí mật của bên gửi (không dùng JWT của người dùng)
+// 0. Webhook: xác thực bằng khóa bí mật của bên gửi (không dùng JWT của người dùng)
 router.post('/ghn-webhook', verifyGhnOrStaff, orderController.ghnWebhook);
 router.post('/sepay-webhook', verifySepay, orderController.sepayOrderWebhook);
 
-// Danh mục địa giới & báo giá GHN: công khai (không chứa dữ liệu cá nhân)
+// 0b. Danh mục địa giới & báo giá GHN: công khai (không chứa dữ liệu cá nhân)
 router.get('/ghn/province', orderController.getGHNProvince);
 router.get('/ghn/district', orderController.getGHNDistrict);
 router.get('/ghn/ward', orderController.getGHNWard);
 router.post('/ghn/fee', orderController.calculateGHNFee);
 
-// Endpoint: POST /api/commerce/orders/checkout (thanh toán giỏ hàng CỦA CHÍNH khách đang đăng nhập)
-router.post('/checkout', verifyToken, authorizeRoles('CUSTOMER'), orderController.checkout);
+// 1. Sổ địa chỉ (các route cụ thể phải đặt lên trước route '/')
+router.get('/addresses', customerOnly, orderController.getUserAddresses);
+router.post('/addresses', customerOnly, orderController.addUserAddress);
+router.put('/addresses/:id', customerOnly, orderController.updateUserAddress);
 
-// Quản lý đơn: chỉ NVBH/Quản lý/Admin
-router.get('/admin', verifyToken, authorizeRoles(...staffRoles), orderController.getAllOrdersForAdmin);
-router.put('/admin/:id/status', verifyToken, authorizeRoles(...staffRoles), orderController.updateOrderStatus);
-router.put('/admin/:id/cancel', verifyToken, authorizeRoles(...staffRoles), orderController.cancelOrder);
+// 2. Endpoint: POST /api/commerce/orders/checkout (thanh toán giỏ hàng CỦA CHÍNH khách đang đăng nhập)
+router.post('/checkout', customerOnly, orderController.checkout);
 
-router.get('/:id/check-payment', verifyToken, orderController.checkOrderPaymentStatus);
+// 2b. Đơn mỹ phẩm mua tại quầy sau buổi khám (service-booking gọi khi CSKH chốt sale)
+router.post('/counter', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), orderController.createCounterOrder);
+
+// 3. Quản lý đơn: chỉ NVBH/Quản lý/Admin (đặt trước route '/')
+router.get('/admin', salesStaff, orderController.getAllOrdersForAdmin);
+router.put('/admin/:id/status', salesStaff, orderController.updateOrderStatus);
+router.put('/admin/:id/cancel', salesStaff, orderController.cancelOrder);
+
+// 4. Danh sách đơn hàng của khách đang đăng nhập (GET /api/commerce/orders)
+router.get('/', customerOnly, orderController.getCustomerOrders);
+
+// 5. Khách kiểm tra đơn của mình đã được thanh toán chưa (polling sau khi quét QR)
+router.get('/:id/check-payment', customerOnly, orderController.checkOrderPaymentStatus);
 
 module.exports = router;

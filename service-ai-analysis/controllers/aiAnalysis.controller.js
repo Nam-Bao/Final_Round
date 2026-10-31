@@ -56,8 +56,8 @@ exports.analyzeFace = async (req, res) => {
   console.log('[analyzeFace] HIT', new Date().toISOString()); // không thấy dòng này => request không vào controller này
 
   const { image_url, consent } = req.body;
-  // Định danh lấy từ token: khách đã đăng nhập thì gắn kết quả vào tài khoản, chưa đăng nhập thì là khách vãng lai
-  const customer_id = req.user?.role === 'CUSTOMER' ? req.user.id : 'GUEST_ANALYSIS';
+  // Khách hàng: luôn lấy từ token; nhân viên phân tích hộ khách thì được truyền customer_id
+  const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : (req.body.customer_id || req.user.id);
 
   if (!image_url) {
     return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });
@@ -191,7 +191,7 @@ exports.analyzeFace = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: record,
-      ...(req.query.debug === '1' && {
+      ...(req.query.debug === '1' && process.env.NODE_ENV !== 'production' && {
         debug: {
           sent_url: sentUrl,
           image_size: imgSize,

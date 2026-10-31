@@ -22,7 +22,7 @@ export default function ConsultantWorkspacePage() {
 
   const fetchQueues = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.get('http://localhost:4000/api/booking/appointments/consultant-queues', { headers: { 'Authorization': `Bearer ${token}` } });
       
       if (res.data.data) {
@@ -54,7 +54,7 @@ export default function ConsultantWorkspacePage() {
   const handleSubmitForm = async (values) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       
       if (activeTab === 'reschedule') {
         await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/reschedule`, {
@@ -81,7 +81,7 @@ export default function ConsultantWorkspacePage() {
 
   const handleCustomUpload = async ({ file, onSuccess, onError }) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const formData = new FormData();
       formData.append('image', file);
       

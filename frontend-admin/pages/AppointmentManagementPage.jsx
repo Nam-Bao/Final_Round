@@ -28,7 +28,7 @@ export default function AppointmentManagementPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [resApt, resCust, resFollowUps] = await Promise.all([
@@ -72,7 +72,7 @@ export default function AppointmentManagementPage() {
     }
 
     try {
-       const token = localStorage.getItem('admin_token');
+       const token = sessionStorage.getItem('admin_token');
        const res = await axios.get(`http://localhost:4000/api/identity/profile/patients/user/${userId}`, { headers: { 'Authorization': `Bearer ${token}` } });
        setPatientProfiles(res.data?.data || []);
     } catch (error) {
@@ -86,7 +86,7 @@ export default function AppointmentManagementPage() {
 
   const fetchAvailableDoctors = async (dateStr) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const resDoc = await axios.get(`http://localhost:4000/api/booking/appointments/doctors-available?date=${dateStr}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setDoctors(resDoc.data?.data || []);
       return resDoc.data?.data || [];
@@ -99,7 +99,7 @@ export default function AppointmentManagementPage() {
       const formDate = form.getFieldValue('appointment_date');
       const dateStr = customDateStr || (formDate ? formDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
       
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       const resSlot = await axios.get(`http://localhost:4000/api/booking/appointments/slots-available?date=${dateStr}&doctorId=${doctorId}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setAvailableSlots(resSlot.data?.data || []);
       return resSlot.data?.data || [];
@@ -240,7 +240,7 @@ export default function AppointmentManagementPage() {
 
   const handleDelete = async (id) => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success('Đã hủy lịch!');
       fetchData();
@@ -251,7 +251,7 @@ export default function AppointmentManagementPage() {
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let finalCustomerId = values.customer_id;
       let finalPatientProfileId = values.patient_profile_id;
 

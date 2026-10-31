@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, Alert, Radio } from 'antd';
+import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert, Radio } from 'antd';
 import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Title, Text } = Typography;
+
+// Đơn thuốc: [{ product_id, quantity }]; dữ liệu cũ là mảng mã sản phẩm (mỗi mã = 1 sản phẩm)
+const toMedicineLines = (list) => (list || []).map(m => (typeof m === 'string' ? { product_id: m, quantity: 1 } : { product_id: m.product_id, quantity: m.quantity || 1 }));
 
 export default function ConsultantCheckoutPage() {
   const [hotLeads, setHotLeads] = useState([]);
@@ -23,7 +26,7 @@ export default function ConsultantCheckoutPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       fetch('http://localhost:4000/api/booking/packages').then(res => res.json()).then(data => setPackages(data.data || []));
       fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
       fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
@@ -55,30 +58,39 @@ export default function ConsultantCheckoutPage() {
     setSelectedItems({
       services: customer.prescribed_services || [],
       packages: customer.prescribed_packages || [],
-      medicines: customer.prescribed_medicines || []
+      medicines: toMedicineLines(customer.prescribed_medicines)
     });
   };
 
-  // Phí khám do server chốt lúc đặt lịch (khách cũ = 0đ); cọc đã trả sẽ được trừ ở dòng "Đã cọc"
-  const examFee = Number(selectedCustomer?.exam_fee) || 0;
-  const depositPaid = Number(selectedCustomer?.deposit_paid) || 0;
+  // Tiền theo từng nhóm — voucher có phạm vi riêng chỉ giảm trên nhóm tương ứng
+  const getScopeValues = () => {
+    const sum = (ids, list, priceOf) => ids.reduce((s, id) => { const item = list.find(x => x.id === id); return item ? s + Number(priceOf(item)) : s; }, 0);
+    return {
+      SPA_SERVICE: sum(selectedItems.services, spaServices, i => i.price),
+      TREATMENT_PACKAGE: sum(selectedItems.packages, packages, i => i.promotional_price || i.price),
+      PRODUCT: selectedItems.medicines.reduce((s, m) => {
+        const product = products.find(p => p.id === m.product_id);
+        return product ? s + Number(product.price) * m.quantity : s;
+      }, 0),
+    };
+  };
 
+  // Phí khám = tiền cọc lúc đặt lịch (server trả về exam_fee); tổng hóa đơn = phí khám + dịch vụ/sản phẩm
   const getSubtotal = () => {
-    let sub = examFee;
-    selectedItems.services.forEach(id => { const item = spaServices.find(s => s.id === id); if (item) sub += Number(item.price); });
-    selectedItems.packages.forEach(id => { const item = packages.find(p => p.id === id); if (item) sub += Number(item.promotional_price || item.price); });
-    selectedItems.medicines.forEach(id => { const item = products.find(p => p.id === id); if (item) sub += Number(item.price); });
-    return sub;
+    const scopes = getScopeValues();
+    return Number(selectedCustomer?.exam_fee || 0) + scopes.SPA_SERVICE + scopes.TREATMENT_PACKAGE + scopes.PRODUCT;
   };
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) return;
     try {
+      const token = sessionStorage.getItem('admin_token');
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
         code: voucherCode,
         order_value: getSubtotal(),
-        customer_id: selectedCustomer.customer_id // Kiểm tra khách này đã dùng mã chưa
-      });
+        scope_values: getScopeValues(),
+        customer_id: selectedCustomer?.customer_id // Kiểm tra khách đã dùng mã này chưa
+      }, { headers: { Authorization: `Bearer ${token}` } });
       const amount = res.data.data.discount_amount;
       setDiscountAmount(amount);
       setAppliedVoucher({ code: voucherCode.toUpperCase(), amount }); // Lưu trạng thái thành công
@@ -92,29 +104,26 @@ export default function ConsultantCheckoutPage() {
 
   const handleSubmitCheckout = async () => {
     setLoading(true);
-    const currentSubtotal = getSubtotal();
-    const currentFinalTotal = Math.max(0, currentSubtotal - discountAmount);
-
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
+      // Server tự tính lại tổng tiền và kiểm tra lại voucher, không gửi số tiền lên
       const res = await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
         selected_services: selectedItems.services,
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,
-        discount_amount: discountAmount,
         voucher_code: appliedVoucher ? appliedVoucher.code : null, // Gửi đúng mã đã được xác nhận
-        total_bill: currentFinalTotal,
         payment_method: paymentMethod
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
-      const collected = Number(res.data?.data?.collected) || 0;
-      message.success(`Chốt Sale & Xuất hóa đơn thành công! Đã thu: ${collected.toLocaleString('vi-VN')} ₫`);
+      message.success(`Chốt Sale thành công! Đã thu: ${Number(res.data.bill?.amount_due_now || 0).toLocaleString('vi-VN')} ₫`);
       setSelectedCustomer(null);
-      fetchData(); 
+      fetchData();
     } catch (error) { message.error(error.response?.data?.message || 'Lỗi khi chốt hóa đơn!'); }
     finally { setLoading(false); }
   };
 
+  const examFee = Number(selectedCustomer?.exam_fee || 0);
+  const depositPaid = Number(selectedCustomer?.deposit_paid || 0);
   const subtotal = getSubtotal();
   const finalTotal = Math.max(0, subtotal - discountAmount);
   const amountDue = Math.max(0, finalTotal - depositPaid);
@@ -194,12 +203,40 @@ export default function ConsultantCheckoutPage() {
                        <Text strong className="block mb-2 text-gray-700">3. Dược Mỹ Phẩm (Mang về)</Text>
                        <Select
                           mode="multiple" className="w-full" placeholder="-- Chọn thêm sản phẩm --"
-                          value={selectedItems.medicines} onChange={(vals) => setSelectedItems(prev => ({...prev, medicines: vals}))}
+                          value={selectedItems.medicines.map(m => m.product_id)}
+                          onChange={(ids) => setSelectedItems(prev => ({
+                             ...prev,
+                             // giữ số lượng của sản phẩm đã chọn, sản phẩm mới mặc định 1
+                             medicines: ids.map(id => prev.medicines.find(m => m.product_id === id) || { product_id: id, quantity: 1 })
+                          }))}
                        >
                           {products.map(p => (
                              <Select.Option key={p.id} value={p.id}>{p.name} - <span className="text-red-500 font-medium">{Number(p.price).toLocaleString('vi-VN')}đ</span></Select.Option>
                           ))}
                        </Select>
+
+                       {/* Số lượng từng sản phẩm, đối chiếu tồn kho */}
+                       {selectedItems.medicines.map(m => {
+                          const product = products.find(p => p.id === m.product_id);
+                          const stock = Number(product?.stock_quantity || 0);
+                          return (
+                             <div key={m.product_id} className="flex items-center justify-between gap-3 mt-2 px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                                <div className="min-w-0">
+                                   <Text className="block truncate">{product?.name || 'Sản phẩm không còn bán'}</Text>
+                                   <Text type={m.quantity > stock ? 'danger' : 'secondary'} className="text-xs">
+                                      Còn {stock} trong kho{m.quantity > stock ? ' — không đủ hàng' : ''}
+                                   </Text>
+                                </div>
+                                <InputNumber
+                                   min={1} max={20} value={m.quantity} addonAfter="SL" style={{ width: 120 }}
+                                   onChange={(qty) => setSelectedItems(prev => ({
+                                      ...prev,
+                                      medicines: prev.medicines.map(x => x.product_id === m.product_id ? { ...x, quantity: qty || 1 } : x)
+                                   }))}
+                                />
+                             </div>
+                          );
+                       })}
                     </div>
                  </div>
 
@@ -260,8 +297,8 @@ export default function ConsultantCheckoutPage() {
                        <Text strong>{finalTotal.toLocaleString('vi-VN')} ₫</Text>
                     </div>
                     {depositPaid > 0 && (
-                       <div className="flex justify-between mb-2">
-                          <Text>Đã cọc khi đặt lịch:</Text>
+                       <div className="flex justify-between mb-2 text-green-600">
+                          <Text className="text-green-600">Đã cọc khi đặt lịch:</Text>
                           <Text strong className="text-green-600">- {depositPaid.toLocaleString('vi-VN')} ₫</Text>
                        </div>
                     )}

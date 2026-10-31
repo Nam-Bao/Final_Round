@@ -29,6 +29,8 @@ const getStatusInfo = (order) => {
   return STATUS_MAP[order.status] || { ...UNKNOWN_STATUS, label: order.status };
 };
 
+const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+
 export default function SaleOrderManagement() {
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('ALL');
@@ -40,7 +42,7 @@ export default function SaleOrderManagement() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/orders/admin');
+      const res = await axios.get('http://localhost:4000/api/commerce/orders/admin', authConfig());
       const data = res.data.data || [];
       setOrders(data);
       
@@ -61,7 +63,7 @@ export default function SaleOrderManagement() {
   const handleUpdateStatus = async (orderId, newStatus, confirmText) => {
     if (!window.confirm(confirmText || `Bạn muốn chuyển đơn hàng sang trạng thái: ${STATUS_MAP[newStatus].label}?`)) return;
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/status`, { status: newStatus });
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/status`, { status: newStatus }, authConfig());
       alert(res.data?.message || 'Cập nhật trạng thái thành công!'); // chuyển Đang giao sẽ kèm mã vận đơn GHN
       fetchOrders();
     } catch (error) {
@@ -72,7 +74,7 @@ export default function SaleOrderManagement() {
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Cảnh báo: Việc này sẽ hủy đơn và tự động cộng lại tồn kho. Bạn có chắc chắn?')) return;
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/cancel`);
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/cancel`, {}, authConfig());
       alert(res.data?.message || 'Đã hủy đơn và hoàn kho!'); // có nhắc hoàn tiền nếu đơn đã chuyển khoản
       fetchOrders();
     } catch (error) {
@@ -92,7 +94,8 @@ export default function SaleOrderManagement() {
       };
       
       // Bắn trực tiếp vào API Webhook của backend
-      await axios.post('http://localhost:4000/api/commerce/orders/ghn-webhook', payload);
+      // Webhook nhận nhân viên đã đăng nhập (giả lập) hoặc khoá GHN_WEBHOOK_SECRET (GHN gọi thật)
+      await axios.post('http://localhost:4000/api/commerce/orders/ghn-webhook', payload, authConfig());
       
       alert('Tín hiệu Webhook đã được nhận thành công! Đơn hàng sẽ tự nhảy sang Hoàn Thành.');
       fetchOrders(); // Tải lại danh sách

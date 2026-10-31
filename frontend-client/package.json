@@ -13,11 +13,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@zegocloud/zego-uikit-prebuilt": "^2.18.5",
     "axios": "^1.20.0",
     "dayjs": "^1.11.23",
     "dotenv": "^18.0.7",
-    "lucide-react": "^1.53.0",
+    "lucide-react": "^1.62.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

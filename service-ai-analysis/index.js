@@ -1,6 +1,7 @@
 // Nạp .env TRƯỚC khi require routes: controller đọc process.env ngay lúc load module
 // (trước đây dotenv chạy sau nên các biến như ROBOFLOW_BASE_URL, VISION_DAILY_CAP trong .env bị bỏ qua)
 require('dotenv').config();
+if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');

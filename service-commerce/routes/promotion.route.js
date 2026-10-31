@@ -5,26 +5,26 @@ const {
     updatePromotion,
     deletePromotion,
     applyPromotion,
+    redeemPromotion,
     getActivePromotions,
     savePromotion,
     getSavedPromotions,
-    getUsedPromotions,
-    incrementUsage
+    getUsedPromotions
 } = require('../controllers/promotion.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
 
-// Danh sách mã đang chạy: công khai
+// API Public: danh sách mã đang chạy
 router.get('/', getActivePromotions);
-// Kiểm tra mã: cần đăng nhập. Khách => kiểm tra theo chính mình; nhân viên (thu ngân) => theo customer_id gửi kèm
-router.post('/apply', verifyToken, applyPromotion);
-// Lưu mã / mã đã lưu / mã đã dùng: luôn của khách đang đăng nhập (customer_id lấy từ token)
-router.post('/save', verifyToken, authorizeRoles('CUSTOMER'), savePromotion);
-router.get('/saved', verifyToken, authorizeRoles('CUSTOMER'), getSavedPromotions);
+// Áp mã: khách tự áp cho mình, nhân viên áp hộ khách tại quầy
+router.post('/apply', verifyToken, authorizeRoles('CUSTOMER', 'CONSULTANT', 'SALES', 'GEN_MANAGER', 'ADMIN'), applyPromotion);
+// Ghi nhận lượt dùng khi chốt hóa đơn tại quầy (service-booking gọi kèm token của nhân viên)
+router.post('/redeem', verifyToken, authorizeRoles('CONSULTANT', 'SALES', 'GEN_MANAGER', 'ADMIN'), redeemPromotion);
+// Ví voucher của khách đang đăng nhập (customer_id lấy từ token)
+router.post('/save', verifyToken, authorizeRoles('CUSTOMER'), savePromotion); // API Lưu mã
+router.get('/saved', verifyToken, authorizeRoles('CUSTOMER'), getSavedPromotions); // API Lấy mã đã lưu
 router.get('/used', verifyToken, authorizeRoles('CUSTOMER'), getUsedPromotions);
-// Booking gọi sau khi chốt bill có dùng voucher (trước đây route này KHÔNG tồn tại => voucher spa không bị trừ lượt)
-router.post('/increment-usage', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), incrementUsage);
 // Các API quản lý dành cho Admin
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAllPromotionsForAdmin);
 router.post('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), createPromotion);

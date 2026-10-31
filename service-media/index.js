@@ -1,4 +1,5 @@
 ﻿require('dotenv').config(); // Nạp .env (JWT_SECRET, CLOUDINARY_*, DB_*) trước khi load các module khác
+if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
 const express = require('express');
 const cors = require('cors');
 const { sequelize } = require('./models');
@@ -19,7 +20,11 @@ app.listen(PORT, async () => {
   console.log(`📦 [Service Media] đang chạy tại port ${PORT}`);
   try {
     await sequelize.authenticate();
-    await sequelize.sync({ alter: true });
+    // Mặc định chỉ tạo bảng còn thiếu. DB_SYNC_ALTER=true mới sửa cấu trúc bảng theo model —
+    // chế độ này có thể XÓA cột không còn trong model, chỉ bật khi cần và nên backup DB trước.
+    const alter = process.env.DB_SYNC_ALTER === 'true';
+    if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
+    await sequelize.sync({ alter });
     console.log('✅ Đã kết nối media_db và đồng bộ bảng tin tức!');
   } catch (error) {
     console.error('❌ Lỗi DB Media:', error.message);
