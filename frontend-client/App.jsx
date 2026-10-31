@@ -198,7 +198,8 @@ function App() {
       } catch (error) {
         setMessages((prev) => [...prev, {
           id: Date.now() + 2, sender: 'cs', isError: true,
-          text: 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
+          // 429 = vượt giới hạn lượt gọi của server, hiển thị đúng thông báo server trả về
+          text: error.response?.data?.message || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
         }]);
       } finally {
         setIsLoading(false);

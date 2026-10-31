@@ -1,5 +1,11 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const sequelize = new Sequelize('commerce_db', 'postgres', 'password', { host: 'localhost', port: 5434, dialect: 'postgres' });
+// Đọc từ .env; giá trị mặc định khớp docker-compose cho môi trường dev
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'commerce_db',
+  process.env.DB_USER || 'postgres',
+  process.env.DB_PASSWORD || 'password',
+  { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5434), dialect: 'postgres' }
+);
 
 const Category = sequelize.define('Category', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -65,7 +71,7 @@ const Order = sequelize.define('Order', {
   tracking_code: { type: DataTypes.STRING, allowNull: true },
   status: { 
     type: DataTypes.ENUM(
-      'UNPAID', 'PARTIAL_PAID', 'PAID', 'PROCESSING', 'SHIPPING', 'COMPLETED', 'CANCELLED',
+      'UNPAID', 'PARTIAL_PAID', 'PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPING', 'COMPLETED', 'CANCELLED', // CONFIRMED: NVBH đã duyệt đơn
       'RETURN_REQUESTED', 'RETURN_COMPLETED', 'RETURN_REJECTED', 'REFUND_PENDING' // <-- THÊM MỚI
     ), 
     defaultValue: 'UNPAID' 

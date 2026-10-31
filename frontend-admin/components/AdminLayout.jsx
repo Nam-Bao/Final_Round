@@ -85,7 +85,7 @@ export default function AdminLayout() {
         .then(res => setCustomers(res.data?.data || []))
         .catch(err => console.log('Lỗi lấy danh sách khách', err));
 
-      // Server xác thực tư vấn viên qua token, không tin userId gửi lên
+      // Server chỉ cho tài khoản CONSULTANT (xác thực bằng token) nhận khách
       const newSocket = io('http://localhost:4001', { auth: { token } });
       setChatSocket(newSocket);
 
@@ -219,7 +219,7 @@ export default function AdminLayout() {
         </div>
         <Menu theme="light" mode="inline" selectedKeys={[location.pathname]} items={menuItems} onClick={handleMenuClick} />
       </Sider>
-      <Layout>
+      <Layout className="min-w-0">
         <Header style={{ padding: 0, background: colorBgContainer }} className="flex justify-between items-center pr-6 shadow-sm z-10">
           <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} className="w-16 h-16 text-lg" />
           <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
@@ -230,7 +230,7 @@ export default function AdminLayout() {
             </Space>
           </Dropdown>
         </Header>
-        <Content className="m-6 p-6 min-h-[280px]" style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
+        <Content className="m-6 p-6 min-h-[280px] min-w-0" style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
           <Outlet />
         </Content>
       </Layout>

@@ -71,6 +71,7 @@ const handleProxyReq = (proxyReq, req, res) => {
 app.use('/api/identity', createProxyMiddleware({
     target: 'http://localhost:4001',
     changeOrigin: true,
+    xfwd: true, // gửi X-Forwarded-For => service biết IP thật của khách (dùng cho giới hạn lượt gọi)
     pathRewrite: { '^/api/identity': '' },
     onProxyReq: handleProxyReq
 }));
@@ -79,6 +80,7 @@ app.use('/api/identity', createProxyMiddleware({
 app.use('/api/booking', createProxyMiddleware({
     target: 'http://localhost:4002',
     changeOrigin: true,
+    xfwd: true, // gửi X-Forwarded-For => service biết IP thật của khách (dùng cho giới hạn lượt gọi)
     pathRewrite: { '^/api/booking': '' },
     onProxyReq: handleProxyReq
 }));
@@ -87,6 +89,7 @@ app.use('/api/booking', createProxyMiddleware({
 app.use('/api/commerce', createProxyMiddleware({
     target: 'http://localhost:4003',
     changeOrigin: true,
+    xfwd: true, // gửi X-Forwarded-For => service biết IP thật của khách (dùng cho giới hạn lượt gọi)
     pathRewrite: { '^/api/commerce': '' },
     onProxyReq: handleProxyReq
 }));
@@ -95,6 +98,7 @@ app.use('/api/commerce', createProxyMiddleware({
 app.use('/api/ai', createProxyMiddleware({
     target: 'http://localhost:4004',
     changeOrigin: true,
+    xfwd: true, // gửi X-Forwarded-For => service biết IP thật của khách (dùng cho giới hạn lượt gọi)
     pathRewrite: { '^/api/ai': '' },
     onProxyReq: handleProxyReq
 }));
@@ -103,6 +107,7 @@ app.use('/api/ai', createProxyMiddleware({
 app.use('/api/media', createProxyMiddleware({
     target: 'http://localhost:4005',
     changeOrigin: true,
+    xfwd: true, // gửi X-Forwarded-For => service biết IP thật của khách (dùng cho giới hạn lượt gọi)
     pathRewrite: { '^/api/media': '' },
     onProxyReq: handleProxyReq
 }));

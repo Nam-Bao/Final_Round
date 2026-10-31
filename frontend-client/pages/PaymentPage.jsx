@@ -1,18 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, QrCode, AlertTriangle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
+const authHeaders = () => ({ 'Authorization': `Bearer ${sessionStorage.getItem('token')}` });
+
 export default function PaymentPage() {
-  const { id } = useParams(); 
+  const { id } = useParams();
   const navigate = useNavigate();
   const [isPaid, setIsPaid] = useState(false);
   // Số tiền lấy từ hóa đơn trên server, không lấy từ URL (tránh khách tự sửa ?fee=0)
-  const [payment, setPayment] = useState(null); // { amount, exam_fee, is_online }
+  const [payment, setPayment] = useState(null); // { amount, exam_fee, is_online, holdExpiresAt }
+  const [loadError, setLoadError] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const paidRef = useRef(false);   // đọc được trong cleanup khi rời trang
+  const mountedRef = useRef(false);
 
   const amountToPay = payment?.amount ?? 0;
   const totalFee = payment?.exam_fee ?? 0;
   const isOnline = !!payment?.is_online;
+  const holdExpiresAt = payment?.holdExpiresAt || null;
 
   // TẠO MÃ GIAO DỊCH DUY NHẤT (6 ký tự đầu của ID Lịch hẹn)
   const orderCode = id.slice(0, 6).toUpperCase();
@@ -25,25 +32,58 @@ export default function PaymentPage() {
   // CƠ CHẾ POLLING: hỏi Backend mỗi 3 giây xem SePay đã báo nhận tiền chưa.
   // Khách cũ (miễn phí khám) được server chốt lịch ngay khi đặt nên lần hỏi đầu tiên đã là isPaid.
   useEffect(() => {
-    if (isPaid) return;
+    if (isPaid || loadError) return;
 
     const checkPayment = async () => {
       try {
-        const token = sessionStorage.getItem('token');
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, { headers: authHeaders() });
         setPayment(res.data);
         if (res.data.isPaid) setIsPaid(true);
       } catch (error) {
-        console.error("Đang chờ thanh toán...");
+        // 404 = lịch giữ chỗ đã hết hạn / đã bị hủy => dừng hỏi, báo khách đặt lại
+        if (error.response?.status === 404) setLoadError(error.response.data?.message || 'Lịch giữ chỗ đã hết hạn hoặc đã bị hủy, vui lòng đặt lại');
+        else console.error("Đang chờ thanh toán...");
       }
     };
 
     checkPayment();
     const interval = setInterval(checkPayment, 3000); // 3 giây quét 1 lần
     return () => clearInterval(interval); // Dọn dẹp khi rời trang
-  }, [id, isPaid]);
+  }, [id, isPaid, loadError]);
+
+  useEffect(() => { paidRef.current = isPaid; }, [isPaid]);
+
+  // RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
+  // Đóng tab thì không gọi được => server tự xóa khi hết thời gian giữ chỗ.
+  const releaseHold = () =>
+    axios.delete(`http://localhost:4000/api/booking/appointments/${id}/unpaid`, { headers: authHeaders() })
+      .catch(() => {}); // 409 = vừa thanh toán xong, giữ nguyên lịch
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Chờ 1 nhịp: React StrictMode (dev) gỡ rồi gắn lại component ngay lập tức, không phải khách rời trang
+      setTimeout(() => {
+        if (!mountedRef.current && !paidRef.current) releaseHold();
+      }, 0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // ĐẾM NGƯỢC THỜI GIAN GIỮ CHỖ
+  useEffect(() => {
+    if (!holdExpiresAt || isPaid) return;
+    const tick = () => setSecondsLeft(Math.max(0, Math.floor((new Date(holdExpiresAt) - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [holdExpiresAt, isPaid]);
+
+  const handleChangeSchedule = async () => {
+    await releaseHold();
+    paidRef.current = true; // đã hủy rồi, cleanup khỏi gọi lại
+    navigate('/booking');
+  };
 
 
   if (isPaid) {
@@ -55,6 +95,15 @@ export default function PaymentPage() {
         <button onClick={() => navigate('/appointments')} className="btn btn-primary mt-4">
           Vào Sổ Y Bạ của bạn <ArrowRight className="w-4 h-4"/>
         </button>
+      </div>
+    );
+  }
+
+  if (loadError || secondsLeft === 0) {
+    return (
+      <div className="max-w-xl mx-auto mt-10 text-center space-y-4">
+        <p className="text-error font-medium">{loadError || 'Đã hết thời gian giữ chỗ, ca khám đã được trả lại. Vui lòng đặt lịch lại.'}</p>
+        <button onClick={() => navigate('/booking')} className="btn btn-primary">Đặt lịch lại</button>
       </div>
     );
   }
@@ -75,22 +124,22 @@ export default function PaymentPage() {
         {/* CỘT QR CODE */}
         <div className="card bg-white shadow-lg border p-6 flex flex-col items-center text-center space-y-4">
           <p className="text-sm font-bold uppercase text-slate-500">Mã QR Thanh Toán Tự Động</p>
-          
+
           <div className="p-2 border-2 border-primary rounded-xl inline-block bg-white">
-            <img 
-              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=O2O ${orderCode}&accountName=${ACCOUNT_NAME}`} 
-              alt="QR Code" 
+            <img
+              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=O2O ${orderCode}&accountName=${ACCOUNT_NAME}`}
+              alt="QR Code"
               className="w-56 h-56 object-cover"
             />
           </div>
           <p className="text-xs text-slate-400">Sử dụng App Ngân hàng bất kỳ để quét mã</p>
-          
+
           <div className="w-full bg-slate-50 p-4 rounded-lg border text-left text-sm space-y-2">
              <p className="flex justify-between"><span>Ngân hàng:</span> <b>{BANK_ID}</b></p>
              <p className="flex justify-between"><span>Chủ tài khoản:</span> <b>{ACCOUNT_NAME}</b></p>
              <p className="flex justify-between"><span>Số tiền:</span> <b className="text-error text-lg">{amountToPay.toLocaleString()} đ</b></p>
              <p className="flex justify-between items-center">
-                <span>Nội dung CK:</span> 
+                <span>Nội dung CK:</span>
                 <b className="text-primary font-mono bg-blue-50 px-2 py-1 rounded text-lg border border-blue-200">O2O {orderCode}</b>
              </p>
           </div>
@@ -116,13 +165,20 @@ export default function PaymentPage() {
           </div>
 
           <div className="space-y-4">
+            {secondsLeft !== null && (
+              <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm text-center">
+                Ca khám được giữ trong <b className="font-mono">{String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}</b>.
+                Hết giờ hoặc rời trang mà chưa thanh toán, lịch sẽ bị hủy.
+              </div>
+            )}
+            <button onClick={handleChangeSchedule} className="btn btn-outline btn-sm w-full">Hủy & chọn lại lịch khác</button>
             <div className="bg-blue-50/50 text-slate-600 p-4 rounded-xl border border-blue-100 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm font-medium animate-pulse text-center">Hệ thống đang chờ bạn quét mã...<br/><span className="text-xs font-normal">Trang sẽ tự động chuyển khi nhận được tiền.</span></p>
             </div>
-            
+
             <div className="bg-success/10 text-success p-3 rounded-lg flex gap-2 text-xs">
-              <ShieldCheck className="w-8 h-8 flex-shrink-0" /> 
+              <ShieldCheck className="w-8 h-8 flex-shrink-0" />
               Hệ thống tự động đối soát bằng SePay. Lưu ý nhập CHÍNH XÁC nội dung chuyển khoản để được xác nhận tự động.
             </div>
           </div>

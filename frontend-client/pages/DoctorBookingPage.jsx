@@ -72,24 +72,31 @@ export default function DoctorBookingPage() {
         }
         const statsRes = await fetch('http://localhost:4000/api/booking/reviews/doctor-stats').catch(() => null);
         if (statsRes && statsRes.ok) setDoctorStats((await statsRes.json()).data || {});
-
-        // Kiểm tra Khách cũ / Khách mới để áp dụng miễn phí khám
-        const histRes = await fetch('http://localhost:4000/api/booking/appointments/my-history', { headers }).catch(() => null);
-        if (histRes && histRes.ok) {
-          const histData = await histRes.json();
-          // Chỉ để hiển thị — số tiền thật do server tính (khách cũ = đã từng hoàn tất 1 buổi khám)
-          if ((histData.data || []).some(a => a.status === 'COMPLETED')) {
-            setIsOldCustomer(true);
-            setFee(0);
-          }
-        }
-      } catch (error) { 
+        // Khách cũ / khách mới xét theo từng hồ sơ người khám: xem effect deposit-quote bên dưới
+      } catch (error) {
         console.error('Lỗi lấy dữ liệu ban đầu:', error); 
       }
     };
 
     fetchInitialData();
   }, []);
+
+  // Hỏi server hồ sơ đang chọn có phải khách cũ (miễn cọc + phí khám) không - xét theo TỪNG hồ sơ,
+  // người thân lần đầu khám vẫn phải cọc. Cùng công thức server dùng khi tạo hóa đơn.
+  useEffect(() => {
+    if (!selectedProfileId) return;
+    const fetchQuote = async () => {
+      try {
+        const token = getToken();
+        const quoteRes = await fetch(`http://localhost:4000/api/booking/appointments/deposit-quote?patient_profile_id=${selectedProfileId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const quoteData = await quoteRes.json();
+        const old = quoteRes.ok && !!quoteData.data?.isOldCustomer;
+        setIsOldCustomer(old);
+        setFee(old ? 0 : (quoteData.data?.examFee || 100000));
+      } catch (error) { console.error('Lỗi lấy báo giá cọc', error); }
+    };
+    fetchQuote();
+  }, [selectedProfileId]);
 
   // 2. LẤY GIỜ TRỐNG THEO BÁC SĨ VÀ NGÀY
   useEffect(() => {

@@ -1,7 +1,5 @@
-// Nạp biến môi trường từ .env (Node >= 20.12)
-try { process.loadEnvFile(); } catch { /* không có file .env */ }
-if (!process.env.JWT_SECRET) throw new Error("Thiếu JWT_SECRET trong file .env của service");
-
+require('dotenv').config(); // Nạp .env (JWT_SECRET, DB_*) trước khi load các module khác
+if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
 const express = require('express');
 const { sequelize } = require('./models');
 const http = require('http'); // THÊM DÒNG NÀY

@@ -3,8 +3,8 @@ const multer = require('multer');
 require('dotenv').config();
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
 const { verifyToken } = require('../middlewares/auth.middleware.js');
+const { rateLimit } = require('../middlewares/rateLimit.middleware.js');
 
 const router = express.Router();
 
@@ -25,11 +25,16 @@ const storage = new CloudinaryStorage({
     allowedFormats: ['jpg', 'png', 'jpeg', 'webp'],
   },
 });
-// Tối đa 5MB / ảnh để tránh lạm dụng dung lượng Cloudinary
-const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } }); // tối đa 5MB/ảnh
+
+// Giới hạn số ảnh tải lên mỗi giờ để tránh lạm dụng dung lượng Cloudinary
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, guestMax: 15, userMax: 100,
+  message: 'Bạn đã tải lên quá nhiều ảnh, vui lòng thử lại sau ít phút'
+});
 
 // API Nhận file — bắt buộc đăng nhập (khách và nhân viên) để tránh người lạ dùng Cloudinary
-router.post('/', verifyToken, (req, res) => {
+router.post('/', verifyToken, uploadLimiter, (req, res) => {
   // Bọc hàm upload lại để bắt lỗi chi tiết từ Multer & Cloudinary
   const uploadImage = upload.single('image');
 

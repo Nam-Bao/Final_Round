@@ -120,19 +120,33 @@ export default function AppointmentManagementPage() {
          type: apt.type, raw: apt
       }));
 
-    const followUpReminders = (medicalFollowUps || []).filter(record => {
-         const alreadyScheduled = appointments.some(apt => apt.customer_id === record.customer_id && apt.type === 'FOLLOW_UP' && (apt.status === 'PENDING' || apt.status === 'CONFIRMED'));
-         return !alreadyScheduled; 
-      }).map(record => {
+    // Bệnh án không lưu customer_id => lấy tài khoản từ hồ sơ bệnh nhân (Patient.user_id), lùi về lịch hẹn cũ
+    const followUpReminders = (medicalFollowUps || []).map(record => {
          const oldApt = appointments.find(a => a.id === record.appointment_id);
          return {
-             id: record.id, isMedicalRecord: true, customer_id: record.customer_id,
+             id: record.id, isMedicalRecord: true,
+             customer_id: record.Patient?.user_id || oldApt?.customer_id,
+             patient_profile_id: record.patient_profile_id || oldApt?.patient_profile_id,
+             doctor_id: record.doctor_id || oldApt?.doctor_id,
              customer_name: record.Patient?.full_name || 'Khách', customer_phone: record.Patient?.phone || 'Chưa có',
              date: record.follow_up_date, time: 'Chưa xếp giờ', type: 'FOLLOW_UP', old_time: oldApt ? oldApt.appointment_time : null, raw: record
          };
+      }).filter(item => {
+         const alreadyScheduled = appointments.some(apt => apt.patient_profile_id === item.patient_profile_id && apt.type === 'FOLLOW_UP' && (apt.status === 'PENDING' || apt.status === 'CONFIRMED'));
+         return !alreadyScheduled;
       });
 
     return [...aptReminders, ...followUpReminders].sort((a, b) => dayjs(a.date).unix() - dayjs(b.date).unix());
+  };
+
+  // Lịch có thể đặt cho người thân => hiện tên/SĐT của HỒ SƠ được khám, chỉ lùi về tên tài khoản khi lịch cũ chưa có hồ sơ
+  const getPatientInfo = (customerId, profileId) => {
+    const cust = customers.find(c => c.id === customerId);
+    const profile = cust?.PatientProfiles?.find(p => p.id === profileId);
+    return {
+      name: profile?.full_name || cust?.Profile?.full_name,
+      phone: profile?.phone || cust?.Profile?.phone
+    };
   };
 
   const dateCellRender = (value) => {
@@ -147,7 +161,7 @@ export default function AppointmentManagementPage() {
            if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') color = 'processing'; 
            else if (item.type === 'FOLLOW_UP') color = 'warning'; 
            
-           const custName = customers.find(c => c.id === item.customer_id)?.Profile?.full_name || 'Khách';
+           const custName = getPatientInfo(item.customer_id, item.patient_profile_id).name || 'Khách';
            const timeStr = item.appointment_time ? String(item.appointment_time).slice(0,5) : '--:--';
            return (
             <li key={item.id} className="mb-1 text-xs truncate cursor-pointer hover:opacity-80" onClick={(e) => { e.stopPropagation(); handleEdit(item.raw ? item.raw : item); }}>
@@ -182,20 +196,26 @@ export default function AppointmentManagementPage() {
       
       const targetDate = dayjs(item.date);
       form.setFieldsValue({
-        customer_id: item.customer_id, patient_profile_id: item.raw?.patient_profile_id,
-        type: 'FOLLOW_UP', appointment_date: targetDate, method: 'OFFLINE'
+        customer_id: item.customer_id, patient_profile_id: item.patient_profile_id,
+        type: 'FOLLOW_UP', appointment_date: targetDate, method: 'OFFLINE',
+        symptoms: item.raw?.diagnosis ? `Tái khám: ${item.raw.diagnosis}` : undefined
       });
-      
-      setIsModalVisible(true); 
-      fetchPatientProfiles(item.customer_id, item.raw?.patient_profile_id);
-      
-      const docs = await fetchAvailableDoctors(targetDate.format('YYYY-MM-DD'));
-      const oldDocId = item.raw.doctor_id;
+
+      setIsModalVisible(true);
+      if (item.customer_id) fetchPatientProfiles(item.customer_id, item.patient_profile_id);
+      else message.warning('Không tìm thấy tài khoản của khách, vui lòng chọn thủ công.');
+
+      const dateStr = targetDate.format('YYYY-MM-DD');
+      const docs = await fetchAvailableDoctors(dateStr);
+      const oldDocId = item.doctor_id;
       if (oldDocId && docs.some(d => d.id === oldDocId)) {
          form.setFieldsValue({ doctor_id: oldDocId });
-         const slots = await fetchAvailableSlots(oldDocId, targetDate.format('YYYY-MM-DD'));
+         const slots = await fetchAvailableSlots(oldDocId, dateStr);
          const oldTime = item.old_time ? String(item.old_time).slice(0, 5) : null;
          if (oldTime && slots.includes(oldTime)) form.setFieldsValue({ appointment_time: oldTime });
+         else if (oldTime) message.info(`Giờ khám lần trước (${oldTime}) đã kín, vui lòng chọn giờ khác.`);
+      } else if (oldDocId) {
+         message.info('Bác sĩ khám lần trước không có ca vào ngày tái khám, vui lòng chọn bác sĩ khác.');
       }
     } else {
       const record = item.raw || item;
@@ -291,9 +311,9 @@ export default function AppointmentManagementPage() {
             dataSource={getUpcomingReminders()}
             locale={{ emptyText: 'Không có lịch nhắc nhở nào sắp tới.' }}
             renderItem={item => {
-              const cust = item.isMedicalRecord ? item : customers.find(c => c.id === item.customer_id);
-              const custName = item.isMedicalRecord ? item.customer_name : cust?.Profile?.full_name;
-              const custPhone = item.isMedicalRecord ? item.customer_phone : cust?.Profile?.phone;
+              const patient = item.isMedicalRecord ? null : getPatientInfo(item.customer_id, item.raw?.patient_profile_id);
+              const custName = item.isMedicalRecord ? item.customer_name : patient.name;
+              const custPhone = item.isMedicalRecord ? item.customer_phone : patient.phone;
               const daysLeft = dayjs(item.date).diff(dayjs().startOf('day'), 'day');
               
               return (

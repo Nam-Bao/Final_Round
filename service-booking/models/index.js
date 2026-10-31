@@ -1,5 +1,11 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const sequelize = new Sequelize('booking_db', 'postgres', 'password', { host: 'localhost', port: 5433, dialect: 'postgres' });
+// Đọc từ .env; giá trị mặc định khớp docker-compose cho môi trường dev
+const sequelize = new Sequelize(
+    process.env.DB_NAME || 'booking_db',
+    process.env.DB_USER || 'postgres',
+    process.env.DB_PASSWORD || 'password',
+    { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5433), dialect: 'postgres' }
+);
 
 const TreatmentPackage = sequelize.define('TreatmentPackage', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -184,6 +190,7 @@ Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
 
+// Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi thêm ở đây với lỗi gõ {after:true})
 
 module.exports = {
     sequelize,

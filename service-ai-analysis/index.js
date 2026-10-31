@@ -1,11 +1,14 @@
+// Nạp .env TRƯỚC khi require routes: controller đọc process.env ngay lúc load module
+// (trước đây dotenv chạy sau nên các biến như ROBOFLOW_BASE_URL, VISION_DAILY_CAP trong .env bị bỏ qua)
+require('dotenv').config();
+if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const aiRoutes = require('./routes/aiAnalysis.route');
-require('dotenv').config();
-if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
 
 const app = express();
+app.set('trust proxy', 'loopback'); // tin X-Forwarded-For từ gateway chạy cùng máy => req.ip là IP thật của khách
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

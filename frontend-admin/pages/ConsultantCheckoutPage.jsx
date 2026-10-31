@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert } from 'antd';
+import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert, Radio } from 'antd';
 import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -22,6 +22,7 @@ export default function ConsultantCheckoutPage() {
   const [voucherCode, setVoucherCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedVoucher, setAppliedVoucher] = useState(null); // Trạng thái lưu mã đã áp dụng thành công
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
 
   const fetchData = async () => {
     try {
@@ -53,6 +54,7 @@ export default function ConsultantCheckoutPage() {
     setDiscountAmount(0); 
     setVoucherCode('');
     setAppliedVoucher(null);
+    setPaymentMethod('CASH');
     setSelectedItems({
       services: customer.prescribed_services || [],
       packages: customer.prescribed_packages || [],
@@ -110,7 +112,7 @@ export default function ConsultantCheckoutPage() {
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,
         voucher_code: appliedVoucher ? appliedVoucher.code : null, // Gửi đúng mã đã được xác nhận
-        payment_method: 'VIETQR'
+        payment_method: paymentMethod
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
       message.success(`Chốt Sale thành công! Đã thu: ${Number(res.data.bill?.amount_due_now || 0).toLocaleString('vi-VN')} ₫`);
@@ -248,7 +250,7 @@ export default function ConsultantCheckoutPage() {
 
                     <div className="flex justify-between mb-2">
                        <Text>Phí khám bác sĩ:</Text>
-                       <Text strong>{examFee.toLocaleString('vi-VN')} ₫</Text>
+                       <Text strong>{examFee > 0 ? `${examFee.toLocaleString('vi-VN')} ₫` : 'Miễn phí (khách cũ)'}</Text>
                     </div>
 
                     <div className="flex justify-between mb-4 border-t border-gray-200 pt-2">
@@ -301,9 +303,17 @@ export default function ConsultantCheckoutPage() {
                        </div>
                     )}
 
-                    <div className="flex justify-between mb-6 bg-blue-50 p-3 border border-blue-200 rounded">
+                    <div className="flex justify-between mb-4 bg-blue-50 p-3 border border-blue-200 rounded">
                        <Text strong className="text-blue-700 text-lg">TỔNG CẦN THU:</Text>
                        <Text strong className="text-2xl text-blue-700">{amountDue.toLocaleString('vi-VN')} ₫</Text>
+                    </div>
+
+                    <div className="mb-6">
+                       <Text className="block mb-1">Hình thức thu:</Text>
+                       <Radio.Group value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} optionType="button" buttonStyle="solid">
+                          <Radio.Button value="CASH">Tiền mặt</Radio.Button>
+                          <Radio.Button value="VIETQR">Chuyển khoản</Radio.Button>
+                       </Radio.Group>
                     </div>
 
                     <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} onClick={handleSubmitCheckout}>

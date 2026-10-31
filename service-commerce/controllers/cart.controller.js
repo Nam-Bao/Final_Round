@@ -1,11 +1,11 @@
 const { Cart, CartItem, Product } = require('../models');
 
-// Tìm món trong giỏ và đảm bảo nó thuộc giỏ của khách đang đăng nhập
-const findOwnCartItem = (item_id, customer_id) =>
-  CartItem.findOne({
-    where: { id: item_id },
-    include: [Product, { model: Cart, where: { customer_id }, attributes: [] }]
-  });
+// Tìm CartItem và kiểm tra nó thuộc giỏ của khách đang đăng nhập (chặn sửa/xóa giỏ người khác)
+const findOwnCartItem = async (item_id, customer_id, options = {}) => {
+  const cart = await Cart.findOne({ where: { customer_id } });
+  if (!cart) return null;
+  return CartItem.findOne({ where: { id: item_id, cart_id: cart.id }, ...options });
+};
 
 // 1. Lấy giỏ hàng của user (Tạo mới nếu chưa có)
 exports.getCart = async (req, res) => {
@@ -29,21 +29,29 @@ exports.getCart = async (req, res) => {
 // 2. Thêm sản phẩm vào giỏ
 exports.addToCart = async (req, res) => {
   const customer_id = req.user.id;
-  const { product_id, quantity = 1 } = req.body;
+  const { product_id } = req.body;
+  const quantity = parseInt(req.body.quantity ?? 1, 10);
+  if (!product_id || !Number.isInteger(quantity) || quantity < 1) {
+    return res.status(400).json({ success: false, message: 'Sản phẩm hoặc số lượng không hợp lệ' });
+  }
   try {
     let cart = await Cart.findOne({ where: { customer_id } });
     if (!cart) cart = await Cart.create({ customer_id });
 
     // Kiểm tra tồn kho
     const product = await Product.findByPk(product_id);
-    if (!product || product.stock_quantity < quantity) {
+    // Vật tư nội bộ (MATERIAL) không bán cho khách, kể cả khi gọi API trực tiếp bằng id
+    if (!product || product.type !== 'PRODUCT') {
+      return res.status(404).json({ success: false, message: 'Sản phẩm không tồn tại' });
+    }
+    if (product.stock_quantity < quantity) {
       return res.status(400).json({ success: false, message: 'Sản phẩm không đủ số lượng' });
     }
 
     let cartItem = await CartItem.findOne({ where: { cart_id: cart.id, product_id } });
     if (cartItem) {
       // Nếu đã có trong giỏ, cộng dồn số lượng
-      cartItem.quantity += parseInt(quantity);
+      cartItem.quantity += quantity;
       if (cartItem.quantity > product.stock_quantity) {
          return res.status(400).json({ success: false, message: 'Vượt quá số lượng tồn kho' });
       }
@@ -61,9 +69,10 @@ exports.addToCart = async (req, res) => {
 // 3. Cập nhật số lượng (+ / -)
 exports.updateCartItem = async (req, res) => {
   const { item_id } = req.params;
-  const { quantity } = req.body;
+  const quantity = parseInt(req.body.quantity, 10);
+  if (!Number.isInteger(quantity)) return res.status(400).json({ success: false, message: 'Số lượng không hợp lệ' });
   try {
-    const cartItem = await findOwnCartItem(item_id, req.user.id);
+    const cartItem = await findOwnCartItem(item_id, req.user.id, { include: [Product] });
     if (!cartItem) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm trong giỏ' });
 
     if (quantity <= 0) {

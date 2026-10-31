@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, CheckCircle, Percent, QrCode, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export default function CustomerShopPage() {
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState('SHOP'); 
   const [products, setProducts] = useState([]);
   const [cartItems, setCartItems] = useState([]);
@@ -354,6 +356,21 @@ export default function CustomerShopPage() {
 
   return (
     <div className="relative min-h-screen bg-slate-50">
+      {/* Khách vãng lai thêm vào giỏ / thanh toán => bắt buộc đăng nhập (trước đây có state nhưng chưa từng render modal) */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowLoginModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center space-y-4" onClick={e => e.stopPropagation()}>
+            <ShoppingBag className="w-12 h-12 text-blue-600 mx-auto" />
+            <h3 className="text-lg font-bold text-slate-800">Vui lòng đăng nhập</h3>
+            <p className="text-sm text-slate-600">Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng và đặt mua.</p>
+            <div className="flex gap-3">
+              <button onClick={() => navigate('/login')} className="flex-1 py-2.5 bg-slate-900 text-white font-medium rounded-xl">Đăng nhập</button>
+              <button onClick={() => navigate('/register')} className="flex-1 py-2.5 border border-slate-300 font-medium rounded-xl">Đăng ký</button>
+            </div>
+            <button onClick={() => setShowLoginModal(false)} className="text-sm text-slate-500 hover:underline">Để sau</button>
+          </div>
+        </div>
+      )}
       {toastMsg && (
         <div className="fixed top-10 right-10 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
           <CheckCircle className="w-5 h-5 text-green-400" />

@@ -1,5 +1,12 @@
 const jwt = require('jsonwebtoken');
 
+// Khóa bí mật đọc từ .env (JWT_SECRET), PHẢI giống nhau ở mọi service. Không còn viết cứng trong code.
+const getSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('Thiếu JWT_SECRET trong file .env của service');
+  return secret;
+};
+
 const verifyToken = (req, res, next) => {
   // Lấy token từ header của request (chuẩn Authorization: Bearer <token>)
   const authHeader = req.header('Authorization');
@@ -10,18 +17,22 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    // Dùng khóa bí mật để giải mã Token (Phải khớp với khóa lúc sinh ra ở hàm login)
-    const JWT_SECRET = process.env.JWT_SECRET;
-    const decoded = jwt.verify(token, JWT_SECRET);
-
     // Giải mã thành công, ta nhét thông tin user (id, role) vào req để các hàm phía sau dùng
-    req.user = decoded;
-    
-    // Cấp phép cho đi tiếp vào Controller
+    req.user = jwt.verify(token, getSecret());
     next();
   } catch (error) {
     return res.status(403).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
   }
+};
+
+// Dùng cho API công khai: có token hợp lệ thì gắn req.user, không có thì vẫn cho đi tiếp (req.user = undefined)
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.header('Authorization');
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    try { req.user = jwt.verify(token, getSecret()); } catch (error) { /* token hỏng => coi như khách vãng lai */ }
+  }
+  next();
 };
 
 // Middleware phân quyền dựa trên Role
@@ -35,8 +46,8 @@ const authorizeRoles = (...allowedRoles) => {
 
     // Kiểm tra xem role của user hiện tại có nằm trong danh sách cho phép không
     if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        message: `Truy cập bị từ chối! Chức năng này chỉ dành cho: ${allowedRoles.join(', ')}` 
+      return res.status(403).json({
+        message: `Truy cập bị từ chối! Chức năng này chỉ dành cho: ${allowedRoles.join(', ')}`
       });
     }
 
@@ -45,4 +56,4 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-module.exports = { verifyToken , authorizeRoles };
+module.exports = { verifyToken, optionalAuth, authorizeRoles, getSecret };
