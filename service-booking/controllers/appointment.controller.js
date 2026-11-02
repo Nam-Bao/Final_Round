@@ -1,4 +1,4 @@
-const { sequelize, Appointment, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService } = require('../models');
+const { sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
@@ -200,10 +200,25 @@ const getMyTodayAppointments = async (req, res) => {
   }
 };
 
+// Trạng thái lịch CHƯA khám: hóa đơn lúc này chỉ chứa tiền cọc (sau khi chốt bill mới thành tổng hóa đơn)
+const PRE_EXAM_STATUSES = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE', 'CHECK_IN', 'WAITING'];
+
 const getMyHistory = async (req, res) => {
   try {
-    const history = await Appointment.findAll({ where: { customer_id: req.user.id }, order: [['createdAt', 'DESC']] });
-    res.status(200).json({ data: history });
+    const history = await Appointment.findAll({
+      where: { customer_id: req.user.id },
+      include: [
+        { model: Invoice, attributes: ['payment_status', 'total_amount'] },
+        { model: AppointmentCancellation, attributes: ['initiator', 'reason', 'deposit_paid', 'deposit_outcome', 'refund_ref', 'refunded_at', 'createdAt'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    // Tiền cọc đã đóng của lịch chưa khám => trang khách cảnh báo trước khi tự hủy (hủy sẽ mất cọc)
+    const data = history.map((apt) => {
+      const { Invoice: invoice, ...rest } = apt.toJSON();
+      return { ...rest, deposit_paid: PRE_EXAM_STATUSES.includes(apt.status) ? getDepositPaid(invoice) : 0 };
+    });
+    res.status(200).json({ data });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -537,6 +552,8 @@ const updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes, status } = req.body;
+    // Hủy phải qua API /cancel để lưu bằng chứng và xử lý tiền cọc
+    if (status === 'CANCELLED') return res.status(400).json({ message: 'Hủy lịch vui lòng dùng chức năng Hủy lịch' });
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     const slotError = await validateSlotChange(apt, { doctor_id, appointment_date, appointment_time });
@@ -553,41 +570,127 @@ const updateAppointment = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+// ===== HỦY LỊCH & TIỀN CỌC =====
+// Khách tự hủy (hoặc nhờ CSKH hủy hộ) => MẤT cọc. Phòng khám chủ động hủy => hoàn cọc: CSKH liên hệ khách,
+// chuyển khoản rồi ghi nhận mã giao dịch. Mọi lần hủy đều lưu vào AppointmentCancellations làm bằng chứng.
+const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE'];
+const STAFF_CANCELLABLE = [...CUSTOMER_CANCELLABLE, 'CHECK_IN', 'WAITING'];
+
+class CancelError extends Error {
+  constructor(message, status = 400, extra = {}) { super(message); this.status = status; this.extra = extra; }
+}
+
 const cancelAppointment = async (req, res) => {
+  const isCustomer = req.user.role === 'CUSTOMER';
+  const reason = String(req.body.reason || '').trim().slice(0, 500);
+  // Khách luôn là bên yêu cầu; nhân viên phải chọn rõ bên yêu cầu hủy
+  const initiator = isCustomer ? 'CUSTOMER' : req.body.initiator;
+  if (!isCustomer) {
+    if (!['CUSTOMER', 'CLINIC'].includes(initiator)) return res.status(400).json({ message: 'Chọn bên yêu cầu hủy: khách hàng hay phòng khám' });
+    if (reason.length < 10) return res.status(400).json({ message: 'Nhập lý do hủy (ít nhất 10 ký tự) để lưu hồ sơ' });
+  }
+
+  const t = await sequelize.transaction();
   try {
-    const { id } = req.params;
-    const apt = await Appointment.findByPk(id);
-    if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    // Khóa lịch để 2 thao tác hủy / thanh toán cùng lúc không chồng nhau
+    const apt = await Appointment.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!apt) throw new CancelError('Không tìm thấy lịch hẹn', 404);
+    if (isCustomer && apt.customer_id !== req.user.id) throw new CancelError('Bạn không có quyền hủy lịch của người khác', 403);
 
-    if (req.user.role === 'CUSTOMER' && apt.customer_id !== req.user.id) {
-       return res.status(403).json({ message: 'Bạn không có quyền hủy lịch của người khác' });
+    // Lịch online đã trả tiền nằm ở hàng chờ bác sĩ (WAITING): khách tự hủy được nếu chưa tới giờ khám
+    const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
+    const customerCanCancel = CUSTOMER_CANCELLABLE.includes(apt.status)
+      || (apt.status === 'WAITING' && isOnlineAppointment(apt) && dayjs().isBefore(start));
+    if (isCustomer ? !customerCanCancel : !STAFF_CANCELLABLE.includes(apt.status)) {
+      throw new CancelError('Lịch hẹn đã khám, đang khám hoặc đã hủy, không thể hủy nữa');
     }
 
-    // Chỉ hủy được lịch CHƯA khám. Lịch đã khám/đã chốt bill thì hóa đơn đã là tổng bill,
-    // nếu cho hủy sẽ sinh giao dịch hoàn tiền toàn bộ bill.
-    const cancellable = req.user.role === 'CUSTOMER'
-      ? ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE']
-      : ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE', 'CHECK_IN', 'WAITING'];
-    if (!cancellable.includes(apt.status)) {
-       return res.status(400).json({ message: 'Lịch hẹn đã khám hoặc đã hủy, không thể hủy nữa' });
+    const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, transaction: t, lock: t.LOCK.UPDATE });
+    const depositPaid = getDepositPaid(invoice);
+    // Khách tự hủy lịch đã đóng cọc phải xác nhận đã biết sẽ mất cọc (giao diện hỏi lại trước khi gửi)
+    if (isCustomer && depositPaid > 0 && req.body.accept_forfeit !== true) {
+      throw new CancelError(`Hủy lịch này bạn sẽ mất ${depositPaid.toLocaleString('vi-VN')}đ tiền cọc. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: depositPaid });
     }
 
+    const deposit_outcome = depositPaid === 0 ? 'NONE' : initiator === 'CLINIC' ? 'REFUND_PENDING' : 'FORFEITED';
+    await AppointmentCancellation.create({
+      appointment_id: apt.id,
+      cancelled_by: req.user.id,
+      cancelled_by_role: req.user.role,
+      initiator,
+      reason: reason || null,
+      previous_status: apt.status,
+      deposit_paid: depositPaid,
+      deposit_outcome,
+      forfeit_acknowledged: isCustomer && deposit_outcome === 'FORFEITED',
+    }, { transaction: t });
+
+    // Hóa đơn cọc giữ nguyên "đã thu": mất cọc thì phòng khám giữ tiền; hoàn cọc thì chỉ chuyển REFUNDED khi CSKH đã chuyển khoản
     apt.status = 'CANCELLED';
-    await apt.save();
+    await apt.save({ transaction: t });
+    await t.commit();
 
-    const invoice = await Invoice.findOne({ where: { appointment_id: id } });
-    if (invoice && invoice.payment_status === 'PAID') {
-       invoice.payment_status = 'REFUNDED';
-       await invoice.save();
-       await Transaction.create({
-          invoice_id: invoice.id,
-          amount: -invoice.total_amount, 
-          transaction_type: 'REFUND',
-          note: `Khách hủy lịch - Hoàn cọc đơn ${id.slice(0,6).toUpperCase()}`
-       });
-    }
-    res.status(200).json({ message: 'Hủy lịch thành công' });
+    const amount = `${depositPaid.toLocaleString('vi-VN')}đ`;
+    const messages = {
+      NONE: 'Hủy lịch thành công',
+      FORFEITED: `Đã hủy lịch. Tiền cọc ${amount} không được hoàn theo chính sách.`,
+      REFUND_PENDING: `Đã hủy lịch. Khách được hoàn ${amount} tiền cọc, vui lòng liên hệ khách để hoàn tiền.`,
+    };
+    res.status(200).json({ message: messages[deposit_outcome], deposit_outcome, deposit_paid: depositPaid });
+  } catch (error) {
+    await t.rollback();
+    if (error instanceof CancelError) return res.status(error.status).json({ message: error.message, ...error.extra });
+    if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ message: 'Lịch hẹn này đã được hủy' });
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// [STAFF] Lịch do phòng khám hủy đang chờ hoàn cọc
+const getPendingDepositRefunds = async (req, res) => {
+  try {
+    const list = await AppointmentCancellation.findAll({
+      where: { deposit_outcome: 'REFUND_PENDING' },
+      include: [{ model: Appointment, attributes: ['id', 'customer_id', 'patient_profile_id', 'appointment_date', 'appointment_time', 'pre_notes'] }],
+      order: [['createdAt', 'ASC']]
+    });
+    res.status(200).json({ data: list });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [STAFF] Ghi nhận đã chuyển khoản hoàn cọc: lưu mã giao dịch, hóa đơn chuyển REFUNDED và ghi giao dịch hoàn tiền
+const confirmDepositRefund = async (req, res) => {
+  const refund_ref = String(req.body.refund_ref || '').trim();
+  if (refund_ref.length < 4 || refund_ref.length > 50) {
+    return res.status(400).json({ message: 'Nhập mã giao dịch chuyển khoản hoàn cọc (4 - 50 ký tự)' });
+  }
+  const t = await sequelize.transaction();
+  try {
+    const cancellation = await AppointmentCancellation.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!cancellation || cancellation.deposit_outcome !== 'REFUND_PENDING') throw new CancelError('Lịch này không có khoản cọc chờ hoàn');
+
+    const invoice = await Invoice.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
+    if (invoice) {
+      invoice.payment_status = 'REFUNDED';
+      await invoice.save({ transaction: t });
+      await Transaction.create({
+        invoice_id: invoice.id,
+        amount: -Number(cancellation.deposit_paid),
+        transaction_type: 'REFUND',
+        note: `Phòng khám hủy lịch - Hoàn cọc ${req.params.id.slice(0, 6).toUpperCase()} - GD ${refund_ref}`
+      }, { transaction: t });
+    }
+    Object.assign(cancellation, {
+      deposit_outcome: 'REFUNDED', refund_ref, refund_note: String(req.body.note || '').trim().slice(0, 500) || null,
+      refunded_by: req.user.id, refunded_at: new Date()
+    });
+    await cancellation.save({ transaction: t });
+    await t.commit();
+    res.status(200).json({ message: 'Đã ghi nhận hoàn cọc cho khách' });
+  } catch (error) {
+    await t.rollback();
+    if (error instanceof CancelError) return res.status(error.status).json({ message: error.message });
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
 };
 
 const getAvailableDoctors = async (req, res) => {
@@ -671,13 +774,15 @@ const checkoutAppointment = async (req, res) => {
       const headers = { Authorization: req.headers.authorization };
       const customersRes = await axios.get('http://localhost:4000/api/identity/users/customers', { headers }).catch(() => null);
       const customer = (customersRes?.data?.data || []).find(u => u.id === apt.customer_id);
+      // Đơn ghi theo hồ sơ người được khám (có thể là người thân), không theo chủ tài khoản
+      const patientProfile = customer?.PatientProfiles?.find(p => p.id === apt.patient_profile_id);
       try {
         await axios.post('http://localhost:4000/api/commerce/orders/counter', {
           customer_id: apt.customer_id,
           appointment_id: apt.id,
           items: selected_medicines,
-          recipient_name: customer?.Profile?.full_name,
-          shipping_phone: customer?.Profile?.phone,
+          recipient_name: patientProfile?.full_name || customer?.Profile?.full_name,
+          shipping_phone: patientProfile?.phone || customer?.Profile?.phone,
           payment_method: payment_method || 'CASH'
         }, { headers });
       } catch (err) {
@@ -792,5 +897,5 @@ module.exports = {
   getMyTodayAppointments, getMyHistory, getTakenSlots, getDepositQuote, createAppointment, checkPaymentStatus, confirmPayment, sepayWebhook,
   getConsultantQueues, rescheduleAppointment, preCheckAppointment, finishExam, getAllAppointments, updateAppointment, cancelAppointment,
   getAvailableDoctors, getAvailableSlots, checkoutAppointment, getAppointmentsByPatient,
-  abandonUnpaidAppointment, releaseExpiredHolds
+  abandonUnpaidAppointment, releaseExpiredHolds, getPendingDepositRefunds, confirmDepositRefund
 };

@@ -27,6 +27,28 @@ const Product = sequelize.define('Product', {
   image_url: { type: DataTypes.JSONB }, 
 });
 
+// Thông tin hiển thị trên web cho mỹ phẩm (1 sản phẩm - 1 dòng). Bảng riêng vì sync thường không thêm cột vào Products.
+// Sản phẩm mới nhập kho chưa có dòng này => chưa bán trên web cho tới khi quản lý điền thông tin và bật is_published.
+const ProductDetail = sequelize.define('ProductDetail', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  product_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+  slug: { type: DataTypes.STRING, allowNull: false, unique: true },      // đường dẫn /shops/<slug>
+  is_published: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  published_at: { type: DataTypes.DATE },
+  brand: { type: DataTypes.STRING },
+  origin: { type: DataTypes.STRING },                                     // xuất xứ
+  capacity: { type: DataTypes.STRING },                                   // dung tích / khối lượng tịnh, vd "40ml"
+  skin_types: { type: DataTypes.JSONB, defaultValue: [] },                // loại da phù hợp
+  short_description: { type: DataTypes.STRING(300) },
+  description: { type: DataTypes.TEXT },
+  benefits: { type: DataTypes.TEXT },                                     // công dụng
+  ingredients: { type: DataTypes.TEXT },                                  // thành phần
+  usage: { type: DataTypes.TEXT },                                        // hướng dẫn sử dụng
+  storage: { type: DataTypes.TEXT },                                      // bảo quản
+  warnings: { type: DataTypes.TEXT },                                     // lưu ý / chống chỉ định
+  updated_by: { type: DataTypes.UUID },
+});
+
 const Cart = sequelize.define('Cart', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false, unique: true } 
@@ -136,15 +158,36 @@ const PromotionUsage = sequelize.define('PromotionUsage', {
   promotion_id: { type: DataTypes.UUID, allowNull: false }
 });
 
-const ReturnRequest = sequelize.define('ReturnRequest', {
+// Yêu cầu hoàn/trả hàng của khách sau khi đã nhận đơn giao GHN (NVBH xử lý).
+// Bảng mới "OrderReturns" (bảng ReturnRequests cũ chưa từng dùng, sync thường không thêm cột nên không tái sử dụng)
+const OrderReturn = sequelize.define('OrderReturn', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  order_id: { type: DataTypes.UUID, allowNull: false, unique: true }, 
-  reason: { type: DataTypes.STRING, allowNull: false },
-  description: { type: DataTypes.TEXT },
-  images: { type: DataTypes.JSONB }, // Mảng URL ảnh/video bằng chứng
-  bank_info: { type: DataTypes.TEXT }, // Thông tin NH để kế toán hoàn tiền tay
-  status: { type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'), defaultValue: 'PENDING' },
-  handled_by: { type: DataTypes.UUID } // ID của NVBH/Quản lý đã duyệt
+  order_id: { type: DataTypes.UUID, allowNull: false },
+  customer_id: { type: DataTypes.UUID, allowNull: false },
+  items: { type: DataTypes.JSONB, allowNull: false }, // [{ order_detail_id, product_id, name, quantity, price }]
+  reason: { type: DataTypes.ENUM('DAMAGED', 'WRONG_ITEM', 'DEFECTIVE', 'EXPIRED'), allowNull: false },
+  description: { type: DataTypes.TEXT, allowNull: false },
+  images: { type: DataTypes.JSONB, allowNull: false }, // URL ảnh bằng chứng (Cloudinary)
+  bank_name: { type: DataTypes.STRING, allowNull: false },
+  bank_account: { type: DataTypes.STRING(30), allowNull: false },
+  bank_holder: { type: DataTypes.STRING, allowNull: false },
+  refund_amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false }, // server tự tính khi khách gửi yêu cầu
+  status: {
+    // PENDING: chờ NVBH duyệt -> APPROVED: đã duyệt -> PICKING: GHN đang lấy hàng về kho
+    // -> RECEIVED: kho đã nhận, chờ kiểm tra -> REFUNDED: đã hoàn tiền
+    // REJECTED: từ chối (khi duyệt hoặc khi kiểm tra hàng) | CANCELLED: khách tự hủy lúc còn chờ duyệt
+    type: DataTypes.ENUM('PENDING', 'APPROVED', 'PICKING', 'RECEIVED', 'REFUNDED', 'REJECTED', 'CANCELLED'),
+    defaultValue: 'PENDING'
+  },
+  reject_reason: { type: DataTypes.TEXT },
+  tracking_code: { type: DataTypes.STRING }, // mã vận đơn GHN chiều khách -> kho
+  ghn_status: { type: DataTypes.STRING },    // trạng thái thô GHN gửi qua webhook
+  refund_ref: { type: DataTypes.STRING },    // mã giao dịch chuyển khoản hoàn tiền
+  restocked: { type: DataTypes.BOOLEAN, defaultValue: false },
+  handled_by: { type: DataTypes.UUID },      // NVBH thao tác gần nhất
+  approved_at: { type: DataTypes.DATE },
+  received_at: { type: DataTypes.DATE },
+  refunded_at: { type: DataTypes.DATE },
 });
 
 // THIẾT LẬP QUAN HỆ
@@ -153,6 +196,8 @@ Product.belongsTo(Category, { foreignKey: 'category_id' });
 
 Cart.hasMany(CartItem, { foreignKey: 'cart_id', onDelete: 'CASCADE' });
 CartItem.belongsTo(Cart, { foreignKey: 'cart_id' });
+Product.hasOne(ProductDetail, { foreignKey: 'product_id', onDelete: 'CASCADE' });
+ProductDetail.belongsTo(Product, { foreignKey: 'product_id' });
 Product.hasMany(CartItem, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 CartItem.belongsTo(Product, { foreignKey: 'product_id' });
 
@@ -164,8 +209,8 @@ OrderDetail.belongsTo(Order, { foreignKey: 'order_id' });
 Product.hasMany(OrderDetail, { foreignKey: 'product_id' });
 OrderDetail.belongsTo(Product, { foreignKey: 'product_id' });
 
-Order.hasOne(ReturnRequest, { foreignKey: 'order_id', onDelete: 'CASCADE' });
-ReturnRequest.belongsTo(Order, { foreignKey: 'order_id' });
+Order.hasMany(OrderReturn, { foreignKey: 'order_id', onDelete: 'CASCADE' });
+OrderReturn.belongsTo(Order, { foreignKey: 'order_id' });
 
 Promotion.hasMany(SavedPromotion, { foreignKey: 'promotion_id', onDelete: 'CASCADE' });
 SavedPromotion.belongsTo(Promotion, { foreignKey: 'promotion_id' });
@@ -173,4 +218,4 @@ SavedPromotion.belongsTo(Promotion, { foreignKey: 'promotion_id' });
 Promotion.hasMany(PromotionUsage, { foreignKey: 'promotion_id', onDelete: 'CASCADE' });
 PromotionUsage.belongsTo(Promotion, { foreignKey: 'promotion_id' });
 
-module.exports = { sequelize, Category, Product, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, Promotion, UserAddress, SavedPromotion, PromotionUsage, ReturnRequest };
+module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };

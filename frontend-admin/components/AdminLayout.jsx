@@ -4,7 +4,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
-  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined
+  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -199,6 +199,7 @@ export default function AdminLayout() {
     ] : []),
     ...(['SALES'].includes(role) ? [
       { key: '/sales-management', icon: <DollarOutlined />, label: 'Quản lý đơn hàng' },
+      { key: '/returns', icon: <RollbackOutlined />, label: 'Hoàn / trả hàng' },
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
     ] : []),
     ...(['TECHNICIAN'].includes(role) ? [

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Modal, Form, Input, InputNumber, Select, Popconfirm, Tabs, DatePicker, Radio, Upload } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, GlobalOutlined } from '@ant-design/icons';
+import ProductWebInfoModal from '../components/ProductWebInfoModal';
 import dayjs from 'dayjs';
 
 // ==========================================
@@ -134,6 +135,7 @@ const ProductsTab = () => {
   
   const [imageMode, setImageMode] = useState('url'); 
   const [fileList, setFileList] = useState([]);
+  const [webInfoProduct, setWebInfoProduct] = useState(null); // sản phẩm đang mở modal "Thông tin bán web"
 
   useEffect(() => { fetchProducts(); fetchCategories(); }, []);
 
@@ -326,10 +328,20 @@ const ProductsTab = () => {
       render: (_, record) => <b>{record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0)}</b> 
     },
     {
+      title: 'Bán trên web', key: 'web',
+      filters: [{ text: 'Đang bán web', value: true }, { text: 'Chưa bán web', value: false }],
+      onFilter: (value, record) => Boolean(record.ProductDetail?.is_published) === value,
+      render: (_, record) => record.type !== 'PRODUCT' ? <span className="text-gray-400">-</span>
+        : record.ProductDetail?.is_published ? <Tag color="green">Đang bán</Tag> : <Tag>Chưa bán</Tag>
+    },
+    {
       title: 'Hành động', key: 'action',
       render: (_, record) => (
         <Space>
           <Button type="primary" ghost icon={<EditOutlined />} size="small" onClick={() => openModal(record)}>Sửa</Button>
+          {record.type === 'PRODUCT' && (
+            <Button icon={<GlobalOutlined />} size="small" onClick={() => setWebInfoProduct(record)}>Thông tin web</Button>
+          )}
           <Popconfirm title="Xóa sản phẩm này?" onConfirm={() => handleDelete(record.id)} okButtonProps={{ danger: true }}>
             <Button danger icon={<DeleteOutlined />} size="small">Xóa</Button>
           </Popconfirm>
@@ -405,6 +417,7 @@ const ProductsTab = () => {
           </Form.Item>
         </Form>
       </Modal>
+      <ProductWebInfoModal product={webInfoProduct} onClose={() => setWebInfoProduct(null)} onSaved={fetchProducts} />
     </div>
   );
 };

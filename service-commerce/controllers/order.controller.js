@@ -1,19 +1,21 @@
-const { sequelize, Cart, CartItem, Product, Order, OrderDetail, UserAddress, Promotion, SavedPromotion, PromotionUsage } = require('../models');
+const { sequelize, Cart, CartItem, Product, ProductDetail, Order, OrderDetail, UserAddress, Promotion, SavedPromotion, PromotionUsage, OrderReturn } = require('../models');
+const { handleReturnWebhook } = require('./return.controller');
 const { Op } = require('sequelize');
+const { evaluatePromotion, redeemPromotion } = require('../utils/promotionRules');
+const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const axios = require('axios');
 require('dotenv').config();
 
-const GHN_API_URL = 'https://online-gateway.ghn.vn/shiip/public-api/master-data';
-const GHN_FEE_URL = 'https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee';
 
 const DEFAULT_ITEM_WEIGHT = 200; // gram, dùng khi sản phẩm cũ chưa có cân nặng
 const PACKAGING_WEIGHT = 300;    // gram, vỏ hộp/thùng carton (khớp với cách tính ở frontend)
 
 // Gọi API tính phí của GHN. Dùng chung cho API báo giá và cho checkout (server tự tính, không tin phí client gửi lên)
 const requestGHNFee = async ({ to_district_id, to_ward_code, weight, insurance_value }) => {
+  const warehouse = shopWarehouse(); // kho lấy hàng (cấu hình trong .env)
   const payload = {
-    from_district_id: 1442, // Mã Gò Vấp (Ví dụ kho GlowSkin đặt tại Gò Vấp)
-    from_ward_code: "20102", // Mã Phường 4
+    from_district_id: warehouse.district_id,
+    from_ward_code: warehouse.ward_code,
     service_type_id: 2,
     to_district_id: Number(to_district_id),
     to_ward_code: String(to_ward_code),
@@ -21,19 +23,13 @@ const requestGHNFee = async ({ to_district_id, to_ward_code, weight, insurance_v
     insurance_value: Number(insurance_value) || 0
   };
 
-  const response = await axios.post(GHN_FEE_URL, payload, {
-    headers: {
-       'Token': process.env.GHN_TOKEN,
-       'ShopId': process.env.GHN_SHOP_ID,
-       'Content-Type': 'application/json'
-    }
-  });
+  const response = await axios.post(ghnUrl('/v2/shipping-order/fee'), payload, { headers: ghnHeaders() });
   return response.data;
 };
 
 exports.getGHNProvince = async (req, res) => {
   try {
-    const response = await axios.get(`${GHN_API_URL}/province`, {
+    const response = await axios.get(ghnUrl('/master-data/province'), {
       headers: { 'Token': process.env.GHN_TOKEN }
     });
     return res.status(200).json(response.data);
@@ -45,7 +41,7 @@ exports.getGHNProvince = async (req, res) => {
 exports.getGHNDistrict = async (req, res) => {
   try {
     const { province_id } = req.query;
-    const response = await axios.get(`${GHN_API_URL}/district`, {
+    const response = await axios.get(ghnUrl('/master-data/district'), {
       headers: { 'Token': process.env.GHN_TOKEN },
       params: { province_id }
     });
@@ -58,7 +54,7 @@ exports.getGHNDistrict = async (req, res) => {
 exports.getGHNWard = async (req, res) => {
   try {
     const { district_id } = req.query;
-    const response = await axios.get(`${GHN_API_URL}/ward`, {
+    const response = await axios.get(ghnUrl('/master-data/ward'), {
       headers: { 'Token': process.env.GHN_TOKEN },
       params: { district_id }
     });
@@ -112,11 +108,12 @@ exports.checkout = async (req, res) => {
     if (!cart) return res.status(400).json({ success: false, message: 'Không tìm thấy giỏ hàng' });
 
     cartItems = await CartItem.findAll({
-      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'] }]
+      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'], include: [{ model: ProductDetail, attributes: ['is_published'] }] }]
     });
     if (cartItems.length === 0) return res.status(400).json({ success: false, message: 'Giỏ hàng trống' });
     // Giỏ cũ có thể còn vật tư nội bộ (thêm vào trước khi chặn) => không cho đặt
-    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT');
+    // hoặc sản phẩm đã ngừng bán trên web sau khi khách bỏ vào giỏ
+    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT' || !item.Product.ProductDetail?.is_published);
     if (notForSale) return res.status(400).json({ success: false, message: `Sản phẩm ${notForSale.Product?.name || ''} không còn bán, vui lòng xóa khỏi giỏ hàng` });
 
     const totalWeight = cartItems.reduce(
@@ -257,7 +254,8 @@ exports.getAllOrdersForAdmin = async (req, res) => {
         {
           model: OrderDetail,
           include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url'] }]
-        }
+        },
+        { model: OrderReturn, attributes: ['id', 'status'] }
       ],
       order: [['createdAt', 'ASC']]
     });
@@ -302,8 +300,7 @@ exports.updateOrderStatus = async (req, res) => {
     // Shipper đến lấy hàng => lúc này mới tạo vận đơn trên GHN
     if (status === 'SHIPPING' && !order.tracking_code) {
       
-      const GHN_TOKEN = process.env.GHN_TOKEN;
-      const GHN_SHOP_ID = process.env.GHN_SHOP_ID;
+      const warehouse = shopWarehouse(); // kho gửi hàng (cấu hình trong .env)
 
       const items = order.OrderDetails.map(detail => ({
         name: detail.Product?.name || 'Sản phẩm GlowSkin',
@@ -320,11 +317,11 @@ exports.updateOrderStatus = async (req, res) => {
         codAmount = Number(order.total_amount) - Number(order.discount_amount) + Number(order.shipping_fee || 0);
       }
       const ghnPayload = {
-        from_name: "GlowSkin Spa",
-        from_phone: "0909123456",
-        from_address: "123 Nguyễn Văn Bảo, Phường 4",
-        from_ward_code: "20102",    
-        from_district_id: 1442,     
+        from_name: warehouse.name,
+        from_phone: warehouse.phone,
+        from_address: warehouse.address,
+        from_ward_code: warehouse.ward_code,
+        from_district_id: warehouse.district_id,
         payment_type_id: 2,
         note: order.note || "Giao hàng trong giờ hành chính",
         required_note: "CHOXEMHANGKHONGTHU",
@@ -341,9 +338,7 @@ exports.updateOrderStatus = async (req, res) => {
       };
 
       try {
-        const ghnRes = await axios.post('https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create', ghnPayload, {
-          headers: { 'Content-Type': 'application/json', 'Token': GHN_TOKEN, 'ShopId': GHN_SHOP_ID }
-        });
+        const ghnRes = await axios.post(ghnUrl('/v2/shipping-order/create'), ghnPayload, { headers: ghnHeaders() });
 
         if (ghnRes.data && ghnRes.data.code === 200) {
           const trackingCode = ghnRes.data.data.order_code;
@@ -403,13 +398,7 @@ exports.cancelOrder = async (req, res) => {
       };
       
       try {
-         const ghnCancelRes = await axios.post('https://online-gateway.ghn.vn/shiip/public-api/v2/switch-status/cancel', ghnCancelPayload, {
-            headers: {
-               'Token': process.env.GHN_TOKEN,
-               'ShopId': process.env.GHN_SHOP_ID,
-               'Content-Type': 'application/json'
-            }
-         });
+         const ghnCancelRes = await axios.post(ghnUrl('/v2/switch-status/cancel'), ghnCancelPayload, { headers: ghnHeaders() });
          
          if (ghnCancelRes.data && ghnCancelRes.data.code === 200) {
             console.log(`Đã hủy thành công mã vận đơn ${order.tracking_code} trên GHN`);
@@ -449,6 +438,11 @@ exports.ghnWebhook = async (req, res) => {
     const { OrderCode, Status } = payload;
     if (!OrderCode || !Status) {
       return res.status(400).json({ message: 'Thiếu thông tin vận đơn' });
+    }
+
+    // Vận đơn lấy hàng hoàn trả (khách -> kho) có luồng riêng
+    if (await handleReturnWebhook(OrderCode, Status)) {
+      return res.status(200).json({ success: true, message: 'Đã cập nhật yêu cầu hoàn trả' });
     }
 
     const order = await Order.findOne({ where: { tracking_code: OrderCode }, include: [{ model: OrderDetail }] });
@@ -617,6 +611,104 @@ exports.createCounterOrder = async(req, res) => {
     }
 };
 
+// [SALE/ADMIN] NVBH tạo đơn hộ khách: nhận tại quầy (hoàn thành ngay) hoặc giao GHN (vào luồng duyệt như đơn online)
+const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin';
+exports.createStaffOrder = async (req, res) => {
+    const { customer_id, recipient_name, shipping_phone, note, delivery_method,
+        shipping_address, shipping_district_id, shipping_ward_code, promotion_code } = req.body;
+    const isDelivery = delivery_method === 'DELIVERY';
+    const payment_method = req.body.payment_method === 'VIETQR_SEPAY' ? 'VIETQR_SEPAY' : 'COD';
+
+    // Gộp các dòng trùng sản phẩm, số lượng 1 - 50
+    const qtyByProduct = {};
+    (Array.isArray(req.body.items) ? req.body.items : []).forEach((item) => {
+        const quantity = Math.min(Math.max(parseInt(item?.quantity, 10) || 0, 0), 50);
+        if (item?.product_id && quantity > 0) qtyByProduct[item.product_id] = Math.min((qtyByProduct[item.product_id] || 0) + quantity, 50);
+    });
+    const productIds = Object.keys(qtyByProduct);
+
+    if (!customer_id || !recipient_name || !shipping_phone || productIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Thiếu khách hàng, người nhận, SĐT hoặc sản phẩm' });
+    }
+    if (isDelivery && (!shipping_address || !shipping_district_id || !shipping_ward_code)) {
+        return res.status(400).json({ success: false, message: 'Đơn giao hàng cần đủ địa chỉ và Tỉnh / Quận / Phường GHN' });
+    }
+
+    let products;
+    let shipping_fee = 0;
+    try {
+        products = await Product.findAll({ where: { id: productIds, type: 'PRODUCT' } });
+        if (products.length !== productIds.length) return res.status(400).json({ success: false, message: 'Có sản phẩm không tồn tại hoặc không bán' });
+
+        // Phí ship do server tự hỏi GHN (ngoài transaction, không giữ khóa DB khi chờ API bên ngoài)
+        if (isDelivery) {
+            const totalWeight = products.reduce((sum, p) => sum + qtyByProduct[p.id] * (p.weight || DEFAULT_ITEM_WEIGHT), PACKAGING_WEIGHT);
+            const feeData = await requestGHNFee({ to_district_id: shipping_district_id, to_ward_code: shipping_ward_code, weight: totalWeight });
+            shipping_fee = Number(feeData?.data?.total);
+            if (!Number.isFinite(shipping_fee) || shipping_fee < 0) throw new Error('GHN trả về phí không hợp lệ');
+        }
+    } catch (error) {
+        console.error('Lỗi chuẩn bị đơn NVBH:', error.response?.data || error.message);
+        return res.status(502).json({ success: false, message: isDelivery ? 'Không tính được phí vận chuyển GHN, vui lòng thử lại' : 'Lỗi đọc sản phẩm' });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+        let total_amount = 0;
+        for (const product of products) {
+            const quantity = qtyByProduct[product.id];
+            // Trừ kho có điều kiện để không bị âm khi nhiều nơi bán cùng lúc
+            const [updated] = await Product.update(
+                { stock_quantity: sequelize.literal(`stock_quantity - ${quantity}`) },
+                { where: { id: product.id, stock_quantity: { [Op.gte]: quantity } }, transaction: t }
+            );
+            if (!updated) throw new Error(`Sản phẩm ${product.name} không đủ hàng trong kho (còn ${product.stock_quantity || 0})`);
+            total_amount += Number(product.price) * quantity;
+        }
+
+        // Voucher: kiểm tra lại trên server (hạn, lượt, phạm vi sản phẩm, khách đã dùng chưa) rồi ghi nhận lượt dùng
+        let discount_amount = 0;
+        if (promotion_code) {
+            const { promo, discount } = await evaluatePromotion({
+                code: promotion_code, order_value: total_amount, scope_values: { PRODUCT: total_amount }, customer_id, transaction: t
+            });
+            await redeemPromotion({ promo, customer_id, transaction: t });
+            discount_amount = discount;
+        }
+
+        const order = await Order.create({
+            customer_id,
+            consultant_id: req.user.id,
+            recipient_name,
+            shipping_phone,
+            shipping_address: isDelivery ? shipping_address : PICKUP_ADDRESS,
+            shipping_district_id: isDelivery ? shipping_district_id : null,
+            shipping_ward_code: isDelivery ? shipping_ward_code : null,
+            shipping_fee,
+            note: note || (isDelivery ? 'Đơn NVBH đặt hộ khách' : 'Mua tại quầy'),
+            total_amount,
+            discount_amount,
+            // Tại quầy: khách trả tiền và nhận hàng ngay. Giao hàng: chờ duyệt / chờ chuyển khoản như đơn online
+            status: isDelivery ? 'UNPAID' : 'COMPLETED',
+            payment_method
+        }, { transaction: t });
+
+        await OrderDetail.bulkCreate(products.map((product) => ({
+            order_id: order.id,
+            product_id: product.id,
+            quantity: qtyByProduct[product.id],
+            price: product.price,
+            weight: product.weight || DEFAULT_ITEM_WEIGHT
+        })), { transaction: t });
+
+        await t.commit();
+        return res.status(201).json({ success: true, data: order });
+    } catch (error) {
+        await t.rollback();
+        return res.status(400).json({ success: false, message: error.message || 'Không tạo được đơn hàng' });
+    }
+};
+
 // 2. BỔ SUNG: API Lấy danh sách đơn hàng cho Khách hàng (Hiển thị Lịch Sử Đơn Hàng)
 exports.getCustomerOrders = async(req, res) => {
     try {
@@ -626,7 +718,7 @@ exports.getCustomerOrders = async(req, res) => {
             include: [{
                 model: OrderDetail,
                 include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url'] }]
-            }],
+            }, { model: OrderReturn }],
             order: [
                 ['createdAt', 'DESC']
             ]

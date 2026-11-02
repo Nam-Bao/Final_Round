@@ -1,5 +1,7 @@
 require('dotenv').config(); // Nạp .env (JWT_SECRET, SEPAY_API_KEY, GHN_*, DB_*) trước khi load các module khác
 if (!process.env.JWT_SECRET) throw new Error('Thiếu JWT_SECRET trong file .env của service');
+const missingGhn = require('./utils/ghn').missingGhnConfig();
+if (missingGhn.length) console.warn(`⚠️  Thiếu cấu hình GHN trong .env: ${missingGhn.join(', ')} => tính phí / tạo vận đơn sẽ lỗi`);
 const express = require('express');
 const cors = require('cors'); // Nhớ npm i cors nếu chưa cài
 const { sequelize } = require('./models');
@@ -10,6 +12,7 @@ const promotionRoute = require('./routes/promotion.route.js');
 const orderRoute = require('./routes/order.route.js');
 const cartRoute = require('./routes/cart.route.js');
 const reviewRoute = require('./routes/review.route.js');
+const returnRoute = require('./routes/return.route.js');
 
 const app = express();
 // Gateway chuyển /api/commerce sang port 4003
@@ -26,6 +29,7 @@ app.use('/api/commerce/orders', orderRoute);
 app.use('/api/commerce/carts', cartRoute);
 app.use('/api/commerce/promotions', promotionRoute);
 app.use('/api/commerce/reviews', reviewRoute);
+app.use('/api/commerce/returns', returnRoute);
 
 // 2. Mount dự phòng đường dẫn ngắn (Direct Service Calls)
 app.use('/categories', categoryRoute);
@@ -34,6 +38,7 @@ app.use('/orders', orderRoute);
 app.use('/carts', cartRoute);
 app.use('/promotions', promotionRoute);
 app.use('/reviews', reviewRoute);
+app.use('/returns', returnRoute);
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Commerce Service] đang chạy tại port ${PORT}`);

@@ -1,4 +1,4 @@
-const { Cart, CartItem, Product } = require('../models');
+const { Cart, CartItem, Product, ProductDetail } = require('../models');
 
 // Tìm CartItem và kiểm tra nó thuộc giỏ của khách đang đăng nhập (chặn sửa/xóa giỏ người khác)
 const findOwnCartItem = async (item_id, customer_id, options = {}) => {
@@ -39,9 +39,9 @@ exports.addToCart = async (req, res) => {
     if (!cart) cart = await Cart.create({ customer_id });
 
     // Kiểm tra tồn kho
-    const product = await Product.findByPk(product_id);
-    // Vật tư nội bộ (MATERIAL) không bán cho khách, kể cả khi gọi API trực tiếp bằng id
-    if (!product || product.type !== 'PRODUCT') {
+    const product = await Product.findByPk(product_id, { include: [{ model: ProductDetail, attributes: ['is_published'] }] });
+    // Vật tư nội bộ (MATERIAL) và sản phẩm chưa mở bán trên web không bán online, kể cả khi gọi API trực tiếp bằng id
+    if (!product || product.type !== 'PRODUCT' || !product.ProductDetail?.is_published) {
       return res.status(404).json({ success: false, message: 'Sản phẩm không tồn tại' });
     }
     if (product.stock_quantity < quantity) {

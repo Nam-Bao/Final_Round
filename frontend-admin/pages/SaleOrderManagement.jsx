@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, Zap } from 'lucide-react';
+import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, Zap, Plus, Store, Globe } from 'lucide-react';
 import axios from 'axios';
+import CreateOrderModal from '../components/CreateOrderModal';
+
+// Đơn tại quầy: CSKH chốt sau buổi khám (có lịch khám) hoặc NVBH bán tại quầy (địa chỉ nhận tại quầy)
+const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin';
+const isCounterOrder = (order) => !!order.appointment_id || order.shipping_address === PICKUP_ADDRESS;
+const CHANNELS = [
+  { key: 'ALL', label: 'Tất cả kênh' },
+  { key: 'ONLINE', label: 'Đơn online', icon: Globe },
+  { key: 'COUNTER', label: 'Đơn tại quầy', icon: Store },
+];
+const matchChannel = (order, channel) => channel === 'ALL' || (channel === 'COUNTER') === isCounterOrder(order);
 
 // Luồng: Chờ duyệt (COD) / Đã thanh toán (CK) -> Đã duyệt -> Đang đóng gói -> Đang giao (tạo vận đơn GHN) -> Hoàn thành
 const STATUS_MAP = {
@@ -34,6 +45,8 @@ const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.g
 export default function SaleOrderManagement() {
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('ALL');
+  const [channel, setChannel] = useState('ALL');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
@@ -107,7 +120,9 @@ export default function SaleOrderManagement() {
     }
   };
 
-  const filteredOrders = activeTab === 'ALL' ? orders : orders.filter(o => o.status === activeTab);
+  // Lọc theo kênh trước, số đếm ở các tab trạng thái tính trên kênh đang chọn
+  const channelOrders = orders.filter(o => matchChannel(o, channel));
+  const filteredOrders = activeTab === 'ALL' ? channelOrders : channelOrders.filter(o => o.status === activeTab);
 
   if (loading) return <div className="p-10 text-center text-slate-500">Đang tải dữ liệu...</div>;
 
@@ -116,17 +131,34 @@ export default function SaleOrderManagement() {
       
       {/* CỘT TRÁI: DANH SÁCH ĐƠN HÀNG */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <h1 className="text-2xl font-bold text-slate-800 mb-6">Quản lý Đơn hàng (E-commerce)</h1>
-        
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button onClick={() => setActiveTab('ALL')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap ${activeTab === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border'}`}>
-            Tất cả ({orders.length})
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h1 className="text-2xl font-bold text-slate-800">Quản lý Đơn hàng (E-commerce)</h1>
+          <button onClick={() => setIsCreateOpen(true)} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+            <Plus className="w-4 h-4" /> Tạo đơn mới
           </button>
-          {Object.keys(STATUS_MAP).map(key => (
-            <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap flex items-center gap-2 ${activeTab === key ? STATUS_MAP[key].color.replace('text-', 'bg-').replace('100', '600') + ' text-white' : 'bg-white text-slate-600 border'}`}>
-              {STATUS_MAP[key].label} ({orders.filter(o => o.status === key).length})
+        </div>
+
+        {/* Thanh lọc gọn: kênh bán (online / tại quầy) + trạng thái */}
+        <div className="bg-white border border-slate-200 rounded-xl p-2 mb-4 flex flex-col gap-2">
+          <div className="inline-flex w-fit bg-slate-100 rounded-lg p-0.5">
+            {CHANNELS.map(({ key, label, icon: Icon }) => (
+              <button key={key} onClick={() => setChannel(key)} className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition ${channel === key ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {Icon && <Icon className="w-3.5 h-3.5" />} {label}
+                <span className="text-slate-400 font-normal">{orders.filter(o => matchChannel(o, key)).length}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setActiveTab('ALL')} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
+              Tất cả · {channelOrders.length}
             </button>
-          ))}
+            {Object.keys(STATUS_MAP).map(key => (
+              <button key={key} onClick={() => setActiveTab(key)} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === key ? STATUS_MAP[key].color.replace('text-', 'bg-').replace('100', '600') + ' text-white' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
+                {STATUS_MAP[key].label} · {channelOrders.filter(o => o.status === key).length}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto flex-1">
@@ -157,6 +189,13 @@ export default function SaleOrderManagement() {
                       <td className="p-4">
                         <p className="font-bold text-slate-800">{order.recipient_name}</p>
                         <p className="text-slate-500 text-xs flex items-center gap-1 mt-1"><Phone className="w-3 h-3"/> {order.shipping_phone}</p>
+                        <span className={`inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${isCounterOrder(order) ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
+                          {isCounterOrder(order) ? <><Store className="w-3 h-3"/> Tại quầy</> : <><Globe className="w-3 h-3"/> Online</>}
+                        </span>
+                        {/* Đơn đang có yêu cầu hoàn trả cần xử lý (xem ở trang Hoàn / trả hàng) */}
+                        {(order.OrderReturns || []).some(r => ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED'].includes(r.status)) && (
+                          <span className="inline-flex items-center mt-1 ml-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-orange-100 text-orange-700">Đang hoàn trả</span>
+                        )}
                       </td>
                       <td className="p-4 whitespace-nowrap text-slate-600">{new Date(order.createdAt).toLocaleDateString('vi-VN')}</td>
                       <td className="p-4 whitespace-nowrap font-bold text-blue-600">{finalTotal.toLocaleString('vi-VN')} ₫</td>
@@ -222,9 +261,13 @@ export default function SaleOrderManagement() {
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Hình thức thanh toán</h4>
                 <div className="bg-slate-50 p-4 rounded-xl text-sm border border-slate-100 flex items-center justify-between gap-2">
                   <span className="font-bold text-slate-800">
-                    {selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR - SePay)' : 'Thanh toán khi nhận hàng (COD)'}
+                    {isCounterOrder(selectedOrder)
+                      ? `Thanh toán tại quầy (${selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'chuyển khoản' : 'tiền mặt'})`
+                      : selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR - SePay)' : 'Thanh toán khi nhận hàng (COD)'}
                   </span>
-                  {selectedOrder.payment_method === 'VIETQR_SEPAY' ? (
+                  {isCounterOrder(selectedOrder) ? (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">Đã thu tiền</span>
+                  ) : selectedOrder.payment_method === 'VIETQR_SEPAY' ? (
                     selectedOrder.status === 'UNPAID'
                       ? <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-orange-100 text-orange-700 whitespace-nowrap">Chưa nhận tiền</span>
                       : selectedOrder.status !== 'CANCELLED' && <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">Đã nhận tiền</span>
@@ -236,7 +279,7 @@ export default function SaleOrderManagement() {
                 </div>
 
                 {/* Lý do đơn chuyển khoản còn chờ: SePay chỉ xác nhận khi nội dung có "SP <6 ký tự đầu mã đơn>" và số tiền đủ */}
-                {selectedOrder.status === 'UNPAID' && selectedOrder.payment_method === 'VIETQR_SEPAY' && (
+                {selectedOrder.status === 'UNPAID' && selectedOrder.payment_method === 'VIETQR_SEPAY' && !isCounterOrder(selectedOrder) && (
                   <div className="mt-3 bg-orange-50 border border-orange-100 p-4 rounded-xl text-sm text-orange-800 space-y-2">
                     <p className="font-bold">Vì sao đơn đang chờ thanh toán?</p>
                     <p>
@@ -277,10 +320,12 @@ export default function SaleOrderManagement() {
                   <span>Tiền hàng</span>
                   <span>{Number(selectedOrder.total_amount).toLocaleString()} ₫</span>
                 </div>
-                <div className="flex justify-between text-sm mb-2 text-slate-600">
-                  <span>Phí vận chuyển (GHN)</span>
-                  <span>{Number(selectedOrder.shipping_fee || 0).toLocaleString()} ₫</span>
-                </div>
+                {!isCounterOrder(selectedOrder) && (
+                  <div className="flex justify-between text-sm mb-2 text-slate-600">
+                    <span>Phí vận chuyển (GHN)</span>
+                    <span>{Number(selectedOrder.shipping_fee || 0).toLocaleString()} ₫</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm mb-4 text-green-600">
                   <span>Giảm giá (Voucher)</span>
                   <span>- {Number(selectedOrder.discount_amount).toLocaleString()} ₫</span>
@@ -354,6 +399,8 @@ export default function SaleOrderManagement() {
           </div>
         )}
       </div>
+
+      <CreateOrderModal open={isCreateOpen} onClose={() => setIsCreateOpen(false)} onCreated={fetchOrders} />
     </div>
   );
 }

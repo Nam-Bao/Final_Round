@@ -28,9 +28,16 @@ export default function ClientNavbar() {
               <li><Link to="/doi-ngu-bac-si">Đội ngũ bác sĩ</Link></li>
               <li><Link to="/reviews">Đánh giá khách hàng</Link></li>
               <li><Link to="/contact">Liên hệ</Link></li>
+              <li><Link to="/chinh-sach">Chính sách & Quy định</Link></li>
             </ul>
           </li>
-          <li><Link to="/services">Dịch vụ</Link></li>
+          <li className="dropdown dropdown-hover">
+            <a tabIndex={0}>Dịch vụ ▾</a>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+              <li><Link to="/services">Dịch vụ trị liệu</Link></li>
+              <li><Link to="/goi-lieu-trinh">Gói lộ trình trị liệu</Link></li>
+            </ul>
+          </li>
           <li><Link to="/shops">Mỹ phẩm</Link></li>
           <li><Link to="/booking">Đặt lịch</Link></li>
           <li><Link to="/sang-loc-da">Sàng lọc AI</Link></li>
@@ -47,7 +54,7 @@ export default function ClientNavbar() {
               <a tabIndex={0}>Hồ sơ của tôi ▾</a>
               <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-48">
                 <li><Link to="/appointments">Sổ lịch khám</Link></li>
-                <li><Link to="/treatments">Gói liệu trình</Link></li>
+                <li><Link to="/treatments">Gói liệu trình của tôi</Link></li>
                 <li><Link to="/orders">Đơn hàng Mỹ phẩm</Link></li>
               </ul>
             </li>

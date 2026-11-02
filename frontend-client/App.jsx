@@ -18,6 +18,9 @@ import PharmacyOrdersPage from './pages/PharmacyOrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import PaymentPage from './pages/PaymentPage';
 import ServicesPage from './pages/ServicesPage';
+import PolicyPage from './pages/PolicyPage';
+import PackageCatalogPage from './pages/PackageCatalogPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
 import NewsPage from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
@@ -234,6 +237,10 @@ function App() {
             <Route path="/promotions" element={<PromotionsPage />} />
             <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/shops" element={<CustomerShopPage />} />
+            <Route path="/shops/:slug" element={<ProductDetailPage />} />
+            <Route path="/goi-lieu-trinh" element={<PackageCatalogPage />} />
+            <Route path="/chinh-sach" element={<PolicyPage />} />
+            <Route path="/chinh-sach-bao-mat" element={<PolicyPage />} />
           </Routes>
         </main>
 

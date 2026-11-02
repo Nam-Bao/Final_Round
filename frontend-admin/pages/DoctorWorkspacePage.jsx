@@ -14,6 +14,14 @@ const medicineLabel = (m, products) => {
   return `${products.find(p => p.id === id)?.name || 'Sản phẩm'} x${qty}`;
 };
 
+const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
+// Gói có giá khuyến mãi thì hiện cả giá gốc để bác sĩ tư vấn
+const packageLabel = (pkg) => {
+  const promo = Number(pkg.promotional_price) > 0 && Number(pkg.promotional_price) < Number(pkg.price);
+  const price = promo ? `${vnd(pkg.promotional_price)} (gốc ${vnd(pkg.price)})` : vnd(pkg.price);
+  return `${pkg.name} — ${pkg.total_sessions || 1} buổi — ${price}`;
+};
+
 const isOnlinePatient =(patient) => Boolean(patient?.pre_notes?.includes('[ONLINE]')); // lịch đã dời có tiền tố trước [ONLINE]
 
 export default function DoctorWorkspacePage() {
@@ -128,10 +136,10 @@ export default function DoctorWorkspacePage() {
     { key: '2', label: <><MedicineBoxOutlined /> Lộ trình & Kê đơn</>, children: (
         <div className="p-4 bg-white rounded-lg border border-gray-100">
           <Form.Item name="spa_services" label={<span className="text-blue-700 font-medium">Chỉ định Dịch vụ Spa lẻ (Làm ngay)</span>}>
-            <Select mode="multiple" allowClear>{spaServices.map(srv => <Select.Option key={srv.id} value={srv.id}>{srv.name}</Select.Option>)}</Select>
+            <Select mode="multiple" allowClear>{spaServices.map(srv => <Select.Option key={srv.id} value={srv.id}>{`${srv.name} — ${vnd(srv.price)}`}</Select.Option>)}</Select>
           </Form.Item>
           <Form.Item name="treatment_package" label={<span className="text-purple-700 font-medium">Chỉ định Gói Lộ Trình (VIP)</span>}>
-            <Select allowClear>{packages.map(pkg => <Select.Option key={pkg.id} value={pkg.id}>{pkg.name}</Select.Option>)}</Select>
+            <Select allowClear>{packages.map(pkg => <Select.Option key={pkg.id} value={pkg.id}>{packageLabel(pkg)}</Select.Option>)}</Select>
           </Form.Item>
           <Text className="text-green-700 font-medium block mb-2">Kê đơn Dược Mỹ Phẩm (Mua về)</Text>
           <Form.List name="prescriptions">
@@ -141,7 +149,7 @@ export default function DoctorWorkspacePage() {
                   <Space key={field.key} align="baseline" className="flex mb-1">
                     <Form.Item name={[field.name, 'product_id']} rules={[{ required: true, message: 'Chọn sản phẩm' }]} className="mb-2">
                       <Select showSearch optionFilterProp="children" placeholder="Chọn sản phẩm" style={{ width: 340 }}>
-                        {products.map(prod => <Select.Option key={prod.id} value={prod.id}>{prod.name}</Select.Option>)}
+                        {products.map(prod => <Select.Option key={prod.id} value={prod.id}>{`${prod.name} — ${vnd(prod.price)}`}</Select.Option>)}
                       </Select>
                     </Form.Item>
                     <Form.Item name={[field.name, 'quantity']} initialValue={1} className="mb-2">

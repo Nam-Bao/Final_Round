@@ -1,13 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, CheckCircle, Percent, QrCode, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import ShopFilters, { applyShopFilters, EMPTY_FILTERS } from '../components/ShopFilters';
 import { useAuthStore } from '../store/authStore';
 
 export default function CustomerShopPage() {
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState('SHOP'); 
+  const location = useLocation();
+  const [activeView, setActiveView] = useState(location.state?.openCart ? 'CART' : 'SHOP'); 
   const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  // Bộ lọc lưu trên URL (?q=&cat=&price=&min=&max=&rating=&stock=1&sort=) => F5, quay lại, chia sẻ link vẫn giữ kết quả
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => ({
+    ...EMPTY_FILTERS,
+    ...Object.fromEntries([...searchParams.entries()].filter(([k]) => k in EMPTY_FILTERS && k !== 'stock')),
+    stock: searchParams.get('stock') === '1',
+  }), [searchParams]);
+  const updateFilters = (patch) => {
+    const next = { ...filters, ...patch };
+    const params = {};
+    Object.entries(next).forEach(([k, v]) => {
+      if (k === 'stock') { if (v) params.stock = '1'; }
+      else if (v !== '' && v !== EMPTY_FILTERS[k]) params[k] = v;
+    });
+    setSearchParams(params, { replace: true });
+  };
+  const categories = useMemo(() => {
+    const map = {};
+    products.forEach((p) => { if (p.Category) map[p.Category.id] = { ...p.Category, count: (map[p.Category.id]?.count || 0) + 1 }; });
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [products]);
+  const visibleProducts = useMemo(() => applyShopFilters(products, filters), [products, filters]);
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -96,9 +122,11 @@ export default function CustomerShopPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/products');
+      // Chỉ sản phẩm đã mở bán trên web (kèm slug để mở trang chi tiết)
+      const res = await axios.get('http://localhost:4000/api/commerce/products/shop');
       setProducts(res.data.data || []);
     } catch (err) { console.error('Lỗi tải SP:', err); }
+    finally { setProductsLoading(false); }
   };
 
   const fetchCart = async () => {
@@ -388,24 +416,51 @@ export default function CustomerShopPage() {
             </button>
           </div>
 
+          <ShopFilters filters={filters} onChange={updateFilters} categories={categories} total={products.length} shown={visibleProducts.length} />
+
+          {productsLoading ? (
+            <div className="text-center py-16 text-slate-400"><span className="loading loading-spinner loading-md"></span></div>
+          ) : visibleProducts.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">
+              <p className="text-slate-500">Không tìm thấy sản phẩm phù hợp với bộ lọc.</p>
+              <button onClick={() => updateFilters({ ...EMPTY_FILTERS, sort: filters.sort })} className="btn btn-sm btn-outline">Xóa bộ lọc</button>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map(p => (
+            {visibleProducts.map(p => {
+              const outOfStock = !(p.stock_quantity > 0);
+              return (
               <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
                 <div>
-                  <div className="aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden"><img src={getProductImage(p.image_url)} alt={p.name} className="w-full h-full object-cover" /></div>
+                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="relative block aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden group">
+                    <img src={getProductImage(p.image_url)} alt={p.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
+                    {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded-lg">Hết hàng</span>}
+                  </Link>
+                  {p.Category && <p className="text-xs text-teal-600 font-medium mb-1 line-clamp-1">{p.Category.name}</p>}
                   <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 mb-2 hover:underline">
                     <Star className={`w-4 h-4 ${p.review_count ? 'text-yellow-400 fill-yellow-400' : 'text-slate-300'}`} />
                     <span className="text-sm text-slate-600 font-medium">
                       {p.review_count ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count} đánh giá)` : 'Chưa có đánh giá'}
                     </span>
                   </button>
-                  <h3 className="font-bold text-lg text-slate-800 line-clamp-1">{p.name}</h3>
-                  <p className="text-primary font-bold text-lg my-2">{Number(p.price).toLocaleString()} ₫</p>
+                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="block font-bold text-lg text-slate-800 line-clamp-1 hover:text-primary">{p.name}</Link>
+                  {p.ProductDetail?.short_description && (
+                    <p className="text-sm text-slate-500 mt-1 line-clamp-2" title={p.ProductDetail.short_description}>{p.ProductDetail.short_description}</p>
+                  )}
+                  <div className="flex items-end justify-between gap-2 my-2">
+                    <p className="text-primary font-bold text-lg">{Number(p.price).toLocaleString()} ₫</p>
+                    <span className="text-xs text-slate-500 whitespace-nowrap mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
+                  </div>
                 </div>
-                <button onClick={() => handleAddToCart(p.id)} className="w-full py-2.5 bg-slate-900 text-white font-medium rounded-xl flex items-center justify-center gap-2 mt-4"><Plus className="w-4 h-4"/> Thêm vào giỏ</button>
+                <button onClick={() => handleAddToCart(p.id)} disabled={outOfStock}
+                  className="w-full py-2.5 bg-slate-900 text-white font-medium rounded-xl flex items-center justify-center gap-2 mt-4 disabled:bg-slate-300 disabled:cursor-not-allowed">
+                  {outOfStock ? 'Tạm hết hàng' : <><Plus className="w-4 h-4"/> Thêm vào giỏ</>}
+                </button>
               </div>
-            ))}
+              );
+            })}
           </div>
+          )}
         </div>
       )}
 

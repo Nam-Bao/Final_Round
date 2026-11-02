@@ -12,6 +12,7 @@ import DoctorWorkspacePage from './pages/DoctorWorkspacePage';
 import ConsultantWorkspacePage from './pages/ConsultantWorkspacePage';
 import TechnicianWorkspacePage from './pages/TechnicianWorkspacePage';
 import SaleOrderManagement from './pages/SaleOrderManagement';
+import ReturnManagementPage from './pages/ReturnManagementPage';
 import SpaServicesPage from './pages/SpaServicesPage';
 import PromotionsPage from './pages/PromotionsPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
@@ -36,6 +37,7 @@ function App() {
           <Route path="/consultant-workspace" element={<ConsultantWorkspacePage />} />
           <Route path="/technician-workspace" element={<TechnicianWorkspacePage />} />
           <Route path="/sales-management" element={<SaleOrderManagement />} />
+          <Route path="/returns" element={<ReturnManagementPage />} />
           <Route path="/spa-services" element={<SpaServicesPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/customer-profiles" element={<CustomerProfilePage />} />

@@ -6,9 +6,41 @@ import dayjs from 'dayjs';
 import VideoCallModal from '../components/VideoCallModal';
 import ReviewModal from '../components/ReviewModal';
 import { useAuthStore } from '../store/authStore';
+import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS } from '../utils/contact';
 
 // Các trạng thái lịch online mà khách có thể vào phòng khám video
 const VIDEO_JOINABLE_STATUSES = ['CONFIRMED', 'WAITING', 'IN_PROGRESS'];
+// Khớp điều kiện khách tự hủy ở service-booking: lịch chưa khám, lịch online đã trả tiền thì phải trước giờ khám
+const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE'];
+const canCustomerCancel = (apt, isOnline) => CUSTOMER_CANCELLABLE.includes(apt.status)
+  || (apt.status === 'WAITING' && isOnline && dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`)));
+const formatVnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
+
+// Thông báo tiền cọc của lịch đã hủy (dữ liệu từ bảng AppointmentCancellations)
+function CancellationNotice({ cancellation }) {
+  if (!cancellation || cancellation.deposit_outcome === 'NONE') return null;
+  const amount = formatVnd(cancellation.deposit_paid);
+  if (cancellation.deposit_outcome === 'FORFEITED') {
+    return (
+      <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 max-w-md">
+        Lịch được hủy theo yêu cầu của bạn. Tiền cọc <b>{amount}</b> không được hoàn theo <a href="/chinh-sach#huy-lich" className="underline">chính sách mục 2.2</a>.
+      </div>
+    );
+  }
+  if (cancellation.deposit_outcome === 'REFUND_PENDING') {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 max-w-md space-y-1">
+        <p className="font-semibold">Phòng khám đã hủy lịch này{cancellation.reason ? `: ${cancellation.reason}` : ''}.</p>
+        <p>Bạn được hoàn lại <b>{amount}</b> tiền cọc. Vui lòng liên hệ CSKH qua hotline <a href={`tel:${HOTLINE}`} className="font-bold underline">{HOTLINE_DISPLAY}</a> ({WORKING_HOURS}) để cung cấp tài khoản nhận tiền.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-700 max-w-md">
+      Phòng khám đã hoàn <b>{amount}</b> tiền cọc{cancellation.refunded_at ? ` ngày ${dayjs(cancellation.refunded_at).format('DD/MM/YYYY')}` : ''}. Mã giao dịch: <b>{cancellation.refund_ref}</b>.
+    </div>
+  );
+}
 
 export default function AppointmentHistoryPage() {
   const navigate = useNavigate();
@@ -117,15 +149,23 @@ export default function AppointmentHistoryPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleCancel = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.')) return;
+  // Khách tự hủy lịch đã đóng cọc sẽ mất cọc (chính sách mục 2.2) => hỏi lại rõ số tiền trước khi gửi
+  const handleCancel = async (apt) => {
+    const deposit = Number(apt.deposit_paid || 0);
+    const confirmText = deposit > 0
+      ? `Hủy lịch này bạn sẽ MẤT ${formatVnd(deposit)} tiền cọc đã thanh toán (chính sách mục 2.2), tiền cọc không được hoàn lại.
+
+Bạn vẫn muốn hủy lịch?`
+      : 'Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.';
+    if (!window.confirm(confirmText)) return;
     try {
       const token = sessionStorage.getItem('token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
-      alert('Hủy lịch thành công!');
-      fetchData(); 
-    } catch (error) { 
-      alert('Không thể hủy lịch, vui lòng liên hệ CSKH.'); 
+      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${apt.id}/cancel`, { accept_forfeit: deposit > 0 }, { headers: { 'Authorization': `Bearer ${token}` } });
+      alert(res.data.message || 'Hủy lịch thành công!');
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Không thể hủy lịch, vui lòng liên hệ CSKH.');
+      fetchData();
     }
   };
 
@@ -189,6 +229,7 @@ export default function AppointmentHistoryPage() {
                     </div>
                     <p className="font-bold text-blue-800 text-lg">{docName}</p>
                     <p className="text-sm font-medium text-slate-600">Hồ sơ người khám: <span className="text-slate-800">{profileName}</span></p>
+                    {apt.status === 'CANCELLED' && <CancellationNotice cancellation={apt.AppointmentCancellation} />}
                   </div>
                   
                   <div className="flex flex-col md:items-end gap-3">
@@ -219,8 +260,8 @@ export default function AppointmentHistoryPage() {
                         </button>
                       )}
 
-                      {(apt.status === 'PENDING' || apt.status === 'CONFIRMED') && (
-                        <button onClick={() => handleCancel(apt.id)} className="btn btn-sm btn-error btn-outline flex-1 md:flex-none">Hủy lịch</button>
+                      {canCustomerCancel(apt, isOnline) && apt.status !== 'PENDING_PAYMENT' && (
+                        <button onClick={() => handleCancel(apt)} className="btn btn-sm btn-error btn-outline flex-1 md:flex-none">Hủy lịch</button>
                       )}
                       
                       {(hasData || apt.status === 'COMPLETED' || apt.status === 'WAITING_FOR_SALE') && (

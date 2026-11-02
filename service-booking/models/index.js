@@ -65,6 +65,27 @@ const Appointment = sequelize.define('Appointment', {
     prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
+// Bằng chứng mỗi lần hủy lịch khám: ai hủy, theo yêu cầu của bên nào, lý do, tiền cọc xử lý ra sao.
+// Bảng riêng (không thêm cột vào Appointments) vì sync thường không thêm cột cho bảng đã có.
+const AppointmentCancellation = sequelize.define('AppointmentCancellation', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    appointment_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+    cancelled_by: { type: DataTypes.UUID, allowNull: false },          // tài khoản bấm hủy
+    cancelled_by_role: { type: DataTypes.STRING, allowNull: false },   // CUSTOMER / CONSULTANT / GEN_MANAGER / ADMIN
+    // Bên yêu cầu hủy quyết định tiền cọc: CUSTOMER => mất cọc, CLINIC => hoàn cọc
+    initiator: { type: DataTypes.ENUM('CUSTOMER', 'CLINIC'), allowNull: false },
+    reason: { type: DataTypes.TEXT },
+    previous_status: { type: DataTypes.STRING, allowNull: false },     // trạng thái lịch lúc bị hủy
+    deposit_paid: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
+    // NONE: chưa đóng cọc | FORFEITED: khách mất cọc | REFUND_PENDING: chờ CSKH hoàn | REFUNDED: đã hoàn
+    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED'), allowNull: false },
+    forfeit_acknowledged: { type: DataTypes.BOOLEAN, defaultValue: false }, // khách đã xác nhận biết sẽ mất cọc
+    refund_ref: { type: DataTypes.STRING },   // mã giao dịch chuyển khoản hoàn cọc
+    refund_note: { type: DataTypes.TEXT },
+    refunded_by: { type: DataTypes.UUID },
+    refunded_at: { type: DataTypes.DATE },
+});
+
 // --- THÊM MỚI: BẢNG NHẬT KÝ CHĂM SÓC KHÁCH HÀNG (FOLLOW-UP) ---
 const FollowUpLog = sequelize.define('FollowUpLog', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -189,6 +210,8 @@ ServiceSession.belongsTo(SpaService, { foreignKey: 'spa_service_id' });
 Invoice.hasMany(Transaction, { foreignKey: 'invoice_id' });
 Transaction.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
+Appointment.hasOne(AppointmentCancellation, { foreignKey: 'appointment_id' });
+AppointmentCancellation.belongsTo(Appointment, { foreignKey: 'appointment_id' });
 
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi thêm ở đây với lỗi gõ {after:true})
 
@@ -198,6 +221,7 @@ module.exports = {
     WorkShift,
     ShiftRequest,
     Appointment,
+    AppointmentCancellation,
     AppointmentReview,
     ServiceReview,
     FollowUpLog,

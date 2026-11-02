@@ -24,7 +24,9 @@ const {
   getAvailableSlots,
   checkoutAppointment,
   getAppointmentsByPatient,
-  abandonUnpaidAppointment
+  abandonUnpaidAppointment,
+  getPendingDepositRefunds,
+  confirmDepositRefund
 } = require('../controllers/appointment.controller.js');
 const { getVideoToken } = require('../controllers/video.controller.js');
 
@@ -36,6 +38,8 @@ router.get('/consultant-queues', verifyToken, authorizeRoles('CONSULTANT', 'GEN_
 router.get('/my-today', verifyToken, authorizeRoles('DOCTOR'), getMyTodayAppointments);
 router.get('/my-history', verifyToken, getMyHistory);
 router.get('/taken-slots', getTakenSlots);
+// Lịch do phòng khám hủy, chờ CSKH hoàn cọc cho khách
+router.get('/pending-refunds', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getPendingDepositRefunds);
 router.get('/deposit-quote', verifyToken, authorizeRoles('CUSTOMER'), getDepositQuote); // Báo giá cọc theo đúng công thức server
 router.get('/doctors-available', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN', 'CONSULTANT'), getAvailableDoctors);
 router.get('/slots-available', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN', 'CONSULTANT'), getAvailableSlots);
@@ -65,6 +69,7 @@ router.delete('/:id/unpaid', verifyToken, authorizeRoles('CUSTOMER'), abandonUnp
 router.put('/:id/reschedule', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), rescheduleAppointment);
 router.put('/:id/pre-check', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), preCheckAppointment);
 router.put('/:id/finish-exam', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), finishExam);
+router.put('/:id/refund-deposit', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), confirmDepositRefund);
 router.put('/:id/cancel', verifyToken, authorizeRoles('CUSTOMER','CONSULTANT', 'GEN_MANAGER', 'ADMIN'), cancelAppointment);
 router.put('/:id', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN', 'DOCTOR'), updateAppointment);
 router.put('/:id/checkout', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), checkoutAppointment);

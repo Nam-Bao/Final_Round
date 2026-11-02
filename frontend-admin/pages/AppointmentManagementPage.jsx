@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, Popconfirm, message, Radio } from 'antd';
-import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, HistoryOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, message, Radio } from 'antd';
+import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, HistoryOutlined, DollarOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
@@ -24,6 +24,16 @@ export default function AppointmentManagementPage() {
   
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+
+  // Hủy lịch: bên yêu cầu quyết định tiền cọc (khách => mất cọc, phòng khám => hoàn cọc)
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelInitiator, setCancelInitiator] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  // Lịch do phòng khám hủy, chờ CSKH chuyển khoản hoàn cọc
+  const [pendingRefunds, setPendingRefunds] = useState([]);
+  const [refundTarget, setRefundTarget] = useState(null);
+  const [refundRef, setRefundRef] = useState('');
+  const [refundNote, setRefundNote] = useState('');
   const location = useLocation(); 
 
   const fetchData = async () => {
@@ -31,11 +41,13 @@ export default function AppointmentManagementPage() {
       const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [resApt, resCust, resFollowUps] = await Promise.all([
+      const [resApt, resCust, resFollowUps, resRefunds] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments', { headers }),
         axios.get('http://localhost:4000/api/identity/users/customers', { headers }),
-        axios.get('http://localhost:4000/api/identity/medical-records/follow-ups/upcoming', { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get('http://localhost:4000/api/identity/medical-records/follow-ups/upcoming', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('http://localhost:4000/api/booking/appointments/pending-refunds', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
+      setPendingRefunds(resRefunds.data?.data || []);
 
       setAppointments(resApt.data?.data || []);
       setCustomers(resCust.data?.data || []);
@@ -238,14 +250,38 @@ export default function AppointmentManagementPage() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const openCancel = () => { setCancelInitiator(null); setCancelReason(''); setCancelOpen(true); };
+
+  const handleCancelAppointment = async () => {
+    if (!cancelInitiator) return message.warning('Chọn bên yêu cầu hủy lịch');
+    if (cancelReason.trim().length < 10) return message.warning('Nhập lý do hủy (ít nhất 10 ký tự)');
+    setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${id}/cancel`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
-      message.success('Đã hủy lịch!');
-      fetchData();
+      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${editingAppointment.id}/cancel`,
+        { initiator: cancelInitiator, reason: cancelReason.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
+      message.success(res.data.message || 'Đã hủy lịch!');
+      setCancelOpen(false);
       setIsModalVisible(false);
-    } catch (error) { message.error('Lỗi hủy lịch'); }
+      fetchData();
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Lỗi hủy lịch');
+    } finally { setLoading(false); }
+  };
+
+  const handleConfirmRefund = async () => {
+    if (refundRef.trim().length < 4) return message.warning('Nhập mã giao dịch chuyển khoản (ít nhất 4 ký tự)');
+    setLoading(true);
+    try {
+      const token = sessionStorage.getItem('admin_token');
+      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${refundTarget.appointment_id}/refund-deposit`,
+        { refund_ref: refundRef.trim(), note: refundNote.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
+      message.success(res.data.message);
+      setRefundTarget(null);
+      fetchData();
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Không ghi nhận được hoàn cọc');
+    } finally { setLoading(false); }
   };
 
   const handleSubmit = async (values) => {
@@ -305,8 +341,32 @@ export default function AppointmentManagementPage() {
         </Card>
       </Col>
 
-      <Col span={6} className="h-full">
-        <Card title={<><AlertOutlined className="text-orange-500 mr-2"/> Cần gọi nhắc (3 ngày tới)</>} variant="borderless" className="h-full shadow-sm bg-orange-50 border-orange-100" styles={{ body: { padding: 0, overflowY: 'auto', height: 'calc(100% - 55px)' } }}>
+      <Col span={6} className="h-full flex flex-col gap-3">
+        {pendingRefunds.length > 0 && (
+          <Card size="small" title={<span className="text-red-600"><DollarOutlined className="mr-2"/>Chờ hoàn cọc ({pendingRefunds.length})</span>} variant="borderless"
+            className="shadow-sm bg-red-50 border-red-100 shrink-0" styles={{ body: { padding: 0, maxHeight: 220, overflowY: 'auto' } }}>
+            <List
+              dataSource={pendingRefunds}
+              renderItem={item => {
+                const patient = getPatientInfo(item.Appointment?.customer_id, item.Appointment?.patient_profile_id);
+                return (
+                  <List.Item className="px-3 py-2 border-b border-red-100">
+                    <div className="w-full">
+                      <div className="flex justify-between items-start gap-2">
+                        <b className="text-gray-800">{patient.name || 'Khách'}</b>
+                        <Tag color="red" className="mr-0">{Number(item.deposit_paid).toLocaleString('vi-VN')}đ</Tag>
+                      </div>
+                      <Text type="secondary" className="text-xs block"><PhoneOutlined/> {patient.phone || 'Chưa có SĐT'} · Lịch {dayjs(item.Appointment?.appointment_date).format('DD/MM')}</Text>
+                      <Text className="text-xs block text-gray-500">Lý do hủy: {item.reason}</Text>
+                      <Button size="small" type="primary" className="mt-1" onClick={() => { setRefundTarget(item); setRefundRef(''); setRefundNote(''); }}>Đã chuyển khoản hoàn cọc</Button>
+                    </div>
+                  </List.Item>
+                );
+              }}
+            />
+          </Card>
+        )}
+        <Card title={<><AlertOutlined className="text-orange-500 mr-2"/> Cần gọi nhắc (3 ngày tới)</>} variant="borderless" className="flex-1 min-h-0 shadow-sm bg-orange-50 border-orange-100" styles={{ body: { padding: 0, overflowY: 'auto', height: 'calc(100% - 55px)' } }}>
           <List
             dataSource={getUpcomingReminders()}
             locale={{ emptyText: 'Không có lịch nhắc nhở nào sắp tới.' }}
@@ -457,9 +517,7 @@ export default function AppointmentManagementPage() {
 
           <div className="flex justify-between items-center mt-6">
             {editingAppointment && !isReadOnly ? (
-              <Popconfirm title="Bạn có chắc muốn HỦY lịch này?" onConfirm={() => handleDelete(editingAppointment.id)}>
-                <Button danger type="text" icon={<DeleteOutlined />}>Hủy Lịch</Button>
-              </Popconfirm>
+              <Button danger type="text" icon={<DeleteOutlined />} onClick={openCancel}>Hủy Lịch</Button>
             ) : <div/>}
             
             <Space>
@@ -468,6 +526,28 @@ export default function AppointmentManagementPage() {
             </Space>
           </div>
         </Form>
+      </Modal>
+
+      <Modal title="Hủy lịch hẹn" open={cancelOpen} onCancel={() => setCancelOpen(false)} onOk={handleCancelAppointment}
+        okText="Xác nhận hủy" okButtonProps={{ danger: true, loading }} destroyOnHidden>
+        <p className="text-sm text-gray-500 mb-2">Bên yêu cầu hủy quyết định tiền cọc của khách (chính sách mục 2):</p>
+        <Radio.Group value={cancelInitiator} onChange={e => setCancelInitiator(e.target.value)} className="flex flex-col gap-2 mb-3">
+          <Radio value="CUSTOMER"><b>Khách yêu cầu hủy</b> <span className="text-gray-500">(khách gọi / nhắn xin hủy) - khách mất tiền cọc</span></Radio>
+          <Radio value="CLINIC"><b>Phòng khám hủy</b> <span className="text-gray-500">(bác sĩ vắng, sự cố...) - hoàn cọc cho khách</span></Radio>
+        </Radio.Group>
+        <Input.TextArea rows={3} maxLength={500} value={cancelReason} onChange={e => setCancelReason(e.target.value)}
+          placeholder="Lý do hủy (bắt buộc, ít nhất 10 ký tự). Phòng khám hủy: lý do hiển thị cho khách." />
+      </Modal>
+
+      <Modal title="Ghi nhận hoàn cọc" open={!!refundTarget} onCancel={() => setRefundTarget(null)} onOk={handleConfirmRefund}
+        okText="Xác nhận đã hoàn" okButtonProps={{ loading }} destroyOnHidden>
+        {refundTarget && (
+          <div className="space-y-3">
+            <p className="text-sm">Chuyển khoản <b>{Number(refundTarget.deposit_paid).toLocaleString('vi-VN')}đ</b> cho khách theo tài khoản khách cung cấp, sau đó nhập mã giao dịch làm bằng chứng.</p>
+            <Input placeholder="Mã giao dịch chuyển khoản" maxLength={50} value={refundRef} onChange={e => setRefundRef(e.target.value)} />
+            <Input.TextArea rows={2} maxLength={500} placeholder="Ghi chú (ngân hàng, số tài khoản khách...)" value={refundNote} onChange={e => setRefundNote(e.target.value)} />
+          </div>
+        )}
       </Modal>
     </Row>
   );
