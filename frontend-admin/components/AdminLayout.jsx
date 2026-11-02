@@ -4,7 +4,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
-  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined
+  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -177,7 +177,7 @@ export default function AdminLayout() {
     ...(role === 'ADMIN' ? [
       { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
       { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },      
-      { key: '/page-info', icon: <GlobalOutlined />, label: 'Thông tin Trang' }
+      { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' }
     ] : []),
     ...(['GEN_MANAGER'].includes(role) ? [
       { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
@@ -185,10 +185,12 @@ export default function AdminLayout() {
       { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ Spa lẻ' },
       { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã Khuyến mãi' },
       { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình' },
+      { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' },
     ] : []),
     ...(['DOCTOR'].includes(role) ? [
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
       { key: '/workspace', icon: <TeamOutlined />, label: 'Không Gian Khám Bệnh' },
+      { key: '/my-articles', icon: <FileTextOutlined />, label: 'Bài viết của tôi' },
     ] : []),
     ...(['CONSULTANT'].includes(role) ? [
       { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },

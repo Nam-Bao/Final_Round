@@ -3,7 +3,7 @@ const multer = require('multer');
 require('dotenv').config();
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const { verifyToken } = require('../middlewares/auth.middleware.js');
+const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 const { rateLimit } = require('../middlewares/rateLimit.middleware.js');
 
 const router = express.Router();
@@ -56,6 +56,29 @@ router.post('/', verifyToken, uploadLimiter, (req, res) => {
     
     // Thành công
     res.status(200).json({ url: req.file.path }); 
+  });
+});
+
+// Video cho bài viết / banner: chỉ quản lý và bác sĩ, tối đa 50MB (video dài nên đăng YouTube rồi dán link)
+const videoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: { folder: 'O2O_Videos', resource_type: 'video', allowedFormats: ['mp4', 'webm', 'mov'] },
+});
+const uploadVideo = multer({ storage: videoStorage, limits: { fileSize: 50 * 1024 * 1024 } });
+const videoLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, guestMax: 0, userMax: 20,
+  message: 'Bạn đã tải lên quá nhiều video, vui lòng thử lại sau'
+});
+
+router.post('/video', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR'), videoLimiter, (req, res) => {
+  uploadVideo.single('video')(req, res, (err) => {
+    if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Video quá lớn, tối đa 50MB' });
+    if (err) {
+      console.error('Lỗi tải video lên Cloudinary:', err);
+      return res.status(500).json({ message: 'Không tải được video (chỉ nhận mp4, webm, mov)', error: err.message });
+    }
+    if (!req.file) return res.status(400).json({ message: 'Không tìm thấy file video' });
+    res.status(200).json({ url: req.file.path });
   });
 });
 
