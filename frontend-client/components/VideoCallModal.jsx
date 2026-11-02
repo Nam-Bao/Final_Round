@@ -3,7 +3,9 @@ import axios from 'axios';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useAuthStore } from '../store/authStore';
 
-const VideoCallModal = ({ appointmentId, userName, isOpen, onClose }) => {
+// kind="consultation": phòng tư vấn chuyên gia (vé lấy từ lịch tư vấn), mặc định là phòng khám online của lịch khám
+const VideoCallModal = ({ appointmentId, userName, isOpen, onClose, kind = 'appointment' }) => {
+  const isConsult = kind === 'consultation';
   const containerRef = useRef(null);
   const zpRef = useRef(null);
   // Giữ onClose trong ref để cha render lại (truyền arrow function mới) không làm rớt cuộc gọi
@@ -22,7 +24,7 @@ const VideoCallModal = ({ appointmentId, userName, isOpen, onClose }) => {
     const joinRoom = async () => {
       try {
         // Booking kiểm tra quyền + khung giờ rồi ký token Zego, frontend không giữ serverSecret
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${appointmentId}/video-token`, {
+        const res = await axios.get(`http://localhost:4000/api/booking/${isConsult ? 'consultations' : 'appointments'}/${appointmentId}/video-token`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cancelled) return;
@@ -66,7 +68,7 @@ const VideoCallModal = ({ appointmentId, userName, isOpen, onClose }) => {
         zpRef.current = null;
       }
     };
-  }, [isOpen, appointmentId, userName, token]);
+  }, [isOpen, appointmentId, userName, token, isConsult]);
 
   if (!isOpen) return null;
 
@@ -82,9 +84,9 @@ const VideoCallModal = ({ appointmentId, userName, isOpen, onClose }) => {
             </span>
             <div>
               <h3 className="font-bold text-lg text-base-content">
-                Phòng Khám Da Liễu Từ Xa - GlowSkin O2O
+                {isConsult ? 'Phòng Tư Vấn Chuyên Gia - GlowSkin O2O' : 'Phòng Khám Da Liễu Từ Xa - GlowSkin O2O'}
               </h3>
-              <p className="text-xs text-base-content/60">Mã lịch hẹn: #{String(appointmentId).slice(0, 8).toUpperCase()}</p>
+              <p className="text-xs text-base-content/60">{isConsult ? 'Mã lịch tư vấn' : 'Mã lịch hẹn'}: #{String(appointmentId).slice(0, 8).toUpperCase()}</p>
             </div>
           </div>
           <button

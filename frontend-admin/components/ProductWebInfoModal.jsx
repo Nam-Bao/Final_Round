@@ -64,6 +64,13 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
             </div>
             <Form.Item name="is_published" valuePropName="checked" className="!mb-0"><Switch /></Form.Item>
           </div>
+          <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
+            <div>
+              <div className="font-semibold text-rose-700">Thuốc kê đơn (Rx)</div>
+              <div className="text-xs text-gray-500">Bật nếu bao bì ghi "Rx / Thuốc bán theo đơn": vẫn hiện trên web để tra cứu nhưng khách không mua online được; bác sĩ kê trong buổi khám và CSKH bán tại quầy.</div>
+            </div>
+            <Form.Item name="is_prescription" valuePropName="checked" className="!mb-0"><Switch /></Form.Item>
+          </div>
           {product?.type === 'MATERIAL' && <Alert type="warning" showIcon className="mb-3" message="Vật tư nội bộ không được bán trên web." />}
 
           <Tabs items={[
@@ -90,7 +97,10 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
               key: 'content', label: 'Công dụng & Thành phần', forceRender: true, children: (
                 <>
                   {text('benefits', 'Công dụng', 4, 3000, 'Mỗi công dụng một dòng')}
-                  {text('ingredients', 'Thành phần', 4, 3000, 'Danh sách thành phần chính / bảng thành phần đầy đủ')}
+                  {text('ingredients', 'Thành phần', 8, 3000, 'Hoạt chất chính:\n- Niacinamide 5% | Giảm dầu, mờ thâm\n- Panthenol | Làm dịu, phục hồi\nBảng thành phần đầy đủ:\nAqua, Glycerin, Niacinamide, ...\nLưu ý: (nếu có)')}
+                  <p className="text-xs text-gray-500 -mt-3 mb-4">
+                    Nhập theo mẫu để trang khách hiện bảng hoạt chất (tên | công dụng) và bảng thành phần đầy đủ. Nhập tự do vẫn hiển thị nguyên văn.
+                  </p>
                 </>
               ),
             },

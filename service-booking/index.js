@@ -22,6 +22,7 @@ app.use('/sessions', sessionRoute);
 app.use('/spa-services', spaServiceRoute);
 app.use('/reviews', reviewRoutes);
 app.use('/stats', require('./routes/stats.route'));
+app.use('/consultations', require('./routes/consultation.route')); // Tư vấn chuyên gia (thỉnh giảng)
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);
@@ -37,6 +38,10 @@ app.listen(PORT, async() => {
         const { releaseExpiredHolds } = require('./controllers/appointment.controller.js');
         releaseExpiredHolds();
         setInterval(releaseExpiredHolds, 60 * 1000);
+        // Lịch tư vấn: trả chỗ chưa cọc quá hạn + chốt vắng mặt khi phòng đã đóng
+        const { runMaintenance } = require('./controllers/consultation.controller.js');
+        runMaintenance();
+        setInterval(runMaintenance, 60 * 1000);
     } catch (error) {
         console.error('❌ Lỗi DB Booking:', error.message);
     }

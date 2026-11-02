@@ -1,5 +1,6 @@
 // Xoá toàn bộ dữ liệu của các tài khoản test (email đuôi @test.local) trước khi website chạy thật.
-// Gồm: tài khoản, hồ sơ, bệnh án, lịch khám, hoá đơn, buổi dịch vụ / liệu trình, đơn hàng, đánh giá, chat.
+// Gồm: tài khoản, hồ sơ, bệnh án, lịch khám, hoá đơn, buổi dịch vụ / liệu trình, đơn hàng, đánh giá, chat,
+// lịch tư vấn chuyên gia + ca tư vấn + hồ sơ chuyên môn của chuyên gia test.
 // Đơn hàng bị xoá sẽ được hoàn lại tồn kho.
 //
 // Cách chạy (từ thư mục gốc dự án, các database đang bật):
@@ -36,9 +37,11 @@ const confirm = process.argv.includes('--xoa');
   const customerPackages = await B.CustomerPackage.findAll({ where: { customer_id: ids }, raw: true });
   const orders = await C.Order.findAll({ where: { customer_id: ids }, include: [C.OrderDetail] });
   const chats = await I.ChatSession.findAll({ where: { [Op.or]: [{ customer_id: ids }, { consultant_id: ids }] }, raw: true });
+  // Lịch tư vấn chuyên gia của khách test hoặc với chuyên gia test
+  const consultations = await B.Consultation.findAll({ where: { [Op.or]: [{ customer_id: ids }, { expert_id: ids }] }, raw: true });
 
   console.log(`Tài khoản test: ${users.length} (${users.map((u) => `${u.email} [${u.role}]`).join(', ')})`);
-  console.log(`Lịch khám: ${appointments.length}, hoá đơn: ${invoices.length}, gói liệu trình: ${customerPackages.length}, đơn hàng: ${orders.length}, phiên chat: ${chats.length}`);
+  console.log(`Lịch khám: ${appointments.length}, hoá đơn: ${invoices.length}, gói liệu trình: ${customerPackages.length}, đơn hàng: ${orders.length}, phiên chat: ${chats.length}, lịch tư vấn: ${consultations.length}`);
   if (!confirm) {
     console.log('\nChưa xoá gì. Chạy lại với --xoa để xoá thật.');
     process.exit(0);
@@ -75,6 +78,9 @@ const confirm = process.argv.includes('--xoa');
   await B.Appointment.destroy({ where: { id: aptIds } });
   await B.WorkShift.destroy({ where: { employee_id: ids } });
   await B.ShiftRequest.destroy({ where: { employee_id: ids } });
+  // Lịch tư vấn + ca tư vấn của chuyên gia test
+  await B.Consultation.destroy({ where: { id: consultations.map((c) => c.id) } });
+  await B.ExpertShift.destroy({ where: { expert_id: ids } });
 
   // Identity: chat, bệnh án, hồ sơ, tài khoản
   await I.ChatMessage.destroy({ where: { session_id: chats.map((c) => c.id) } });
@@ -82,6 +88,7 @@ const confirm = process.argv.includes('--xoa');
   await I.MedicalRecord.destroy({ where: { patient_profile_id: profiles.map((p) => p.id) } });
   await I.PatientProfile.destroy({ where: { user_id: ids } });
   await I.Attendance.destroy({ where: { employee_id: ids } });
+  await I.DoctorProfile.destroy({ where: { user_id: ids } });
   await I.Profile.destroy({ where: { user_id: ids } });
   await I.User.destroy({ where: { id: ids } });
 

@@ -54,7 +54,7 @@ const getProducts = async (req, res) => {
 // CỬA HÀNG WEB: chỉ sản phẩm đã được bật "Bán trên web" (ProductDetail.is_published)
 // ==========================================
 const SKIN_TYPES = ['Mọi loại da', 'Da thường', 'Da dầu', 'Da khô', 'Da hỗn hợp', 'Da nhạy cảm', 'Da mụn'];
-const SHOP_DETAIL_FIELDS = ['slug', 'brand', 'origin', 'capacity', 'skin_types', 'short_description'];
+const SHOP_DETAIL_FIELDS = ['slug', 'brand', 'origin', 'capacity', 'skin_types', 'short_description', 'is_prescription'];
 
 // "Sữa rửa mặt Cetaphil 500ml" -> "sua-rua-mat-cetaphil-500ml"
 const slugify = (text) => String(text || '')
@@ -149,6 +149,7 @@ const upsertProductDetail = async (req, res) => {
       values.skin_types = (Array.isArray(req.body.skin_types) ? req.body.skin_types : []).filter((x) => SKIN_TYPES.includes(x));
     }
     values.is_published = 'is_published' in req.body ? req.body.is_published === true : Boolean(existing?.is_published);
+    if ('is_prescription' in req.body) values.is_prescription = req.body.is_prescription === true;
     // Kiểm tra điều kiện mở bán trên nội dung sau khi lưu (giá trị mới, hoặc giá trị cũ nếu không gửi)
     const merged = { ...(existing?.toJSON() || {}), ...values };
 

@@ -39,10 +39,14 @@ exports.addToCart = async (req, res) => {
     if (!cart) cart = await Cart.create({ customer_id });
 
     // Kiểm tra tồn kho
-    const product = await Product.findByPk(product_id, { include: [{ model: ProductDetail, attributes: ['is_published'] }] });
+    const product = await Product.findByPk(product_id, { include: [{ model: ProductDetail, attributes: ['is_published', 'is_prescription'] }] });
     // Vật tư nội bộ (MATERIAL) và sản phẩm chưa mở bán trên web không bán online, kể cả khi gọi API trực tiếp bằng id
     if (!product || product.type !== 'PRODUCT' || !product.ProductDetail?.is_published) {
       return res.status(404).json({ success: false, message: 'Sản phẩm không tồn tại' });
+    }
+    // Thuốc kê đơn không bán online (chỉ bác sĩ kê trong buổi khám, CSKH bán tại quầy)
+    if (product.ProductDetail.is_prescription) {
+      return res.status(403).json({ success: false, message: 'Thuốc kê đơn chỉ bán theo chỉ định của bác sĩ tại phòng khám, không bán online' });
     }
     if (product.stock_quantity < quantity) {
       return res.status(400).json({ success: false, message: 'Sản phẩm không đủ số lượng' });

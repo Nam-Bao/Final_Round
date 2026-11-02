@@ -108,12 +108,13 @@ exports.checkout = async (req, res) => {
     if (!cart) return res.status(400).json({ success: false, message: 'Không tìm thấy giỏ hàng' });
 
     cartItems = await CartItem.findAll({
-      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'], include: [{ model: ProductDetail, attributes: ['is_published'] }] }]
+      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'], include: [{ model: ProductDetail, attributes: ['is_published', 'is_prescription'] }] }]
     });
     if (cartItems.length === 0) return res.status(400).json({ success: false, message: 'Giỏ hàng trống' });
     // Giỏ cũ có thể còn vật tư nội bộ (thêm vào trước khi chặn) => không cho đặt
-    // hoặc sản phẩm đã ngừng bán trên web sau khi khách bỏ vào giỏ
-    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT' || !item.Product.ProductDetail?.is_published);
+    // hoặc sản phẩm đã ngừng bán trên web sau khi khách bỏ vào giỏ, hoặc thuốc kê đơn (không bán online)
+    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT'
+      || !item.Product.ProductDetail?.is_published || item.Product.ProductDetail?.is_prescription);
     if (notForSale) return res.status(400).json({ success: false, message: `Sản phẩm ${notForSale.Product?.name || ''} không còn bán, vui lòng xóa khỏi giỏ hàng` });
 
     const totalWeight = cartItems.reduce(

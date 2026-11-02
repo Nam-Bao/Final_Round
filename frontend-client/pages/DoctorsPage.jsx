@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Stethoscope, Star, CalendarCheck, ClipboardCheck, MessageSquare } from 'lucide-react';
-import { fetchPublicStats, doctorTitle } from '../utils/publicStats';
+import { Stethoscope, Star, CalendarCheck, ClipboardCheck, IdCard, Briefcase } from 'lucide-react';
+import { fetchPublicStats } from '../utils/publicStats';
+import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfileModal';
 
 // Đội ngũ bác sĩ: dữ liệu thật từ hệ thống (bác sĩ đang làm việc, lượt khám đã hoàn tất, đánh giá của khách)
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([]);
   const [status, setStatus] = useState('loading'); // loading | ok | error
+  const [profileId, setProfileId] = useState(null); // bác sĩ đang xem hồ sơ (popup)
 
   useEffect(() => {
     let isMounted = true;
@@ -45,19 +47,24 @@ export default function DoctorsPage() {
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {doctors.map((doc) => (
             <div key={doc.id} className="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow p-6 space-y-4">
-              <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setProfileId(doc.id)} className="flex items-center gap-4 text-left group">
                 {doc.avatar ? (
-                  <img src={doc.avatar} alt={doc.full_name} className="w-20 h-20 rounded-full object-cover border-2 border-primary/30" />
+                  <img src={doc.avatar} alt={doc.full_name} className="w-20 h-20 rounded-full object-cover border-2 border-primary/30 shrink-0" />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold shrink-0">
                     {doc.full_name.split(' ').pop()?.charAt(0)}
                   </div>
                 )}
                 <div>
-                  <h2 className="text-lg font-bold text-secondary">{doctorTitle(doc.full_name)}</h2>
-                  <p className="text-sm text-base-content/60">Bác sĩ Da liễu</p>
+                  <h2 className="text-lg font-bold text-secondary group-hover:text-primary transition-colors">{doctorDisplayName(doc)}</h2>
+                  <p className="text-sm text-base-content/60">{doc.specialty || 'Bác sĩ Da liễu'}</p>
+                  {doc.experience_years != null && (
+                    <p className="text-xs text-base-content/60 flex items-center gap-1 mt-0.5">
+                      <Briefcase className="w-3.5 h-3.5" /> {doc.experience_years} năm kinh nghiệm
+                    </p>
+                  )}
                 </div>
-              </div>
+              </button>
 
               <div className="grid grid-cols-2 gap-3 text-center">
                 <div className="bg-base-200/50 rounded-xl p-3">
@@ -76,16 +83,16 @@ export default function DoctorsPage() {
                 <Link to="/booking" className="btn btn-primary btn-sm flex-1 gap-1">
                   <CalendarCheck className="w-4 h-4" /> Đặt lịch khám
                 </Link>
-                {doc.review_count > 0 && (
-                  <Link to={`/reviews?doctor=${doc.id}`} className="btn btn-outline btn-primary btn-sm gap-1">
-                    <MessageSquare className="w-4 h-4" /> Đánh giá
-                  </Link>
-                )}
+                <button type="button" onClick={() => setProfileId(doc.id)} className="btn btn-outline btn-primary btn-sm gap-1">
+                  <IdCard className="w-4 h-4" /> Xem hồ sơ
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {profileId && <DoctorProfileModal doctorId={profileId} onClose={() => setProfileId(null)} />}
     </div>
   );
 }

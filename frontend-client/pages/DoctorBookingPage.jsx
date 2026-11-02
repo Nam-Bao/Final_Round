@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle, Star } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/authStore';
+import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfileModal';
 
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
@@ -20,6 +21,7 @@ export default function DoctorBookingPage() {
   const [selectedProfileId, setSelectedProfileId] = useState(''); 
 
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [profileId, setProfileId] = useState(null); // bác sĩ đang xem hồ sơ (popup)
   // Ngày theo giờ máy khách (VN). Không dùng toISOString(): đó là ngày UTC, trước 7h sáng sẽ ra ngày hôm qua
   const today = dayjs().format('YYYY-MM-DD');
   const [date, setDate] = useState(today);
@@ -37,7 +39,8 @@ export default function DoctorBookingPage() {
 
   // Lịch sử khám & Phí
   const [isOldCustomer, setIsOldCustomer] = useState(false);
-  const [fee, setFee] = useState(100000); 
+  const [fee, setFee] = useState(100000);
+  const [consultCredit, setConsultCredit] = useState(0); // cọc buổi tư vấn chuyên gia được trừ vào phí khám
   const [status, setStatus] = useState('IDLE');
   
   const navigate = useNavigate();
@@ -93,6 +96,7 @@ export default function DoctorBookingPage() {
         const old = quoteRes.ok && !!quoteData.data?.isOldCustomer;
         setIsOldCustomer(old);
         setFee(old ? 0 : (quoteData.data?.examFee || 100000));
+        setConsultCredit(old ? 0 : Number(quoteData.data?.consultCredit || 0));
       } catch (error) { console.error('Lỗi lấy báo giá cọc', error); }
     };
     fetchQuote();
@@ -266,14 +270,17 @@ export default function DoctorBookingPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 relative pb-10">
-      <h1 className="text-2xl font-bold text-slate-800">Đặt Lịch Khám & Tư Vấn</h1>
+      <h1 className="text-2xl font-bold text-slate-800">Đặt Lịch Khám Bác Sĩ</h1>
+      <p className="text-sm text-base-content/60 -mt-4">
+        Chỉ cần hỏi đáp, định hướng chăm sóc? <Link to="/tu-van" className="link link-primary">Đặt lịch tư vấn chuyên gia</Link> (da liễu, dinh dưỡng, mỹ phẩm).
+      </p>
       
       {status === 'APPOINTMENT_CONFIRMED' ? (
         <div className="card bg-base-100 shadow-xl border border-success p-8 text-center space-y-6">
           <h2 className="text-2xl font-bold text-success flex justify-center items-center gap-2">
             <CheckCircle className="w-8 h-8"/> Đặt Lịch Thành Công!
           </h2>
-          <p>Lịch <b>{appointmentType === 'OFFLINE' ? 'Khám trực tiếp' : 'Tư vấn Online'}</b> với Bác sĩ lúc <b>{slot}</b> ngày <b>{dayjs(date).format('DD/MM/YYYY')}</b> đã được lưu vào hệ thống.</p>
+          <p>Lịch <b>{appointmentType === 'OFFLINE' ? 'Khám trực tiếp' : 'Khám online'}</b> với Bác sĩ lúc <b>{slot}</b> ngày <b>{dayjs(date).format('DD/MM/YYYY')}</b> đã được lưu vào hệ thống.</p>
           
           {appointmentType === 'OFFLINE' ? (
              <div className="bg-base-200 p-6 rounded-xl inline-block mx-auto border-2 border-dashed border-base-300">
@@ -320,7 +327,7 @@ export default function DoctorBookingPage() {
                    <MapPin className="w-4 h-4"/> Khám trực tiếp
                  </button>
                  <button onClick={() => setAppointmentType('ONLINE')} className={`btn flex-1 gap-2 ${appointmentType === 'ONLINE' ? 'btn-primary' : 'btn-outline'}`}>
-                   <Video className="w-4 h-4"/> Tư vấn Online
+                   <Video className="w-4 h-4"/> Khám online
                  </button>
                </div>
             </div>
@@ -387,19 +394,38 @@ export default function DoctorBookingPage() {
               <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                 {doctors.map(doc => (
                   <div key={doc.id} onClick={() => setSelectedDoc(doc)} className={`p-4 rounded-xl border cursor-pointer flex items-center gap-4 ${selectedDoc?.id === doc.id ? 'border-primary bg-primary/10' : 'hover:border-base-300'}`}>
-                    <div className="avatar placeholder">
-                      <div className="bg-neutral text-neutral-content rounded-full w-12">
-                        <span className="text-xl">{doc.Profile?.full_name?.charAt(0) || 'BS'}</span>
+                    {doc.Profile?.avatar ? (
+                      <img src={doc.Profile.avatar} alt={doc.Profile.full_name} className="w-12 h-12 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="avatar placeholder">
+                        <div className="bg-neutral text-neutral-content rounded-full w-12">
+                          <span className="text-xl">{doc.Profile?.full_name?.charAt(0) || 'BS'}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <p className="font-bold">{doc.Profile?.full_name || 'Bác sĩ Da Liễu'}</p>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold">
+                        {doc.Profile?.full_name
+                          ? doctorDisplayName({ full_name: doc.Profile.full_name, title: doc.DoctorProfile?.title })
+                          : 'Bác sĩ Da Liễu'}
+                      </p>
+                      <p className="text-xs text-base-content/60 truncate">
+                        {doc.DoctorProfile?.specialty || 'Bác sĩ Da liễu'}
+                        {doc.DoctorProfile?.experience_years != null && ` · ${doc.DoctorProfile.experience_years} năm kinh nghiệm`}
+                      </p>
                       <p className="text-sm opacity-70 flex items-center gap-1">
                         {doctorStats[doc.id] ? (
                           <><Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {doctorStats[doc.id].avg_rating} · {doctorStats[doc.id].review_count} đánh giá</>
                         ) : 'Chưa có đánh giá'}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setProfileId(doc.id); }}
+                      className="btn btn-ghost btn-xs text-primary shrink-0"
+                    >
+                      Hồ sơ
+                    </button>
                   </div>
                 ))}
                 {doctors.length === 0 && <p className="text-gray-400 italic">Đang tải danh sách bác sĩ...</p>}
@@ -458,8 +484,9 @@ export default function DoctorBookingPage() {
             <div className="bg-base-200 p-3 rounded-lg space-y-1">
               <div className="flex justify-between text-sm"><span>Phí thăm khám:</span><span className={isOldCustomer ? 'line-through opacity-50' : ''}>100.000 đ</span></div>
               {isOldCustomer && <div className="flex justify-between text-sm text-success font-medium"><span>Ưu đãi khách cũ:</span><span>-100.000 đ</span></div>}
+              {consultCredit > 0 && <div className="flex justify-between text-sm text-success font-medium"><span>Cọc buổi tư vấn chuyên gia:</span><span>-{consultCredit.toLocaleString()} đ</span></div>}
             </div>
-            <div className="flex justify-between font-bold text-xl text-primary pt-2 border-t"><span>Tổng:</span><span>{fee.toLocaleString()} đ</span></div>
+            <div className="flex justify-between font-bold text-xl text-primary pt-2 border-t"><span>Tổng:</span><span>{Math.max(fee - consultCredit, 0).toLocaleString()} đ</span></div>
             
             <button 
               onClick={handleSaveAppointment} 
@@ -470,6 +497,17 @@ export default function DoctorBookingPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {profileId && (
+        <DoctorProfileModal
+          doctorId={profileId}
+          onClose={() => setProfileId(null)}
+          onBook={(doc) => {
+            setSelectedDoc(doctors.find((d) => d.id === doc.id) || null);
+            setProfileId(null);
+          }}
+        />
       )}
     </div>
   );
