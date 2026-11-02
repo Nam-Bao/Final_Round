@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import AdminLoginPage from './pages/AdminLoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -18,6 +18,8 @@ import PromotionsPage from './pages/PromotionsPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import AppointmentManagementPage from './pages/AppointmentManagementPage';
 import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
+import ContentManagementPage from './pages/ContentManagementPage';
+import MyArticlesPage from './pages/MyArticlesPage';
 
 function App() {
   return (
@@ -43,7 +45,9 @@ function App() {
           <Route path="/customer-profiles" element={<CustomerProfilePage />} />
           <Route path="/appointment-management" element={<AppointmentManagementPage />} />
           <Route path="/consultant-checkout" element={<ConsultantCheckoutPage />} />
-          <Route path="/page-info" element={<div className="p-4 text-xl font-bold">Trang Quản lý Thông tin hệ thống</div>} />
+          <Route path="/content" element={<ContentManagementPage />} />
+          <Route path="/page-info" element={<Navigate to="/content" replace />} />
+          <Route path="/my-articles" element={<MyArticlesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

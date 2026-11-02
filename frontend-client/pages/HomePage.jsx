@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Scan, CalendarCheck, Stethoscope, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
 import CustomerConcerns from '../components/CustomerConcerns';
 import GlowSkinValueProp from '../components/GlowSkinValueProp';
+import HomeBanner from '../components/HomeBanner';
 
 // Hành trình O2O: soi da AI -> khám bác sĩ -> chăm sóc tại nhà
 const STEPS = [
@@ -32,7 +33,8 @@ const STEPS = [
 export default function HomePage() {
   return (
     <div className="space-y-8">
-      {/* Banner giới thiệu */}
+      {/* Banner do quản lý cấu hình; chưa có banner nào đang chạy thì hiện phần giới thiệu mặc định */}
+      <HomeBanner fallback={
       <section className="bg-gradient-to-br from-primary/10 via-base-100 to-teal-50 rounded-3xl border border-base-200 px-6 py-12 md:px-14 md:py-16">
         <div className="max-w-3xl">
           <span className="badge badge-primary badge-outline font-semibold mb-4">Phòng khám da liễu O2O</span>
@@ -57,6 +59,7 @@ export default function HomePage() {
           </p>
         </div>
       </section>
+      } />
 
       {/* Hành trình 3 bước */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">

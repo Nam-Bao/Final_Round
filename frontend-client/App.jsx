@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 
 import ClientNavbar from './components/ClientNavbar';
 import ClientFooter from './components/ClientFooter';
+import PromoPopup from './components/PromoPopup';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AiTriagePage from './pages/AiTriagePage';
@@ -246,6 +247,9 @@ function App() {
 
         {/* FOOTER HIỂN THỊ CỐ ĐỊNH Ở CHÂN TRANG CHO TOÀN BỘ WEBSITE */}
         <ClientFooter />
+
+        {/* POPUP QUẢNG CÁO DO QUẢN LÝ CẤU HÌNH */}
+        <PromoPopup />
 
         {/* NÚT BẤM VÀ KHUNG CHAT AI / CSKH */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
