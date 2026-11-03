@@ -435,6 +435,7 @@ export default function CustomerShopPage() {
                   <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="relative block aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden group">
                     <img src={getProductImage(p.image_url)} alt={p.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
                     {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded-lg">Hết hàng</span>}
+                    {p.ProductDetail?.is_prescription && <span className="absolute top-2 right-2 bg-rose-600 text-white text-xs font-semibold px-2 py-1 rounded-lg">Thuốc kê đơn</span>}
                   </Link>
                   {p.Category && <p className="text-xs text-teal-600 font-medium mb-1 line-clamp-1">{p.Category.name}</p>}
                   <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 mb-2 hover:underline">
@@ -452,10 +453,17 @@ export default function CustomerShopPage() {
                     <span className="text-xs text-slate-500 whitespace-nowrap mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
+                {p.ProductDetail?.is_prescription ? (
+                  // Thuốc kê đơn: không bán online, chỉ bác sĩ kê sau khi khám (server cũng chặn thêm vào giỏ)
+                  <Link to="/booking" className="w-full py-2.5 border border-rose-200 bg-rose-50 text-rose-700 font-medium rounded-xl flex items-center justify-center gap-2 mt-4 text-sm">
+                    Kê đơn tại phòng khám – Đặt lịch khám
+                  </Link>
+                ) : (
                 <button onClick={() => handleAddToCart(p.id)} disabled={outOfStock}
                   className="w-full py-2.5 bg-slate-900 text-white font-medium rounded-xl flex items-center justify-center gap-2 mt-4 disabled:bg-slate-300 disabled:cursor-not-allowed">
                   {outOfStock ? 'Tạm hết hàng' : <><Plus className="w-4 h-4"/> Thêm vào giỏ</>}
                 </button>
+                )}
               </div>
               );
             })}

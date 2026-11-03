@@ -4,8 +4,10 @@ import { VideoCameraOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 
-// Phòng khám video phía Bác sĩ — dùng chung phòng với khách theo ID lịch hẹn
-const VideoCallModal = ({ appointmentId, patientName, open, onClose }) => {
+// Phòng khám video phía Bác sĩ — dùng chung phòng với khách theo ID lịch hẹn.
+// kind="consultation": phòng tư vấn của chuyên gia (vé lấy từ lịch tư vấn)
+const VideoCallModal = ({ appointmentId, patientName, open, onClose, kind = 'appointment' }) => {
+  const isConsult = kind === 'consultation';
   const containerRef = useRef(null);
   const zpRef = useRef(null);
   // Giữ onClose trong ref để cha render lại không làm rớt cuộc gọi
@@ -23,13 +25,14 @@ const VideoCallModal = ({ appointmentId, patientName, open, onClose }) => {
     const joinRoom = async () => {
       try {
         const token = sessionStorage.getItem('admin_token');
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${appointmentId}/video-token`, {
+        const res = await axios.get(`http://localhost:4000/api/booking/${isConsult ? 'consultations' : 'appointments'}/${appointmentId}/video-token`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cancelled) return;
 
         const adminUser = JSON.parse(sessionStorage.getItem('admin_user') || '{}');
-        const doctorName = adminUser?.Profile?.full_name ? `BS. ${adminUser.Profile.full_name}` : 'Bác sĩ GlowSkin';
+        const ownName = adminUser?.Profile?.full_name;
+        const doctorName = isConsult ? (ownName || 'Chuyên gia GlowSkin') : (ownName ? `BS. ${ownName}` : 'Bác sĩ GlowSkin');
 
         const { appID, userID, roomID, token: zegoToken } = res.data.data;
         const kitToken = ZegoUIKitPrebuilt.generateKitTokenForProduction(appID, zegoToken, roomID, userID, doctorName);
@@ -59,7 +62,7 @@ const VideoCallModal = ({ appointmentId, patientName, open, onClose }) => {
         zpRef.current = null;
       }
     };
-  }, [open, appointmentId]);
+  }, [open, appointmentId, isConsult]);
 
   return (
     <Modal
@@ -70,7 +73,7 @@ const VideoCallModal = ({ appointmentId, patientName, open, onClose }) => {
       centered
       destroyOnHidden
       maskClosable={false}
-      title={<span><VideoCameraOutlined className="mr-2 text-green-600" />Khám online — {patientName}</span>}
+      title={<span><VideoCameraOutlined className="mr-2 text-green-600" />{isConsult ? 'Tư vấn online' : 'Khám online'} — {patientName}</span>}
       styles={{ body: { padding: 0 } }}
     >
       <div className="relative h-[70vh] bg-slate-950 rounded-b-lg overflow-hidden">

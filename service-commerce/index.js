@@ -49,6 +49,8 @@ app.listen(PORT, async() => {
         const alter = process.env.DB_SYNC_ALTER === 'true';
         if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
         await sequelize.sync({ alter });
+        // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
+        await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
         console.log('✅ Đã kết nối DB và cập nhật bảng phân hệ Commerce!');
     } catch (error) {
         console.error('❌ Lỗi DB Commerce:', error.message);

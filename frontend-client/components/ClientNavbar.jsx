@@ -39,7 +39,13 @@ export default function ClientNavbar() {
             </ul>
           </li>
           <li><Link to="/shops">Mỹ phẩm</Link></li>
-          <li><Link to="/booking">Đặt lịch</Link></li>
+          <li className="dropdown dropdown-hover">
+            <a tabIndex={0}>Đặt lịch ▾</a>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-60">
+              <li><Link to="/booking">Đặt lịch khám (trực tiếp / online)</Link></li>
+              <li><Link to="/tu-van">Đặt lịch tư vấn chuyên gia</Link></li>
+            </ul>
+          </li>
           <li><Link to="/sang-loc-da">Sàng lọc AI</Link></li>
           <li className="dropdown dropdown-hover">
             <a tabIndex={0}>Ưu đãi & Tin tức ▾</a>

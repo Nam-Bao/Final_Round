@@ -34,6 +34,8 @@ const ProductDetail = sequelize.define('ProductDetail', {
   product_id: { type: DataTypes.UUID, allowNull: false, unique: true },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },      // đường dẫn /shops/<slug>
   is_published: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // Thuốc kê đơn (Rx): vẫn hiển thị trên web để tra cứu nhưng KHÔNG bán online; chỉ bác sĩ kê và bán tại quầy
+  is_prescription: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   published_at: { type: DataTypes.DATE },
   brand: { type: DataTypes.STRING },
   origin: { type: DataTypes.STRING },                                     // xuất xứ

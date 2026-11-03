@@ -20,6 +20,8 @@ import AppointmentManagementPage from './pages/AppointmentManagementPage';
 import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
 import ContentManagementPage from './pages/ContentManagementPage';
 import MyArticlesPage from './pages/MyArticlesPage';
+import ConsultationManagementPage from './pages/ConsultationManagementPage';
+import ExpertWorkspacePage from './pages/ExpertWorkspacePage';
 
 function App() {
   return (
@@ -48,6 +50,8 @@ function App() {
           <Route path="/content" element={<ContentManagementPage />} />
           <Route path="/page-info" element={<Navigate to="/content" replace />} />
           <Route path="/my-articles" element={<MyArticlesPage />} />
+          <Route path="/consultations" element={<ConsultationManagementPage />} />
+          <Route path="/expert-workspace" element={<ExpertWorkspacePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

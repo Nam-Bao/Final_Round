@@ -4,7 +4,8 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
-  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined
+  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined,
+  VideoCameraOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -172,15 +173,21 @@ export default function AdminLayout() {
     { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, danger: true, onClick: handleLogout },
   ];
 
-  const menuItems = [
+  // Chuyên gia thỉnh giảng (EXPERT): quyền hẹp, chỉ có trang lịch tư vấn của mình
+  const isExpert = role === 'EXPERT';
+  const menuItems = isExpert ? [
+    { key: '/expert-workspace', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn của tôi' },
+  ] : [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
     ...(role === 'ADMIN' ? [
       { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
-      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },      
+      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
+      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
       { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' }
     ] : []),
     ...(['GEN_MANAGER'].includes(role) ? [
       { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
+      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
       { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
       { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ Spa lẻ' },
       { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã Khuyến mãi' },
@@ -198,6 +205,7 @@ export default function AdminLayout() {
       { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Quản Lý Hồ Sơ Khách' },
       { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản Lý Lịch Hẹn' },
       { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
+      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
     ] : []),
     ...(['SALES'].includes(role) ? [
       { key: '/sales-management', icon: <DollarOutlined />, label: 'Quản lý đơn hàng' },
@@ -213,6 +221,8 @@ export default function AdminLayout() {
 
   // Chưa đăng nhập (hoặc phiên đã hết hạn và bị xoá) -> về trang đăng nhập
   if (!sessionStorage.getItem('admin_token')) return <Navigate to="/login" replace />;
+  // Chuyên gia không vào các trang dành cho nhân viên chính thức (API cũng chặn theo vai trò)
+  if (isExpert && location.pathname !== '/expert-workspace') return <Navigate to="/expert-workspace" replace />;
 
   return (
     <Layout className="min-h-screen relative">
