@@ -262,6 +262,9 @@ const getTakenSlots = async (req, res) => {
   }
 };
 
+// Lịch khám tại phòng khám: chỉ ca sáng & chiều (đã bỏ ca tối 18:00 - 22:00, phòng khám làm 08:00 - 17:00).
+// Lịch tư vấn chuyên gia (video online) vẫn dùng đủ 3 ca trong utils/shiftSlots.js
+const EXAM_SHIFT_SLOTS = { MORNING: SHIFT_SLOTS.MORNING, AFTERNOON: SHIFT_SLOTS.AFTERNOON };
 
 // Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
 const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId }) => {
@@ -280,7 +283,7 @@ const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointmen
   if (!doctor_id) return null;
 
   const shifts = await WorkShift.findAll({ where: { employee_id: doctor_id, date: appointment_date, status: 'SCHEDULED' }, raw: true });
-  if (!shifts.some(s => (SHIFT_SLOTS[s.shift_type] || []).includes(time))) {
+  if (!shifts.some(s => (EXAM_SHIFT_SLOTS[s.shift_type] || []).includes(time))) {
     return { status: 400, message: 'Bác sĩ không có lịch làm việc vào giờ này, vui lòng chọn giờ khác' };
   }
   const taken = await Appointment.count({
@@ -755,7 +758,6 @@ const getAvailableSlots = async (req, res) => {
     shifts.forEach(shift => {
       if (shift.shift_type === 'MORNING') allSlots.push('08:00', '09:00', '10:00', '11:00');
       if (shift.shift_type === 'AFTERNOON') allSlots.push('13:00', '14:00', '15:00', '16:00');
-      if (shift.shift_type === 'EVENING') allSlots.push('18:00', '19:00', '20:00');
     });
     const takenAppointments = await Appointment.findAll({
       where: { appointment_date: date, doctor_id: doctorId, status: { [Op.notIn]: ['CANCELLED'] } }, raw: true

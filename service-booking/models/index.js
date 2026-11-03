@@ -273,12 +273,211 @@ Appointment.hasOne(Invoice, { foreignKey: 'appointment_id' });
 Appointment.hasOne(AppointmentCancellation, { foreignKey: 'appointment_id' });
 AppointmentCancellation.belongsTo(Appointment, { foreignKey: 'appointment_id' });
 
+// ===================== CHẤM CÔNG =====================
+// Máy chấm công đặt tại quầy (tablet / màn hình). Quản lý kích hoạt; token chỉ lưu bản băm.
+const AttendanceKiosk = sequelize.define('AttendanceKiosk', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    token_hash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+    created_by: { type: DataTypes.UUID },
+    last_seen_at: { type: DataTypes.DATE },
+});
+
+// Mã QR động: mỗi lần bấm "Chấm công" tạo 1 mã ngẫu nhiên, không trùng (unique), sống 20 giây, dùng 1 lần
+const AttendanceQr = sequelize.define('AttendanceQr', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    code: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+    kiosk_id: { type: DataTypes.UUID, allowNull: false },
+    shift_date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING'), allowNull: false },
+    expires_at: { type: DataTypes.DATE, allowNull: false },
+    used_by: { type: DataTypes.UUID },
+    used_at: { type: DataTypes.DATE },
+}, { updatedAt: false });
+
+// Kết quả chấm công của 1 ca (mỗi ca tối đa 1 bản ghi)
+const AttendanceRecord = sequelize.define('AttendanceRecord', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    shift_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    shift_date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING'), allowNull: false },
+    // Vào ca: ON_TIME đúng giờ | LATE quét QR trễ trong 10' | EXPLAINED giải trình được duyệt
+    //         LATE_REJECTED giải trình trễ bị từ chối (vẫn có lương ca, tính vi phạm nghiêm trọng) | ABSENT vắng
+    status: { type: DataTypes.STRING(20), allowNull: false },
+    check_in_at: { type: DataTypes.DATE },          // lúc quét QR (hoặc giờ có mặt thực tế khi giải trình)
+    minutes_late: { type: DataTypes.INTEGER, defaultValue: 0 },
+    method: { type: DataTypes.STRING(20) },         // QR | EXPLANATION | AUTO (hệ thống tự ghi vắng)
+    photo_url: { type: DataTypes.STRING(500) },     // ảnh chụp xác nhận khuôn mặt
+    face_count: { type: DataTypes.INTEGER },        // số khuôn mặt trình duyệt phát hiện lúc chụp
+    qr_id: { type: DataTypes.UUID },
+    kiosk_id: { type: DataTypes.UUID },
+    explanation_id: { type: DataTypes.UUID },
+    note: { type: DataTypes.TEXT },
+    // ---- Ra ca (cột thêm sau, tự thêm vào bảng cũ khi khởi động) ----
+    check_out_at: { type: DataTypes.DATE },
+    // ON_TIME ra đúng giờ | EARLY về sớm (có đơn) | FORGOT_APPROVED quên chấm, giải trình được duyệt | MISSING không chấm, không giải trình
+    checkout_status: { type: DataTypes.STRING(20) },
+    checkout_method: { type: DataTypes.STRING(20) },  // QR | REQUEST | AUTO
+    checkout_photo_url: { type: DataTypes.STRING(500) },
+    checkout_face_count: { type: DataTypes.INTEGER },
+    minutes_early: { type: DataTypes.INTEGER, defaultValue: 0 },
+});
+
+// Đơn ra ca: EARLY_LEAVE xin về sớm (gửi trước khi về, quét QR ra ca được ngay)
+//            FORGOT quên chấm ra ca (gửi sau khi hết khung QR ra ca; khai giờ về trước giờ kết thúc => coi là về sớm)
+const AttendanceCheckoutRequest = sequelize.define('AttendanceCheckoutRequest', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    shift_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    shift_date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.STRING(20), allowNull: false },
+    kind: { type: DataTypes.STRING(20), allowNull: false },
+    reason_type: { type: DataTypes.STRING(30), allowNull: false },
+    leave_time: { type: DataTypes.DATE, allowNull: false },     // giờ về dự kiến (về sớm) / giờ về thực tế khai (quên chấm)
+    is_early: { type: DataTypes.BOOLEAN, defaultValue: false }, // giờ về trước giờ kết thúc ca
+    description: { type: DataTypes.TEXT, allowNull: false },
+    witness_name: { type: DataTypes.STRING(100) },
+    evidence_urls: { type: DataTypes.JSONB, defaultValue: [] },
+    committed: { type: DataTypes.BOOLEAN, defaultValue: false },
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'PENDING' }, // PENDING | APPROVED | REJECTED
+    reviewed_by: { type: DataTypes.UUID },
+    reviewed_at: { type: DataTypes.DATE },
+    review_note: { type: DataTypes.TEXT },
+});
+
+// ===================== LƯƠNG =====================
+// Mức lương / ca riêng từng nhân viên; mỗi lần đổi là 1 dòng mới (lịch sử), áp dụng từ effective_from
+const SalaryRate = sequelize.define('SalaryRate', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    role: { type: DataTypes.STRING(20) },
+    rate_per_shift: { type: DataTypes.INTEGER, allowNull: false },
+    effective_from: { type: DataTypes.DATEONLY, allowNull: false },
+    note: { type: DataTypes.STRING(300) },
+    created_by: { type: DataTypes.UUID },
+}, { updatedAt: false, indexes: [{ fields: ['employee_id', 'effective_from'] }] });
+
+// Bảng lương 1 tháng: DRAFT nháp (tạo lại được) -> LOCKED đã duyệt & khóa (khóa luôn công của tháng)
+const Payroll = sequelize.define('Payroll', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    month: { type: DataTypes.STRING(7), allowNull: false, unique: true }, // YYYY-MM
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'DRAFT' },
+    generated_at: { type: DataTypes.DATE },
+    generated_by: { type: DataTypes.UUID },
+    locked_at: { type: DataTypes.DATE },
+    locked_by: { type: DataTypes.UUID },
+    history: { type: DataTypes.JSONB, defaultValue: [] }, // tạo / tạo lại / khóa / mở khóa (kèm lý do)
+});
+
+// Dòng lương của 1 nhân viên (số liệu chụp lại lúc tạo bảng lương)
+const PayrollItem = sequelize.define('PayrollItem', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payroll_id: { type: DataTypes.UUID, allowNull: false },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    employee_name: { type: DataTypes.STRING },
+    role: { type: DataTypes.STRING(20) },
+    scheduled_shifts: { type: DataTypes.INTEGER, defaultValue: 0 },
+    worked_shifts: { type: DataTypes.INTEGER, defaultValue: 0 },
+    absent_shifts: { type: DataTypes.INTEGER, defaultValue: 0 },
+    shift_pay: { type: DataTypes.BIGINT, defaultValue: 0 },
+    normal_violations: { type: DataTypes.INTEGER, defaultValue: 0 },
+    serious_violations: { type: DataTypes.INTEGER, defaultValue: 0 },
+    attendance_bonus: { type: DataTypes.BIGINT, defaultValue: 0 },
+    adjustments_plus: { type: DataTypes.BIGINT, defaultValue: 0 },
+    adjustments_minus: { type: DataTypes.BIGINT, defaultValue: 0 },
+    total: { type: DataTypes.BIGINT, defaultValue: 0 },     // đã làm tròn 1.000đ
+    details: { type: DataTypes.JSONB, defaultValue: [] },   // từng ca: mức lương, kết quả, vi phạm
+}, { indexes: [{ unique: true, fields: ['payroll_id', 'employee_id'] }] });
+
+// Khoản khác (cộng: thưởng, phụ cấp | trừ: tạm ứng, bồi thường) — bắt buộc lý do; giữ lại khi tạo lại bảng lương
+const PayrollAdjustment = sequelize.define('PayrollAdjustment', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payroll_id: { type: DataTypes.UUID, allowNull: false },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    type: { type: DataTypes.STRING(10), allowNull: false },     // PLUS | MINUS
+    category: { type: DataTypes.STRING(30), allowNull: false }, // BONUS, ALLOWANCE, ADVANCE, COMPENSATION, OTHER
+    amount: { type: DataTypes.BIGINT, allowNull: false },
+    reason: { type: DataTypes.STRING(500), allowNull: false },
+    created_by: { type: DataTypes.UUID },
+});
+
+// Quyết định kỷ luật do quản lý ghi nhận (hệ thống chỉ đề xuất dựa trên số vi phạm nghiêm trọng)
+const DisciplinaryAction = sequelize.define('DisciplinaryAction', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    month: { type: DataTypes.STRING(7), allowNull: false },
+    action: { type: DataTypes.STRING(30), allowNull: false }, // REMINDER nhắc nhở | REPRIMAND khiển trách | SALARY_RAISE_DELAY kéo dài thời hạn nâng lương
+    reason: { type: DataTypes.TEXT, allowNull: false },
+    decided_at: { type: DataTypes.DATEONLY, allowNull: false },
+    delay_months: { type: DataTypes.INTEGER },                // kéo dài thời hạn nâng lương (tối đa 6 tháng)
+    created_by: { type: DataTypes.UUID },
+});
+
+// Giải trình khi không kịp chấm công trong giờ mở QR. Mỗi ca chỉ được gửi 1 lần; quản lý duyệt hoặc từ chối.
+const AttendanceExplanation = sequelize.define('AttendanceExplanation', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    shift_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+    employee_id: { type: DataTypes.UUID, allowNull: false },
+    shift_date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING'), allowNull: false },
+    reason_type: { type: DataTypes.STRING(30), allowNull: false },
+    arrival_time: { type: DataTypes.DATE, allowNull: false }, // giờ có mặt thực tế nhân viên khai
+    description: { type: DataTypes.TEXT, allowNull: false },
+    evidence_urls: { type: DataTypes.JSONB, defaultValue: [] },
+    witness_name: { type: DataTypes.STRING(100) },            // người xác nhận (đồng nghiệp / người giao việc)
+    committed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // cam kết khai đúng sự thật
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'PENDING' }, // PENDING | APPROVED | REJECTED
+    reviewed_by: { type: DataTypes.UUID },
+    reviewed_at: { type: DataTypes.DATE },
+    review_note: { type: DataTypes.TEXT },
+});
+
+WorkShift.hasOne(AttendanceRecord, { foreignKey: 'shift_id' });
+AttendanceRecord.belongsTo(WorkShift, { foreignKey: 'shift_id' });
+WorkShift.hasOne(AttendanceExplanation, { foreignKey: 'shift_id' });
+AttendanceExplanation.belongsTo(WorkShift, { foreignKey: 'shift_id' });
+WorkShift.hasOne(AttendanceCheckoutRequest, { foreignKey: 'shift_id' });
+AttendanceCheckoutRequest.belongsTo(WorkShift, { foreignKey: 'shift_id' });
+Payroll.hasMany(PayrollItem, { foreignKey: 'payroll_id', onDelete: 'CASCADE' });
+PayrollItem.belongsTo(Payroll, { foreignKey: 'payroll_id' });
+Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCADE' });
+
+// sync() không thêm cột mới vào bảng đã có => tự thêm cột còn thiếu (chỉ thêm, không sửa / xóa cột cũ)
+const addMissingColumns = async () => {
+    const qi = sequelize.getQueryInterface();
+    const added = [];
+    for (const model of [AttendanceRecord]) {
+        const table = model.getTableName();
+        const existing = await qi.describeTable(table);
+        for (const [name, attr] of Object.entries(model.getAttributes())) {
+            const field = attr.field || name;
+            if (existing[field]) continue;
+            await qi.addColumn(table, field, { type: attr.type, allowNull: true, defaultValue: attr.defaultValue });
+            added.push(`${table}.${field}`);
+        }
+    }
+    return added;
+};
+
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi thêm ở đây với lỗi gõ {after:true})
 
 module.exports = {
     sequelize,
     TreatmentPackage,
     WorkShift,
+    AttendanceKiosk,
+    AttendanceQr,
+    AttendanceRecord,
+    AttendanceExplanation,
+    AttendanceCheckoutRequest,
+    SalaryRate,
+    Payroll,
+    PayrollItem,
+    PayrollAdjustment,
+    DisciplinaryAction,
+    addMissingColumns,
     ShiftRequest,
     Appointment,
     AppointmentCancellation,

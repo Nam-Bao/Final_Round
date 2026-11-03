@@ -1,4 +1,4 @@
-const { WorkShift, ShiftRequest, Appointment } = require('../models');
+const { WorkShift, ShiftRequest, Appointment, AttendanceRecord, AttendanceExplanation } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/isoWeek')); // cần cho startOf('isoWeek'); thiếu plugin thì dayjs trả về "hôm nay"
@@ -25,6 +25,10 @@ const getShifts = async (req, res) => {
 const createShifts = async (req, res) => {
   try {
     const { employee_id, startDate, endDate, shift_types } = req.body;
+    // Chỉ còn ca Sáng (08:00 - 12:00) và Chiều (13:00 - 17:00); ca Tối đã bỏ
+    if (!Array.isArray(shift_types) || !shift_types.length || shift_types.some((t) => !['MORNING', 'AFTERNOON'].includes(t))) {
+      return res.status(400).json({ message: 'Chỉ được xếp Ca Sáng hoặc Ca Chiều' });
+    }
     const payload = [];
 
     // Chuyển đổi ngày để lặp
@@ -60,6 +64,12 @@ const createShifts = async (req, res) => {
 // 3. Hủy một ca làm việc
 const deleteShift = async (req, res) => {
   try {
+    // Ca đã chấm công / có giải trình là dữ liệu tính lương => không cho xóa (xóa ca sẽ xóa luôn chấm công)
+    const [record, explanation] = await Promise.all([
+      AttendanceRecord.count({ where: { shift_id: req.params.id } }),
+      AttendanceExplanation.count({ where: { shift_id: req.params.id } }),
+    ]);
+    if (record || explanation) return res.status(400).json({ message: 'Ca này đã có dữ liệu chấm công, không thể hủy' });
     await WorkShift.destroy({ where: { id: req.params.id } });
     res.status(200).json({ message: 'Đã hủy ca làm việc!' });
   } catch (error) {

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:mobile": "vite --mode mobile --host --port 3443"
   },
   "keywords": [],
   "author": "",
@@ -14,9 +15,11 @@
   "type": "commonjs",
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@mediapipe/tasks-vision": "^1.2.0",
     "@zegocloud/zego-uikit-prebuilt": "^2.18.5",
     "antd": "^6.6.1",
     "axios": "^1.20.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.62.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -24,6 +27,7 @@
     "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",
