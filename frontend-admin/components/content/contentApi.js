@@ -23,6 +23,8 @@ export const ARTICLE_TYPES = {
   RESEARCH: { label: 'Nghiên cứu', color: 'magenta' },
 };
 export const ARTICLE_TYPE_OPTIONS = Object.entries(ARTICLE_TYPES).map(([value, t]) => ({ value, label: t.label }));
+// Loại bài bác sĩ được viết
+export const DOCTOR_TYPE_OPTIONS = ARTICLE_TYPE_OPTIONS.filter((o) => ['RESEARCH', 'KNOWLEDGE', 'SKINCARE'].includes(o.value));
 
 // Tải ảnh (tối đa 5MB) / video (tối đa 50MB) lên Cloudinary, trả về đường dẫn https
 export const uploadImage = async (file) => {

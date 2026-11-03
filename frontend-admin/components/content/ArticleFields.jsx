@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Form, Input, Select, Button, Space, Tabs, Modal, Tooltip, message, Row, Col, Collapse } from 'antd';
 import { PictureOutlined, VideoCameraOutlined, BoldOutlined, OrderedListOutlined, UnorderedListOutlined, LinkOutlined, UploadOutlined } from '@ant-design/icons';
 import ArticleBody, { VideoEmbed } from './ArticleBody';
-import { ARTICLE_TYPE_OPTIONS, uploadImage, uploadVideo, pickFile } from './contentApi';
+import { ARTICLE_TYPE_OPTIONS, DOCTOR_TYPE_OPTIONS, uploadImage, uploadVideo, pickFile } from './contentApi';
 
 // Ô chọn ảnh / video: tải file từ máy hoặc dán đường dẫn https (YouTube với video)
 export function MediaField({ value, onChange, kind = 'image', placeholder }) {
@@ -167,7 +167,7 @@ export function ContentEditor({ value = '', onChange }) {
 }
 
 // Các ô chung của bài viết (dùng cho quản lý và bác sĩ). sources nhập mỗi dòng 1 tài liệu.
-// Bài của bác sĩ (research) luôn thuộc loại Nghiên cứu nên không có ô chọn loại.
+// research = bài bác sĩ viết: chỉ chọn Nghiên cứu / Kiến thức da liễu / Chăm sóc da, bắt buộc ảnh bìa và nội dung từ 300 ký tự.
 export default function ArticleFields({ research = false }) {
   return (
     <>
@@ -178,14 +178,12 @@ export default function ArticleFields({ research = false }) {
         <Input.TextArea rows={2} maxLength={500} showCount />
       </Form.Item>
       <Row gutter={12}>
-        {!research && (
-          <Col xs={24} md={12}>
-            <Form.Item name="article_type" label="Loại bài viết" rules={[{ required: true, message: 'Chọn loại bài viết' }]} extra="Bài sẽ nằm trong tab tương ứng ở trang Tin tức">
-              <Select options={ARTICLE_TYPE_OPTIONS} placeholder="Chọn loại bài" />
-            </Form.Item>
-          </Col>
-        )}
-        <Col xs={24} md={research ? 24 : 12}>
+        <Col xs={24} md={12}>
+          <Form.Item name="article_type" label="Loại bài viết" rules={[{ required: true, message: 'Chọn loại bài viết' }]} extra="Bài sẽ nằm trong tab tương ứng ở trang Tin tức">
+            <Select options={research ? DOCTOR_TYPE_OPTIONS : ARTICLE_TYPE_OPTIONS} placeholder="Chọn loại bài" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
           <Form.Item name="author_title" label="Chức danh tác giả" extra={research ? 'Hiện cạnh tên bạn, vd. BS.CKI Da liễu' : undefined}>
             <Input maxLength={120} placeholder="BS.CKI Da liễu" />
           </Form.Item>

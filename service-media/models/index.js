@@ -50,7 +50,8 @@ const ArticleSubmission = sequelize.define('ArticleSubmission', {
   content: { type: DataTypes.TEXT },
   thumbnail_url: { type: DataTypes.STRING(500) },
   video_url: { type: DataTypes.STRING(500) },
-  category: { type: DataTypes.STRING(50), defaultValue: ARTICLE_TYPES.RESEARCH },
+  article_type: { type: DataTypes.STRING(20), defaultValue: 'RESEARCH' }, // RESEARCH | KNOWLEDGE | SKINCARE
+  category: { type: DataTypes.STRING(50), defaultValue: ARTICLE_TYPES.RESEARCH }, // tên loại
   tags: { type: DataTypes.JSONB, defaultValue: [] },
   sources: { type: DataTypes.JSONB, defaultValue: [] },
   // DRAFT: đang soạn | PENDING: chờ duyệt | CHANGES_REQUESTED: cần chỉnh sửa | APPROVED: đã duyệt và đăng
