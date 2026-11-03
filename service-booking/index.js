@@ -22,6 +22,7 @@ app.use('/sessions', sessionRoute);
 app.use('/spa-services', spaServiceRoute);
 app.use('/reviews', reviewRoutes);
 app.use('/stats', require('./routes/stats.route'));
+app.use('/reports', require('./routes/report.route')); // Báo cáo doanh thu cho quản lý
 app.use('/consultations', require('./routes/consultation.route')); // Tư vấn chuyên gia (thỉnh giảng)
 
 app.listen(PORT, async() => {
@@ -33,6 +34,8 @@ app.listen(PORT, async() => {
         const alter = process.env.DB_SYNC_ALTER === 'true';
         if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
         await sequelize.sync({ alter });
+        // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
+        await sequelize.query('ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "breakdown" JSONB');
         console.log('✅ Đã kết nối DB và tạo xong bảng phân hệ Booking!');
         // Mỗi phút dọn lịch giữ chỗ quá hạn chưa thanh toán (khách đóng tab, không quay lại)
         const { releaseExpiredHolds } = require('./controllers/appointment.controller.js');

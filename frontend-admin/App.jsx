@@ -5,6 +5,8 @@ import DashboardPage from './pages/DashboardPage';
 import AdminLayout from './components/AdminLayout';
 import UsersPage from './pages/UsersPage';
 import InventoryPage from './pages/InventoryPage';
+import MaterialsPage from './pages/MaterialsPage';
+import RevenueReportPage from './pages/RevenueReportPage';
 import PackagesPage from './pages/PackagesPage';
 import WorkSchedulePage from './pages/WorkSchedulePage';
 import MySchedulePage from './pages/MySchedulePage';
@@ -34,6 +36,8 @@ function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/appointments" element={<div>Giao diện Lịch hẹn sẽ nằm ở đây</div>} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
+          <Route path="/reports" element={<RevenueReportPage />} />
           <Route path="/packages" element={<PackagesPage />} />
           <Route path="/schedule" element={<WorkSchedulePage />} />
           <Route path="/my-schedule" element={<MySchedulePage />} />

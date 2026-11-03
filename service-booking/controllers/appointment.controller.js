@@ -164,7 +164,12 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
   // Cọc buổi tư vấn chuyên gia đã gắn vào lịch khám này = tiền khách đã trả trước
   const consult_credit = invoice?.appointment_id ? await getCreditForAppointment(invoice.appointment_id) : 0;
 
-  return { exam_fee, deposit_paid, consult_credit, items_total, scope_values, gross: exam_fee + items_total };
+  return {
+    exam_fee, deposit_paid, consult_credit, items_total, scope_values, gross: exam_fee + items_total,
+    // Dòng chi tiết để lưu vào hoá đơn (báo cáo doanh thu theo dịch vụ / gói)
+    service_items: services.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
+    package_items: packages.map((p) => ({ id: p.id, name: p.name, price: Number(p.promotional_price || p.price) })),
+  };
 };
 
 const getMyTodayAppointments = async (req, res) => {
@@ -866,6 +871,11 @@ const checkoutAppointment = async (req, res) => {
             invoice.total_amount = totalBill;
             invoice.payment_status = 'PAID';
             invoice.payment_method = payment_method || 'CASH';
+            invoice.breakdown = {
+              exam_fee: bill.exam_fee, services: bill.scope_values.SPA_SERVICE, packages: bill.scope_values.TREATMENT_PACKAGE,
+              products: bill.scope_values.PRODUCT, discount: discountAmount, consult_credit: bill.consult_credit, total: totalBill,
+              service_items: bill.service_items, package_items: bill.package_items, checked_out_at: new Date(),
+            };
             await invoice.save({ transaction: t });
 
             if (amountDueNow > 0) {

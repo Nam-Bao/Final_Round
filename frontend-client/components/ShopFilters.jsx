@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Search, X, SlidersHorizontal, Star } from 'lucide-react';
+import { Search, X, SlidersHorizontal, Star, Sparkles, Flame, Tag, LayoutGrid } from 'lucide-react';
+import { isOnSale } from './ProductCard';
 
 export const PRICE_RANGES = [
   { key: 'u200', label: 'Dưới 200.000đ', min: 0, max: 200000 },
@@ -8,9 +9,18 @@ export const PRICE_RANGES = [
   { key: 'o1000', label: 'Trên 1.000.000đ', min: 1000000, max: Infinity },
 ];
 
+// Nhóm sản phẩm (giống 3 mục trên trang chủ). Thuốc kê đơn không vào các nhóm Mới / Bán chạy / Giảm giá.
+const notRx = (p) => !p.ProductDetail?.is_prescription;
+export const SHOP_TABS = [
+  { key: '', label: 'Tất cả', icon: LayoutGrid, test: () => true },
+  { key: 'new', label: 'Mới', icon: Sparkles, test: (p) => notRx(p) && p.is_new },          // 10 sản phẩm mở bán gần nhất (server gắn is_new)
+  { key: 'best', label: 'Bán chạy', icon: Flame, test: (p) => notRx(p) && p.sold_count > 0 },
+  { key: 'sale', label: 'Đang giảm giá', icon: Tag, test: (p) => notRx(p) && isOnSale(p) },
+];
+
+// Sắp xếp. "Mặc định" tuỳ theo nhóm đang xem (xem defaultSorter)
 export const SORT_OPTIONS = [
-  { key: 'newest', label: 'Mới nhất' },
-  { key: 'best_selling', label: 'Bán chạy nhất' },
+  { key: 'default', label: 'Mặc định' },
   { key: 'price_asc', label: 'Giá thấp đến cao' },
   { key: 'price_desc', label: 'Giá cao đến thấp' },
   { key: 'rating', label: 'Đánh giá cao nhất' },
@@ -18,10 +28,15 @@ export const SORT_OPTIONS = [
   { key: 'name', label: 'Tên A - Z' },
 ];
 
-export const EMPTY_FILTERS = { q: '', cat: '', price: '', min: '', max: '', rating: '', stock: false, sort: 'newest' };
+export const EMPTY_FILTERS = { q: '', tab: '', cat: '', price: '', min: '', max: '', rating: '', stock: false, sort: 'default' };
+// Bộ lọc dạng bật / tắt, lưu trên URL là ?stock=1
+export const FLAG_FILTERS = ['stock'];
 
-// Bỏ dấu tiếng Việt để tìm "sua rua mat" vẫn ra "Sữa rửa mặt"
-const normalize = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
+// Ngày lên kệ web (mở bán), sản phẩm cũ chưa có thì lấy ngày tạo
+export const listedAt = (p) => new Date(p.ProductDetail?.published_at || p.createdAt);
+
+// Bỏ dấu tiếng Việt để tìm "sua rua mat" vẫn ra "Sữa rửa mặt" (dùng chung cho ô tìm kiếm toàn trang)
+export const normalize = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().trim();
 
 // Lọc + sắp xếp danh sách sản phẩm theo bộ lọc hiện tại
 export function applyShopFilters(products, f) {
@@ -31,7 +46,9 @@ export function applyShopFilters(products, f) {
   const max = f.max !== '' ? Number(f.max) : range?.max ?? Infinity;
   const minRating = Number(f.rating) || 0;
 
+  const tab = SHOP_TABS.find((t) => t.key === f.tab) || SHOP_TABS[0];
   const list = products.filter((p) => {
+    if (!tab.test(p)) return false;
     const price = Number(p.price);
     if (words.length) {
       const text = normalize(`${p.name} ${p.Category?.name || ''}`);
@@ -47,9 +64,14 @@ export function applyShopFilters(products, f) {
   });
 
   const byPrice = (a, b) => Number(a.price) - Number(b.price);
+  const newest = (a, b) => listedAt(b) - listedAt(a);
+  // Mặc định: Bán chạy => nhiều lượt bán trước; Giảm giá => giảm sâu trước; còn lại => mở bán gần nhất trước
+  const defaultSorter = {
+    best: (a, b) => (b.sold_count || 0) - (a.sold_count || 0) || newest(a, b),
+    sale: (a, b) => (b.discount_percent || 0) - (a.discount_percent || 0) || newest(a, b),
+  }[f.tab] || newest;
   const sorters = {
-    newest: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-    best_selling: (a, b) => (b.sold_count || 0) - (a.sold_count || 0),
+    default: defaultSorter,
     price_asc: byPrice,
     price_desc: (a, b) => byPrice(b, a),
     rating: (a, b) => Number(b.avg_rating) - Number(a.avg_rating) || b.review_count - a.review_count,
@@ -57,10 +79,10 @@ export function applyShopFilters(products, f) {
     name: (a, b) => a.name.localeCompare(b.name, 'vi'),
   };
   // Hàng hết luôn xếp sau hàng còn
-  return list.sort((a, b) => (b.stock_quantity > 0) - (a.stock_quantity > 0) || (sorters[f.sort] || sorters.newest)(a, b));
+  return list.sort((a, b) => (b.stock_quantity > 0) - (a.stock_quantity > 0) || (sorters[f.sort] || defaultSorter)(a, b));
 }
 
-// Đếm số bộ lọc đang bật (không tính sắp xếp)
+// Đếm số bộ lọc đang bật (không tính nhóm sản phẩm và sắp xếp)
 export const countActiveFilters = (f) => [f.q, f.cat, f.price || f.min || f.max, f.rating, f.stock].filter(Boolean).length;
 
 const Chip = ({ active, onClick, children }) => (
@@ -70,7 +92,7 @@ const Chip = ({ active, onClick, children }) => (
   </button>
 );
 
-export default function ShopFilters({ filters, onChange, categories, total, shown }) {
+export default function ShopFilters({ filters, onChange, categories, total, shown, products = [] }) {
   const [search, setSearch] = useState(filters.q);
   const [priceDraft, setPriceDraft] = useState({ min: filters.min, max: filters.max });
   const [showMore, setShowMore] = useState(false);
@@ -127,6 +149,19 @@ export default function ShopFilters({ filters, onChange, categories, total, show
             <SlidersHorizontal className="w-4 h-4" /> Bộ lọc{activeCount > 0 && <span className="bg-teal-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{activeCount}</span>}
           </button>
         </div>
+      </div>
+
+      {/* Nhóm sản phẩm: Tất cả / Mới / Bán chạy / Đang giảm giá */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+        {SHOP_TABS.map(({ key, label, icon: Icon, test }) => {
+          const active = (filters.tab || '') === key;
+          return (
+            <button key={key || 'all'} type="button" onClick={() => onChange({ tab: key, sort: 'default' })}
+              className={`flex-1 min-w-max flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${active ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+              <Icon className="w-4 h-4" /> {label} <span className="text-xs opacity-60">({products.filter(test).length})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Danh mục */}
@@ -190,7 +225,7 @@ export default function ShopFilters({ filters, onChange, categories, total, show
           </span>
         ))}
         {activeCount > 0 && (
-          <button type="button" onClick={() => onChange({ ...EMPTY_FILTERS, sort: filters.sort })} className="text-xs text-red-500 hover:underline ml-auto">Xóa bộ lọc</button>
+          <button type="button" onClick={() => onChange({ ...EMPTY_FILTERS, tab: filters.tab, sort: filters.sort })} className="text-xs text-red-500 hover:underline ml-auto">Xóa bộ lọc</button>
         )}
       </div>
     </div>

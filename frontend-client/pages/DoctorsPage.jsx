@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Stethoscope, Star, CalendarCheck, ClipboardCheck, IdCard, Briefcase } from 'lucide-react';
 import { fetchPublicStats } from '../utils/publicStats';
 import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfileModal';
@@ -8,7 +8,10 @@ import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfi
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([]);
   const [status, setStatus] = useState('loading'); // loading | ok | error
-  const [profileId, setProfileId] = useState(null); // bác sĩ đang xem hồ sơ (popup)
+  // Bác sĩ đang xem hồ sơ (popup); mở sẵn khi vào từ kết quả tìm kiếm (?bs=<id>)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const profileId = searchParams.get('bs');
+  const setProfileId = (id) => setSearchParams(id ? { bs: id } : {}, { replace: true });
 
   useEffect(() => {
     let isMounted = true;

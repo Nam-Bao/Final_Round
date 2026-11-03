@@ -65,6 +65,20 @@ const confirm = process.argv.includes('--xoa');
   await C.PromotionUsage.destroy({ where: { customer_id: ids } });
   await C.SavedPromotion.destroy({ where: { customer_id: ids } });
   await C.UserAddress.destroy({ where: { customer_id: ids } });
+  // Vật tư: phiếu xuất do KTV test ghi / cho buổi của khách test => hoàn kho rồi xoá; đề xuất nhập do tài khoản test tạo
+  const testSessionIds = [
+    ...(await B.ServiceSession.findAll({ where: { customer_id: ids }, attributes: ['id'], raw: true })),
+    ...(await B.TreatmentSession.findAll({ where: { customer_package_id: customerPackages.map((p) => p.id) }, attributes: ['id'], raw: true })),
+  ].map((s) => s.id);
+  const usages = await C.InventoryRequest.findAll({
+    where: { type: 'MATERIAL_USAGE', [Op.or]: [{ requester_id: ids }, { reference_id: testSessionIds }] }, raw: true,
+  });
+  for (const u of usages) {
+    for (const i of u.items || []) await C.Product.increment('stock_quantity', { by: Number(i.deducted || 0), where: { id: i.product_id } });
+  }
+  await C.InventoryRequest.destroy({ where: { id: usages.map((u) => u.id) } });
+  await C.InventoryRequest.destroy({ where: { type: 'PURCHASE_ORDER', requester_id: ids } });
+  console.log(`Phiếu xuất vật tư test đã hoàn kho và xoá: ${usages.length}`);
 
   // Booking: đánh giá, buổi dịch vụ / liệu trình, hoá đơn, lịch khám, ca làm của nhân viên test
   await B.AppointmentReview.destroy({ where: { customer_id: ids } });

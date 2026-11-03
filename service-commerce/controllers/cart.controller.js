@@ -1,4 +1,5 @@
 const { Cart, CartItem, Product, ProductDetail } = require('../models');
+const { SALE_FIELDS, withOnlinePrice } = require('../utils/pricing');
 
 // Tìm CartItem và kiểm tra nó thuộc giỏ của khách đang đăng nhập (chặn sửa/xóa giỏ người khác)
 const findOwnCartItem = async (item_id, customer_id, options = {}) => {
@@ -17,10 +18,16 @@ exports.getCart = async (req, res) => {
     }
     const cartItems = await CartItem.findAll({
       where: { cart_id: cart.id },
-      include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url', 'stock_quantity', 'weight'] }],
+      include: [{ model: Product, attributes: ['id', 'name', 'price', 'image_url', 'stock_quantity', 'weight'],
+        include: [{ model: ProductDetail, attributes: SALE_FIELDS }] }],
       order: [['createdAt', 'DESC']]
     });
-    return res.status(200).json({ success: true, data: { cart_id: cart.id, items: cartItems } });
+    // Giá trong giỏ = giá đang bán online (đã tính khuyến mãi), khớp với số tiền lúc thanh toán
+    const items = cartItems.map((item) => {
+      const json = item.toJSON();
+      return json.Product ? { ...json, Product: withOnlinePrice(json.Product) } : json;
+    });
+    return res.status(200).json({ success: true, data: { cart_id: cart.id, items } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
