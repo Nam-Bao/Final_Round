@@ -123,7 +123,7 @@ export default function MySchedulePage() {
   const currentWeek = () => setCurrentWeekStart(dayjs().startOf('isoWeek'));
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => currentWeekStart.add(i, 'day'));
-  const shiftTypes = ['MORNING', 'AFTERNOON', 'EVENING'];
+  const shiftTypes = ['MORNING', 'AFTERNOON']; // ca Tối đã bỏ (vẫn hiện tên nếu còn ca cũ)
   const shiftLabels = { 
      MORNING: { title: 'Sáng', time: '08:00 - 12:00' }, 
      AFTERNOON: { title: 'Chiều', time: '13:00 - 17:00' }, 

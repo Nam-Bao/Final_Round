@@ -99,7 +99,7 @@ export default function SubmissionReview({ onPendingChange }) {
       <Table rowKey="id" size="middle" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 900 }} pagination={{ pageSize: 10, showSizeChanger: false }}
         locale={{ emptyText: status === 'PENDING' ? 'Không có bài nào chờ duyệt' : 'Không có bài viết' }} />
 
-      <Drawer open={!!detail} onClose={() => setDetail(null)} width={Math.min(980, window.innerWidth)} destroyOnHidden
+      <Drawer open={!!detail} onClose={() => setDetail(null)} size={Math.min(980, window.innerWidth)} destroyOnHidden
         title={detail?.title ? <span>Bài của {detail.author_name} <Tag className="ml-1">v{detail.version}</Tag><Tag color={SUBMISSION_STATUS[detail.status]?.color}>{SUBMISSION_STATUS[detail.status]?.label}</Tag></span> : 'Đang tải...'}
         extra={detail?.status === 'PENDING' && (
           <Space>

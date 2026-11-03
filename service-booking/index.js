@@ -24,6 +24,8 @@ app.use('/reviews', reviewRoutes);
 app.use('/stats', require('./routes/stats.route'));
 app.use('/reports', require('./routes/report.route')); // Báo cáo doanh thu cho quản lý
 app.use('/consultations', require('./routes/consultation.route')); // Tư vấn chuyên gia (thỉnh giảng)
+app.use('/attendance', require('./routes/attendance.route')); // chấm công
+app.use('/payroll', require('./routes/payroll.route')); // lương
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);
@@ -36,6 +38,8 @@ app.listen(PORT, async() => {
         await sequelize.sync({ alter });
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "breakdown" JSONB');
+        const added = await require('./models').addMissingColumns();
+        if (added.length) console.log(`➕ Đã thêm cột mới: ${added.join(', ')}`);
         console.log('✅ Đã kết nối DB và tạo xong bảng phân hệ Booking!');
         // Mỗi phút dọn lịch giữ chỗ quá hạn chưa thanh toán (khách đóng tab, không quay lại)
         const { releaseExpiredHolds } = require('./controllers/appointment.controller.js');
@@ -45,6 +49,10 @@ app.listen(PORT, async() => {
         const { runMaintenance } = require('./controllers/consultation.controller.js');
         runMaintenance();
         setInterval(runMaintenance, 60 * 1000);
+        // Mỗi 5 phút ghi vắng các ca đã quá hạn giải trình mà không chấm công
+        const { markAbsences } = require('./controllers/attendance.controller.js');
+        markAbsences();
+        setInterval(markAbsences, 5 * 60 * 1000);
     } catch (error) {
         console.error('❌ Lỗi DB Booking:', error.message);
     }

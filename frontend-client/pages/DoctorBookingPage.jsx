@@ -8,7 +8,6 @@ import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfi
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
   AFTERNOON: ['13:00', '14:00', '15:00', '16:00'],
-  EVENING: ['18:00', '19:00', '20:00']
 };
 
 export default function DoctorBookingPage() {
@@ -126,7 +125,6 @@ export default function DoctorBookingPage() {
           doctorShifts = [
             { shift_type: 'MORNING' },
             { shift_type: 'AFTERNOON' },
-            { shift_type: 'EVENING' }
           ];
         }
         
