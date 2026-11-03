@@ -246,7 +246,7 @@ const getTakenSlots = async (req, res) => {
 const SHIFT_SLOTS = {
   MORNING: ['08:00', '09:00', '10:00', '11:00'],
   AFTERNOON: ['13:00', '14:00', '15:00', '16:00'],
-  EVENING: ['18:00', '19:00', '20:00']
+  // Đã bỏ ca tối (18:00 - 22:00): phòng khám chỉ làm 08:00 - 17:00
 };
 
 // Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
@@ -715,7 +715,6 @@ const getAvailableSlots = async (req, res) => {
     shifts.forEach(shift => {
       if (shift.shift_type === 'MORNING') allSlots.push('08:00', '09:00', '10:00', '11:00');
       if (shift.shift_type === 'AFTERNOON') allSlots.push('13:00', '14:00', '15:00', '16:00');
-      if (shift.shift_type === 'EVENING') allSlots.push('18:00', '19:00', '20:00');
     });
     const takenAppointments = await Appointment.findAll({
       where: { appointment_date: date, doctor_id: doctorId, status: { [Op.notIn]: ['CANCELLED'] } }, raw: true

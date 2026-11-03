@@ -20,12 +20,20 @@ import AppointmentManagementPage from './pages/AppointmentManagementPage';
 import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
 import ContentManagementPage from './pages/ContentManagementPage';
 import MyArticlesPage from './pages/MyArticlesPage';
+import MyAttendancePage from './pages/MyAttendancePage';
+import AttendanceManagementPage from './pages/AttendanceManagementPage';
+import AttendanceKioskPage from './pages/AttendanceKioskPage';
+import SalaryRatesPage from './pages/SalaryRatesPage';
+import PayrollPage from './pages/PayrollPage';
+import MyPayslipPage from './pages/MyPayslipPage';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<AdminLoginPage />} />
+        {/* Máy chấm công tại quầy: toàn màn hình, không cần đăng nhập nhân viên */}
+        <Route path="/kiosk" element={<AttendanceKioskPage />} />
         
         <Route element={<AdminLayout />}>
           <Route path="/" element={<DashboardPage />} />
@@ -48,6 +56,11 @@ function App() {
           <Route path="/content" element={<ContentManagementPage />} />
           <Route path="/page-info" element={<Navigate to="/content" replace />} />
           <Route path="/my-articles" element={<MyArticlesPage />} />
+          <Route path="/attendance" element={<MyAttendancePage />} />
+          <Route path="/attendance-management" element={<AttendanceManagementPage />} />
+          <Route path="/salary-rates" element={<SalaryRatesPage />} />
+          <Route path="/payroll" element={<PayrollPage />} />
+          <Route path="/my-payslip" element={<MyPayslipPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
