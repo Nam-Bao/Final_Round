@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Sparkles, User, LogOut } from 'lucide-react';
+import { Sparkles, User, LogOut, Search } from 'lucide-react';
+import GlobalSearch from './GlobalSearch';
 
 export default function ClientNavbar() {
   const { user, logout } = useAuthStore();
@@ -20,6 +21,9 @@ export default function ClientNavbar() {
         </Link>
       </div>
       <div className="flex-none gap-2">
+        {/* Tìm kiếm chung: ô gợi ý trên màn hình lớn, nút mở trang tìm kiếm trên điện thoại */}
+        <div className="hidden md:block"><GlobalSearch /></div>
+        <Link to="/tim-kiem" className="btn btn-ghost btn-circle btn-sm md:hidden" aria-label="Tìm kiếm"><Search className="w-5 h-5" /></Link>
         <ul className="menu menu-horizontal px-1 hidden lg:flex font-medium">
           <li className="dropdown dropdown-hover">
             <a tabIndex={0}>Về GlowSkin ▾</a>

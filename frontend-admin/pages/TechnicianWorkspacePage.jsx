@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, List, Tag, Tabs, Form, Input, Button, Space, Avatar, Typography, message, Progress, Upload } from 'antd';
 import { UserOutlined, PlayCircleOutlined, CheckCircleOutlined, HistoryOutlined, FileTextOutlined, CameraOutlined } from '@ant-design/icons';
 import axios from 'axios'; 
+import SessionMaterialsForm from '../components/SessionMaterialsForm';
 
 const { Title, Text } = Typography;
 
@@ -13,6 +14,8 @@ export default function TechnicianWorkspacePage() {
   
   // State xử lý ảnh upload
   const [uploadedImages, setUploadedImages] = useState([]);
+  // Vật tư đã dùng trong buổi (gửi kèm khi hoàn thành => server trừ kho)
+  const [materials, setMaterials] = useState([]);
 
   const [queues, setQueues] = useState({ waiting: [], inProgress: [], completed: [] });
 
@@ -59,21 +62,25 @@ export default function TechnicianWorkspacePage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
+      const res = await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
         { 
           status: 'COMPLETED', 
           technician_note: values.technician_note, 
           type: selectedCustomer.type,
-          post_treatment_images: uploadedImages // Gửi ảnh lên server
+          post_treatment_images: uploadedImages, // Gửi ảnh lên server
+          materials,
         }, 
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
-      message.success('Đã hoàn thành ca làm! Khách hàng đã được xử lý.');
+      message.success(res.data.message || 'Đã hoàn thành ca làm! Khách hàng đã được xử lý.');
+      // Vật tư xuống dưới mức tồn tối thiểu: hệ thống đã tự gửi đề xuất nhập hàng cho quản lý
+      const low = res.data.materials?.low_stock || [];
+      if (low.length) message.warning(`Sắp hết: ${low.map((m) => `${m.name} (còn ${m.stock} ${m.unit})`).join(', ')}. Đã báo quản lý nhập hàng.`, 6);
       setSelectedCustomer(null);
       setUploadedImages([]);
       fetchQueues(); 
-    } catch (error) { message.error('Lỗi khi hoàn thành ca làm!'); } 
+    } catch (error) { message.error(error.response?.data?.message || 'Lỗi khi hoàn thành ca làm!'); } 
     finally { setLoading(false); }
   };
 
@@ -202,6 +209,10 @@ export default function TechnicianWorkspacePage() {
                             ))}
                          </div>
                        )}
+                    </Form.Item>
+
+                    <Form.Item label={<b className="text-gray-700">Vật tư đã dùng (theo định mức, sửa nếu dùng khác)</b>}>
+                      <SessionMaterialsForm key={selectedCustomer.id} targetType={selectedCustomer.target_type} targetId={selectedCustomer.target_id} onChange={setMaterials} />
                     </Form.Item>
 
                     <Form.Item name="technician_note" label={<b className="text-gray-700">Ghi chú thực hiện</b>} rules={[{ required: true, message: 'Vui lòng nhập ghi chú!' }]}>

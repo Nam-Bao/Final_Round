@@ -6,6 +6,7 @@ import {
   Star, Minus, Plus, ShoppingBag, Zap, ShieldCheck, Truck, Undo2, Stethoscope, ChevronRight, CheckCircle, PackageX,
 } from 'lucide-react';
 import ProductIngredients, { parseIngredients } from '../components/ProductIngredients';
+import ProductCard, { vnd, getImages, isOnSale, ProductBadges } from '../components/ProductCard';
 
 // Hạn sử dụng tính từ ngày sản xuất đến ngày hết hạn, hiển thị dạng "24 tháng" như trên bao bì
 const shelfLife = (start, end) => {
@@ -16,25 +17,10 @@ const shelfLife = (start, end) => {
   return days > 0 ? `${days} ngày kể từ ngày sản xuất` : null;
 };
 
-const productUrl = (p) => `/shops/${p.ProductDetail?.slug || p.id}`;
 import { useAuthStore } from '../store/authStore';
 
 const API = 'http://localhost:4000/api/commerce';
-const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
-const PLACEHOLDER = 'https://placehold.co/600x600?text=No+Image';
 const MAX_QTY = 20;
-
-// image_url có thể là mảng, chuỗi JSON hoặc 1 URL
-const getImages = (img) => {
-  if (!img) return [PLACEHOLDER];
-  if (Array.isArray(img)) return img.length ? img : [PLACEHOLDER];
-  try {
-    const parsed = JSON.parse(img);
-    return Array.isArray(parsed) ? (parsed.length ? parsed : [PLACEHOLDER]) : [parsed];
-  } catch {
-    return [img];
-  }
-};
 
 const Stars = ({ value, size = 'w-4 h-4' }) => (
   <span className="inline-flex">
@@ -43,28 +29,6 @@ const Stars = ({ value, size = 'w-4 h-4' }) => (
     ))}
   </span>
 );
-
-// Thẻ sản phẩm thu gọn cho phần "Sản phẩm liên quan"
-function MiniProductCard({ product }) {
-  const outOfStock = !(product.stock_quantity > 0);
-  return (
-    <Link to={productUrl(product)} className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm hover:shadow-md hover:border-teal-200 transition group flex flex-col">
-      <div className="relative aspect-square bg-slate-100 rounded-xl overflow-hidden mb-3">
-        <img src={getImages(product.image_url)[0]} alt={product.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
-        {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-0.5 rounded-lg">Hết hàng</span>}
-      </div>
-      {product.Category && <p className="text-xs text-teal-600 line-clamp-1">{product.Category.name}</p>}
-      <p className="font-semibold text-slate-800 text-sm line-clamp-2 min-h-[2.5rem]">{product.name}</p>
-      <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-        {product.review_count > 0 ? <><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {Number(product.avg_rating).toFixed(1)}</> : <span>Chưa có đánh giá</span>}
-      </div>
-      <div className="flex items-end justify-between mt-auto pt-2">
-        <span className="text-primary font-bold">{vnd(product.price)}</span>
-        <span className="text-[11px] text-slate-400">Đã bán {Number(product.sold_count || 0).toLocaleString('vi-VN')}</span>
-      </div>
-    </Link>
-  );
-}
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
@@ -234,6 +198,7 @@ export default function ProductDetailPage() {
           <div>
             <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
               <img src={images[activeImage]} alt={product.name} className={`w-full h-full object-cover ${outOfStock ? 'opacity-60 grayscale' : ''}`} />
+              <ProductBadges product={product} className="absolute top-3 right-3" />
               {outOfStock && <span className="absolute top-3 left-3 bg-slate-800 text-white text-sm font-semibold px-3 py-1 rounded-lg">Tạm hết hàng</span>}
             </div>
             {images.length > 1 && (
@@ -266,7 +231,18 @@ export default function ProductDetailPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl px-4 py-3">
-              <span className="text-3xl font-bold text-primary">{vnd(product.price)}</span>
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-3xl font-bold text-primary">{vnd(product.price)}</span>
+                {isOnSale(product) && (
+                  <>
+                    <span className="text-lg text-slate-400 line-through">{vnd(product.original_price)}</span>
+                    <span className="bg-red-500 text-white text-sm font-bold px-2 py-0.5 rounded-lg">-{product.discount_percent}%</span>
+                  </>
+                )}
+              </div>
+              {isOnSale(product) && (
+                <p className="text-xs text-red-600 font-medium mt-1">Giá ưu đãi khi mua online đến hết {dayjs(product.sale_end).format('HH:mm DD/MM/YYYY')}</p>
+              )}
               <p className="text-xs text-slate-500 mt-1">Phí vận chuyển GHN được tính theo địa chỉ nhận hàng khi đặt.</p>
             </div>
 
@@ -447,7 +423,7 @@ export default function ProductDetailPage() {
               </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {related.map((p) => <MiniProductCard key={p.id} product={p} />)}
+              {related.map((p) => <ProductCard key={p.id} product={p} />)}
             </div>
           </section>
         )}

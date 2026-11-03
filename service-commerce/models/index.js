@@ -37,6 +37,10 @@ const ProductDetail = sequelize.define('ProductDetail', {
   // Thuốc kê đơn (Rx): vẫn hiển thị trên web để tra cứu nhưng KHÔNG bán online; chỉ bác sĩ kê và bán tại quầy
   is_prescription: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   published_at: { type: DataTypes.DATE },
+  // Khuyến mãi khi mua online: giảm sale_percent % giá niêm yết, chỉ trong khoảng sale_start - sale_end (utils/pricing.js)
+  sale_percent: { type: DataTypes.INTEGER },
+  sale_start: { type: DataTypes.DATE },
+  sale_end: { type: DataTypes.DATE },
   brand: { type: DataTypes.STRING },
   origin: { type: DataTypes.STRING },                                     // xuất xứ
   capacity: { type: DataTypes.STRING },                                   // dung tích / khối lượng tịnh, vd "40ml"
@@ -117,7 +121,43 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
   items: { type: DataTypes.JSONB }, 
   reason: { type: DataTypes.STRING },
   status: { type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED'), defaultValue: 'PENDING' },
-  approver_id: { type: DataTypes.UUID }
+  approver_id: { type: DataTypes.UUID },
+  // Phiếu xuất vật tư gắn với buổi trị liệu (TREATMENT_SESSION | SERVICE_SESSION) => mỗi buổi chỉ trừ kho 1 lần
+  reference_type: { type: DataTypes.STRING(30) },
+  reference_id: { type: DataTypes.UUID },
+  // Duyệt đề xuất nhập hàng: ai duyệt / từ chối, lý do, lúc nào; xác nhận hàng về kho (cộng tồn kho)
+  decision_note: { type: DataTypes.TEXT },
+  decided_at: { type: DataTypes.DATE },
+  received_at: { type: DataTypes.DATE },
+  received_by: { type: DataTypes.UUID },
+});
+
+// Thông tin vật tư nội bộ (Product type MATERIAL): đơn vị tính, quy cách, nguồn gốc, mức tồn tối thiểu.
+// stock_quantity của vật tư tính theo `unit` (vd 1000 chiếc găng tay, 2000 ml cồn).
+const MaterialSpec = sequelize.define('MaterialSpec', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  product_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+  unit: { type: DataTypes.STRING(20), allowNull: false },            // ml | g | chiếc | miếng | cái
+  pack_size: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }, // số đơn vị trong 1 quy cách nhập (1 hộp = 100 chiếc)
+  pack_label: { type: DataTypes.STRING(60) },                        // "Hộp 100 chiếc", "Chai 500ml"
+  origin: { type: DataTypes.STRING(100) },                           // xuất xứ
+  manufacturer: { type: DataTypes.STRING(200) },                     // nhà sản xuất
+  supplier: { type: DataTypes.STRING(200) },                         // công ty nhập khẩu / phân phối / nơi mua
+  registration_no: { type: DataTypes.STRING(100) },                  // số công bố / số lưu hành / số đăng ký
+  source_url: { type: DataTypes.STRING(500) },                       // trang thông tin sản phẩm (nguồn dữ liệu)
+  min_stock: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }, // tồn tối thiểu: xuống tới mức này phải đề xuất nhập
+});
+
+// Định mức vật tư cho 1 buổi của dịch vụ lẻ (SERVICE = SpaService) hoặc gói liệu trình (PACKAGE = TreatmentPackage, tính theo buổi)
+const MaterialNorm = sequelize.define('MaterialNorm', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  target_type: { type: DataTypes.ENUM('SERVICE', 'PACKAGE'), allowNull: false },
+  target_id: { type: DataTypes.UUID, allowNull: false },
+  target_name: { type: DataTypes.STRING },                           // tên dịch vụ / gói lúc lưu (để hiển thị)
+  product_id: { type: DataTypes.UUID, allowNull: false },
+  quantity: { type: DataTypes.INTEGER, allowNull: false },
+}, {
+  indexes: [{ unique: true, fields: ['target_type', 'target_id', 'product_id'] }]
 });
 
 const Promotion = sequelize.define('Promotion', {
@@ -220,4 +260,9 @@ SavedPromotion.belongsTo(Promotion, { foreignKey: 'promotion_id' });
 Promotion.hasMany(PromotionUsage, { foreignKey: 'promotion_id', onDelete: 'CASCADE' });
 PromotionUsage.belongsTo(Promotion, { foreignKey: 'promotion_id' });
 
-module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };
+Product.hasOne(MaterialSpec, { foreignKey: 'product_id', onDelete: 'CASCADE' });
+MaterialSpec.belongsTo(Product, { foreignKey: 'product_id' });
+Product.hasMany(MaterialNorm, { foreignKey: 'product_id', onDelete: 'CASCADE' });
+MaterialNorm.belongsTo(Product, { foreignKey: 'product_id' });
+
+module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };

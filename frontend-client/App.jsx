@@ -29,6 +29,7 @@ import PromotionsPage from './pages/PromotionsPage';
 import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
 import ContactPage from './pages/ContactPage';
+import SearchPage from './pages/SearchPage';
 import AboutPage from './pages/AboutPage';
 import DoctorsPage from './pages/DoctorsPage';
 import ConsultationBookingPage from './pages/ConsultationBookingPage';
@@ -232,6 +233,7 @@ function App() {
             <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
             <Route path="/payment/tu-van/:id" element={<ProtectedRoute><PaymentPage key="consultation" kind="consultation" /></ProtectedRoute>} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/tim-kiem" element={<SearchPage />} />
             <Route path="/gioi-thieu" element={<AboutPage />} />
             <Route path="/doi-ngu-bac-si" element={<DoctorsPage />} />
             <Route path="/services" element={<ServicesPage />} />

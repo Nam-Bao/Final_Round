@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, MapPin, Phone, Clock, CalendarCheck, MessageCircle, Navigation } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL } from '../utils/contact';
+import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
 
 const LINK_GROUPS = [
   {
@@ -81,6 +81,7 @@ export default function ClientFooter() {
               <span>{WORKING_HOURS}</span>
             </li>
           </ul>
+          {HAS_CLINIC_MAP && (
           <div className="relative mt-4 rounded-2xl overflow-hidden border border-base-300 shadow-sm">
             <iframe title="Bản đồ GlowSkin Clinic" src={MAP_EMBED_URL} className="w-full h-40 border-0 block" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
             <a href={MAP_DIRECTIONS_URL} target="_blank" rel="noopener noreferrer"
@@ -88,6 +89,7 @@ export default function ClientFooter() {
               <Navigation className="w-3 h-3" /> Chỉ đường
             </a>
           </div>
+          )}
         </div>
       </div>
 

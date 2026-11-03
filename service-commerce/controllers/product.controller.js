@@ -1,6 +1,7 @@
 const { sequelize, Product, ProductDetail, Category, Review, Order, OrderDetail, OrderReturn } = require('../models');
 const { Op } = require('sequelize'); // getAllProducts dùng Op/sequelize/Review (trước đây thiếu import)
 const { getRatingStats } = require('./review.controller');
+const { SALE_FIELDS, withOnlinePrice } = require('../utils/pricing');
 
 // Số lượng đã bán thật: tổng số lượng trong các đơn đã giao xong (COMPLETED, gồm cả đơn tại quầy),
 // trừ phần khách đã trả lại và được hoàn tiền. productIds bỏ trống => tính cho tất cả sản phẩm.
@@ -30,6 +31,26 @@ const withStats = (product, ratingStats, soldStats) => ({
   sold_count: soldStats[product.id] || 0,
 });
 
+// Nhãn "MỚI": chỉ NEW_LIMIT sản phẩm mở bán trên web gần nhất (theo published_at)
+const NEW_LIMIT = 10;
+const getNewProductIds = async () => {
+  const rows = await ProductDetail.findAll({
+    where: { is_published: true, published_at: { [Op.ne]: null } },
+    include: [{ model: Product, attributes: [], where: { type: 'PRODUCT' } }],
+    attributes: ['product_id'], order: [['published_at', 'DESC']], limit: NEW_LIMIT, raw: true,
+  });
+  return new Set(rows.map((r) => r.product_id));
+};
+
+// Cửa hàng web: kèm giá khuyến mãi online đang chạy (price = giá khách trả, original_price = giá niêm yết)
+const withShopStats = (product, ratingStats, soldStats, newIds) => ({
+  ...withOnlinePrice(product.toJSON()),
+  is_new: newIds.has(product.id),
+  avg_rating: ratingStats[product.id]?.avg_rating || 0,
+  review_count: ratingStats[product.id]?.review_count || 0,
+  sold_count: soldStats[product.id] || 0,
+});
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // 1. Lấy danh sách Sản phẩm (Kèm theo thông tin Danh mục)
@@ -54,7 +75,7 @@ const getProducts = async (req, res) => {
 // CỬA HÀNG WEB: chỉ sản phẩm đã được bật "Bán trên web" (ProductDetail.is_published)
 // ==========================================
 const SKIN_TYPES = ['Mọi loại da', 'Da thường', 'Da dầu', 'Da khô', 'Da hỗn hợp', 'Da nhạy cảm', 'Da mụn'];
-const SHOP_DETAIL_FIELDS = ['slug', 'brand', 'origin', 'capacity', 'skin_types', 'short_description', 'is_prescription'];
+const SHOP_DETAIL_FIELDS = ['slug', 'brand', 'origin', 'capacity', 'skin_types', 'short_description', 'is_prescription', 'published_at', ...SALE_FIELDS];
 
 // "Sữa rửa mặt Cetaphil 500ml" -> "sua-rua-mat-cetaphil-500ml"
 const slugify = (text) => String(text || '')
@@ -85,8 +106,8 @@ const getShopProducts = async (req, res) => {
       ],
       order: [['createdAt', 'DESC']]
     });
-    const [ratingStats, soldStats] = await Promise.all([getRatingStats(), getSoldStats()]);
-    res.status(200).json({ data: products.map((p) => withStats(p, ratingStats, soldStats)) });
+    const [ratingStats, soldStats, newIds] = await Promise.all([getRatingStats(), getSoldStats(), getNewProductIds()]);
+    res.status(200).json({ data: products.map((p) => withShopStats(p, ratingStats, soldStats, newIds)) });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -104,8 +125,8 @@ const getShopProduct = async (req, res) => {
       ]
     });
     if (!product) return res.status(404).json({ message: 'Sản phẩm không tồn tại hoặc chưa bán trên web' });
-    const [ratingStats, soldStats] = await Promise.all([getRatingStats([product.id]), getSoldStats([product.id])]);
-    res.status(200).json({ data: withStats(product, ratingStats, soldStats) });
+    const [ratingStats, soldStats, newIds] = await Promise.all([getRatingStats([product.id]), getSoldStats([product.id]), getNewProductIds()]);
+    res.status(200).json({ data: withShopStats(product, ratingStats, soldStats, newIds) });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -124,6 +145,25 @@ const getProductDetailAdmin = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
+};
+
+// Khuyến mãi online theo % (1 - 90): bỏ trống sale_percent = tắt. Có % thì bắt buộc ngày kết thúc (mỗi đợt tối đa 180 ngày).
+const MAX_SALE_DAYS = 180;
+const parseSale = (body) => {
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  if (body.sale_percent === null || body.sale_percent === '' || body.sale_percent === undefined) {
+    return { sale_percent: null, sale_start: null, sale_end: null };
+  }
+  const percent = Number(body.sale_percent);
+  if (!Number.isInteger(percent) || percent < 1 || percent > 90) throw bad('Mức giảm phải là số nguyên từ 1% đến 90%');
+  const start = body.sale_start ? new Date(body.sale_start) : new Date();
+  const end = new Date(body.sale_end);
+  if (Number.isNaN(start.getTime())) throw bad('Ngày bắt đầu khuyến mãi không hợp lệ');
+  if (!body.sale_end || Number.isNaN(end.getTime())) throw bad('Cần ngày kết thúc khuyến mãi');
+  if (end <= start) throw bad('Ngày kết thúc phải sau ngày bắt đầu');
+  if (end <= new Date()) throw bad('Ngày kết thúc khuyến mãi đã qua');
+  if (end - start > MAX_SALE_DAYS * 86400000) throw bad(`Mỗi đợt khuyến mãi tối đa ${MAX_SALE_DAYS} ngày`);
+  return { sale_percent: percent, sale_start: start, sale_end: end };
 };
 
 // [ADMIN] Lưu thông tin bán web + bật / tắt bán trên web
@@ -150,6 +190,7 @@ const upsertProductDetail = async (req, res) => {
     }
     values.is_published = 'is_published' in req.body ? req.body.is_published === true : Boolean(existing?.is_published);
     if ('is_prescription' in req.body) values.is_prescription = req.body.is_prescription === true;
+    if ('sale_percent' in req.body) Object.assign(values, parseSale(req.body));
     // Kiểm tra điều kiện mở bán trên nội dung sau khi lưu (giá trị mới, hoặc giá trị cũ nếu không gửi)
     const merged = { ...(existing?.toJSON() || {}), ...values };
 
@@ -180,7 +221,7 @@ const upsertProductDetail = async (req, res) => {
 const getProductsForAdmin = async (req, res) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: Category, attributes: ['id', 'name'] }, { model: ProductDetail, attributes: ['slug', 'is_published'] }],
+      include: [{ model: Category, attributes: ['id', 'name'] }, { model: ProductDetail, attributes: ['slug', 'is_published', ...SALE_FIELDS] }],
       order: [['createdAt', 'DESC']]
     });
     res.status(200).json({ data: products });

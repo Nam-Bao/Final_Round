@@ -41,6 +41,7 @@ const getTechnicianQueues = async (req, res) => {
         customer_name: patientProfile?.full_name || customer?.Profile?.full_name || 'Khách hàng',
         customer_phone: patientProfile?.phone || customer?.Profile?.phone || 'Chưa cập nhật',
         service_name: session.CustomerPackage.TreatmentPackage.name,
+        target_type: 'PACKAGE', target_id: session.CustomerPackage.package_id, // để tải định mức vật tư
         current_session: session.session_number,
         total_sessions: session.CustomerPackage.total_sessions,
         status: session.status,
@@ -59,6 +60,7 @@ const getTechnicianQueues = async (req, res) => {
         customer_name: patientProfile?.full_name || customer?.Profile?.full_name || 'Khách hàng',
         customer_phone: patientProfile?.phone || customer?.Profile?.phone || 'Chưa cập nhật',
         service_name: session.SpaService.name,
+        target_type: 'SERVICE', target_id: session.spa_service_id, // để tải định mức vật tư
         current_session: 1,
         total_sessions: 1,
         status: session.status,
@@ -104,6 +106,33 @@ const updateSessionStatus = async (req, res) => {
     }
     const wasCompleted = session.status === 'COMPLETED';
 
+    // Lần đầu hoàn thành buổi: ghi vật tư đã dùng => service-commerce trừ kho (mỗi buổi 1 lần).
+    // Ghi vật tư lỗi thì chưa chuyển trạng thái để KTV thử lại, tránh buổi đã xong mà kho không trừ.
+    let materialResult = null;
+    if (status === 'COMPLETED' && !wasCompleted && Array.isArray(req.body.materials) && req.body.materials.length) {
+      const isPackage = type === 'PACKAGE';
+      let target_id = session.spa_service_id;
+      let target_name = '';
+      if (isPackage) {
+        const pkg = await CustomerPackage.findByPk(session.customer_package_id, { include: [{ model: TreatmentPackage, attributes: ['name'] }] });
+        target_id = pkg?.package_id;
+        target_name = pkg?.TreatmentPackage?.name || '';
+      } else {
+        target_name = (await SpaService.findByPk(session.spa_service_id, { attributes: ['name'] }))?.name || '';
+      }
+      try {
+        const r = await axios.post('http://localhost:4000/api/commerce/materials/usage', {
+          reference_type: isPackage ? 'TREATMENT_SESSION' : 'SERVICE_SESSION', reference_id: session.id,
+          target_type: isPackage ? 'PACKAGE' : 'SERVICE', target_id, target_name,
+          items: req.body.materials,
+        }, { headers: { Authorization: req.headers.authorization }, timeout: 10000 });
+        materialResult = r.data;
+      } catch (err) {
+        return res.status(err.response?.status && err.response.status < 500 ? err.response.status : 502)
+          .json({ message: err.response?.data?.message || 'Không ghi được vật tư, vui lòng thử lại' });
+      }
+    }
+
     session.technician_id = session.technician_id || req.user.id;
     session.status = status;
     if (technician_note) session.technician_note = technician_note;
@@ -120,7 +149,7 @@ const updateSessionStatus = async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: 'Đã cập nhật ca làm' });
+    res.status(200).json({ message: materialResult?.message ? `Đã cập nhật ca làm. ${materialResult.message}` : 'Đã cập nhật ca làm', materials: materialResult });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -168,4 +197,25 @@ const getMySessions = async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
-module.exports = { getTechnicianQueues, updateSessionStatus, getPatientSessions, getMySessions };
+// [ADMIN/GEN_MANAGER] Số buổi đã đặt trong N ngày tới theo dịch vụ lẻ / gói => service-commerce dự báo nhu cầu vật tư
+const getUpcomingDemand = async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 14, 1), 60);
+    const from = dayjs().format('YYYY-MM-DD');
+    const to = dayjs().add(days, 'day').format('YYYY-MM-DD');
+    const where = { session_date: { [Op.between]: [from, to] }, status: { [Op.ne]: 'COMPLETED' } };
+    const [tRows, sRows] = await Promise.all([
+      TreatmentSession.findAll({ where, include: [{ model: CustomerPackage, attributes: ['package_id'] }], attributes: ['id'], raw: true, nest: true }),
+      ServiceSession.findAll({ where, attributes: ['spa_service_id'], raw: true }),
+    ]);
+    const PACKAGE = {};
+    const SERVICE = {};
+    tRows.forEach((r) => { const id = r.CustomerPackage?.package_id; if (id) PACKAGE[id] = (PACKAGE[id] || 0) + 1; });
+    sRows.forEach((r) => { SERVICE[r.spa_service_id] = (SERVICE[r.spa_service_id] || 0) + 1; });
+    res.status(200).json({ data: { PACKAGE, SERVICE }, from, to, days });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+module.exports = { getTechnicianQueues, updateSessionStatus, getPatientSessions, getMySessions, getUpcomingDemand };

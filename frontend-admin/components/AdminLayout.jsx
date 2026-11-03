@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch } from 'antd';
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
-  LogoutOutlined, AppstoreOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
+  LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined,
   VideoCameraOutlined
@@ -183,12 +183,16 @@ export default function AdminLayout() {
       { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
       { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
       { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+      { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
       { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' }
     ] : []),
     ...(['GEN_MANAGER'].includes(role) ? [
       { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
       { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
       { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+      { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
       { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ Spa lẻ' },
       { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã Khuyến mãi' },
       { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình' },

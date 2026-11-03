@@ -7,6 +7,8 @@ export const WORKING_HOURS = '08:00 - 20:00 (Hàng ngày)';
 export const CLINIC_ADDRESS = import.meta.env.VITE_CLINIC_ADDRESS || 'Đang cập nhật địa chỉ';
 // Bản đồ Google Maps nhúng (không cần API key) và link mở chỉ đường; tra theo địa chỉ đầy đủ nếu có
 const MAP_QUERY = encodeURIComponent(import.meta.env.VITE_CLINIC_MAP_QUERY || import.meta.env.VITE_CLINIC_ADDRESS || '');
+// Chưa khai báo địa chỉ thì không hiện bản đồ (tránh khung bản đồ trống)
+export const HAS_CLINIC_MAP = MAP_QUERY !== '';
 export const MAP_EMBED_URL = `https://maps.google.com/maps?q=${MAP_QUERY}&z=16&hl=vi&output=embed`;
 export const MAP_DIRECTIONS_URL = `https://www.google.com/maps/dir/?api=1&destination=${MAP_QUERY}`;
 

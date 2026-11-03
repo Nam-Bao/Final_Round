@@ -1,32 +1,106 @@
-import { Row, Col, Card, Statistic } from 'antd';
-import { UserOutlined, ShoppingCartOutlined, CalendarOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Row, Col, Card, Alert, List, Tag, Button, Spin, Space } from 'antd';
+import { CalendarOutlined, ShoppingCartOutlined, DollarOutlined, WarningOutlined, InboxOutlined, LineChartOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import dayjs from 'dayjs';
+import StackedBarChart from '../components/StackedBarChart';
+import { fetchRevenue, toChartData, GROUPS, vnd } from '../utils/revenue';
 
-export default function DashboardPage() {
+const API = 'http://localhost:4000/api';
+const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+const MATERIAL_STATUS = { OUT: 'Hết hàng', LOW: 'Dưới tồn tối thiểu', SHORT: 'Không đủ cho lịch 14 ngày' };
+
+function Tile({ icon, title, value, sub, onClick }) {
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6">Tổng quan hệ thống</h2>
-      
-      <Row gutter={16}>
-        <Col span={8}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic title="Khách hàng mới" value={112} prefix={<UserOutlined />} valueStyle={{ color: '#3f8600' }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic title="Đơn hàng chờ duyệt" value={15} prefix={<ShoppingCartOutlined />} valueStyle={{ color: '#cf1322' }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic title="Lịch hẹn hôm nay" value={9} prefix={<CalendarOutlined />} valueStyle={{ color: '#1677ff' }} />
-          </Card>
-        </Col>
+    <Card size="small" className={`shadow-sm h-full ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`} onClick={onClick}>
+      <div className="flex items-center gap-2 text-gray-500 text-sm">{icon}{title}</div>
+      <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{value}</div>
+      {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
+    </Card>
+  );
+}
+
+// Tổng quan cho quản lý (ADMIN / GEN_MANAGER): số liệu thật hôm nay, doanh thu 14 ngày, cảnh báo kho, việc cần duyệt
+function ManagerDashboard() {
+  const navigate = useNavigate();
+  const [state, setState] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const today = dayjs();
+    const from14 = today.subtract(13, 'day');
+    Promise.all([
+      fetchRevenue(from14, today),
+      fetchRevenue(today.startOf('month'), today),
+      axios.get(`${API}/booking/reports/today`, authConfig()),
+      axios.get(`${API}/commerce/reports/overview`, authConfig()),
+      axios.get(`${API}/commerce/materials`, authConfig()),
+    ]).then(([rev14, revMonth, todayRes, overview, materials]) => {
+      const todayKey = today.format('YYYY-MM-DD');
+      const todayRow = rev14.days.find((d) => d.date === todayKey);
+      setState({
+        chart: toChartData(rev14.days, from14, today).bars,
+        revenueToday: todayRow ? Object.entries(todayRow).filter(([k]) => k !== 'date').reduce((s, [, v]) => s + v, 0) : 0,
+        revenueMonth: revMonth.total,
+        today: todayRes.data.data,
+        overview: overview.data.data,
+        materialAlerts: (materials.data.data || []).filter((m) => m.status !== 'OK'),
+      });
+    }).catch((e) => setError(e.response?.data?.message || 'Không tải được số liệu tổng quan'));
+  }, []);
+
+  if (error) return <Alert type="error" showIcon message={error} />;
+  if (!state) return <div className="flex justify-center py-16"><Spin size="large" /></div>;
+  const { overview, today } = state;
+  const stockAlerts = [
+    ...state.materialAlerts.map((m) => ({ key: m.id, kind: 'Vật tư', name: m.name, detail: `Còn ${m.stock} ${m.unit} • ${MATERIAL_STATUS[m.status]}`, pending: m.purchase_pending, out: m.status === 'OUT' })),
+    ...overview.product_alerts.map((p) => ({ key: p.id, kind: 'Mỹ phẩm', name: p.name, detail: `Còn ${p.stock} • bán ${p.sold_30d}/30 ngày${p.days_left !== null ? ` • đủ ~${p.days_left} ngày` : ''}`, pending: p.purchase_pending, out: p.status === 'OUT' })),
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Row gutter={[16, 16]}>
+        <Col xs={12} lg={6}><Tile icon={<DollarOutlined />} title="Doanh thu hôm nay" value={vnd(state.revenueToday)} sub={`Tháng này: ${vnd(state.revenueMonth)}`} onClick={() => navigate('/reports')} /></Col>
+        <Col xs={12} lg={6}><Tile icon={<CalendarOutlined />} title="Lịch hẹn hôm nay" value={today.appointments_today} sub={`${today.waiting_checkout} khách chờ thu tiền`} /></Col>
+        <Col xs={12} lg={6}><Tile icon={<ShoppingCartOutlined />} title="Đơn mỹ phẩm cần xử lý" value={overview.pending_orders} sub="Chờ thanh toán / duyệt / đóng gói" /></Col>
+        <Col xs={12} lg={6}><Tile icon={<InboxOutlined />} title="Đề xuất nhập hàng chờ duyệt" value={overview.pending_purchase} sub={`${overview.approved_not_received} đã duyệt, chờ hàng về`} onClick={() => navigate('/materials?tab=purchase')} /></Col>
       </Row>
 
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
-        Khu vực này sau này sẽ chứa các biểu đồ báo cáo doanh thu và tình trạng khám da liễu.
-      </div>
+      {stockAlerts.length > 0 ? (
+        <Card size="small" title={<span className="text-red-600"><WarningOutlined /> Sắp hết hàng – cần nhập ({stockAlerts.length})</span>}
+          extra={<Button size="small" type="primary" onClick={() => navigate('/materials?tab=purchase')}>Xem đề xuất nhập</Button>}>
+          <List size="small" dataSource={stockAlerts}
+            renderItem={(a) => (
+              <List.Item>
+                <Space wrap>
+                  <Tag color={a.out ? 'red' : 'orange'}>{a.out ? 'Hết hàng' : 'Sắp hết'}</Tag>
+                  <Tag>{a.kind}</Tag>
+                  <b>{a.name}</b>
+                  <span className="text-gray-500 text-sm">{a.detail}</span>
+                  {a.pending ? <Tag color="blue">Đã có đề xuất nhập</Tag> : <Tag color="gold">Chưa có đề xuất</Tag>}
+                </Space>
+              </List.Item>
+            )} />
+        </Card>
+      ) : <Alert type="success" showIcon message="Kho vật tư và mỹ phẩm đủ dùng, chưa có mặt hàng nào sắp hết." />}
+
+      <Card size="small" title={<span><LineChartOutlined /> Doanh thu 14 ngày gần nhất</span>} extra={<Button size="small" onClick={() => navigate('/reports')}>Báo cáo chi tiết</Button>}>
+        <StackedBarChart data={state.chart} series={GROUPS} height={220} />
+      </Card>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const user = JSON.parse(sessionStorage.getItem('admin_user') || '{}');
+  const isManager = ['ADMIN', 'GEN_MANAGER'].includes(user.role);
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-4">Tổng quan hệ thống</h2>
+      {isManager ? <ManagerDashboard /> : (
+        <Alert type="info" showIcon message={`Xin chào ${user.Profile?.full_name || ''}! Chọn chức năng ở menu bên trái để bắt đầu làm việc.`} />
+      )}
     </div>
   );
 }

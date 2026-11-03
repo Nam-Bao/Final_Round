@@ -183,6 +183,8 @@ const Invoice = sequelize.define('Invoice', {
     total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     payment_status: { type: DataTypes.ENUM('PENDING', 'PAID', 'REFUNDED'), defaultValue: 'PENDING' },
     payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN'), defaultValue: 'UNKNOWN' },
+    // Chi tiết hoá đơn lúc chốt (báo cáo doanh thu theo nguồn): phí khám, dịch vụ lẻ, gói, mỹ phẩm, giảm giá, cọc tư vấn
+    breakdown: { type: DataTypes.JSONB },
 });
 
 const Transaction = sequelize.define('Transaction', {

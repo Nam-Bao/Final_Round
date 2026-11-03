@@ -13,6 +13,8 @@ const orderRoute = require('./routes/order.route.js');
 const cartRoute = require('./routes/cart.route.js');
 const reviewRoute = require('./routes/review.route.js');
 const returnRoute = require('./routes/return.route.js');
+const materialRoute = require('./routes/material.route.js');
+const reportRoute = require('./routes/report.route.js');
 
 const app = express();
 // Gateway chuyển /api/commerce sang port 4003
@@ -30,6 +32,8 @@ app.use('/api/commerce/carts', cartRoute);
 app.use('/api/commerce/promotions', promotionRoute);
 app.use('/api/commerce/reviews', reviewRoute);
 app.use('/api/commerce/returns', returnRoute);
+app.use('/api/commerce/materials', materialRoute);
+app.use('/api/commerce/reports', reportRoute);
 
 // 2. Mount dự phòng đường dẫn ngắn (Direct Service Calls)
 app.use('/categories', categoryRoute);
@@ -39,6 +43,8 @@ app.use('/carts', cartRoute);
 app.use('/promotions', promotionRoute);
 app.use('/reviews', reviewRoute);
 app.use('/returns', returnRoute);
+app.use('/materials', materialRoute);
+app.use('/reports', reportRoute);
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Commerce Service] đang chạy tại port ${PORT}`);
@@ -51,6 +57,10 @@ app.listen(PORT, async() => {
         await sequelize.sync({ alter });
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
+        await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "sale_percent" INTEGER, ADD COLUMN IF NOT EXISTS "sale_start" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "sale_end" TIMESTAMPTZ');
+        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID');
+        // Mỗi buổi trị liệu chỉ có 1 phiếu xuất vật tư (chặn trừ kho 2 lần khi bấm hoàn thành 2 lần cùng lúc)
+        await sequelize.query('CREATE UNIQUE INDEX IF NOT EXISTS "inventory_requests_reference_unique" ON "InventoryRequests" ("type", "reference_type", "reference_id") WHERE "reference_id" IS NOT NULL');
         console.log('✅ Đã kết nối DB và cập nhật bảng phân hệ Commerce!');
     } catch (error) {
         console.error('❌ Lỗi DB Commerce:', error.message);
