@@ -2,14 +2,14 @@ const { Op } = require('sequelize');
 const { sequelize, Article, ArticleSubmission, ArticleReview } = require('../models');
 const { text, optionalUrl, stringList, checkContentMedia } = require('../utils/validate');
 const { uniqueSlug } = require('./news.controller');
-const { ARTICLE_TYPES } = require('../utils/articleTypes');
+const { DOCTOR_TYPES, typeLabel } = require('../utils/articleTypes');
 
 // Quy trình: bác sĩ soạn (DRAFT) -> gửi duyệt (PENDING) -> quản lý duyệt (APPROVED, tự đăng lên web)
 // hoặc yêu cầu chỉnh sửa (CHANGES_REQUESTED, kèm lý do) -> bác sĩ sửa và gửi lại (PENDING, phiên bản + 1).
 // Mỗi lần gửi lưu snapshot nội dung vào ArticleReviews nên bài cũ không bị mất.
 const MANAGER_ROLES = ['ADMIN', 'GEN_MANAGER'];
 const EDITABLE = ['DRAFT', 'CHANGES_REQUESTED', 'APPROVED'];
-const CONTENT_FIELDS = ['title', 'summary', 'content', 'thumbnail_url', 'video_url', 'tags', 'sources', 'author_title'];
+const CONTENT_FIELDS = ['title', 'summary', 'content', 'thumbnail_url', 'video_url', 'article_type', 'category', 'tags', 'sources', 'author_title'];
 const MIN_CONTENT = 300;
 
 const isManager = (user) => MANAGER_ROLES.includes(user.role);
@@ -44,10 +44,15 @@ const pickFields = (body) => {
   if (body.video_url !== undefined) data.video_url = optionalUrl(body.video_url, 'Video');
   if (body.tags !== undefined) data.tags = stringList(body.tags, { max: 10, maxLength: 40, separator: /[,\n]/ });
   if (body.sources !== undefined) data.sources = stringList(body.sources, { max: 30, maxLength: 500 });
+  if (body.article_type !== undefined) {
+    if (!DOCTOR_TYPES.includes(body.article_type)) throw new Error('Bác sĩ chỉ được viết bài Nghiên cứu, Kiến thức da liễu hoặc Chăm sóc da');
+    data.article_type = body.article_type;
+    data.category = typeLabel(body.article_type);
+  }
   return data;
 };
 
-// Điều kiện tối thiểu của một bài nghiên cứu trước khi gửi duyệt
+// Điều kiện tối thiểu của bài bác sĩ trước khi gửi duyệt
 const readyToSubmit = (s) => {
   if (!s.title) return 'Vui lòng nhập tiêu đề';
   if (!s.summary || s.summary.length < 30) return 'Tóm tắt cần ít nhất 30 ký tự';
@@ -125,8 +130,9 @@ const createSubmission = async (req, res) => {
     if (!data.title) throw new Error('Vui lòng nhập tiêu đề');
     const doctor = await fetchDoctor(req.user.id);
     const submission = await ArticleSubmission.create({
+      article_type: 'RESEARCH',
+      category: typeLabel('RESEARCH'),
       ...data,
-      category: ARTICLE_TYPES.RESEARCH, // bài bác sĩ gửi luôn thuộc loại Nghiên cứu
       author_id: req.user.id,
       author_name: doctor?.full_name || 'Bác sĩ GlowSkin',
       author_avatar: doctor?.avatar || null,
@@ -219,14 +225,14 @@ const approveSubmission = async (req, res) => {
       content: submission.content,
       thumbnail_url: submission.thumbnail_url,
       video_url: submission.video_url,
-      category: ARTICLE_TYPES.RESEARCH,
+      category: typeLabel(submission.article_type || 'RESEARCH'),
       tags: submission.tags,
       sources: submission.sources,
       author_id: submission.author_id,
       author_name: submission.author_name,
       author_title: submission.author_title,
       author_avatar: submission.author_avatar,
-      article_type: 'RESEARCH',
+      article_type: submission.article_type || 'RESEARCH',
       updated_by: req.user.id,
     };
     if (req.body.is_featured !== undefined) fields.is_featured = !!req.body.is_featured;

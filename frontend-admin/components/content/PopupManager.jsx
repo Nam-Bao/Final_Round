@@ -23,16 +23,22 @@ const PAGE_OPTIONS = [
 // Xem trước popup giống giao diện khách
 function PopupPreview({ popup }) {
   if (!popup.title && !popup.image_url) return <div className="text-gray-400 text-sm text-center py-10">Nhập tiêu đề hoặc tải ảnh để xem trước</div>;
+  const hasText = popup.title || popup.content;
+  // Giống popup trên máy tính của khách: khung vuông, ảnh phủ kín, chữ ở phần dưới trên nền trắng mờ
   return (
     <div className="bg-black/40 rounded-xl p-5 flex justify-center">
-      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-[320px] shadow-xl relative">
-        <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow"><CloseOutlined className="text-xs" /></span>
-        {popup.image_url && <img src={popup.image_url} alt="" className="w-full max-h-56 object-cover" />}
-        <div className="p-4 text-center space-y-2">
-          {popup.title && <div className="font-bold text-lg text-slate-800">{popup.title}</div>}
-          {popup.content && <div className="text-sm text-gray-600 whitespace-pre-line">{popup.content}</div>}
-          {popup.link_url && <div className="bg-teal-600 text-white rounded-full py-2 text-sm font-semibold">{popup.button_text || 'Xem ngay'}</div>}
-        </div>
+      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-[320px] aspect-square shadow-xl relative">
+        <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow z-10"><CloseOutlined className="text-xs" /></span>
+        {popup.image_url && <img src={popup.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+        {(hasText || !popup.image_url) && (
+          <div className={`text-center space-y-1.5 px-5 ${popup.image_url
+            ? 'absolute inset-x-0 bottom-0 pb-4 pt-10 bg-gradient-to-t from-white via-white/95 to-white/0'
+            : 'h-full flex flex-col justify-center'}`}>
+            {popup.title && <div className="font-bold text-base text-slate-800">{popup.title}</div>}
+            {popup.content && <div className="text-xs text-gray-600 whitespace-pre-line line-clamp-3">{popup.content}</div>}
+            {popup.link_url && <div className="bg-teal-600 text-white rounded-full py-1.5 text-xs font-semibold max-w-[200px] mx-auto">{popup.button_text || 'Xem ngay'}</div>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -153,7 +159,7 @@ export default function PopupManager() {
               <Form.Item name="name" label="Tên quản lý (khách không thấy)" rules={[{ required: true, message: 'Nhập tên popup' }, { max: 100 }]}>
                 <Input maxLength={100} placeholder="Popup sale 11.11" />
               </Form.Item>
-              <Form.Item name="image_url" label="Ảnh popup" extra="Khuyến nghị 600×600px hoặc 600×750px"><MediaField kind="image" /></Form.Item>
+              <Form.Item name="image_url" label="Ảnh popup" extra="Ảnh vuông 1:1, khuyến nghị 1080×1080px. Có tiêu đề thì nên chừa khoảng trống ở 1/3 phía dưới ảnh cho chữ"><MediaField kind="image" /></Form.Item>
               <Form.Item name="title" label="Tiêu đề"><Input maxLength={150} /></Form.Item>
               <Form.Item name="content" label="Nội dung"><Input.TextArea rows={3} maxLength={1000} showCount /></Form.Item>
               <Row gutter={12}>

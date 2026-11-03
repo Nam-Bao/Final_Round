@@ -9,6 +9,8 @@ const ARTICLE_TYPES = {
 };
 const TYPE_KEYS = Object.keys(ARTICLE_TYPES);
 const DEFAULT_TYPE = 'KNOWLEDGE';
+// Loại bài bác sĩ được viết và gửi duyệt
+const DOCTOR_TYPES = ['RESEARCH', 'KNOWLEDGE', 'SKINCARE'];
 
 const typeLabel = (type) => ARTICLE_TYPES[type] || ARTICLE_TYPES[DEFAULT_TYPE];
 // Tên danh mục cũ -> loại (bài tạo trước khi có article_type)
@@ -18,4 +20,4 @@ const typeFromCategory = (category = '') => {
   return TYPE_KEYS.find((k) => ARTICLE_TYPES[k].toLowerCase() === name) || DEFAULT_TYPE;
 };
 
-module.exports = { ARTICLE_TYPES, TYPE_KEYS, DEFAULT_TYPE, typeLabel, typeFromCategory };
+module.exports = { ARTICLE_TYPES, TYPE_KEYS, DEFAULT_TYPE, DOCTOR_TYPES, typeLabel, typeFromCategory };

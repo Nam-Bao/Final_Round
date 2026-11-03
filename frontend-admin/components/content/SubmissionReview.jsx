@@ -4,7 +4,7 @@ import { CheckOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { ArticlePreview, ReviewHistory } from './SubmissionView';
-import { MEDIA_API, CLIENT_URL, authConfig, errorText, validateForm, SUBMISSION_STATUS } from './contentApi';
+import { MEDIA_API, CLIENT_URL, authConfig, errorText, validateForm, SUBMISSION_STATUS, ARTICLE_TYPES } from './contentApi';
 
 // Quản lý duyệt bài nghiên cứu bác sĩ gửi: duyệt => tự đăng lên web; không duyệt => bắt buộc ghi lý do / yêu cầu sửa
 export default function SubmissionReview({ onPendingChange }) {
@@ -76,7 +76,7 @@ export default function SubmissionReview({ onPendingChange }) {
           {s.thumbnail_url ? <img src={s.thumbnail_url} alt="" className="w-16 h-11 rounded object-cover shrink-0" /> : <div className="w-16 h-11 rounded bg-gray-100 shrink-0" />}
           <div>
             <div className="font-medium line-clamp-2">{s.title}</div>
-            <div className="text-xs text-gray-500">{s.category}</div>
+            <Tag color={ARTICLE_TYPES[s.article_type || 'RESEARCH']?.color} className="!mt-1">{ARTICLE_TYPES[s.article_type || 'RESEARCH']?.label}</Tag>
           </div>
         </div>
       ),
@@ -130,7 +130,7 @@ export default function SubmissionReview({ onPendingChange }) {
         <Form form={form} layout="vertical">
           {action === 'approve' ? (
             <>
-              <p className="text-gray-600">Bài sẽ được đăng ngay lên trang Tin tức với loại <b>Nghiên cứu</b>.</p>
+              <p className="text-gray-600">Bài sẽ được đăng ngay lên trang Tin tức, tab <b>{ARTICLE_TYPES[detail?.article_type || 'RESEARCH']?.label}</b>.</p>
               <Form.Item name="is_featured" label="Ghim lên đầu trang Tin tức" valuePropName="checked"><Switch /></Form.Item>
               <Form.Item name="note" label="Nhận xét gửi bác sĩ (không bắt buộc)"><Input.TextArea rows={3} maxLength={2000} /></Form.Item>
             </>

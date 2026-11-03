@@ -59,28 +59,40 @@ export default function PromoPopup() {
   if (!current) return null;
   const close = () => setCurrent(null);
   const external = current.link_url && !current.link_url.startsWith('/');
-  const buttonClass = 'btn btn-primary text-white rounded-full w-full';
+  const hasText = !!(current.title || current.content);
+  const hasImage = !!current.image_url;
+  // Liên kết trong web dùng Link, web ngoài mở tab mới
+  const ToLink = ({ className, children, label }) => (external
+    ? <a href={current.link_url} target="_blank" rel="noopener noreferrer" className={className} onClick={close} aria-label={label}>{children}</a>
+    : <Link to={current.link_url} className={className} onClick={close} aria-label={label}>{children}</Link>);
+
+  // Máy tính (sm trở lên): popup vuông cạnh ~560px, ảnh phủ kín, chữ nằm trên nền trắng mờ ở phần dưới.
+  // Điện thoại: ảnh vuông ở trên, chữ bên dưới cho dễ đọc.
+  const image = hasImage && (
+    <img src={current.image_url} alt={current.title || 'Khuyến mãi'}
+      className="w-full aspect-square object-cover sm:absolute sm:inset-0 sm:h-full sm:aspect-auto" />
+  );
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4 animate-fade-in-up" onClick={close} role="dialog" aria-modal="true" aria-label={current.title || 'Khuyến mãi'}>
-      <div className="relative bg-white rounded-3xl overflow-hidden w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="relative bg-white rounded-3xl overflow-hidden shadow-2xl w-full max-w-sm sm:max-w-none sm:w-[min(560px,85vh)] sm:aspect-square"
+        onClick={(e) => e.stopPropagation()}>
         <button onClick={close} aria-label="Đóng" className="btn btn-circle btn-sm absolute top-3 right-3 bg-white/90 border-0 shadow z-10">
           <X className="w-4 h-4" />
         </button>
-        {current.image_url && (
-          current.link_url && !current.title && !current.content
-            ? (external
-              ? <a href={current.link_url} target="_blank" rel="noopener noreferrer" onClick={close}><img src={current.image_url} alt="Khuyến mãi" className="w-full max-h-[70vh] object-cover" /></a>
-              : <Link to={current.link_url} onClick={close}><img src={current.image_url} alt="Khuyến mãi" className="w-full max-h-[70vh] object-cover" /></Link>)
-            : <img src={current.image_url} alt={current.title || 'Khuyến mãi'} className="w-full max-h-[50vh] object-cover" />
-        )}
-        {(current.title || current.content || current.link_url) && (current.title || current.content || !current.image_url) && (
-          <div className="p-6 text-center space-y-3">
-            {current.title && <h3 className="text-xl font-bold text-secondary">{current.title}</h3>}
-            {current.content && <p className="text-sm text-base-content/70 whitespace-pre-line leading-relaxed">{current.content}</p>}
-            {current.link_url && (external
-              ? <a href={current.link_url} target="_blank" rel="noopener noreferrer" className={buttonClass} onClick={close}>{current.button_text || 'Xem ngay'}</a>
-              : <Link to={current.link_url} className={buttonClass} onClick={close}>{current.button_text || 'Xem ngay'}</Link>)}
+
+        {/* Chỉ có ảnh (đã thiết kế sẵn chữ): bấm cả ảnh để mở liên kết */}
+        {hasImage && !hasText && current.link_url ? <ToLink label="Xem khuyến mãi">{image}</ToLink> : image}
+
+        {(hasText || (!hasImage && current.link_url)) && (
+          <div className={`p-6 text-center space-y-3 ${hasImage
+            ? 'sm:absolute sm:inset-x-0 sm:bottom-0 sm:px-10 sm:pb-8 sm:pt-20 sm:bg-gradient-to-t sm:from-white sm:via-white/95 sm:to-white/0'
+            : 'sm:h-full sm:flex sm:flex-col sm:justify-center sm:px-12'}`}>
+            {current.title && <h3 className="text-xl sm:text-2xl font-bold text-secondary">{current.title}</h3>}
+            {current.content && <p className="text-sm sm:text-base text-base-content/70 whitespace-pre-line leading-relaxed">{current.content}</p>}
+            {current.link_url && (
+              <ToLink className="btn btn-primary text-white rounded-full w-full sm:max-w-xs sm:mx-auto sm:flex">{current.button_text || 'Xem ngay'}</ToLink>
+            )}
           </div>
         )}
       </div>
