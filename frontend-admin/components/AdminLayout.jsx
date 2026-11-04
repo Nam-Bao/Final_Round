@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch } from 'antd';
+import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid } from 'antd';
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
-  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined,
-  VideoCameraOutlined
+  PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
+  SettingOutlined, ShopOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -15,6 +15,9 @@ const { Header, Sider, Content } = Layout;
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.md === false; // dưới 768px
   const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
 
   const navigate = useNavigate();
@@ -175,52 +178,86 @@ export default function AdminLayout() {
 
   // Chuyên gia thỉnh giảng (EXPERT): quyền hẹp, chỉ có trang lịch tư vấn của mình
   const isExpert = role === 'EXPERT';
+  // Menu chia nhóm chức năng theo vai trò. Mỗi nhóm: [tên nhóm, icon, các mục]
+  const personal = [
+    { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch làm việc của tôi' },
+    { key: '/attendance', icon: <FieldTimeOutlined />, label: 'Chấm công' },
+    { key: '/my-payslip', icon: <WalletOutlined />, label: 'Phiếu lương' },
+  ];
+  const MENU_GROUPS = {
+    ADMIN: [
+      ['Hệ thống', <SettingOutlined />, [{ key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' }]],
+      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
+      ['Tư vấn chuyên gia', <VideoCameraOutlined />, [{ key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' }]],
+      ['Sản phẩm & Vật tư', <ShopOutlined />, [
+        { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      ]],
+      ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
+    ],
+    GEN_MANAGER: [
+      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
+      ['Nhân sự', <TeamOutlined />, [
+        { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch làm việc' },
+        { key: '/attendance-management', icon: <FieldTimeOutlined />, label: 'Chấm công nhân viên' },
+      ]],
+      ['Lương', <WalletOutlined />, [
+        { key: '/salary-rates', icon: <AccountBookOutlined />, label: 'Mức lương ca' },
+        { key: '/payroll', icon: <WalletOutlined />, label: 'Bảng lương' },
+      ]],
+      ['Sản phẩm & Dịch vụ', <ShopOutlined />, [
+        { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+        { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ spa lẻ' },
+        { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói lộ trình' },
+        { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
+        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
+      ]],
+      ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
+    ],
+    DOCTOR: [
+      ['Chuyên môn', <MedicineBoxOutlined />, [
+        { key: '/workspace', icon: <TeamOutlined />, label: 'Không gian khám bệnh' },
+        { key: '/my-articles', icon: <FileTextOutlined />, label: 'Bài viết của tôi' },
+      ]],
+      ['Cá nhân', <IdcardOutlined />, personal],
+    ],
+    CONSULTANT: [
+      ['Chăm sóc khách hàng', <CustomerServiceOutlined />, [
+        { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không gian tư vấn' },
+        { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản lý lịch hẹn' },
+        { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Hồ sơ khách hàng' },
+        { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
+        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
+      ]],
+      ['Cá nhân', <IdcardOutlined />, personal],
+    ],
+    SALES: [
+      ['Bán hàng', <ShoppingCartOutlined />, [
+        { key: '/sales-management', icon: <DollarOutlined />, label: 'Quản lý đơn hàng' },
+        { key: '/returns', icon: <RollbackOutlined />, label: 'Hoàn / trả hàng' },
+      ]],
+      ['Cá nhân', <IdcardOutlined />, personal],
+    ],
+    TECHNICIAN: [
+      ['Chuyên môn', <MedicineBoxOutlined />, [{ key: '/technician-workspace', icon: <PlayCircleOutlined />, label: 'Không gian kỹ thuật' }]],
+      ['Cá nhân', <IdcardOutlined />, personal],
+    ],
+  };
+  // Nhóm thả xuống (bấm để mở / đóng); nhóm chỉ có 1 mục thì hiện thẳng mục đó cho gọn
+  const groups = isExpert ? [] : (MENU_GROUPS[role] || []);
   const menuItems = isExpert ? [
     { key: '/expert-workspace', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn của tôi' },
   ] : [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    ...(role === 'ADMIN' ? [
-      { key: '/users', icon: <UserOutlined />, label: 'Quản lý Người dùng' },
-      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
-      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
-      { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
-      { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
-      { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' }
-    ] : []),
-    ...(['GEN_MANAGER'].includes(role) ? [
-      { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch Làm Việc' },
-      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
-      { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
-      { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
-      { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
-      { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ Spa lẻ' },
-      { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã Khuyến mãi' },
-      { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói Lộ Trình' },
-      { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý Trang' },
-    ] : []),
-    ...(['DOCTOR'].includes(role) ? [
-      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
-      { key: '/workspace', icon: <TeamOutlined />, label: 'Không Gian Khám Bệnh' },
-      { key: '/my-articles', icon: <FileTextOutlined />, label: 'Bài viết của tôi' },
-    ] : []),
-    ...(['CONSULTANT'].includes(role) ? [
-      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
-      { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không Gian Tư Vấn' },
-      { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Quản Lý Hồ Sơ Khách' },
-      { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản Lý Lịch Hẹn' },
-      { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
-      { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
-    ] : []),
-    ...(['SALES'].includes(role) ? [
-      { key: '/sales-management', icon: <DollarOutlined />, label: 'Quản lý đơn hàng' },
-      { key: '/returns', icon: <RollbackOutlined />, label: 'Hoàn / trả hàng' },
-      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
-    ] : []),
-    ...(['TECHNICIAN'].includes(role) ? [
-      { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch Làm Việc Của Tôi' },
-      { key: '/technician-workspace', icon: <PlayCircleOutlined />, label: 'Không Gian Kỹ Thuật' },
-    ] : []),
+    ...groups.map(([title, icon, children]) => (children.length === 1 ? children[0] : { key: `group-${title}`, icon, label: title, children })),
   ];
+  // Mở sẵn nhóm chứa trang đang xem
+  const activeGroup = groups.find(([, , children]) => children.length > 1 && children.some((c) => c.key === location.pathname));
+  const [openKeys, setOpenKeys] = useState(activeGroup ? [`group-${activeGroup[0]}`] : []);
+  useEffect(() => {
+    if (activeGroup) setOpenKeys((keys) => (keys.includes(`group-${activeGroup[0]}`) ? keys : [...keys, `group-${activeGroup[0]}`]));
+  }, [location.pathname]);
 
 
   // Chưa đăng nhập (hoặc phiên đã hết hạn và bị xoá) -> về trang đăng nhập
@@ -230,24 +267,42 @@ export default function AdminLayout() {
 
   return (
     <Layout className="min-h-screen relative">
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="light" className="shadow-md">
-        <div className="h-16 flex items-center justify-center font-bold text-xl text-blue-600 border-b">
-          {collapsed ? 'O2O' : 'O2O ADMIN'}
-        </div>
-        <Menu theme="light" mode="inline" selectedKeys={[location.pathname]} items={menuItems} onClick={handleMenuClick} />
-      </Sider>
+      {/* Máy tính: menu cố định bên trái. Điện thoại: menu là ngăn kéo trượt ra, chọn mục xong tự đóng */}
+      {isMobile ? (
+        <Drawer open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} placement="left" size={260} closable={false}
+          styles={{ body: { padding: 0 } }}>
+          <div className="h-14 flex items-center px-6 font-bold text-xl text-blue-600 border-b">O2O ADMIN</div>
+          <Menu theme="light" mode="inline" selectedKeys={[location.pathname]} items={menuItems} openKeys={openKeys} onOpenChange={setOpenKeys}
+            onClick={(e) => { setMobileMenuOpen(false); handleMenuClick(e); }} className="!border-e-0" />
+        </Drawer>
+      ) : (
+        <Sider trigger={null} collapsible collapsed={collapsed} theme="light" className="shadow-md">
+          <div className="h-16 flex items-center justify-center font-bold text-xl text-blue-600 border-b">
+            {collapsed ? 'O2O' : 'O2O ADMIN'}
+          </div>
+          {/* Thu gọn: nhóm hiện dạng menu bật ra khi rê chuột, không giữ trạng thái mở */}
+          <Menu theme="light" mode="inline" selectedKeys={[location.pathname]} items={menuItems} onClick={handleMenuClick}
+            {...(collapsed ? {} : { openKeys, onOpenChange: setOpenKeys })} />
+        </Sider>
+      )}
       <Layout className="min-w-0">
-        <Header style={{ padding: 0, background: colorBgContainer }} className="flex justify-between items-center pr-6 shadow-sm z-10">
-          <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} className="w-16 h-16 text-lg" />
+        <Header style={{ padding: 0, background: colorBgContainer, height: isMobile ? 56 : 64, lineHeight: isMobile ? '56px' : '64px' }}
+          className={`flex justify-between items-center shadow-sm z-10 ${isMobile ? 'pr-2 sticky top-0' : 'pr-6'}`}>
+          <div className="flex items-center">
+            <Button type="text" onClick={() => (isMobile ? setMobileMenuOpen(true) : setCollapsed(!collapsed))}
+              icon={isMobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              className={`${isMobile ? '!w-14 !h-14' : 'w-16 h-16'} text-lg`} />
+            {isMobile && <span className="font-bold text-blue-600 text-lg">O2O ADMIN</span>}
+          </div>
           <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-            <Space className="cursor-pointer hover:bg-gray-50 px-4 py-2 rounded-lg transition-colors">
+            <Space className={`cursor-pointer hover:bg-gray-50 rounded-lg transition-colors ${isMobile ? 'px-2' : 'px-4 py-2'}`}>
               <Avatar src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500" />
-              <span className="font-medium text-gray-700">Xin chào, <span className="text-blue-600">{fullName}</span></span>
+              {!isMobile && <span className="font-medium text-gray-700">Xin chào, <span className="text-blue-600">{fullName}</span></span>}
               <DownOutlined className="text-xs text-gray-400" />
             </Space>
           </Dropdown>
         </Header>
-        <Content className="m-6 p-6 min-h-[280px] min-w-0" style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
+        <Content className={`min-h-[280px] min-w-0 ${isMobile ? 'm-2 p-3' : 'm-6 p-6'}`} style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
           <Outlet />
         </Content>
       </Layout>
@@ -288,7 +343,7 @@ export default function AdminLayout() {
                 </div>
              </div>
           ) : (
-             <div className="fixed bottom-0 right-10 w-[600px] bg-white shadow-[0_-5px_25px_rgba(0,0,0,0.2)] rounded-t-xl flex flex-col z-50 border border-gray-200 transition-all duration-300">
+             <div className="fixed bottom-0 right-2 left-2 md:left-auto md:right-10 md:w-[600px] bg-white shadow-[0_-5px_25px_rgba(0,0,0,0.2)] rounded-t-xl flex flex-col z-50 border border-gray-200 transition-all duration-300">
                 
                 <div className="bg-blue-600 text-white p-3 rounded-t-xl font-bold flex justify-between items-center select-none">
                    <div className="flex items-center gap-4">

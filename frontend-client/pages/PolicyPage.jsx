@@ -120,7 +120,7 @@ export default function PolicyPage() {
               <><b>Hồ sơ đã từng khám</b> (đã có lịch khám được thanh toán / phục vụ) được <b>miễn tiền cọc và miễn phí khám</b>. Ưu đãi xét theo từng hồ sơ người khám: người thân khám lần đầu vẫn phải đặt cọc. Lịch đã hủy hoặc chưa thanh toán không được tính.</>,
               <>Sau khi bấm đặt lịch, khung giờ được <b>giữ trong {PAYMENT_HOLD_MINUTES} phút</b> để bạn chuyển khoản. Quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch bị hủy và khung giờ được trả lại cho người khác.</>,
               <>Thanh toán bằng chuyển khoản VietQR, hệ thống tự xác nhận khi nhận được tiền. Nếu nộp tiền mặt tại quầy, nhân viên xác nhận cho bạn.</>,
-              <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:00, chiều 13:00 - 16:00, tối 18:00 - 20:00; mỗi lượt khám 1 giờ) và chưa có người khác đặt.</>,
+              <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:00, chiều 13:00 - 16:00; mỗi lượt khám 1 giờ) và chưa có người khác đặt.</>,
             ]} />
           </Section>
 

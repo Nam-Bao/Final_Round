@@ -50,13 +50,23 @@ axios.interceptors.response.use(undefined, (error) => {
 // Tự gắn token nhân viên (sessionStorage) vào mọi request axios gửi tới API Gateway (các API quản lý đơn, khuyến mãi...
 // giờ bắt buộc đăng nhập). Không gắn cho domain khác để không lộ token ra ngoài.
 const GATEWAY_URL = 'http://localhost:4000';
+// Mở admin từ điện thoại trong mạng LAN (npm run dev:mobile, để chấm công bằng camera): "localhost" trên điện thoại
+// là chính điện thoại => gọi API cùng địa chỉ trang, Vite chuyển tiếp /api sang gateway (xem vite.config.js)
+const viaDevProxy = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+const toProxy = (url) => (viaDevProxy && typeof url === 'string' && url.startsWith(GATEWAY_URL) ? url.slice(GATEWAY_URL.length) : url);
+
 axios.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('admin_token');
   if (token && config.url?.startsWith(GATEWAY_URL) && !config.headers?.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.url = toProxy(config.url);
   return config;
 });
+if (viaDevProxy) {
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => nativeFetch(toProxy(input), init);
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

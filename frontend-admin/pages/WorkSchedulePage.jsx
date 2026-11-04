@@ -230,7 +230,6 @@ export default function WorkSchedulePage() {
             <Select mode="multiple" placeholder="Chọn 1 hoặc nhiều ca">
               <Select.Option value="MORNING">Ca Sáng (08:00 - 12:00)</Select.Option>
               <Select.Option value="AFTERNOON">Ca Chiều (13:00 - 17:00)</Select.Option>
-              <Select.Option value="EVENING">Ca Tối (18:00 - 22:00)</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item className="text-right mb-0">
