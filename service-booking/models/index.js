@@ -183,6 +183,8 @@ const Invoice = sequelize.define('Invoice', {
     total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     payment_status: { type: DataTypes.ENUM('PENDING', 'PAID', 'REFUNDED'), defaultValue: 'PENDING' },
     payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN'), defaultValue: 'UNKNOWN' },
+    // Chi tiết hoá đơn lúc chốt (báo cáo doanh thu theo nguồn): phí khám, dịch vụ lẻ, gói, mỹ phẩm, giảm giá, cọc tư vấn
+    breakdown: { type: DataTypes.JSONB },
 });
 
 const Transaction = sequelize.define('Transaction', {
@@ -191,6 +193,64 @@ const Transaction = sequelize.define('Transaction', {
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false }, // Số dương là thu, số âm là hoàn
     transaction_type: { type: DataTypes.ENUM('INCOME', 'REFUND'), allowNull: false },
     note: { type: DataTypes.STRING }
+});
+
+// ===== TƯ VẤN CHUYÊN GIA (chuyên gia thỉnh giảng, tài khoản EXPERT bên identity) =====
+// Bảng riêng, không ghi chung vào Appointments: tư vấn không phải lượt khám (không tính "khách cũ", không tính lượt khám bác sĩ).
+
+// Ca rảnh của chuyên gia do Admin / Quản lý mở. Khách đặt theo khung 1 tiếng trong ca (giống lịch khám).
+const ExpertShift = sequelize.define('ExpertShift', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    expert_id: { type: DataTypes.UUID, allowNull: false },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING'), allowNull: false },
+    created_by: { type: DataTypes.UUID },
+}, {
+    indexes: [{ unique: true, fields: ['expert_id', 'date', 'shift_type'] }]
+});
+
+const Consultation = sequelize.define('Consultation', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    customer_id: { type: DataTypes.UUID, allowNull: false },
+    customer_name: { type: DataTypes.STRING },          // ảnh chụp tên lúc đặt (chuyên gia không được đọc danh sách khách)
+    expert_id: { type: DataTypes.UUID, allowNull: false },
+    expert_name: { type: DataTypes.STRING },
+    consult_field: { type: DataTypes.STRING(20), allowNull: false }, // DERMATOLOGY | NUTRITION | COSMETICS
+    appointment_date: { type: DataTypes.DATEONLY, allowNull: false },
+    appointment_time: { type: DataTypes.TIME, allowNull: false },
+    question: { type: DataTypes.TEXT, allowNull: false },
+    // PENDING_PAYMENT: giữ chỗ chờ cọc | CONFIRMED: đã cọc | COMPLETED: cả 2 bên đã vào phòng
+    // NO_SHOW: khách không vào (mất cọc) | EXPERT_ABSENT: chuyên gia không vào (hoàn cọc) | CANCELLED
+    status: {
+        type: DataTypes.ENUM('PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'EXPERT_ABSENT', 'CANCELLED'),
+        defaultValue: 'PENDING_PAYMENT'
+    },
+    deposit_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN'), defaultValue: 'UNKNOWN' },
+    paid_at: { type: DataTypes.DATE },
+    // Hủy lịch: cùng quy định với lịch khám (khách hủy => mất cọc, phòng khám hủy => hoàn cọc)
+    cancel_initiator: { type: DataTypes.ENUM('CUSTOMER', 'CLINIC') },
+    cancel_reason: { type: DataTypes.TEXT },
+    cancelled_by: { type: DataTypes.UUID },
+    cancelled_at: { type: DataTypes.DATE },
+    // NONE | FORFEITED: phòng khám giữ cọc | REFUND_PENDING: chờ hoàn | REFUNDED: đã hoàn
+    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED'), defaultValue: 'NONE' },
+    refund_ref: { type: DataTypes.STRING },
+    refunded_by: { type: DataTypes.UUID },
+    refunded_at: { type: DataTypes.DATE },
+    // Bằng chứng buổi tư vấn diễn ra (căn cứ trả thù lao chuyên gia)
+    customer_joined_at: { type: DataTypes.DATE },
+    expert_joined_at: { type: DataTypes.DATE },
+    completed_at: { type: DataTypes.DATE },
+    // Kết quả tư vấn do chuyên gia ghi
+    expert_note: { type: DataTypes.TEXT },
+    recommend_exam: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // Đánh giá của khách (1 lần, sau khi hoàn thành)
+    rating: { type: DataTypes.INTEGER, validate: { min: 1, max: 5 } },
+    review_comment: { type: DataTypes.TEXT },
+    reviewed_at: { type: DataTypes.DATE },
+    // Tiền cọc tư vấn được trừ vào phí khám của lịch khám này (mỗi buổi tư vấn chỉ trừ 1 lần)
+    credit_appointment_id: { type: DataTypes.UUID },
 });
 
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
@@ -429,5 +489,7 @@ module.exports = {
     SpaService,
     ServiceSession,
     Invoice,
-    Transaction // Export bảng mới
+    Transaction, // Export bảng mới
+    ExpertShift,
+    Consultation
 };

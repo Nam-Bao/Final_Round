@@ -9,6 +9,8 @@ const maskName = (fullName) => {
     return [parts[0], ...parts.slice(1).map(p => `${p.charAt(0).toUpperCase()}.`)].join(' ');
 };
 
+exports.maskName = maskName; // dùng chung cho đánh giá buổi tư vấn chuyên gia
+
 const toPublicReview = (r) => ({
     id: r.id,
     customer_name: maskName(r.customer_name),

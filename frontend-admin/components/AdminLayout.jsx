@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid } from 'antd';
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
-  LogoutOutlined, AppstoreOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
+  LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
-  SettingOutlined, ShopOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined
+  SettingOutlined, ShopOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -176,6 +176,8 @@ export default function AdminLayout() {
     { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, danger: true, onClick: handleLogout },
   ];
 
+  // Chuyên gia thỉnh giảng (EXPERT): quyền hẹp, chỉ có trang lịch tư vấn của mình
+  const isExpert = role === 'EXPERT';
   // Menu chia nhóm chức năng theo vai trò. Mỗi nhóm: [tên nhóm, icon, các mục]
   const personal = [
     { key: '/my-schedule', icon: <CalendarOutlined />, label: 'Lịch làm việc của tôi' },
@@ -185,10 +187,16 @@ export default function AdminLayout() {
   const MENU_GROUPS = {
     ADMIN: [
       ['Hệ thống', <SettingOutlined />, [{ key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' }]],
-      ['Sản phẩm', <ShopOutlined />, [{ key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' }]],
+      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
+      ['Tư vấn chuyên gia', <VideoCameraOutlined />, [{ key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' }]],
+      ['Sản phẩm & Vật tư', <ShopOutlined />, [
+        { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      ]],
       ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
     ],
     GEN_MANAGER: [
+      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
       ['Nhân sự', <TeamOutlined />, [
         { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch làm việc' },
         { key: '/attendance-management', icon: <FieldTimeOutlined />, label: 'Chấm công nhân viên' },
@@ -199,9 +207,11 @@ export default function AdminLayout() {
       ]],
       ['Sản phẩm & Dịch vụ', <ShopOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
         { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ spa lẻ' },
         { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói lộ trình' },
         { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
+        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
       ]],
       ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
     ],
@@ -218,6 +228,7 @@ export default function AdminLayout() {
         { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản lý lịch hẹn' },
         { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Hồ sơ khách hàng' },
         { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
+        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
       ]],
       ['Cá nhân', <IdcardOutlined />, personal],
     ],
@@ -234,8 +245,10 @@ export default function AdminLayout() {
     ],
   };
   // Nhóm thả xuống (bấm để mở / đóng); nhóm chỉ có 1 mục thì hiện thẳng mục đó cho gọn
-  const groups = MENU_GROUPS[role] || [];
-  const menuItems = [
+  const groups = isExpert ? [] : (MENU_GROUPS[role] || []);
+  const menuItems = isExpert ? [
+    { key: '/expert-workspace', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn của tôi' },
+  ] : [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
     ...groups.map(([title, icon, children]) => (children.length === 1 ? children[0] : { key: `group-${title}`, icon, label: title, children })),
   ];
@@ -249,6 +262,8 @@ export default function AdminLayout() {
 
   // Chưa đăng nhập (hoặc phiên đã hết hạn và bị xoá) -> về trang đăng nhập
   if (!sessionStorage.getItem('admin_token')) return <Navigate to="/login" replace />;
+  // Chuyên gia không vào các trang dành cho nhân viên chính thức (API cũng chặn theo vai trò)
+  if (isExpert && location.pathname !== '/expert-workspace') return <Navigate to="/expert-workspace" replace />;
 
   return (
     <Layout className="min-h-screen relative">

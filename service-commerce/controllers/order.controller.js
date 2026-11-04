@@ -3,6 +3,7 @@ const { handleReturnWebhook } = require('./return.controller');
 const { Op } = require('sequelize');
 const { evaluatePromotion, redeemPromotion } = require('../utils/promotionRules');
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
+const { SALE_FIELDS, onlinePrice } = require('../utils/pricing');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -108,12 +109,13 @@ exports.checkout = async (req, res) => {
     if (!cart) return res.status(400).json({ success: false, message: 'Không tìm thấy giỏ hàng' });
 
     cartItems = await CartItem.findAll({
-      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'], include: [{ model: ProductDetail, attributes: ['is_published'] }] }]
+      where: { cart_id: cart.id }, include: [{ model: Product, attributes: ['id', 'price', 'stock_quantity', 'name', 'weight', 'type'], include: [{ model: ProductDetail, attributes: ['is_published', 'is_prescription', ...SALE_FIELDS] }] }]
     });
     if (cartItems.length === 0) return res.status(400).json({ success: false, message: 'Giỏ hàng trống' });
     // Giỏ cũ có thể còn vật tư nội bộ (thêm vào trước khi chặn) => không cho đặt
-    // hoặc sản phẩm đã ngừng bán trên web sau khi khách bỏ vào giỏ
-    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT' || !item.Product.ProductDetail?.is_published);
+    // hoặc sản phẩm đã ngừng bán trên web sau khi khách bỏ vào giỏ, hoặc thuốc kê đơn (không bán online)
+    const notForSale = cartItems.find(item => !item.Product || item.Product.type !== 'PRODUCT'
+      || !item.Product.ProductDetail?.is_published || item.Product.ProductDetail?.is_prescription);
     if (notForSale) return res.status(400).json({ success: false, message: `Sản phẩm ${notForSale.Product?.name || ''} không còn bán, vui lòng xóa khỏi giỏ hàng` });
 
     const totalWeight = cartItems.reduce(
@@ -137,9 +139,11 @@ exports.checkout = async (req, res) => {
       if (item.Product.stock_quantity < item.quantity) {
         throw new Error(`Sản phẩm ${item.Product.name} không đủ số lượng`);
       }
-      total_amount += item.Product.price * item.quantity;
+      // Giá online (đã tính khuyến mãi đang chạy) do server tự tính, không tin giá phía trình duyệt
+      const unitPrice = onlinePrice(item.Product);
+      total_amount += unitPrice * item.quantity;
       orderDetailsData.push({
-        product_id: item.Product.id, quantity: item.quantity, price: item.Product.price,
+        product_id: item.Product.id, quantity: item.quantity, price: unitPrice,
         weight: item.Product.weight || DEFAULT_ITEM_WEIGHT // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
       });
 

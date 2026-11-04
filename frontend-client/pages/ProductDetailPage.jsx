@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import {
   Star, Minus, Plus, ShoppingBag, Zap, ShieldCheck, Truck, Undo2, Stethoscope, ChevronRight, CheckCircle, PackageX,
 } from 'lucide-react';
+import ProductIngredients, { parseIngredients } from '../components/ProductIngredients';
+import ProductCard, { vnd, getImages, isOnSale, ProductBadges } from '../components/ProductCard';
 
 // Hạn sử dụng tính từ ngày sản xuất đến ngày hết hạn, hiển thị dạng "24 tháng" như trên bao bì
 const shelfLife = (start, end) => {
@@ -15,25 +17,10 @@ const shelfLife = (start, end) => {
   return days > 0 ? `${days} ngày kể từ ngày sản xuất` : null;
 };
 
-const productUrl = (p) => `/shops/${p.ProductDetail?.slug || p.id}`;
 import { useAuthStore } from '../store/authStore';
 
 const API = 'http://localhost:4000/api/commerce';
-const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
-const PLACEHOLDER = 'https://placehold.co/600x600?text=No+Image';
 const MAX_QTY = 20;
-
-// image_url có thể là mảng, chuỗi JSON hoặc 1 URL
-const getImages = (img) => {
-  if (!img) return [PLACEHOLDER];
-  if (Array.isArray(img)) return img.length ? img : [PLACEHOLDER];
-  try {
-    const parsed = JSON.parse(img);
-    return Array.isArray(parsed) ? (parsed.length ? parsed : [PLACEHOLDER]) : [parsed];
-  } catch {
-    return [img];
-  }
-};
 
 const Stars = ({ value, size = 'w-4 h-4' }) => (
   <span className="inline-flex">
@@ -42,28 +29,6 @@ const Stars = ({ value, size = 'w-4 h-4' }) => (
     ))}
   </span>
 );
-
-// Thẻ sản phẩm thu gọn cho phần "Sản phẩm liên quan"
-function MiniProductCard({ product }) {
-  const outOfStock = !(product.stock_quantity > 0);
-  return (
-    <Link to={productUrl(product)} className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm hover:shadow-md hover:border-teal-200 transition group flex flex-col">
-      <div className="relative aspect-square bg-slate-100 rounded-xl overflow-hidden mb-3">
-        <img src={getImages(product.image_url)[0]} alt={product.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
-        {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-0.5 rounded-lg">Hết hàng</span>}
-      </div>
-      {product.Category && <p className="text-xs text-teal-600 line-clamp-1">{product.Category.name}</p>}
-      <p className="font-semibold text-slate-800 text-sm line-clamp-2 min-h-[2.5rem]">{product.name}</p>
-      <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-        {product.review_count > 0 ? <><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {Number(product.avg_rating).toFixed(1)}</> : <span>Chưa có đánh giá</span>}
-      </div>
-      <div className="flex items-end justify-between mt-auto pt-2">
-        <span className="text-primary font-bold">{vnd(product.price)}</span>
-        <span className="text-[11px] text-slate-400">Đã bán {Number(product.sold_count || 0).toLocaleString('vi-VN')}</span>
-      </div>
-    </Link>
-  );
-}
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
@@ -179,6 +144,9 @@ export default function ProductDetailPage() {
   const shelfLifeText = shelfLife(product.start_date, product.end_date);
 
   const detail = product.ProductDetail || {};
+  // Tên các hoạt chất chính (hiện ngay dưới giá, bấm để mở tab Thành phần)
+  const keyActives = (parseIngredients(detail.ingredients)?.actives || [])
+    .map((a) => (a.concentration ? `${a.name} ${a.concentration}` : a.name)).slice(0, 4);
   const specs = [
     ['Thương hiệu', detail.brand],
     ['Xuất xứ', detail.origin],
@@ -230,6 +198,7 @@ export default function ProductDetailPage() {
           <div>
             <div className="relative aspect-square bg-slate-100 rounded-2xl overflow-hidden">
               <img src={images[activeImage]} alt={product.name} className={`w-full h-full object-cover ${outOfStock ? 'opacity-60 grayscale' : ''}`} />
+              <ProductBadges product={product} className="absolute top-3 right-3" />
               {outOfStock && <span className="absolute top-3 left-3 bg-slate-800 text-white text-sm font-semibold px-3 py-1 rounded-lg">Tạm hết hàng</span>}
             </div>
             {images.length > 1 && (
@@ -262,11 +231,33 @@ export default function ProductDetailPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl px-4 py-3">
-              <span className="text-3xl font-bold text-primary">{vnd(product.price)}</span>
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-3xl font-bold text-primary">{vnd(product.price)}</span>
+                {isOnSale(product) && (
+                  <>
+                    <span className="text-lg text-slate-400 line-through">{vnd(product.original_price)}</span>
+                    <span className="bg-red-500 text-white text-sm font-bold px-2 py-0.5 rounded-lg">-{product.discount_percent}%</span>
+                  </>
+                )}
+              </div>
+              {isOnSale(product) && (
+                <p className="text-xs text-red-600 font-medium mt-1">Giá ưu đãi khi mua online đến hết {dayjs(product.sale_end).format('HH:mm DD/MM/YYYY')}</p>
+              )}
               <p className="text-xs text-slate-500 mt-1">Phí vận chuyển GHN được tính theo địa chỉ nhận hàng khi đặt.</p>
             </div>
 
             {detail.short_description && <p className="text-sm text-slate-600 leading-relaxed">{detail.short_description}</p>}
+            {keyActives.length > 0 && (
+              <div className="text-sm">
+                <span className="text-slate-500">Hoạt chất chính: </span>
+                {keyActives.map((a, i) => (
+                  <button key={a} type="button" onClick={() => { setActiveTab('ingredients'); document.getElementById('thong-tin')?.scrollIntoView({ behavior: 'smooth' }); }}
+                    className="font-medium text-teal-700 hover:underline">
+                    {a}{i < keyActives.length - 1 ? ', ' : ''}
+                  </button>
+                ))}
+              </div>
+            )}
             {detail.skin_types?.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {detail.skin_types.map((t) => <span key={t} className="text-xs bg-teal-50 text-teal-700 border border-teal-100 px-2 py-0.5 rounded-full">{t}</span>)}
@@ -278,8 +269,8 @@ export default function ProductDetailPage() {
               <span className="text-slate-700">Giao Hàng Nhanh (GHN), thanh toán COD hoặc chuyển khoản</span>
               <span className="text-slate-500">Hạn sử dụng</span>
               <span className="text-slate-700">{shelfLifeText || 'Đang cập nhật'}</span>
-              <span className="text-slate-500">Số lượng</span>
-              <div className="flex items-center gap-3">
+              {!detail.is_prescription && <span className="text-slate-500">Số lượng</span>}
+              {!detail.is_prescription && <div className="flex items-center gap-3">
                 <div className="flex items-center border border-slate-200 rounded-lg">
                   <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={outOfStock || qty <= 1} className="p-2 disabled:opacity-30" aria-label="Giảm"><Minus className="w-4 h-4" /></button>
                   <input value={qty} disabled={outOfStock} inputMode="numeric" aria-label="Số lượng"
@@ -288,9 +279,20 @@ export default function ProductDetailPage() {
                   <button onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={outOfStock || qty >= maxQty} className="p-2 disabled:opacity-30" aria-label="Tăng"><Plus className="w-4 h-4" /></button>
                 </div>
                 <span className={`text-xs font-medium ${outOfStock ? 'text-red-500' : 'text-green-600'}`}>{outOfStock ? 'Tạm hết hàng' : 'Còn hàng'}</span>
-              </div>
+              </div>}
             </div>
 
+            {detail.is_prescription ? (
+              // Thuốc kê đơn: chỉ tra cứu, không bán online (server cũng chặn thêm vào giỏ / đặt hàng)
+              <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-3">
+                <p className="font-semibold text-rose-700">Thuốc kê đơn – không bán online</p>
+                <p className="text-sm text-rose-800/80">
+                  Theo quy định, thuốc kê đơn chỉ được bán khi có chỉ định của bác sĩ. Bác sĩ GlowSkin sẽ thăm khám và kê đơn nếu phù hợp,
+                  bạn nhận thuốc tại quầy của phòng khám ngay sau buổi khám.
+                </p>
+                <Link to="/booking" className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white border-none">Đặt lịch khám với bác sĩ</Link>
+              </div>
+            ) : (
             <div className="flex flex-col sm:flex-row gap-3 mt-2">
               <button onClick={() => addToCart(false)} disabled={outOfStock || busy}
                 className="flex-1 py-3 rounded-xl border-2 border-teal-600 text-teal-700 font-semibold flex items-center justify-center gap-2 hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -301,6 +303,7 @@ export default function ProductDetailPage() {
                 <Zap className="w-5 h-5" /> Mua ngay
               </button>
             </div>
+            )}
 
             {/* Cam kết */}
             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 text-xs text-slate-600">
@@ -313,7 +316,7 @@ export default function ProductDetailPage() {
         </div>
 
         {/* Thông tin chi tiết: các tab chỉ hiện khi quản lý đã nhập nội dung */}
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <section id="thong-tin" className="scroll-mt-24 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex overflow-x-auto border-b border-slate-200 px-2 sm:px-4">
             {infoTabs.map((t) => (
               <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -351,6 +354,8 @@ export default function ProductDetailPage() {
                   <p className="mt-2">Da đang điều trị hoặc nhạy cảm nên <Link to="/booking" className="underline font-medium">đặt lịch khám</Link> để bác sĩ tư vấn sản phẩm phù hợp.</p>
                 </div>
               </div>
+            ) : currentTab === 'ingredients' ? (
+              <ProductIngredients text={detail.ingredients} capacity={detail.capacity} />
             ) : (
               <p className="whitespace-pre-line leading-relaxed max-w-3xl">{detail[currentTab]}</p>
             )}
@@ -418,7 +423,7 @@ export default function ProductDetailPage() {
               </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {related.map((p) => <MiniProductCard key={p.id} product={p} />)}
+              {related.map((p) => <ProductCard key={p.id} product={p} />)}
             </div>
           </section>
         )}

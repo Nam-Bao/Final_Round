@@ -4,6 +4,7 @@ import { Scan, CalendarCheck, Stethoscope, ShoppingBag, ArrowRight, ShieldCheck 
 import CustomerConcerns from '../components/CustomerConcerns';
 import GlowSkinValueProp from '../components/GlowSkinValueProp';
 import HomeBanner from '../components/HomeBanner';
+import HomeProductSections from '../components/HomeProductSections';
 
 // Hành trình O2O: soi da AI -> khám bác sĩ -> chăm sóc tại nhà
 const STEPS = [
@@ -82,6 +83,9 @@ export default function HomePage() {
           );
         })}
       </section>
+
+      {/* Mỹ phẩm: đang giảm giá, mới lên kệ, bán chạy */}
+      <HomeProductSections />
 
       {/* Khối Thấu hiểu nỗi lo khách hàng */}
       <CustomerConcerns />

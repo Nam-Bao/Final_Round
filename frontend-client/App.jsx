@@ -29,8 +29,10 @@ import PromotionsPage from './pages/PromotionsPage';
 import ReviewsPage from './pages/ReviewsPage';
 import CustomerShopPage from './pages/CustomerShopPage';
 import ContactPage from './pages/ContactPage';
+import SearchPage from './pages/SearchPage';
 import AboutPage from './pages/AboutPage';
 import DoctorsPage from './pages/DoctorsPage';
+import ConsultationBookingPage from './pages/ConsultationBookingPage';
 import ContactButtons from './components/ContactButtons';
 
 // ====== CHATBOT AI ======
@@ -223,12 +225,15 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/booking" element={<ProtectedRoute><DoctorBookingPage /></ProtectedRoute>} />
+            <Route path="/tu-van" element={<ProtectedRoute><ConsultationBookingPage /></ProtectedRoute>} />
             <Route path="/appointments" element={<ProtectedRoute><AppointmentHistoryPage /></ProtectedRoute>} />
             <Route path="/treatments" element={<ProtectedRoute><TreatmentPackagesPage /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><PharmacyOrdersPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/payment/:id" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
+            <Route path="/payment/tu-van/:id" element={<ProtectedRoute><PaymentPage key="consultation" kind="consultation" /></ProtectedRoute>} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/tim-kiem" element={<SearchPage />} />
             <Route path="/gioi-thieu" element={<AboutPage />} />
             <Route path="/doi-ngu-bac-si" element={<DoctorsPage />} />
             <Route path="/services" element={<ServicesPage />} />

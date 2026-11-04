@@ -31,7 +31,8 @@ export default function AdminLoginPage() {
       message.success(`Chào mừng ${role} đã đăng nhập!`);
       
       // Phân luồng Dashboard tùy theo Role (Tùy chọn nâng cao)
-      if (role === 'DOCTOR') navigate('/');
+      if (role === 'EXPERT') navigate('/expert-workspace'); // chuyên gia thỉnh giảng chỉ có trang lịch tư vấn
+      else if (role === 'DOCTOR') navigate('/');
       else if (role === 'SALES') navigate('/');
       else navigate('/'); // Mặc định cho Admin/Manager
 

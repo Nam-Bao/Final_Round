@@ -1,8 +1,12 @@
-const { sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService } = require('../models');
+const { sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService, Consultation } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
 const { isOnlineAppointment } = require('./video.controller');
+// Khung giờ khám theo ca (khớp với getAvailableSlots và trang đặt lịch)
+const { SHIFT_SLOTS } = require('../utils/shiftSlots');
+// Cọc buổi tư vấn chuyên gia đã hoàn thành được trừ vào phí khám
+const { findAvailableCredit, getCreditForAppointment, releaseCredit, handleConsultTransfer } = require('./consultation.controller');
 
 // Phí khám bác sĩ 100k. Khám online trả trước toàn bộ; khám tại phòng khám cọc 50k, phần còn lại thu khi chốt sale.
 // Server tự quyết định, không tin số tiền / ghi chú từ client.
@@ -50,6 +54,7 @@ const discardUnpaid = (where) => sequelize.transaction(async (t) => {
   const apts = await Appointment.findAll({ where: { ...where, status: 'PENDING_PAYMENT' }, transaction: t, lock: t.LOCK.UPDATE });
   if (!apts.length) return 0;
   const ids = apts.map(a => a.id);
+  await releaseCredit(ids, t); // phần cọc tư vấn đã gắn vào lịch bỏ dở được trả lại cho khách
   await Invoice.destroy({ where: { appointment_id: { [Op.in]: ids }, payment_status: 'PENDING' }, transaction: t });
   await Appointment.destroy({ where: { id: { [Op.in]: ids } }, transaction: t });
   return ids.length;
@@ -86,7 +91,15 @@ const getDepositQuote = async (req, res) => {
     if (!profile) return res.status(403).json({ message: 'Hồ sơ người bệnh không thuộc tài khoản của bạn' });
 
     const old = await isOldPatient(req.user.id, profile);
-    res.status(200).json({ data: { isOldCustomer: old, examFee: EXAM_FEE, online: old ? 0 : EXAM_FEE, offline: old ? 0 : OFFLINE_DEPOSIT } });
+    // Cọc tư vấn chuyên gia còn hạn => trừ vào phí khám (khám online trả trước nên trừ ngay; tại quầy trừ lúc chốt bill)
+    const credit = old ? null : await findAvailableCredit(req.user.id);
+    const consultCredit = credit ? Number(credit.deposit_amount) : 0;
+    res.status(200).json({
+      data: {
+        isOldCustomer: old, examFee: EXAM_FEE, consultCredit,
+        online: old ? 0 : Math.max(EXAM_FEE - consultCredit, 0), offline: old ? 0 : OFFLINE_DEPOSIT
+      }
+    });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
@@ -148,8 +161,15 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
   const items_total = scope_values.SPA_SERVICE + scope_values.TREATMENT_PACKAGE + scope_values.PRODUCT;
   const exam_fee = getExamFee(invoice);
   const deposit_paid = getDepositPaid(invoice);
+  // Cọc buổi tư vấn chuyên gia đã gắn vào lịch khám này = tiền khách đã trả trước
+  const consult_credit = invoice?.appointment_id ? await getCreditForAppointment(invoice.appointment_id) : 0;
 
-  return { exam_fee, deposit_paid, items_total, scope_values, gross: exam_fee + items_total };
+  return {
+    exam_fee, deposit_paid, consult_credit, items_total, scope_values, gross: exam_fee + items_total,
+    // Dòng chi tiết để lưu vào hoá đơn (báo cáo doanh thu theo dịch vụ / gói)
+    service_items: services.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
+    package_items: packages.map((p) => ({ id: p.id, name: p.name, price: Number(p.promotional_price || p.price) })),
+  };
 };
 
 const getMyTodayAppointments = async (req, res) => {
@@ -242,12 +262,9 @@ const getTakenSlots = async (req, res) => {
   }
 };
 
-// Khung giờ khám theo ca (khớp với getAvailableSlots và trang đặt lịch)
-const SHIFT_SLOTS = {
-  MORNING: ['08:00', '09:00', '10:00', '11:00'],
-  AFTERNOON: ['13:00', '14:00', '15:00', '16:00'],
-  // Đã bỏ ca tối (18:00 - 22:00): phòng khám chỉ làm 08:00 - 17:00
-};
+// Lịch khám tại phòng khám: chỉ ca sáng & chiều (đã bỏ ca tối 18:00 - 22:00, phòng khám làm 08:00 - 17:00).
+// Lịch tư vấn chuyên gia (video online) vẫn dùng đủ 3 ca trong utils/shiftSlots.js
+const EXAM_SHIFT_SLOTS = { MORNING: SHIFT_SLOTS.MORNING, AFTERNOON: SHIFT_SLOTS.AFTERNOON };
 
 // Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
 const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId }) => {
@@ -266,7 +283,7 @@ const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointmen
   if (!doctor_id) return null;
 
   const shifts = await WorkShift.findAll({ where: { employee_id: doctor_id, date: appointment_date, status: 'SCHEDULED' }, raw: true });
-  if (!shifts.some(s => (SHIFT_SLOTS[s.shift_type] || []).includes(time))) {
+  if (!shifts.some(s => (EXAM_SHIFT_SLOTS[s.shift_type] || []).includes(time))) {
     return { status: 400, message: 'Bác sĩ không có lịch làm việc vào giờ này, vui lòng chọn giờ khác' };
   }
   const taken = await Appointment.count({
@@ -321,21 +338,36 @@ const createAppointment = async (req, res) => {
 
     const deposit = await calculateDeposit(customer_id, profile, finalPreNotes);
 
-    const newAppointment = await Appointment.create({
-      customer_id,
-      patient_profile_id, 
-      doctor_id: doctor_id || null,
-      consultant_id: req.user.role !== 'CUSTOMER' ? req.user.id : null,
-      type: type || 'NEW_EXAM',
-      appointment_date,
-      appointment_time,
-      symptoms: '', 
-      pre_notes: finalPreNotes,
-      status: req.user.role === 'CUSTOMER' ? 'PENDING_PAYMENT' : 'PENDING',
-      pre_exam_images: pre_exam_images || [] 
+    const { newAppointment, invoice, consultCredit } = await sequelize.transaction(async (t) => {
+      const created = await Appointment.create({
+        customer_id,
+        patient_profile_id,
+        doctor_id: doctor_id || null,
+        consultant_id: req.user.role !== 'CUSTOMER' ? req.user.id : null,
+        type: type || 'NEW_EXAM',
+        appointment_date,
+        appointment_time,
+        symptoms: '',
+        pre_notes: finalPreNotes,
+        status: req.user.role === 'CUSTOMER' ? 'PENDING_PAYMENT' : 'PENDING',
+        pre_exam_images: pre_exam_images || []
+      }, { transaction: t });
+
+      // Gắn 1 khoản cọc tư vấn chuyên gia (nếu có) vào lịch khám này; khách cũ được miễn phí khám nên không cần
+      let credit = 0;
+      if (!deposit.isReturningCustomer) {
+        const consult = await findAvailableCredit(customer_id, t);
+        if (consult) {
+          await consult.update({ credit_appointment_id: created.id }, { transaction: t });
+          credit = Number(consult.deposit_amount);
+        }
+      }
+      // Khám online trả trước toàn bộ phí khám => trừ cọc tư vấn ngay; khám tại quầy vẫn cọc như cũ, trừ lúc chốt bill
+      const amount = isOnlineAppointment(created) ? Math.max(deposit.amount - credit, 0) : deposit.amount;
+      const inv = await Invoice.create({ customer_id, appointment_id: created.id, total_amount: amount, payment_status: 'PENDING' }, { transaction: t });
+      return { newAppointment: created, invoice: inv, consultCredit: credit };
     });
 
-    const invoice = await Invoice.create({ customer_id, appointment_id: newAppointment.id, total_amount: deposit.amount, payment_status: 'PENDING' });
     // Khách cũ miễn phí cọc: chốt lịch luôn, không cần qua trang thanh toán
     if (deposit.amount === 0 && req.user.role === 'CUSTOMER') {
       await markDepositPaid(newAppointment, invoice, 'UNKNOWN', 'Khách cũ miễn phí phí khám');
@@ -344,7 +376,8 @@ const createAppointment = async (req, res) => {
     res.status(201).json({
       message: 'Tạo lịch khám thành công',
       data: newAppointment,
-      deposit_amount: deposit.amount,
+      deposit_amount: Number(invoice.total_amount),
+      consult_credit: consultCredit,
       is_returning_customer: deposit.isReturningCustomer
     });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
@@ -389,6 +422,10 @@ const sepayWebhook = async (req, res) => {
   try {
     const { transferAmount, content, transferType } = req.body;
     if (transferType && transferType !== 'in') return res.status(200).json({ success: true });
+    // Cọc lịch tư vấn chuyên gia: nội dung "TV xxxxxx"
+    if (Number(transferAmount) > 0 && content && await handleConsultTransfer(content, transferAmount)) {
+      return res.status(200).json({ success: true });
+    }
     if (Number(transferAmount) > 0 && content) {
       // SePay gửi MỌI giao dịch tới cả webhook đặt lịch lẫn webhook mỹ phẩm => chỉ nhận mã "O2O xxxxxx" đứng riêng
       const match = content.match(/(?<![a-z0-9])O2O\s?([a-z0-9]{6})/i);
@@ -431,6 +468,10 @@ const getConsultantQueues = async (req, res) => {
     } catch (error) {}
 
     const queues = { checkIn: [], hotLeads: [], followUp: [], reschedule: [] };
+    // Cọc tư vấn chuyên gia đã gắn vào các lịch khám đang chờ (trừ khi chốt bill)
+    const credits = await Consultation.findAll({
+      where: { credit_appointment_id: { [Op.in]: appointments.map(a => a.id) } }, attributes: ['credit_appointment_id', 'deposit_amount'], raw: true
+    });
 
     appointments.forEach(apt => {
       const customerInfo = allUsers.find(u => u.id === apt.customer_id);
@@ -444,7 +485,8 @@ const getConsultantQueues = async (req, res) => {
         customer_name: patientProfile?.full_name || customerInfo?.Profile?.full_name || 'Khách hàng',
         customer_phone: patientProfile?.phone || customerInfo?.Profile?.phone || '',
         exam_fee,
-        deposit_paid
+        deposit_paid,
+        consult_credit: credits.filter(c => c.credit_appointment_id === apt.id).reduce((s, c) => s + Number(c.deposit_amount), 0)
       };
 
       if (apt.status === 'NEEDS_RESCHEDULE') queues.reschedule.push(enrichedApt);
@@ -628,6 +670,7 @@ const cancelAppointment = async (req, res) => {
     // Hóa đơn cọc giữ nguyên "đã thu": mất cọc thì phòng khám giữ tiền; hoàn cọc thì chỉ chuyển REFUNDED khi CSKH đã chuyển khoản
     apt.status = 'CANCELLED';
     await apt.save({ transaction: t });
+    await releaseCredit([apt.id], t); // cọc tư vấn chưa dùng => trả lại cho lần đặt khám sau
     await t.commit();
 
     const amount = `${depositPaid.toLocaleString('vi-VN')}đ`;
@@ -764,8 +807,8 @@ const checkoutAppointment = async (req, res) => {
     }
 
     const totalBill = Math.max(0, bill.gross - discountAmount);
-    // Tiền cọc đã thu chính là phí khám → chỉ trừ 1 lần
-    const amountDueNow = Math.max(0, totalBill - bill.deposit_paid);
+    // Tiền cọc đã thu chính là phí khám → chỉ trừ 1 lần; cọc tư vấn chuyên gia cũng là tiền đã trả trước
+    const amountDueNow = Math.max(0, totalBill - bill.deposit_paid - bill.consult_credit);
 
     // Mỹ phẩm mua tại quầy: ghi thành đơn hàng của khách bên commerce (trừ kho trong cùng giao dịch),
     // để khách xem lại trong "Đơn hàng Mỹ phẩm" và đánh giá được sản phẩm
@@ -830,6 +873,11 @@ const checkoutAppointment = async (req, res) => {
             invoice.total_amount = totalBill;
             invoice.payment_status = 'PAID';
             invoice.payment_method = payment_method || 'CASH';
+            invoice.breakdown = {
+              exam_fee: bill.exam_fee, services: bill.scope_values.SPA_SERVICE, packages: bill.scope_values.TREATMENT_PACKAGE,
+              products: bill.scope_values.PRODUCT, discount: discountAmount, consult_credit: bill.consult_credit, total: totalBill,
+              service_items: bill.service_items, package_items: bill.package_items, checked_out_at: new Date(),
+            };
             await invoice.save({ transaction: t });
 
             if (amountDueNow > 0) {
@@ -837,7 +885,7 @@ const checkoutAppointment = async (req, res) => {
                   invoice_id: invoice.id,
                   amount: amountDueNow,
                   transaction_type: 'INCOME',
-                  note: `Thu phần còn lại. Phí khám: ${bill.exam_fee}, Dịch vụ/SP: ${bill.items_total}, Giảm giá: ${discountAmount}, Đã cọc: ${bill.deposit_paid}`
+                  note: `Thu phần còn lại. Phí khám: ${bill.exam_fee}, Dịch vụ/SP: ${bill.items_total}, Giảm giá: ${discountAmount}, Đã cọc: ${bill.deposit_paid}, Cọc tư vấn: ${bill.consult_credit}`
                }, { transaction: t });
             }
         }

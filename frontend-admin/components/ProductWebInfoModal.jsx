@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Switch, Row, Col, Alert, Tabs, message, Spin } from 'antd';
+import { Modal, Form, Input, InputNumber, DatePicker, Select, Switch, Row, Col, Alert, Tabs, message, Spin } from 'antd';
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const API = 'http://localhost:4000/api/commerce/products';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const SHOP_URL = 'http://localhost:3001/shops/';
+const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
 // Thông tin hiển thị trên trang sản phẩm của khách + bật / tắt bán trên web.
 // Sản phẩm mới nhập kho mặc định chưa bán web; phòng khám vẫn kê đơn / bán tại quầy bình thường.
@@ -15,6 +17,8 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
   const [skinOptions, setSkinOptions] = useState([]);
   const isPublished = Form.useWatch('is_published', form);
   const slug = Form.useWatch('slug', form);
+  const salePercent = Form.useWatch('sale_percent', form);
+  const listPrice = Number(product?.price || 0);
 
   useEffect(() => {
     if (!product) return;
@@ -22,7 +26,12 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
     axios.get(`${API}/${product.id}/detail`, authConfig())
       .then((res) => {
         setSkinOptions(res.data.skin_type_options || []);
-        form.setFieldsValue({ ...res.data.data, skin_types: res.data.data.skin_types || [] });
+        const { sale_percent, sale_start, sale_end, ...d } = res.data.data;
+        form.setFieldsValue({
+          ...d, skin_types: d.skin_types || [],
+          sale_percent: sale_percent || null,
+          sale_range: sale_percent && sale_end ? [dayjs(sale_start || undefined), dayjs(sale_end)] : null,
+        });
       })
       .catch((err) => { message.error(err.response?.data?.message || 'Không tải được thông tin sản phẩm'); onClose(); })
       .finally(() => setLoading(false));
@@ -31,7 +40,13 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
   const handleSave = async () => {
     await form.validateFields();
     // Lấy toàn bộ giá trị của form, kể cả các tab chưa mở (validateFields chỉ trả về ô đang hiển thị)
-    const values = form.getFieldsValue(true);
+    const { sale_percent, sale_range, ...values } = form.getFieldsValue(true);
+    // Chỉ gửi khuyến mãi khi có sửa ô giảm giá: đợt đã hết hạn không chặn việc lưu các thông tin khác
+    if (form.isFieldsTouched(['sale_percent', 'sale_range'])) {
+      values.sale_percent = sale_percent || null;
+      values.sale_start = sale_percent && sale_range?.[0] ? sale_range[0].toISOString() : null;
+      values.sale_end = sale_percent && sale_range?.[1] ? sale_range[1].toISOString() : null;
+    }
     setSaving(true);
     try {
       const res = await axios.put(`${API}/${product.id}/detail`, values, authConfig());
@@ -64,6 +79,34 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
             </div>
             <Form.Item name="is_published" valuePropName="checked" className="!mb-0"><Switch /></Form.Item>
           </div>
+          <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
+            <div>
+              <div className="font-semibold text-rose-700">Thuốc kê đơn (Rx)</div>
+              <div className="text-xs text-gray-500">Bật nếu bao bì ghi "Rx / Thuốc bán theo đơn": vẫn hiện trên web để tra cứu nhưng khách không mua online được; bác sĩ kê trong buổi khám và CSKH bán tại quầy.</div>
+            </div>
+            <Form.Item name="is_prescription" valuePropName="checked" className="!mb-0"><Switch /></Form.Item>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+            <div className="font-semibold text-red-700">Giá khuyến mãi online</div>
+            <div className="text-xs text-gray-500 mb-2">
+              Giá niêm yết {vnd(listPrice)}. Chỉ áp dụng khi khách mua trên web, trong khoảng thời gian đã chọn; sản phẩm tự hiện ở mục "Đang giảm giá" trên trang chủ. Bỏ trống ô % để tắt.
+            </div>
+            <Row gutter={12}>
+              <Col span={9}>
+                <Form.Item name="sale_percent" label="Giảm (%)" className="!mb-1"
+                  extra={salePercent >= 1 && salePercent <= 90 ? `Giá bán online: ${vnd(Math.round(listPrice * (100 - salePercent) / 100))}` : null}>
+                  <InputNumber className="!w-full" min={1} max={90} precision={0} placeholder="Để trống = không giảm" suffix="%" />
+                </Form.Item>
+              </Col>
+              <Col span={15}>
+                <Form.Item name="sale_range" label="Thời gian áp dụng" className="!mb-1" dependencies={['sale_percent']}
+                  rules={[{ validator: (_, v) => (!salePercent || v?.[1] ? Promise.resolve() : Promise.reject(new Error('Chọn thời gian khuyến mãi'))) }]}>
+                  <DatePicker.RangePicker className="!w-full" showTime={{ format: 'HH:mm' }} format="DD/MM/YYYY HH:mm"
+                    disabledDate={(d) => d && d < dayjs().startOf('day')} />
+                </Form.Item>
+              </Col>
+            </Row>
+          </div>
           {product?.type === 'MATERIAL' && <Alert type="warning" showIcon className="mb-3" message="Vật tư nội bộ không được bán trên web." />}
 
           <Tabs items={[
@@ -90,7 +133,10 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
               key: 'content', label: 'Công dụng & Thành phần', forceRender: true, children: (
                 <>
                   {text('benefits', 'Công dụng', 4, 3000, 'Mỗi công dụng một dòng')}
-                  {text('ingredients', 'Thành phần', 4, 3000, 'Danh sách thành phần chính / bảng thành phần đầy đủ')}
+                  {text('ingredients', 'Thành phần', 8, 3000, 'Hoạt chất chính:\n- Niacinamide 5% | Giảm dầu, mờ thâm\n- Panthenol | Làm dịu, phục hồi\nBảng thành phần đầy đủ:\nAqua, Glycerin, Niacinamide, ...\nLưu ý: (nếu có)')}
+                  <p className="text-xs text-gray-500 -mt-3 mb-4">
+                    Nhập theo mẫu để trang khách hiện bảng hoạt chất (tên | công dụng) và bảng thành phần đầy đủ. Nhập tự do vẫn hiển thị nguyên văn.
+                  </p>
                 </>
               ),
             },

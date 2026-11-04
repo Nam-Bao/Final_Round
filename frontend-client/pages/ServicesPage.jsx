@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Clock, Star, Sparkles, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import ServiceDetail from '../components/ServiceDetail';
+import { SERVICE_GROUPS } from '../utils/serviceGroups';
 
 const CATEGORIES = [
   { id: 'all', label: 'Tất cả' },
@@ -14,6 +16,14 @@ const CATEGORIES = [
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  // ?nhom=tai-phong-kham | cong-nghe-cao (từ trang chủ): lọc sẵn nhiều danh mục; chọn 1 danh mục cụ thể sẽ bỏ lọc nhóm
+  const [searchParams, setSearchParams] = useSearchParams();
+  const group = SERVICE_GROUPS[searchParams.get('nhom')] || null;
+  const groupCategoryIds = group ? CATEGORIES.filter((c) => group.categories.includes(c.label)).map((c) => c.id) : null;
+  const chooseCategory = (id) => {
+    setSelectedCategory(id);
+    if (group) setSearchParams({}, { replace: true });
+  };
   const [priceFilter, setPriceFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('default');
   const [loading, setLoading] = useState(true);
@@ -108,6 +118,7 @@ export default function ServicesPage() {
   const filteredServices = useMemo(() => {
     return services
       .filter((s) => {
+        if (groupCategoryIds) return groupCategoryIds.includes(s.category);
         if (selectedCategory === 'all') return true;
         return s.category === selectedCategory;
       })
@@ -122,7 +133,8 @@ export default function ServicesPage() {
         if (sortOrder === 'price-desc') return b.price - a.price;
         return 0;
       });
-  }, [services, selectedCategory, priceFilter, sortOrder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services, selectedCategory, priceFilter, sortOrder, searchParams]);
 
   if (loading) {
     return (
@@ -136,17 +148,27 @@ export default function ServicesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-secondary">Dịch vụ chăm sóc da</h1>
-        <p className="text-base-content/60 mt-1">Chọn dịch vụ phù hợp với tình trạng da của bạn.</p>
+        <p className="text-base-content/60 mt-1">
+          Xem trước quy trình và giá. Bác sĩ sẽ chỉ định dịch vụ phù hợp với tình trạng da của bạn sau buổi khám –{' '}
+          <Link to="/booking" className="link link-primary">đặt lịch khám</Link>.
+        </p>
       </div>
+
+      {group && (
+        <div className="alert bg-primary/10 border-primary/20 py-2 text-sm">
+          <span>Đang xem nhóm: <b>{group.label}</b> ({group.categories.join(', ')})</span>
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => setSearchParams({}, { replace: true })}>Xem tất cả</button>
+        </div>
+      )}
 
       {/* Tabs danh mục */}
       <div role="tablist" className="flex flex-wrap gap-2">
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
-            onClick={() => setSelectedCategory(c.id)}
+            onClick={() => chooseCategory(c.id)}
             className={`btn btn-sm rounded-full ${
-              selectedCategory === c.id ? 'btn-primary' : 'btn-outline btn-primary'
+              !group && selectedCategory === c.id ? 'btn-primary' : 'btn-outline btn-primary'
             }`}
           >
             {c.label}

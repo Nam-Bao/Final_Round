@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, Select, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, IdcardOutlined } from '@ant-design/icons';
+import DoctorProfileModal from '../components/DoctorProfileModal';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [profileDoctor, setProfileDoctor] = useState(null); // bác sĩ đang sửa hồ sơ chuyên môn
   const [form] = Form.useForm();
   
   // THÊM: State lưu từ khóa tìm kiếm
@@ -88,6 +90,7 @@ export default function UsersPage() {
         { text: 'Quản trị viên (ADMIN)', value: 'ADMIN' },
         { text: 'Quản lý (GEN_MANAGER)', value: 'GEN_MANAGER' },
         { text: 'Bác sĩ (DOCTOR)', value: 'DOCTOR' },
+        { text: 'Chuyên gia tư vấn (EXPERT)', value: 'EXPERT' },
         { text: 'Khách hàng (CUSTOMER)', value: 'CUSTOMER' },
       ],
       onFilter: (value, record) => record.role === value,
@@ -95,6 +98,7 @@ export default function UsersPage() {
         let color = 'blue';
         if (role === 'ADMIN' || role === 'GEN_MANAGER') color = 'volcano';
         if (role === 'DOCTOR') color = 'purple';
+        if (role === 'EXPERT') color = 'magenta';
         if (role === 'CUSTOMER') color = 'green';
         return <Tag color={color}>{role}</Tag>;
       },
@@ -114,6 +118,9 @@ export default function UsersPage() {
       render: (_, record) => (
         <Space size="middle">
           <Button type="primary" ghost icon={<EditOutlined />} size="small" onClick={() => openModal(record)}>Sửa</Button>
+          {['DOCTOR', 'EXPERT'].includes(record.role) && (
+            <Button icon={<IdcardOutlined />} size="small" onClick={() => setProfileDoctor(record)}>Hồ sơ chuyên môn</Button>
+          )}
           <Popconfirm title="Xóa tài khoản này?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
             <Button danger icon={<DeleteOutlined />} size="small">Xóa</Button>
           </Popconfirm>
@@ -152,10 +159,11 @@ export default function UsersPage() {
           <Space className="w-full justify-between">
             <Form.Item label="Vai trò" name="role" className="w-[200px]" rules={[{ required: true }]}>
               <Select>
-                <Select.Option value="CUSTOMER">Khách hàng</Select.Option><Select.Option value="DOCTOR">Bác sĩ / Chuyên gia</Select.Option>
+                <Select.Option value="CUSTOMER">Khách hàng</Select.Option><Select.Option value="DOCTOR">Bác sĩ</Select.Option>
                 <Select.Option value="GEN_MANAGER">Quản lý</Select.Option><Select.Option value="ADMIN">Quản trị viên</Select.Option>
                 <Select.Option value="CONSULTANT">Tư vấn viên</Select.Option><Select.Option value="TECHNICIAN">Kỹ thuật viên</Select.Option>
                 <Select.Option value="SALES">Nhân viên Bán hàng</Select.Option>
+                <Select.Option value="EXPERT">Chuyên gia tư vấn (thỉnh giảng)</Select.Option>
               </Select>
             </Form.Item>
             {editingUser && (
@@ -167,6 +175,8 @@ export default function UsersPage() {
           <Form.Item className="text-right mb-0"><Space><Button onClick={() => setIsModalVisible(false)}>Hủy</Button><Button type="primary" htmlType="submit">Lưu</Button></Space></Form.Item>
         </Form>
       </Modal>
+
+      {profileDoctor && <DoctorProfileModal doctor={profileDoctor} onClose={() => setProfileDoctor(null)} />}
     </>
   );
 }

@@ -15,7 +15,8 @@ const User = sequelize.define('User', {
   email: { type: DataTypes.STRING, unique: true, allowNull: false },
   password_hash: { type: DataTypes.STRING, allowNull: false },
   role: { 
-    type: DataTypes.ENUM('GUEST', 'CUSTOMER', 'GEN_MANAGER', 'ADMIN', 'DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES'),
+    // EXPERT: chuyên gia tư vấn thỉnh giảng (tài khoản quyền hẹp, không phải nhân viên chính thức)
+    type: DataTypes.ENUM('GUEST', 'CUSTOMER', 'GEN_MANAGER', 'ADMIN', 'DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES', 'EXPERT'),
     defaultValue: 'CUSTOMER' 
   },
   status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'BANNED'), defaultValue: 'ACTIVE' },
@@ -30,6 +31,27 @@ const Profile = sequelize.define('Profile', {
   dob: { type: DataTypes.DATEONLY },
   gender: { type: DataTypes.ENUM('MALE', 'FEMALE', 'OTHER') },
   avatar: { type: DataTypes.STRING }
+});
+
+// 2b. Hồ sơ chuyên môn của bác sĩ / chuyên gia tư vấn (công khai cho khách xem trước khi đặt lịch).
+// Bảng riêng vì sync thường không thêm cột vào Profiles; chỉ Admin/Quản lý cập nhật sau khi xác minh bằng cấp.
+const DoctorProfile = sequelize.define('DoctorProfile', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  user_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+  title: { type: DataTypes.STRING(50) },             // học hàm / học vị, vd "ThS.BS", "BSCKI"
+  specialty: { type: DataTypes.STRING(150) },        // chuyên khoa
+  workplace: { type: DataTypes.STRING(200) },        // nơi đang công tác
+  experience_years: { type: DataTypes.INTEGER },
+  license_number: { type: DataTypes.STRING(50) },    // số chứng chỉ hành nghề
+  bio: { type: DataTypes.TEXT },                     // giới thiệu ngắn
+  education: { type: DataTypes.JSONB, defaultValue: [] },     // [{ degree, school, year }]
+  work_history: { type: DataTypes.JSONB, defaultValue: [] },  // kinh nghiệm công tác: [{ position, place, from, to }] (to = null: hiện tại)
+  certificates: { type: DataTypes.JSONB, defaultValue: [] },  // ["Chứng chỉ Laser thẩm mỹ - 2019", ...]
+  expertise: { type: DataTypes.JSONB, defaultValue: [] },     // thế mạnh điều trị: ["Mụn trứng cá", ...]
+  // Chỉ dùng cho chuyên gia tư vấn (EXPERT)
+  consult_field: { type: DataTypes.STRING(20) },     // DERMATOLOGY | NUTRITION | COSMETICS
+  session_fee: { type: DataTypes.INTEGER },          // thù lao phòng khám trả mỗi ca hoàn thành (NỘI BỘ, không công khai)
+  updated_by: { type: DataTypes.UUID }
 });
 
 // 3. Bảng PatientProfiles (Hồ sơ người bệnh - THAY THẾ BẢNG GUARDIANS)
@@ -83,6 +105,9 @@ const ChatMessage = sequelize.define('ChatMessage', {
 User.hasOne(Profile, { foreignKey: 'user_id' });
 Profile.belongsTo(User, { foreignKey: 'user_id' });
 
+User.hasOne(DoctorProfile, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+DoctorProfile.belongsTo(User, { foreignKey: 'user_id' });
+
 // 1 User có thể quản lý nhiều Hồ sơ người bệnh (PatientProfiles)
 User.hasMany(PatientProfile, { foreignKey: 'user_id', as: 'PatientProfiles' });
 PatientProfile.belongsTo(User, { foreignKey: 'user_id', as: 'Account' });
@@ -110,4 +135,4 @@ ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi ở cả 2 nơi)
 
-module.exports = { sequelize, User, Profile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };
+module.exports = { sequelize, User, Profile, DoctorProfile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

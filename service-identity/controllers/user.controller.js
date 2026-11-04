@@ -1,5 +1,8 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
-const { User, Profile, PatientProfile, sequelize } = require('../models');
+const { User, Profile, DoctorProfile, PatientProfile, sequelize } = require('../models');
+
+// Thông tin chuyên môn rút gọn hiển thị trên thẻ bác sĩ
+const DOCTOR_CARD_FIELDS = ['title', 'specialty', 'workplace', 'experience_years'];
 const { Op } = require('sequelize'); // getEmployees, resetPassword dùng Op (trước đây thiếu => lỗi 500)
 const bcrypt = require('bcryptjs');
 
@@ -182,11 +185,17 @@ const getPublicDoctors = async (req, res) => {
     const doctors = await User.findAll({
       where: { role: 'DOCTOR', status: 'ACTIVE' },
       attributes: ['id'],
-      include: [{ model: Profile, attributes: ['full_name', 'avatar', 'gender'] }],
+      include: [
+        { model: Profile, attributes: ['full_name', 'avatar', 'gender'] },
+        { model: DoctorProfile, attributes: DOCTOR_CARD_FIELDS }
+      ],
       order: [['createdAt', 'ASC']]
     });
     res.status(200).json({
-      data: doctors.map(d => ({ id: d.id, full_name: d.Profile?.full_name || 'Bác sĩ', avatar: d.Profile?.avatar || null, gender: d.Profile?.gender || null }))
+      data: doctors.map(d => ({
+        id: d.id, full_name: d.Profile?.full_name || 'Bác sĩ', avatar: d.Profile?.avatar || null, gender: d.Profile?.gender || null,
+        ...Object.fromEntries(DOCTOR_CARD_FIELDS.map(f => [f, d.DoctorProfile?.[f] ?? null]))
+      }))
     });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
@@ -212,7 +221,8 @@ const getDoctors = async (req, res) => {
         { 
           model: Profile, 
           attributes: ['full_name', 'avatar'] // Chỉ lấy tên và avatar để hiển thị
-        }
+        },
+        { model: DoctorProfile, attributes: DOCTOR_CARD_FIELDS }
       ]
     });
 
@@ -256,7 +266,8 @@ const getCusProfile = async (req, res) => {
 const getEmployees = async (req, res) => {
   try {
     const employees = await User.findAll({
-      where: { role: { [Op.ne]: 'CUSTOMER' } }, // Lấy tất cả trừ CUSTOMER
+      // Nhân viên chính thức: trừ khách và chuyên gia thỉnh giảng (chuyên gia không xếp ca / chấm công)
+      where: { role: { [Op.notIn]: ['CUSTOMER', 'GUEST', 'EXPERT'] } },
       attributes: ['id', 'email', 'role', 'status'], 
       include: [{ model: Profile, attributes: ['full_name', 'phone'] }]
     });

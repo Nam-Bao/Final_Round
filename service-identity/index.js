@@ -34,6 +34,12 @@ server.listen(PORT, async () => {
   console.log(`🚀 [Identity & Socket] đang chạy tại port ${PORT}`);
   try {
     await sequelize.authenticate();
+    // sync thường không thêm giá trị mới cho ENUM đã có => tự bổ sung vai trò EXPERT cho DB cũ (DB mới sync tạo đủ)
+    await sequelize.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Users_role') THEN
+        ALTER TYPE "enum_Users_role" ADD VALUE IF NOT EXISTS 'EXPERT';
+      END IF;
+    END $$;`);
     // Mặc định chỉ tạo bảng còn thiếu. DB_SYNC_ALTER=true mới sửa cấu trúc bảng theo model —
     // chế độ này có thể XÓA cột không còn trong model, chỉ bật khi cần và nên backup DB trước.
     const alter = process.env.DB_SYNC_ALTER === 'true';

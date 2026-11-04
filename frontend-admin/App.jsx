@@ -5,6 +5,8 @@ import DashboardPage from './pages/DashboardPage';
 import AdminLayout from './components/AdminLayout';
 import UsersPage from './pages/UsersPage';
 import InventoryPage from './pages/InventoryPage';
+import MaterialsPage from './pages/MaterialsPage';
+import RevenueReportPage from './pages/RevenueReportPage';
 import PackagesPage from './pages/PackagesPage';
 import WorkSchedulePage from './pages/WorkSchedulePage';
 import MySchedulePage from './pages/MySchedulePage';
@@ -20,6 +22,8 @@ import AppointmentManagementPage from './pages/AppointmentManagementPage';
 import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
 import ContentManagementPage from './pages/ContentManagementPage';
 import MyArticlesPage from './pages/MyArticlesPage';
+import ConsultationManagementPage from './pages/ConsultationManagementPage';
+import ExpertWorkspacePage from './pages/ExpertWorkspacePage';
 import MyAttendancePage from './pages/MyAttendancePage';
 import AttendanceManagementPage from './pages/AttendanceManagementPage';
 import AttendanceKioskPage from './pages/AttendanceKioskPage';
@@ -40,6 +44,8 @@ function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/appointments" element={<div>Giao diện Lịch hẹn sẽ nằm ở đây</div>} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
+          <Route path="/reports" element={<RevenueReportPage />} />
           <Route path="/packages" element={<PackagesPage />} />
           <Route path="/schedule" element={<WorkSchedulePage />} />
           <Route path="/my-schedule" element={<MySchedulePage />} />
@@ -56,6 +62,8 @@ function App() {
           <Route path="/content" element={<ContentManagementPage />} />
           <Route path="/page-info" element={<Navigate to="/content" replace />} />
           <Route path="/my-articles" element={<MyArticlesPage />} />
+          <Route path="/consultations" element={<ConsultationManagementPage />} />
+          <Route path="/expert-workspace" element={<ExpertWorkspacePage />} />
           <Route path="/attendance" element={<MyAttendancePage />} />
           <Route path="/attendance-management" element={<AttendanceManagementPage />} />
           <Route path="/salary-rates" element={<SalaryRatesPage />} />

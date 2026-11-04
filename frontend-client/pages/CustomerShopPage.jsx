@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, CheckCircle, Percent, QrCode, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import ShopFilters, { applyShopFilters, EMPTY_FILTERS } from '../components/ShopFilters';
+import ShopFilters, { applyShopFilters, EMPTY_FILTERS, FLAG_FILTERS } from '../components/ShopFilters';
+import { ProductPrice, ProductBadges } from '../components/ProductCard';
 import { useAuthStore } from '../store/authStore';
 
 export default function CustomerShopPage() {
@@ -12,18 +13,18 @@ export default function CustomerShopPage() {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
-  // Bộ lọc lưu trên URL (?q=&cat=&price=&min=&max=&rating=&stock=1&sort=) => F5, quay lại, chia sẻ link vẫn giữ kết quả
+  // Bộ lọc lưu trên URL (?q=&tab=new|best|sale&cat=&price=&min=&max=&rating=&stock=1&sort=) => F5, quay lại, chia sẻ link vẫn giữ kết quả
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => ({
     ...EMPTY_FILTERS,
-    ...Object.fromEntries([...searchParams.entries()].filter(([k]) => k in EMPTY_FILTERS && k !== 'stock')),
-    stock: searchParams.get('stock') === '1',
+    ...Object.fromEntries([...searchParams.entries()].filter(([k]) => k in EMPTY_FILTERS && !FLAG_FILTERS.includes(k))),
+    ...Object.fromEntries(FLAG_FILTERS.map((k) => [k, searchParams.get(k) === '1'])),
   }), [searchParams]);
   const updateFilters = (patch) => {
     const next = { ...filters, ...patch };
     const params = {};
     Object.entries(next).forEach(([k, v]) => {
-      if (k === 'stock') { if (v) params.stock = '1'; }
+      if (FLAG_FILTERS.includes(k)) { if (v) params[k] = '1'; }
       else if (v !== '' && v !== EMPTY_FILTERS[k]) params[k] = v;
     });
     setSearchParams(params, { replace: true });
@@ -416,7 +417,7 @@ export default function CustomerShopPage() {
             </button>
           </div>
 
-          <ShopFilters filters={filters} onChange={updateFilters} categories={categories} total={products.length} shown={visibleProducts.length} />
+          <ShopFilters filters={filters} onChange={updateFilters} categories={categories} total={products.length} shown={visibleProducts.length} products={products} />
 
           {productsLoading ? (
             <div className="text-center py-16 text-slate-400"><span className="loading loading-spinner loading-md"></span></div>
@@ -435,6 +436,8 @@ export default function CustomerShopPage() {
                   <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="relative block aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden group">
                     <img src={getProductImage(p.image_url)} alt={p.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
                     {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded-lg">Hết hàng</span>}
+                    {p.ProductDetail?.is_prescription && <span className="absolute bottom-2 left-2 bg-rose-600 text-white text-xs font-semibold px-2 py-1 rounded-lg">Thuốc kê đơn</span>}
+                    <ProductBadges product={p} />
                   </Link>
                   {p.Category && <p className="text-xs text-teal-600 font-medium mb-1 line-clamp-1">{p.Category.name}</p>}
                   <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 mb-2 hover:underline">
@@ -448,14 +451,21 @@ export default function CustomerShopPage() {
                     <p className="text-sm text-slate-500 mt-1 line-clamp-2" title={p.ProductDetail.short_description}>{p.ProductDetail.short_description}</p>
                   )}
                   <div className="flex items-end justify-between gap-2 my-2">
-                    <p className="text-primary font-bold text-lg">{Number(p.price).toLocaleString()} ₫</p>
+                    <ProductPrice product={p} className="text-primary font-bold text-lg" />
                     <span className="text-xs text-slate-500 whitespace-nowrap mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
+                {p.ProductDetail?.is_prescription ? (
+                  // Thuốc kê đơn: không bán online, chỉ bác sĩ kê sau khi khám (server cũng chặn thêm vào giỏ)
+                  <Link to="/booking" className="w-full py-2.5 border border-rose-200 bg-rose-50 text-rose-700 font-medium rounded-xl flex items-center justify-center gap-2 mt-4 text-sm">
+                    Kê đơn tại phòng khám – Đặt lịch khám
+                  </Link>
+                ) : (
                 <button onClick={() => handleAddToCart(p.id)} disabled={outOfStock}
                   className="w-full py-2.5 bg-slate-900 text-white font-medium rounded-xl flex items-center justify-center gap-2 mt-4 disabled:bg-slate-300 disabled:cursor-not-allowed">
                   {outOfStock ? 'Tạm hết hàng' : <><Plus className="w-4 h-4"/> Thêm vào giỏ</>}
                 </button>
+                )}
               </div>
               );
             })}
@@ -474,7 +484,7 @@ export default function CustomerShopPage() {
                 <div key={item.id} className="flex gap-4 bg-white p-4 rounded-2xl border">
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800">{item.Product.name}</h3>
-                    <p className="text-primary font-medium">{Number(item.Product.price).toLocaleString()} ₫</p>
+                    <ProductPrice product={item.Product} className="text-primary font-medium" />
                   </div>
                   <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-lg border">
                     <button onClick={() => handleUpdateQuantity(item.id, item.quantity, -1)} className="p-1 hover:bg-white rounded"><Minus className="w-4 h-4"/></button>

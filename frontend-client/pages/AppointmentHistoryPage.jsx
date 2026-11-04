@@ -5,6 +5,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import VideoCallModal from '../components/VideoCallModal';
 import ReviewModal from '../components/ReviewModal';
+import MyConsultations from '../components/MyConsultations';
 import { useAuthStore } from '../store/authStore';
 import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS } from '../utils/contact';
 
@@ -201,7 +202,9 @@ Bạn vẫn muốn hủy lịch?`
       <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
         <ClipboardList className="text-primary" /> Sổ Lịch Khám & Y Bạ
       </h1>
-      
+
+      <MyConsultations />
+
       {apts.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -244,7 +247,7 @@ Bạn vẫn muốn hủy lịch?`
                         <span className="text-slate-500">Hình thức:</span>
                         <span className={`font-bold flex items-center gap-1 ${!isOnline ? 'text-orange-600' : 'text-info'}`}>
                           {isOnline ? <Video className="w-4 h-4"/> : <MapPin className="w-4 h-4"/>} 
-                          {isOnline ? 'Tư vấn Online' : 'Khám trực tiếp'}
+                          {isOnline ? 'Khám online' : 'Khám trực tiếp'}
                         </span>
                       </p>
                     </div>

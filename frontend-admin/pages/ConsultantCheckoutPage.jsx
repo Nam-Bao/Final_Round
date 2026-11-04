@@ -124,9 +124,10 @@ export default function ConsultantCheckoutPage() {
 
   const examFee = Number(selectedCustomer?.exam_fee || 0);
   const depositPaid = Number(selectedCustomer?.deposit_paid || 0);
+  const consultCredit = Number(selectedCustomer?.consult_credit || 0); // cọc buổi tư vấn chuyên gia, trừ vào phí khám
   const subtotal = getSubtotal();
   const finalTotal = Math.max(0, subtotal - discountAmount);
-  const amountDue = Math.max(0, finalTotal - depositPaid);
+  const amountDue = Math.max(0, finalTotal - depositPaid - consultCredit);
 
   return (
     <Row gutter={16} className="h-[85vh]">
@@ -300,6 +301,12 @@ export default function ConsultantCheckoutPage() {
                        <div className="flex justify-between mb-2 text-green-600">
                           <Text className="text-green-600">Đã cọc khi đặt lịch:</Text>
                           <Text strong className="text-green-600">- {depositPaid.toLocaleString('vi-VN')} ₫</Text>
+                       </div>
+                    )}
+                    {consultCredit > 0 && (
+                       <div className="flex justify-between mb-2 text-green-600">
+                          <Text className="text-green-600">Cọc buổi tư vấn chuyên gia:</Text>
+                          <Text strong className="text-green-600">- {consultCredit.toLocaleString('vi-VN')} ₫</Text>
                        </div>
                     )}
 

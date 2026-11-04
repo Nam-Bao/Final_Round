@@ -5,7 +5,14 @@ import axios from 'axios';
 
 const authHeaders = () => ({ 'Authorization': `Bearer ${sessionStorage.getItem('token')}` });
 
-export default function PaymentPage() {
+// Cùng 1 trang thanh toán cho cọc lịch khám (O2O xxxxxx) và cọc lịch tư vấn chuyên gia (TV xxxxxx)
+const KINDS = {
+  appointment: { api: 'appointments', prefix: 'O2O', backTo: '/booking', successText: 'Lịch hẹn của bạn đã được chốt và gửi đến Bác sĩ.' },
+  consultation: { api: 'consultations', prefix: 'TV', backTo: '/tu-van', successText: 'Lịch tư vấn đã được xác nhận và gửi đến chuyên gia.' },
+};
+
+export default function PaymentPage({ kind = 'appointment' }) {
+  const cfg = KINDS[kind];
   const { id } = useParams();
   const navigate = useNavigate();
   const [isPaid, setIsPaid] = useState(false);
@@ -36,7 +43,7 @@ export default function PaymentPage() {
 
     const checkPayment = async () => {
       try {
-        const res = await axios.get(`http://localhost:4000/api/booking/appointments/${id}/check-payment`, { headers: authHeaders() });
+        const res = await axios.get(`http://localhost:4000/api/booking/${cfg.api}/${id}/check-payment`, { headers: authHeaders() });
         setPayment(res.data);
         if (res.data.isPaid) setIsPaid(true);
       } catch (error) {
@@ -49,14 +56,14 @@ export default function PaymentPage() {
     checkPayment();
     const interval = setInterval(checkPayment, 3000); // 3 giây quét 1 lần
     return () => clearInterval(interval); // Dọn dẹp khi rời trang
-  }, [id, isPaid, loadError]);
+  }, [id, isPaid, loadError, cfg.api]);
 
   useEffect(() => { paidRef.current = isPaid; }, [isPaid]);
 
   // RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
   // Đóng tab thì không gọi được => server tự xóa khi hết thời gian giữ chỗ.
   const releaseHold = () =>
-    axios.delete(`http://localhost:4000/api/booking/appointments/${id}/unpaid`, { headers: authHeaders() })
+    axios.delete(`http://localhost:4000/api/booking/${cfg.api}/${id}/unpaid`, { headers: authHeaders() })
       .catch(() => {}); // 409 = vừa thanh toán xong, giữ nguyên lịch
   useEffect(() => {
     mountedRef.current = true;
@@ -82,7 +89,7 @@ export default function PaymentPage() {
   const handleChangeSchedule = async () => {
     await releaseHold();
     paidRef.current = true; // đã hủy rồi, cleanup khỏi gọi lại
-    navigate('/booking');
+    navigate(cfg.backTo);
   };
 
 
@@ -91,7 +98,7 @@ export default function PaymentPage() {
       <div className="max-w-xl mx-auto mt-10 text-center space-y-6 animate-fade-in-up">
         <CheckCircle className="w-20 h-20 text-success mx-auto" />
         <h1 className="text-3xl font-bold text-slate-800">Đặt Lịch Thành Công!</h1>
-        <p className="text-slate-600">Lịch hẹn của bạn đã được chốt và gửi đến Bác sĩ.</p>
+        <p className="text-slate-600">{cfg.successText}</p>
         <button onClick={() => navigate('/appointments')} className="btn btn-primary mt-4">
           Vào Sổ Y Bạ của bạn <ArrowRight className="w-4 h-4"/>
         </button>
@@ -102,8 +109,8 @@ export default function PaymentPage() {
   if (loadError || secondsLeft === 0) {
     return (
       <div className="max-w-xl mx-auto mt-10 text-center space-y-4">
-        <p className="text-error font-medium">{loadError || 'Đã hết thời gian giữ chỗ, ca khám đã được trả lại. Vui lòng đặt lịch lại.'}</p>
-        <button onClick={() => navigate('/booking')} className="btn btn-primary">Đặt lịch lại</button>
+        <p className="text-error font-medium">{loadError || 'Đã hết thời gian giữ chỗ, giờ hẹn đã được trả lại. Vui lòng đặt lịch lại.'}</p>
+        <button onClick={() => navigate(cfg.backTo)} className="btn btn-primary">Đặt lịch lại</button>
       </div>
     );
   }
@@ -127,7 +134,7 @@ export default function PaymentPage() {
 
           <div className="p-2 border-2 border-primary rounded-xl inline-block bg-white">
             <img
-              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=O2O ${orderCode}&accountName=${ACCOUNT_NAME}`}
+              src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${amountToPay}&addInfo=${cfg.prefix} ${orderCode}&accountName=${ACCOUNT_NAME}`}
               alt="QR Code"
               className="w-56 h-56 object-cover"
             />
@@ -140,7 +147,7 @@ export default function PaymentPage() {
              <p className="flex justify-between"><span>Số tiền:</span> <b className="text-error text-lg">{amountToPay.toLocaleString()} đ</b></p>
              <p className="flex justify-between items-center">
                 <span>Nội dung CK:</span>
-                <b className="text-primary font-mono bg-blue-50 px-2 py-1 rounded text-lg border border-blue-200">O2O {orderCode}</b>
+                <b className="text-primary font-mono bg-blue-50 px-2 py-1 rounded text-lg border border-blue-200">{cfg.prefix} {orderCode}</b>
              </p>
           </div>
         </div>
@@ -150,7 +157,10 @@ export default function PaymentPage() {
           <div>
             <h2 className="font-bold border-b pb-2 mb-4">Chi tiết thanh toán</h2>
             <div className="space-y-3 text-sm">
-               <p className="flex justify-between text-slate-600"><span>Tổng phí dịch vụ:</span> <span>{totalFee.toLocaleString()} đ</span></p>
+               <p className="flex justify-between text-slate-600"><span>{kind === 'consultation' ? 'Tiền cọc tư vấn:' : 'Tổng phí dịch vụ:'}</span> <span>{totalFee.toLocaleString()} đ</span></p>
+               {kind === 'consultation' && (
+                 <p className="text-xs text-slate-500">Sau buổi tư vấn, khoản cọc này được trừ vào phí khám nếu bạn đặt lịch khám trong 30 ngày. Không vào phòng đúng giờ sẽ mất cọc.</p>
+               )}
                {!isOnline && totalFee > 0 && (
                  <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning-content flex gap-2">
                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
@@ -167,7 +177,7 @@ export default function PaymentPage() {
           <div className="space-y-4">
             {secondsLeft !== null && (
               <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm text-center">
-                Ca khám được giữ trong <b className="font-mono">{String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}</b>.
+                Giờ hẹn được giữ trong <b className="font-mono">{String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}</b>.
                 Hết giờ hoặc rời trang mà chưa thanh toán, lịch sẽ bị hủy.
               </div>
             )}

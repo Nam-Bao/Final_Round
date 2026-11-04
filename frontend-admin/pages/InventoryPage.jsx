@@ -322,7 +322,23 @@ const ProductsTab = () => {
       onFilter: (value, record) => record.type === value,
       render: (type) => <Tag color={type === 'PRODUCT' ? 'green' : 'orange'}>{type === 'PRODUCT' ? 'Sản phẩm' : 'Vật tư'}</Tag>
     },
-    { title: 'Giá bán', dataIndex: 'price', key: 'price', render: (price) => Number(price || 0).toLocaleString('vi-VN') + ' ₫' },
+    {
+      title: 'Giá bán', dataIndex: 'price', key: 'price',
+      render: (price, record) => {
+        const d = record.ProductDetail;
+        const end = d?.sale_end ? dayjs(d.sale_end) : null;
+        // Khuyến mãi online (đặt trong "Thông tin web"): đang chạy / sắp chạy; hết hạn thì không hiện
+        const sale = d?.sale_percent && end?.isAfter(dayjs())
+          ? (dayjs(d.sale_start).isAfter(dayjs()) ? { color: 'gold', text: `Sắp giảm ${d.sale_percent}%` } : { color: 'red', text: `Online -${d.sale_percent}%` })
+          : null;
+        return (
+          <div>
+            <div>{Number(price || 0).toLocaleString('vi-VN')} ₫</div>
+            {sale && <Tag color={sale.color} className="!mt-1" title={`Đến ${end.format('HH:mm DD/MM/YYYY')}`}>{sale.text}</Tag>}
+          </div>
+        );
+      },
+    },
     { 
       title: 'Tồn kho', key: 'stock', 
       render: (_, record) => <b>{record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0)}</b> 
