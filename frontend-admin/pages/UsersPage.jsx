@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, Select, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, IdcardOutlined } from '@ant-design/icons';
-import DoctorProfileModal from '../components/DoctorProfileModal';
+import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [profileDoctor, setProfileDoctor] = useState(null); // bác sĩ đang sửa hồ sơ chuyên môn
   const [form] = Form.useForm();
   
   // THÊM: State lưu từ khóa tìm kiếm
@@ -118,9 +116,6 @@ export default function UsersPage() {
       render: (_, record) => (
         <Space size="middle">
           <Button type="primary" ghost icon={<EditOutlined />} size="small" onClick={() => openModal(record)}>Sửa</Button>
-          {['DOCTOR', 'EXPERT'].includes(record.role) && (
-            <Button icon={<IdcardOutlined />} size="small" onClick={() => setProfileDoctor(record)}>Hồ sơ chuyên môn</Button>
-          )}
           <Popconfirm title="Xóa tài khoản này?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
             <Button danger icon={<DeleteOutlined />} size="small">Xóa</Button>
           </Popconfirm>
@@ -176,7 +171,6 @@ export default function UsersPage() {
         </Form>
       </Modal>
 
-      {profileDoctor && <DoctorProfileModal doctor={profileDoctor} onClose={() => setProfileDoctor(null)} />}
     </>
   );
 }

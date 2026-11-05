@@ -9,7 +9,7 @@ const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.g
 // Nguồn chi tiết (bảng) theo thứ tự hiển thị
 export const SOURCES = [
   { key: 'exam', label: 'Phí khám', group: 'kham' },
-  { key: 'forfeited', label: 'Cọc khám khách huỷ (phòng khám giữ)', group: 'kham' },
+  { key: 'forfeited', label: 'Cọc khách huỷ / không đến (phòng khám giữ)', group: 'kham' },
   { key: 'services', label: 'Dịch vụ lẻ', group: 'dieutri' },
   { key: 'packages', label: 'Gói liệu trình', group: 'dieutri' },
   { key: 'clinic_products', label: 'Mỹ phẩm kê tại phòng khám', group: 'mypham' },

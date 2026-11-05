@@ -90,51 +90,36 @@ const getPublicDoctorDetail = async (req, res) => {
   }
 };
 
-// PUT /users/:id/doctor-profile — Admin / Quản lý cập nhật sau khi xác minh bằng cấp
-const upsertDoctorProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!isUuid(id)) return res.status(404).json({ message: 'Không tìm thấy bác sĩ' });
-    const user = await User.findOne({ where: { id, role: PROFESSIONAL_ROLES }, attributes: ['id', 'role'] });
-    if (!user) return res.status(404).json({ message: 'Tài khoản này không phải bác sĩ hoặc chuyên gia' });
-    const isExpert = user.role === 'EXPERT';
-
-    const b = req.body || {};
-    const years = b.experience_years === '' || b.experience_years == null ? null : Number(b.experience_years);
-    if (years !== null && (!Number.isInteger(years) || years < 0 || years > 60)) {
-      return res.status(400).json({ message: 'Số năm kinh nghiệm phải là số nguyên từ 0 đến 60' });
-    }
-    if (isExpert && !CONSULT_FIELDS.includes(b.consult_field)) {
-      return res.status(400).json({ message: 'Chọn lĩnh vực tư vấn của chuyên gia' });
-    }
-    const fee = b.session_fee === '' || b.session_fee == null ? null : Number(b.session_fee);
-    if (isExpert && (!Number.isInteger(fee) || fee < 0 || fee > 10000000)) {
-      return res.status(400).json({ message: 'Thù lao mỗi ca phải là số tiền từ 0 đến 10.000.000đ' });
-    }
-
-    const data = {
-      title: cleanText(b.title, 50),
-      specialty: cleanText(b.specialty, 150),
-      workplace: cleanText(b.workplace, 200),
-      experience_years: years,
-      license_number: cleanText(b.license_number, 50),
-      bio: cleanText(b.bio, 2000),
-      education: cleanEducation(b.education),
-      work_history: cleanWorkHistory(b.work_history),
-      certificates: cleanList(b.certificates),
-      expertise: cleanList(b.expertise, 15, 100),
-      consult_field: isExpert ? b.consult_field : null,
-      session_fee: isExpert ? fee : null,
-      updated_by: req.user.id,
-    };
-    if (!data.specialty) return res.status(400).json({ message: 'Vui lòng nhập chuyên khoa' });
-
-    const [profile] = await DoctorProfile.findOrCreate({ where: { user_id: id }, defaults: data });
-    await profile.update(data);
-    res.status(200).json({ message: 'Đã cập nhật hồ sơ chuyên môn', data: profile });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+// Kiểm tra phần hồ sơ công khai của bác sĩ / chuyên gia (nhập trong Hồ sơ nhân sự); lỗi => ném lỗi có status 400
+const buildProfessionalData = (role, b, actorId) => {
+  const bad = (message) => Object.assign(new Error(message), { status: 400 });
+  const isExpert = role === 'EXPERT';
+  const years = b.experience_years === '' || b.experience_years == null ? null : Number(b.experience_years);
+  if (years !== null && (!Number.isInteger(years) || years < 0 || years > 60)) throw bad('Số năm kinh nghiệm phải là số nguyên từ 0 đến 60');
+  if (isExpert && !CONSULT_FIELDS.includes(b.consult_field)) throw bad('Chọn lĩnh vực tư vấn của chuyên gia');
+  const fee = b.session_fee === '' || b.session_fee == null ? null : Number(b.session_fee);
+  if (isExpert && (!Number.isInteger(fee) || fee < 0 || fee > 10000000)) throw bad('Thù lao mỗi lượt tư vấn phải là số tiền từ 0 đến 10.000.000đ');
+  const data = {
+    title: cleanText(b.title, 50),
+    specialty: cleanText(b.specialty, 150),
+    workplace: cleanText(b.workplace, 200),
+    experience_years: years,
+    license_number: cleanText(b.license_number, 50),
+    bio: cleanText(b.bio, 2000),
+    education: cleanEducation(b.education),
+    work_history: cleanWorkHistory(b.work_history),
+    certificates: cleanList(b.certificates),
+    expertise: cleanList(b.expertise, 15, 100),
+    consult_field: isExpert ? b.consult_field : null,
+    session_fee: isExpert ? fee : null,
+    updated_by: actorId,
+  };
+  if (!data.specialty) throw bad('Vui lòng nhập chuyên khoa / chuyên môn');
+  // Tư vấn da liễu là hoạt động chuyên môn y khoa: chuyên gia phải là bác sĩ có chứng chỉ hành nghề
+  if (isExpert && b.consult_field === 'DERMATOLOGY' && (!/bs|bác sĩ|bác sỹ/i.test(data.title || '') || !data.license_number)) {
+    throw bad('Lĩnh vực Da liễu chỉ dành cho bác sĩ: cần học hàm / học vị có BS và số chứng chỉ hành nghề');
   }
+  return data;
 };
 
 const CARD_FIELDS = ['title', 'specialty', 'workplace', 'experience_years', 'consult_field'];
@@ -165,7 +150,7 @@ const getPublicExperts = async (req, res) => {
   }
 };
 
-// GET /users/experts — Admin / Quản lý: kèm thù lao mỗi ca + trạng thái (để thống kê trả tiền cuối tháng)
+// GET /users/experts — Admin / Quản lý: kèm thù lao mỗi lượt tư vấn + trạng thái (để thống kê trả tiền cuối tháng)
 const getExpertsForAdmin = async (req, res) => {
   try {
     const experts = await User.findAll({
@@ -200,4 +185,4 @@ const getMyProfessionalProfile = async (req, res) => {
   }
 };
 
-module.exports = { getPublicDoctorDetail, upsertDoctorProfile, getPublicExperts, getExpertsForAdmin, getMyProfessionalProfile, PUBLIC_FIELDS, CONSULT_FIELDS };
+module.exports = { getPublicDoctorDetail, buildProfessionalData, getPublicExperts, getExpertsForAdmin, getMyProfessionalProfile, PUBLIC_FIELDS, CONSULT_FIELDS };

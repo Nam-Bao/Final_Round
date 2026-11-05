@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import VideoCallModal from '../components/VideoCallModal';
 import ReviewModal from '../components/ReviewModal';
 import MyConsultations from '../components/MyConsultations';
+import RescheduleModal from '../components/RescheduleModal';
 import { useAuthStore } from '../store/authStore';
 import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS } from '../utils/contact';
 
@@ -16,6 +17,10 @@ const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_
 const canCustomerCancel = (apt, isOnline) => CUSTOMER_CANCELLABLE.includes(apt.status)
   || (apt.status === 'WAITING' && isOnline && dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`)));
 const formatVnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
+// Khớp điều kiện khách tự đổi lịch ở service-booking: 1 lần, trước giờ khám ít nhất 24 giờ
+const RESCHEDULE_MIN_HOURS = 24;
+const canCustomerReschedule = (apt) => ['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status) && apt.doctor_id && !apt.customer_reschedule_count
+  && !dayjs().isAfter(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).subtract(RESCHEDULE_MIN_HOURS, 'hour'));
 
 // Thông báo tiền cọc của lịch đã hủy (dữ liệu từ bảng AppointmentCancellations)
 function CancellationNotice({ cancellation }) {
@@ -24,7 +29,7 @@ function CancellationNotice({ cancellation }) {
   if (cancellation.deposit_outcome === 'FORFEITED') {
     return (
       <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 max-w-md">
-        Lịch được hủy theo yêu cầu của bạn. Tiền cọc <b>{amount}</b> không được hoàn theo <a href="/chinh-sach#huy-lich" className="underline">chính sách mục 2.2</a>.
+        {cancellation.reason === 'Khách không đến' ? 'Bạn đã không đến theo lịch hẹn.' : 'Lịch được hủy theo yêu cầu của bạn.'} Tiền cọc <b>{amount}</b> không được hoàn theo <a href="/chinh-sach#huy-lich" className="underline">chính sách mục 2.2</a>.
       </div>
     );
   }
@@ -58,6 +63,7 @@ export default function AppointmentHistoryPage() {
   
   // Lịch hẹn đang mở phòng khám video (server tự kiểm tra quyền và khung giờ)
   const [videoAppointmentId, setVideoAppointmentId] = useState(null);
+  const [reschedulingApt, setReschedulingApt] = useState(null);
   const [videoNotice, setVideoNotice] = useState(null); // { title, message } khi chưa đến / đã quá giờ khám
   const user = useAuthStore((state) => state.user);
 
@@ -170,6 +176,14 @@ Bạn vẫn muốn hủy lịch?`
     }
   };
 
+  const authHeaders = { Authorization: `Bearer ${sessionStorage.getItem('token')}` };
+  const fetchRescheduleSlots = (date) => axios.get(`http://localhost:4000/api/booking/appointments/${reschedulingApt.id}/reschedule-slots`, { headers: authHeaders, params: { date } }).then((res) => res.data.data || []);
+  const handleReschedule = async (appointment_date, appointment_time) => {
+    await axios.put(`http://localhost:4000/api/booking/appointments/${reschedulingApt.id}/customer-reschedule`, { appointment_date, appointment_time }, { headers: authHeaders });
+    setApts((list) => list.map((a) => (a.id === reschedulingApt.id ? { ...a, appointment_date, appointment_time, customer_reschedule_count: 1 } : a)));
+    setReschedulingApt(null);
+  };
+
   const handleViewRecord = (apt) => {
     setSelectedApt(apt);
     setIsModalOpen(true);
@@ -183,11 +197,13 @@ Bạn vẫn muốn hủy lịch?`
     switch(status) {
       case 'PENDING': return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3"/> Chờ xác nhận</span>;
       case 'CONFIRMED': return <span className="badge badge-info gap-1 text-white"><CheckCircle className="w-3 h-3"/> Đã chốt giờ</span>;
+      case 'CHECK_IN': return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3"/> Đang chờ tại quầy</span>;
       case 'WAITING':
       case 'IN_PROGRESS': return <span className="badge badge-primary gap-1"><Clock className="w-3 h-3"/> Đang tiến hành</span>;
       case 'WAITING_FOR_SALE':
       case 'COMPLETED': return <span className="badge badge-success gap-1 text-white"><CheckCircle className="w-3 h-3"/> Đã hoàn thành</span>;
       case 'CANCELLED': return <span className="badge badge-error gap-1 text-white"><XCircle className="w-3 h-3"/> Đã hủy</span>;
+      case 'NO_SHOW': return <span className="badge badge-warning gap-1"><XCircle className="w-3 h-3"/> Không đến</span>;
       default: return <span className="badge badge-ghost">{status}</span>;
     }
   };
@@ -204,6 +220,7 @@ Bạn vẫn muốn hủy lịch?`
       </h1>
 
       <MyConsultations />
+      {reschedulingApt && <RescheduleModal title="Đổi lịch khám" onClose={() => setReschedulingApt(null)} fetchSlots={fetchRescheduleSlots} onSubmit={handleReschedule} />}
 
       {apts.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -232,7 +249,7 @@ Bạn vẫn muốn hủy lịch?`
                     </div>
                     <p className="font-bold text-blue-800 text-lg">{docName}</p>
                     <p className="text-sm font-medium text-slate-600">Hồ sơ người khám: <span className="text-slate-800">{profileName}</span></p>
-                    {apt.status === 'CANCELLED' && <CancellationNotice cancellation={apt.AppointmentCancellation} />}
+                    {['CANCELLED', 'NO_SHOW'].includes(apt.status) && <CancellationNotice cancellation={apt.AppointmentCancellation} />}
                   </div>
                   
                   <div className="flex flex-col md:items-end gap-3">
@@ -263,6 +280,9 @@ Bạn vẫn muốn hủy lịch?`
                         </button>
                       )}
 
+                      {canCustomerReschedule(apt) && (
+                        <button onClick={() => setReschedulingApt(apt)} className="btn btn-sm btn-outline flex-1 md:flex-none">Đổi lịch</button>
+                      )}
                       {canCustomerCancel(apt, isOnline) && apt.status !== 'PENDING_PAYMENT' && (
                         <button onClick={() => handleCancel(apt)} className="btn btn-sm btn-error btn-outline flex-1 md:flex-none">Hủy lịch</button>
                       )}

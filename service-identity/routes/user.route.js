@@ -1,6 +1,6 @@
 const express = require('express');
-const { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
-const { getPublicDoctorDetail, upsertDoctorProfile, getPublicExperts, getExpertsForAdmin, getMyProfessionalProfile } = require('../controllers/doctorProfile.controller.js');
+const { lookupCustomerByPhone, createWalkInCustomer, renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
+const { getPublicDoctorDetail, getPublicExperts, getExpertsForAdmin, getMyProfessionalProfile } = require('../controllers/doctorProfile.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -26,11 +26,14 @@ router.get('/doctors', verifyToken, getDoctors);
 // Mã KTV đang làm việc (service-booking dùng khi khách đặt buổi liệu trình)
 router.get('/technician-ids', verifyToken, getTechnicianIds);
 router.post('/quick-customer', verifyToken, authorizeRoles('ADMIN', 'CONSULTANT', 'SALES'), createQuickCustomer);
+// Khách đến thẳng phòng khám: hồ sơ theo SĐT, không cần email
+const walkInStaff = [verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT')];
+router.get('/walk-in/lookup', ...walkInStaff, lookupCustomerByPhone);
+router.post('/walk-in', ...walkInStaff, createWalkInCustomer);
+router.post('/walk-in/:id/claim-code', ...walkInStaff, renewClaimCode);
 // Quản lý tài khoản: chỉ ADMIN (trang Quản lý Người dùng)
 router.post('/', verifyToken, authorizeRoles('ADMIN'), createUser);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN'), updateUser);
-// Hồ sơ chuyên môn bác sĩ: Admin / Quản lý cập nhật sau khi xác minh bằng cấp
-router.put('/:id/doctor-profile', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), upsertDoctorProfile);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN'), deleteUser);
 
 module.exports = router;

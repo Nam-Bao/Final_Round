@@ -1,10 +1,11 @@
 const axios = require('axios');
 const { Op } = require('sequelize');
-const { sequelize, Product, MaterialSpec, MaterialNorm, InventoryRequest } = require('../models');
+const { sequelize, Product, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, InventoryRequest } = require('../models');
 
 // ==========================================
 // VẬT TƯ NỘI BỘ: định mức theo dịch vụ / gói, KTV ghi số thực dùng => tự trừ kho,
-// cảnh báo sớm khi sắp hết (dưới tồn tối thiểu hoặc không đủ cho lịch 14 ngày tới) => tự tạo đề xuất nhập hàng
+// cảnh báo sớm khi sắp hết (dưới tồn tối thiểu hoặc không đủ cho lịch 14 ngày tới) => tự tạo đề xuất nhập hàng.
+// Tồn kho theo lô: xuất lô hết hạn trước, lô đã hết hạn không xuất và không tính vào số dùng được
 // ==========================================
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TARGET_TYPES = ['SERVICE', 'PACKAGE'];
@@ -12,6 +13,11 @@ const REFERENCE_TYPES = ['TREATMENT_SESSION', 'SERVICE_SESSION'];
 const DEMAND_DAYS = 14;   // dự báo nhu cầu theo lịch đã đặt trong 14 ngày tới
 const USAGE_WINDOW = 30;  // tốc độ dùng trung bình tính trên 30 ngày gần nhất
 const MAX_QTY = 10000;
+const NEAR_EXPIRY_DAYS = 30; // cảnh báo lô sắp hết hạn
+const MIN_NOTE_LENGTH = 5;
+const OPENING_LOT_NO = 'TON-DAU-KY';
+const vnDate = (d = new Date()) => new Date(new Date(d).getTime() + 7 * 3600000).toISOString().slice(0, 10);
+const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) && !Number.isNaN(new Date(v).getTime());
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 const fail = (res, error) => res.status(error.status || 500).json({ message: error.status ? error.message : 'Lỗi server', error: error.message });
 
@@ -72,10 +78,66 @@ const assess = (item, demand, used30) => {
   return { demand_14d: demand, used_30d: used30, avg_daily: Math.round(avgDaily * 10) / 10, days_left: daysLeft, status, suggested_packs: suggestedPacks };
 };
 
-// Vật tư đang có đề xuất nhập chờ duyệt
+// Vật tư đang có đề xuất chưa xong: product_id -> PENDING (chờ duyệt) | INCOMING (đã duyệt, đang chờ hàng về)
 const pendingPurchaseProducts = async (transaction) => {
-  const rows = await InventoryRequest.findAll({ where: { type: 'PURCHASE_ORDER', status: 'PENDING' }, attributes: ['items'], raw: true, transaction });
-  return new Set(rows.flatMap((r) => (r.items || []).map((i) => i.product_id)));
+  const rows = await InventoryRequest.findAll({
+    where: { type: 'PURCHASE_ORDER', [Op.or]: [{ status: 'PENDING' }, { status: 'APPROVED', received_at: null }] },
+    attributes: ['items', 'status'], raw: true, transaction,
+  });
+  return new Map(rows.flatMap((r) => (r.items || []).map((i) => [i.product_id, r.status === 'PENDING' ? 'PENDING' : 'INCOMING'])));
+};
+
+const lotTotals = async (ids, transaction) => {
+  const rows = await MaterialLot.findAll({
+    where: { product_id: ids }, attributes: ['product_id', [sequelize.fn('SUM', sequelize.col('quantity_left')), 'left']],
+    group: ['product_id'], raw: true, transaction,
+  });
+  return Object.fromEntries(rows.map((r) => [r.product_id, Number(r.left)]));
+};
+
+// Tồn kho chưa thuộc lô nào (dữ liệu trước khi theo lô, hoặc sửa tay) => gom vào lô đầu kỳ, hạn dùng theo Product.end_date.
+// Gọi khi đã khoá dòng Product để 2 yêu cầu cùng lúc không tạo trùng.
+const syncOpeningLots = async (products, transaction) => {
+  const totals = await lotTotals(products.map((p) => p.id), transaction);
+  for (const p of products) {
+    const gap = p.stock_quantity - (totals[p.id] || 0);
+    if (gap > 0) {
+      await MaterialLot.create({ product_id: p.id, lot_no: OPENING_LOT_NO, expiry_date: vnDate(p.end_date), quantity_received: gap, quantity_left: gap }, { transaction });
+    }
+  }
+};
+
+// Số lượng đã hết hạn / sắp hết hạn theo vật tư
+const lotStatus = async (ids, transaction) => {
+  const lots = await MaterialLot.findAll({ where: { product_id: ids, quantity_left: { [Op.gt]: 0 } }, raw: true, transaction });
+  const today = vnDate();
+  const soon = vnDate(Date.now() + NEAR_EXPIRY_DAYS * 86400000);
+  const result = {};
+  lots.forEach((l) => {
+    const s = result[l.product_id] || (result[l.product_id] = { expired_qty: 0, near_expiry_qty: 0, next_expiry: null });
+    if (l.expiry_date < today) { s.expired_qty += l.quantity_left; return; }
+    if (l.expiry_date <= soon) s.near_expiry_qty += l.quantity_left;
+    if (!s.next_expiry || l.expiry_date < s.next_expiry) s.next_expiry = l.expiry_date;
+  });
+  return result;
+};
+
+// Xuất kho theo lô: hết hạn trước dùng trước, bỏ qua lô đã hết hạn
+const takeFromLots = async (product, quantity, transaction) => {
+  const lots = await MaterialLot.findAll({
+    where: { product_id: product.id, quantity_left: { [Op.gt]: 0 }, expiry_date: { [Op.gte]: vnDate() } },
+    order: [['expiry_date', 'ASC'], ['createdAt', 'ASC']], transaction, lock: transaction.LOCK.UPDATE,
+  });
+  let rest = Math.min(quantity, Math.max(product.stock_quantity, 0));
+  const taken = [];
+  for (const lot of lots) {
+    if (rest <= 0) break;
+    const n = Math.min(rest, lot.quantity_left);
+    await lot.update({ quantity_left: lot.quantity_left - n }, { transaction });
+    taken.push({ lot_id: lot.id, lot_no: lot.lot_no, expiry_date: lot.expiry_date, quantity: n });
+    rest -= n;
+  }
+  return taken;
 };
 
 // [ADMIN/GEN_MANAGER/TECHNICIAN] Danh sách vật tư + tình trạng tồn kho (quản lý có thêm dự báo theo lịch sắp tới)
@@ -85,11 +147,24 @@ exports.listMaterials = async (req, res) => {
     const isManager = ['ADMIN', 'GEN_MANAGER'].includes(req.user.role);
     const [sessions, used, pending] = isManager
       ? await Promise.all([fetchUpcomingDemand(req.headers.authorization), usageByProduct(), pendingPurchaseProducts()])
-      : [null, {}, new Set()];
+      : [null, {}, new Map()];
     const demand = await demandByProduct(sessions);
+    const ids = products.map((p) => p.id);
+    const totals = await lotTotals(ids);
+    if (products.some((p) => p.stock_quantity > (totals[p.id] || 0))) {
+      await sequelize.transaction(async (t) => {
+        await syncOpeningLots(await Product.findAll({ where: { id: ids }, transaction: t, lock: t.LOCK.UPDATE }), t);
+      });
+    }
+    const lots = await lotStatus(ids);
     const data = products.map((p) => {
       const item = toItem(p);
-      return { ...item, ...assess(item, demand[p.id] || 0, used[p.id] || 0), purchase_pending: pending.has(p.id) };
+      const lot = lots[p.id] || { expired_qty: 0, near_expiry_qty: 0, next_expiry: null };
+      const usable = Math.max(item.stock - lot.expired_qty, 0);
+      return {
+        ...item, ...lot, usable_stock: usable, ...assess({ ...item, stock: usable }, demand[p.id] || 0, used[p.id] || 0),
+        purchase_pending: pending.has(p.id), purchase_status: pending.get(p.id) || null,
+      };
     });
     res.status(200).json({ data, demand_available: Boolean(sessions), demand_days: DEMAND_DAYS });
   } catch (error) { fail(res, error); }
@@ -130,8 +205,12 @@ exports.getNorms = async (req, res) => {
     const { target_type, target_id } = req.query;
     if (!TARGET_TYPES.includes(target_type) || !UUID_RE.test(String(target_id || ''))) throw bad('Thiếu dịch vụ / gói');
     const norms = await MaterialNorm.findAll({ where: { target_type, target_id }, include: [{ model: Product, include: materialInclude }] });
+    const lots = await lotStatus(norms.map((n) => n.product_id));
     res.status(200).json({
-      data: norms.filter((n) => n.Product).map((n) => ({ product_id: n.product_id, quantity: n.quantity, ...toItem(n.Product), id: undefined })),
+      data: norms.filter((n) => n.Product).map((n) => {
+        const item = toItem(n.Product);
+        return { product_id: n.product_id, quantity: n.quantity, ...item, stock: Math.max(item.stock - (lots[n.product_id]?.expired_qty || 0), 0), id: undefined };
+      }),
     });
   } catch (error) { fail(res, error); }
 };
@@ -174,10 +253,13 @@ exports.saveNorms = async (req, res) => {
   } catch (error) { await t.rollback(); fail(res, error); }
 };
 
-// Tự tạo đề xuất nhập hàng cho vật tư đã xuống dưới tồn tối thiểu (mỗi vật tư chỉ 1 đề xuất đang chờ duyệt)
+// Tự tạo đề xuất nhập hàng cho vật tư đã xuống dưới tồn tối thiểu (mỗi vật tư chỉ 1 đề xuất chờ duyệt / chờ hàng về)
 const autoPurchaseRequests = async (productIds, requesterId) => {
   const products = await Product.findAll({ where: { id: productIds, type: 'MATERIAL' }, include: materialInclude });
-  const low = products.map(toItem).filter((m) => m.stock <= m.min_stock);
+  const lots = await lotStatus(productIds);
+  const low = products.map(toItem)
+    .map((m) => ({ ...m, stock: Math.max(m.stock - (lots[m.id]?.expired_qty || 0), 0) }))
+    .filter((m) => m.stock <= m.min_stock);
   if (!low.length) return [];
   const pending = await pendingPurchaseProducts();
   const fresh = low.filter((m) => !pending.has(m.id));
@@ -196,11 +278,14 @@ const autoPurchaseRequests = async (productIds, requesterId) => {
 };
 
 // [TECHNICIAN] Ghi vật tư đã dùng cho 1 buổi => trừ kho (service-booking gọi khi KTV bấm hoàn thành buổi)
-// Kho không đủ: vẫn ghi nhận buổi đã làm, trừ về 0 và ghi rõ phần thiếu để quản lý kiểm kê
+// Kho không đủ: vẫn ghi nhận buổi đã làm, trừ về 0 và ghi rõ phần thiếu để quản lý kiểm kê.
+// Dịch vụ có định mức: luôn có phiếu (kể cả KTV ghi 0); vượt định mức phải có lý do, thấp hơn định mức thì cảnh báo cho quản lý
 exports.recordUsage = async (req, res) => {
   const { reference_type, reference_id, target_type, target_id } = req.body;
   const target_name = String(req.body.target_name || '').trim().slice(0, 255);
   const qty = {}; // product_id -> số lượng thực dùng (> 0)
+  const note = String(req.body.note || '').trim().slice(0, 500);
+  let normOf = {};
   try {
     if (!REFERENCE_TYPES.includes(reference_type) || !UUID_RE.test(String(reference_id || ''))) throw bad('Thiếu buổi trị liệu');
     if (!TARGET_TYPES.includes(target_type) || !UUID_RE.test(String(target_id || ''))) throw bad('Thiếu dịch vụ / gói');
@@ -211,32 +296,36 @@ exports.recordUsage = async (req, res) => {
     }
     const existing = await InventoryRequest.findOne({ where: { type: 'MATERIAL_USAGE', reference_type, reference_id } });
     if (existing) return res.status(200).json({ message: 'Buổi này đã ghi vật tư trước đó', data: existing, already: true });
-    if (!Object.keys(qty).length) return res.status(200).json({ message: 'Không có vật tư nào được ghi', data: null });
+    const norms = await MaterialNorm.findAll({ where: { target_type, target_id }, raw: true });
+    normOf = Object.fromEntries(norms.map((n) => [n.product_id, n.quantity]));
+    if (!Object.keys(qty).length && !norms.length) return res.status(200).json({ message: 'Không có vật tư nào được ghi', data: null });
+    const overNorm = norms.length > 0 && Object.keys(qty).some((id) => qty[id] > (normOf[id] ?? 0));
+    if (overNorm && note.length < MIN_NOTE_LENGTH) throw bad(`Dùng vượt định mức, vui lòng ghi lý do (ít nhất ${MIN_NOTE_LENGTH} ký tự)`);
   } catch (error) { return fail(res, error); }
 
-  const ids = Object.keys(qty);
+  const ids = [...new Set([...Object.keys(qty), ...Object.keys(normOf)])];
   const t = await sequelize.transaction();
   try {
     // Khoá các dòng vật tư để 2 buổi hoàn thành cùng lúc không trừ sai tồn kho
     const products = await Product.findAll({ where: { id: ids, type: 'MATERIAL' }, include: materialInclude, transaction: t, lock: { level: t.LOCK.UPDATE, of: Product } });
-    if (products.length !== ids.length) throw bad('Có vật tư không tồn tại');
-    const norms = await MaterialNorm.findAll({ where: { target_type, target_id }, raw: true, transaction: t });
-    const normOf = Object.fromEntries(norms.map((n) => [n.product_id, n.quantity]));
+    if (Object.keys(qty).some((id) => !products.some((p) => p.id === id))) throw bad('Có vật tư không tồn tại');
+    await syncOpeningLots(products, t);
 
     const items = [];
     for (const p of products) {
-      const used = qty[p.id];
-      const deducted = Math.min(used, Math.max(p.stock_quantity, 0));
+      const used = qty[p.id] || 0;
+      const lots = used ? await takeFromLots(p, used, t) : [];
+      const deducted = lots.reduce((sum, l) => sum + l.quantity, 0);
       await p.update({ stock_quantity: p.stock_quantity - deducted }, { transaction: t });
       const norm = normOf[p.id] ?? null;
       items.push({
         product_id: p.id, name: p.name, unit: p.MaterialSpec?.unit || '', quantity: used, deducted, shortage: used - deducted,
-        norm, over_norm: norm !== null && used > norm, stock_after: p.stock_quantity,
+        norm, over_norm: Object.keys(normOf).length > 0 && used > (norm ?? 0), under_norm: norm !== null && used < norm, stock_after: p.stock_quantity, lots,
       });
     }
     const usage = await InventoryRequest.create({
       requester_id: req.user.id, type: 'MATERIAL_USAGE', status: 'APPROVED', items,
-      reason: `Buổi: ${target_name || target_type}`, reference_type, reference_id,
+      reason: `Buổi: ${target_name || target_type}`, reference_type, reference_id, decision_note: note || null,
     }, { transaction: t });
     await t.commit();
 
@@ -272,15 +361,16 @@ exports.listUsage = async (req, res) => {
 
     const summary = {};
     rows.forEach((r) => (r.items || []).forEach((i) => {
-      const s = summary[i.product_id] || (summary[i.product_id] = { product_id: i.product_id, name: i.name, unit: i.unit, used: 0, norm_total: 0, sessions: 0, over_sessions: 0, shortage: 0 });
+      const s = summary[i.product_id] || (summary[i.product_id] = { product_id: i.product_id, name: i.name, unit: i.unit, used: 0, norm_total: 0, sessions: 0, over_sessions: 0, under_sessions: 0, shortage: 0 });
       s.used += Number(i.quantity || 0);
       s.norm_total += Number(i.norm || 0);
       s.sessions += 1;
       if (i.over_norm) s.over_sessions += 1;
+      if (i.under_norm) s.under_sessions += 1;
       s.shortage += Number(i.shortage || 0);
     }));
     res.status(200).json({
-      data: rows.map((r) => ({ ...r, requester_name: names[r.requester_id] || null, over_norm: (r.items || []).some((i) => i.over_norm), shortage: (r.items || []).some((i) => i.shortage > 0) })),
+      data: rows.map((r) => ({ ...r, requester_name: names[r.requester_id] || null, over_norm: (r.items || []).some((i) => i.over_norm), under_norm: (r.items || []).some((i) => i.under_norm), shortage: (r.items || []).some((i) => i.shortage > 0) })),
       summary: Object.values(summary).sort((a, b) => b.used - a.used),
       from, to,
     });
@@ -309,6 +399,9 @@ exports.createPurchaseRequest = async (req, res) => {
     if (!ids.length) throw bad('Chưa chọn vật tư cần nhập');
     const products = await Product.findAll({ where: { id: ids }, include: materialInclude });
     if (products.length !== ids.length) throw bad('Có sản phẩm / vật tư không tồn tại');
+    const pending = await pendingPurchaseProducts();
+    const duplicate = products.find((p) => pending.has(p.id));
+    if (duplicate) throw bad(`${duplicate.name} đã có đề xuất ${pending.get(duplicate.id) === 'PENDING' ? 'đang chờ duyệt' : 'đã duyệt, đang chờ hàng về'}`, 409);
     const row = await InventoryRequest.create({
       requester_id: req.user.id, type: 'PURCHASE_ORDER', status: 'PENDING', reason,
       items: products.map((p) => ({ ...toItem(p), unit: p.MaterialSpec?.unit || 'sản phẩm', pack_label: p.MaterialSpec?.pack_label || '1 sản phẩm', type: p.type })).map((m) => ({
@@ -354,18 +447,96 @@ exports.decidePurchaseRequest = async (req, res) => {
   } catch (error) { await t.rollback(); fail(res, error); }
 };
 
-// [ADMIN/GEN_MANAGER] Xác nhận hàng đã về kho => cộng tồn kho theo số lượng đã duyệt (chỉ 1 lần)
+// [ADMIN/GEN_MANAGER] Xác nhận hàng đã về kho theo số thực nhận (chỉ 1 lần).
+// items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }]; vật tư phải có số lô + hạn dùng; giao thiếu phải ghi chú
 exports.receivePurchaseRequest = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const row = await findRequest(req.params.id, t);
     if (row.status !== 'APPROVED') throw bad('Chỉ nhận hàng cho đề xuất đã duyệt', 409);
     if (row.received_at) throw bad('Đề xuất này đã nhập kho', 409);
-    for (const i of row.items || []) {
-      await Product.increment('stock_quantity', { by: Number(i.quantity || 0), where: { id: i.product_id }, transaction: t });
+    const note = String(req.body.note || '').trim().slice(0, 1000);
+    const input = Object.fromEntries((Array.isArray(req.body.items) ? req.body.items : []).map((i) => [i?.product_id, i]));
+    const products = await Product.findAll({ where: { id: (row.items || []).map((i) => i.product_id) }, transaction: t, lock: t.LOCK.UPDATE });
+    const productOf = Object.fromEntries(products.map((p) => [p.id, p]));
+    await syncOpeningLots(products.filter((p) => p.type === 'MATERIAL'), t);
+
+    const items = (row.items || []).map((i) => {
+      const d = input[i.product_id];
+      if (!d) throw bad(`Thiếu số liệu nhận hàng của ${i.name}`);
+      const received = Number(d.received_quantity);
+      if (!Number.isInteger(received) || received < 0 || received > Number(i.quantity)) throw bad(`${i.name}: số thực nhận từ 0 đến ${i.quantity}`);
+      if (!received) return { ...i, received_quantity: 0 };
+      const unitCost = Number(d.unit_cost);
+      if (d.unit_cost === '' || d.unit_cost == null || !Number.isInteger(unitCost) || unitCost < 0 || unitCost > 1000000000) throw bad(`${i.name}: nhập giá nhập trên mỗi ${i.unit || 'đơn vị'}`);
+      const lotNo = String(d.lot_no || '').trim();
+      if (productOf[i.product_id]?.type === 'MATERIAL') {
+        if (lotNo.length < 1 || lotNo.length > 50) throw bad(`${i.name}: nhập số lô`);
+        if (!isDate(d.expiry_date)) throw bad(`${i.name}: nhập hạn dùng`);
+        if (d.expiry_date <= vnDate()) throw bad(`${i.name}: lô này đã hết hạn, không nhập kho`);
+      }
+      return { ...i, received_quantity: received, unit_cost: unitCost, lot_no: lotNo || null, expiry_date: d.expiry_date || null };
+    });
+    if (!items.some((i) => i.received_quantity > 0)) throw bad('Chưa có hàng nào về kho');
+    if (items.some((i) => i.received_quantity < Number(i.quantity)) && note.length < MIN_NOTE_LENGTH) throw bad('Giao thiếu so với số đã duyệt, vui lòng ghi chú lý do');
+
+    for (const i of items.filter((x) => x.received_quantity > 0)) {
+      await Product.increment('stock_quantity', { by: i.received_quantity, where: { id: i.product_id }, transaction: t });
+      if (productOf[i.product_id]?.type !== 'MATERIAL') continue;
+      await MaterialLot.create({
+        product_id: i.product_id, lot_no: i.lot_no, expiry_date: i.expiry_date, quantity_received: i.received_quantity,
+        quantity_left: i.received_quantity, unit_cost: i.unit_cost, purchase_request_id: row.id,
+      }, { transaction: t });
     }
-    await row.update({ received_at: new Date(), received_by: req.user.id }, { transaction: t });
+    await row.update({ items, received_at: new Date(), received_by: req.user.id, receive_note: note || null }, { transaction: t });
     await t.commit();
     res.status(200).json({ message: 'Đã nhập kho', data: row });
+  } catch (error) { await t.rollback(); fail(res, error); }
+};
+
+// [ADMIN/GEN_MANAGER] Các lô còn hàng của 1 vật tư + lịch sử kiểm kê
+exports.getLots = async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) throw bad('Không tìm thấy vật tư', 404);
+    const product = await Product.findByPk(req.params.id);
+    if (!product || product.type !== 'MATERIAL') throw bad('Không tìm thấy vật tư', 404);
+    const [lots, adjustments] = await Promise.all([
+      MaterialLot.findAll({ where: { product_id: product.id, quantity_left: { [Op.gt]: 0 } }, order: [['expiry_date', 'ASC']] }),
+      StockAdjustment.findAll({ where: { product_id: product.id }, order: [['createdAt', 'DESC']], limit: 30 }),
+    ]);
+    const today = vnDate();
+    res.status(200).json({ data: lots.map((l) => ({ ...l.toJSON(), expired: l.expiry_date < today })), adjustments });
+  } catch (error) { fail(res, error); }
+};
+
+// [ADMIN/GEN_MANAGER] Kiểm kê: nhập số đếm thực tế từng lô (hủy lô hết hạn = nhập 0) => chỉnh tồn kho, lưu phiếu chênh lệch
+exports.countStock = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    if (!UUID_RE.test(req.params.id)) throw bad('Không tìm thấy vật tư', 404);
+    const reason = String(req.body.reason || '').trim().slice(0, 500);
+    if (reason.length < 10) throw bad('Ghi rõ lý do chênh lệch (ít nhất 10 ký tự)');
+    const product = await Product.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!product || product.type !== 'MATERIAL') throw bad('Không tìm thấy vật tư', 404);
+    await syncOpeningLots([product], t);
+    let diff = 0;
+    let changed = 0;
+    for (const item of (Array.isArray(req.body.lots) ? req.body.lots : [])) {
+      const actual = Number(item?.actual_quantity);
+      if (!Number.isInteger(actual) || actual < 0 || actual > 10000000) throw bad('Số đếm thực tế không hợp lệ');
+      const lot = UUID_RE.test(String(item?.lot_id || '')) && await MaterialLot.findByPk(item.lot_id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!lot || lot.product_id !== product.id) throw bad('Lô không thuộc vật tư này');
+      if (actual === lot.quantity_left) continue;
+      await StockAdjustment.create({
+        product_id: product.id, lot_id: lot.id, lot_no: lot.lot_no, quantity_before: lot.quantity_left, quantity_after: actual, reason, adjusted_by: req.user.id,
+      }, { transaction: t });
+      diff += actual - lot.quantity_left;
+      changed += 1;
+      await lot.update({ quantity_left: actual }, { transaction: t });
+    }
+    if (!changed) throw bad('Số đếm khớp với hệ thống, không có gì cần điều chỉnh');
+    await product.update({ stock_quantity: Math.max(product.stock_quantity + diff, 0) }, { transaction: t });
+    await t.commit();
+    res.status(200).json({ message: 'Đã lưu kiểm kê' });
   } catch (error) { await t.rollback(); fail(res, error); }
 };

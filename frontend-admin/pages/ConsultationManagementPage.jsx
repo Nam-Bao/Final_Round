@@ -3,7 +3,7 @@ import { Card, Tabs, Table, Tag, Button, Select, DatePicker, Checkbox, Modal, In
 import { PlusOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import { CONSULT_FIELD_OPTIONS } from '../components/DoctorProfileModal';
+import { CONSULT_FIELD_OPTIONS } from '../components/hr/ProfessionalFields';
 
 const { Text, Paragraph } = Typography;
 const API = 'http://localhost:4000/api';
@@ -12,7 +12,8 @@ const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 const FIELD_LABEL = Object.fromEntries(CONSULT_FIELD_OPTIONS.map((o) => [o.value, o.label]));
 
 const STATUS = {
-  CONFIRMED: { color: 'blue', text: 'Đã cọc - sắp diễn ra' },
+  PENDING_PAYMENT: { color: 'gold', text: 'Giữ chỗ - chờ cọc' },
+  CONFIRMED: { color: 'blue', text: 'Đã cọc - chờ tư vấn / kết quả' },
   COMPLETED: { color: 'green', text: 'Hoàn thành' },
   NO_SHOW: { color: 'orange', text: 'Khách vắng (mất cọc)' },
   EXPERT_ABSENT: { color: 'red', text: 'Chuyên gia vắng (hoàn cọc)' },
@@ -40,6 +41,10 @@ function ConsultationList() {
   const [cancelForm, setCancelForm] = useState({ initiator: 'CLINIC', reason: '' });
   const [refundItem, setRefundItem] = useState(null);
   const [refundRef, setRefundRef] = useState('');
+  const [payItem, setPayItem] = useState(null);
+  const [payForm, setPayForm] = useState({ payment_method: 'VIETQR', payment_ref: '' });
+  const [resultItem, setResultItem] = useState(null);
+  const isManager = ['ADMIN', 'GEN_MANAGER'].includes(JSON.parse(sessionStorage.getItem('admin_user') || '{}').role);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -71,6 +76,23 @@ function ConsultationList() {
     } catch (err) { message.error(err.response?.data?.message || 'Không ghi nhận được'); }
   };
 
+  const submitPayment = async () => {
+    try {
+      const res = await axios.put(`${API}/booking/consultations/${payItem.id}/confirm-payment`, payForm, { headers: headers() });
+      message.success(res.data.message);
+      setPayItem(null);
+      fetchList();
+    } catch (err) { message.error(err.response?.data?.message || 'Không xác nhận được'); }
+  };
+
+  const toggleReview = async (c) => {
+    try {
+      const res = await axios.put(`${API}/booking/consultations/${c.id}/review-visibility`, { hidden: !c.review_hidden }, { headers: headers() });
+      message.success(res.data.message);
+      fetchList();
+    } catch (err) { message.error(err.response?.data?.message || 'Không cập nhật được'); }
+  };
+
   const columns = [
     { title: 'Thời gian', key: 't', width: 110, render: (_, c) => <><b>{c.appointment_time}</b><br />{dayjs(c.appointment_date).format('DD/MM/YYYY')}</> },
     { title: 'Chuyên gia', key: 'e', width: 170, render: (_, c) => <>{c.expert_name}<br /><Tag>{FIELD_LABEL[c.consult_field]}</Tag></> },
@@ -84,7 +106,9 @@ function ConsultationList() {
           {DEPOSIT[c.deposit_outcome] && <Tag color={DEPOSIT[c.deposit_outcome].color}>{DEPOSIT[c.deposit_outcome].text}</Tag>}
           {c.status === 'CANCELLED' && <Text type="secondary" className="text-xs">{c.cancel_initiator === 'CLINIC' ? 'Phòng khám hủy' : 'Khách hủy'}: {c.cancel_reason || '—'}</Text>}
           {c.refund_ref && <Text type="secondary" className="text-xs">GD hoàn: {c.refund_ref}</Text>}
-          {c.rating && <Text className="text-xs">⭐ {c.rating}/5</Text>}
+          {c.payment_ref && <Text type="secondary" className="text-xs">Xác nhận tay: {c.payment_ref}</Text>}
+          {c.status === 'PENDING_PAYMENT' && c.hold_expires_at && <Text type="secondary" className="text-xs">Giữ chỗ tới {dayjs(c.hold_expires_at).format('HH:mm DD/MM')}</Text>}
+          {c.rating && <Text className="text-xs">⭐ {c.rating}/5{c.review_hidden ? ' (đã ẩn)' : ''}</Text>}
         </Space>
       ),
     },
@@ -92,6 +116,9 @@ function ConsultationList() {
       title: 'Thao tác', key: 'a', width: 130,
       render: (_, c) => (
         <Space orientation="vertical">
+          {c.status === 'PENDING_PAYMENT' && <Button type="primary" size="small" onClick={() => { setPayItem(c); setPayForm({ payment_method: 'VIETQR', payment_ref: '' }); }}>Xác nhận cọc</Button>}
+          {c.result && <Button size="small" onClick={() => setResultItem(c)}>Xem kết quả</Button>}
+          {isManager && c.rating && <Button size="small" onClick={() => toggleReview(c)}>{c.review_hidden ? 'Hiện đánh giá' : 'Ẩn đánh giá'}</Button>}
           {c.status === 'CONFIRMED' && <Button danger size="small" onClick={() => { setCancelItem(c); setCancelForm({ initiator: 'CLINIC', reason: '' }); }}>Hủy lịch</Button>}
           {c.deposit_outcome === 'REFUND_PENDING' && <Button type="primary" size="small" onClick={() => { setRefundItem(c); setRefundRef(''); }}>Đã hoàn cọc</Button>}
         </Space>
@@ -121,6 +148,27 @@ function ConsultationList() {
       <Modal title="Ghi nhận đã hoàn cọc" open={!!refundItem} onCancel={() => setRefundItem(null)} onOk={submitRefund} okText="Xác nhận" cancelText="Đóng">
         <p className="mb-2">Chuyển khoản trả {money(refundItem?.deposit_amount)} cho khách <b>{refundItem?.customer_name}</b>, rồi nhập mã giao dịch ngân hàng:</p>
         <Input maxLength={50} placeholder="VD: FT26110212345" value={refundRef} onChange={(e) => setRefundRef(e.target.value)} />
+      </Modal>
+
+      <Modal title="Xác nhận cọc thủ công" open={!!payItem} onCancel={() => setPayItem(null)} onOk={submitPayment} okText="Xác nhận" cancelText="Đóng" destroyOnHidden>
+        <p className="mb-2">Dùng khi khách đã trả {money(payItem?.deposit_amount)} nhưng hệ thống không tự nhận. Khách: <b>{payItem?.customer_name}</b></p>
+        <Radio.Group className="mb-3" value={payForm.payment_method} onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}>
+          <Radio value="VIETQR">Chuyển khoản</Radio>
+          <Radio value="CASH">Tiền mặt</Radio>
+        </Radio.Group>
+        <Input maxLength={50} placeholder="Mã giao dịch hoặc số phiếu thu" value={payForm.payment_ref} onChange={(e) => setPayForm({ ...payForm, payment_ref: e.target.value })} />
+      </Modal>
+
+      <Modal title={`Kết quả tư vấn - ${resultItem?.customer_name || ''}`} open={!!resultItem} onCancel={() => setResultItem(null)} footer={null} destroyOnHidden>
+        {resultItem?.result && (
+          <div className="space-y-2 text-sm whitespace-pre-line">
+            <p><b>Nhận định:</b> {resultItem.result.assessment}</p>
+            <p><b>Lời khuyên:</b> {resultItem.result.advice}</p>
+            {resultItem.result.lifestyle && <p><b>Sinh hoạt:</b> {resultItem.result.lifestyle}</p>}
+            {resultItem.result.follow_up && <p><b>Hẹn theo dõi:</b> {resultItem.result.follow_up}</p>}
+            {(resultItem.result.products || []).map((p) => <p key={p.product_id}>• {p.name} x{p.quantity}: {p.usage}</p>)}
+          </div>
+        )}
       </Modal>
     </>
   );
@@ -167,11 +215,11 @@ function ShiftManager({ experts }) {
 
   return (
     <div className="space-y-4">
-      <Text type="secondary">Mở ca theo lịch rảnh chuyên gia báo. Mỗi ca chia thành các khung 1 tiếng để khách đặt; ca đã có khách đặt thì không đóng được.</Text>
+      <Text type="secondary">Mở ca theo lịch rảnh chuyên gia báo. Mỗi ca chia thành các khung 45 phút để khách đặt; ca đã có khách đặt thì không đóng được.</Text>
       <Space wrap align="start">
         <Select placeholder="Chọn chuyên gia" style={{ width: 280 }} value={expertId} onChange={setExpertId}
           options={activeExperts.map((e) => ({ value: e.id, label: `${e.full_name} — ${FIELD_LABEL[e.consult_field]}` }))}
-          notFoundContent="Chưa có chuyên gia (tạo tài khoản vai trò Chuyên gia và nhập Hồ sơ chuyên môn)" />
+          notFoundContent="Chưa có chuyên gia (tạo tài khoản vai trò Chuyên gia và nhập Hồ sơ nhân sự)" />
         <DatePicker multiple value={dates} onChange={(v) => setDates(v || [])} placeholder="Chọn các ngày" format="DD/MM"
           disabledDate={(d) => d.isBefore(dayjs(), 'day')} maxTagCount="responsive" style={{ minWidth: 240 }} />
         <Checkbox.Group options={SHIFTS} value={types} onChange={setTypes} />
@@ -203,28 +251,57 @@ function ShiftManager({ experts }) {
 function PayoutStats({ experts }) {
   const [month, setMonth] = useState(dayjs().subtract(dayjs().date() < 5 ? 1 : 0, 'month'));
   const [rows, setRows] = useState([]);
+  const [closed, setClosed] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [paying, setPaying] = useState(null);
+  const [paidRef, setPaidRef] = useState('');
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true);
-    axios.get(`${API}/booking/consultations/stats`, { headers: headers(), params: { month: month.format('YYYY-MM') } })
-      .then((res) => setRows(res.data.data?.experts || []))
-      .catch((err) => message.error(err.response?.data?.message || 'Không tải được thống kê'))
+    const params = { month: month.format('YYYY-MM') };
+    Promise.all([
+      axios.get(`${API}/booking/consultations/stats`, { headers: headers(), params }),
+      axios.get(`${API}/booking/consultations/payouts`, { headers: headers(), params }),
+    ]).then(([stats, payouts]) => {
+      setRows(stats.data.data?.experts || []);
+      setClosed(payouts.data.data || []);
+    }).catch((err) => message.error(err.response?.data?.message || 'Không tải được thống kê'))
       .finally(() => setLoading(false));
   }, [month]);
 
-  // Thù lao lấy theo mức hiện tại trong hồ sơ chuyên gia
+  useEffect(() => { load(); }, [load]);
+
+  const closeMonth = async () => {
+    try {
+      const res = await axios.post(`${API}/booking/consultations/payouts/close`, { month: month.format('YYYY-MM') }, { headers: headers() });
+      message.success(res.data.message);
+      load();
+    } catch (err) { message.error(err.response?.data?.message || 'Không chốt được thù lao'); }
+  };
+
+  const markPaid = async () => {
+    try {
+      const res = await axios.put(`${API}/booking/consultations/payouts/${paying.id}/paid`, { paid_ref: paidRef }, { headers: headers() });
+      message.success(res.data.message);
+      setPaying(null);
+      load();
+    } catch (err) { message.error(err.response?.data?.message || 'Không ghi nhận được'); }
+  };
+
+  // Tháng đã chốt dùng đúng mức đã chụp lại; tháng chưa chốt tạm tính theo mức hiện tại trong hồ sơ chuyên gia
   const data = useMemo(() => rows.map((r) => {
-    const fee = experts.find((e) => e.id === r.expert_id)?.session_fee ?? 0;
-    return { ...r, fee, payout: r.completed * fee };
-  }), [rows, experts]);
+    const snapshot = closed.find((p) => p.expert_id === r.expert_id);
+    const fee = snapshot ? snapshot.session_fee : (experts.find((e) => e.id === r.expert_id)?.session_fee ?? 0);
+    const payout = snapshot ? snapshot.amount : r.completed * fee;
+    return { ...r, fee, payout, margin: r.deposits_kept - payout, snapshot };
+  }), [rows, experts, closed]);
   const totalPayout = data.reduce((s, r) => s + r.payout, 0);
   const totalCompleted = data.reduce((s, r) => s + r.completed, 0);
   const totalDeposits = data.reduce((s, r) => s + r.deposits_kept, 0);
 
   // Xuất CSV (mở bằng Excel, có BOM để hiển thị đúng tiếng Việt)
   const exportCsv = () => {
-    const head = ['Chuyên gia', 'Lĩnh vực', 'Ca hoàn thành', 'Khách vắng', 'Chuyên gia vắng', 'Đã hủy', 'Điểm TB', 'Thù lao/ca', 'Thù lao tháng'];
+    const head = ['Chuyên gia', 'Lĩnh vực', 'Lượt hoàn thành', 'Khách vắng', 'Chuyên gia vắng', 'Đã hủy', 'Điểm TB', 'Thù lao/lượt', 'Thù lao tháng'];
     const lines = data.map((r) => [r.expert_name, FIELD_LABEL[r.consult_field], r.completed, r.no_show, r.expert_absent, r.cancelled, r.avg_rating ?? '', r.fee, r.payout]);
     lines.push(['TỔNG', '', totalCompleted, '', '', '', '', '', totalPayout]);
     const csv = [head, ...lines].map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -239,13 +316,22 @@ function PayoutStats({ experts }) {
       <Space wrap>
         <DatePicker picker="month" value={month} onChange={(v) => v && setMonth(v)} format="MM/YYYY" allowClear={false} />
         <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={!data.length}>Xuất Excel (CSV)</Button>
+        {closed.length > 0 ? <Tag color="green">Đã chốt thù lao tháng này</Tag> : (
+          <Popconfirm title="Chốt thù lao tháng này?" description="Số lượt và mức thù lao được lưu cố định, đổi mức về sau không ảnh hưởng." onConfirm={closeMonth} okText="Chốt" cancelText="Không">
+            <Button type="primary" disabled={!data.length}>Chốt thù lao</Button>
+          </Popconfirm>
+        )}
       </Space>
       <Space size="large" wrap>
-        <Statistic title="Ca hoàn thành" value={totalCompleted} />
+        <Statistic title="Lượt hoàn thành" value={totalCompleted} />
         <Statistic title="Tổng thù lao phải trả" value={money(totalPayout)} valueStyle={{ color: '#dc2626' }} />
         <Statistic title="Tiền cọc phòng khám đã thu" value={money(totalDeposits)} valueStyle={{ color: '#16a34a' }} />
+        <Statistic title="Chênh lệch cọc - thù lao" value={money(totalDeposits - totalPayout)} valueStyle={{ color: totalDeposits < totalPayout ? '#dc2626' : '#16a34a' }} />
       </Space>
-      <Text type="secondary" className="block">Chỉ ca có cả chuyên gia và khách vào phòng (hệ thống ghi giờ vào phòng) mới được tính thù lao.</Text>
+      <Text type="secondary" className="block">
+        Thù lao = số lượt hoàn thành × mức mỗi lượt, không tính theo ca làm việc. Lượt hoàn thành là lượt có kết quả tư vấn; khách vắng không tính thù lao.
+        Chênh lệch âm nghĩa là tiền cọc thu được không đủ trả thù lao, báo cáo doanh thu chưa trừ khoản này.
+      </Text>
       <Table
         rowKey="expert_id"
         loading={loading}
@@ -259,10 +345,24 @@ function PayoutStats({ experts }) {
           { title: 'CG vắng', dataIndex: 'expert_absent', align: 'center', render: (v) => (v ? <Text type="danger">{v}</Text> : v) },
           { title: 'Đã hủy', dataIndex: 'cancelled', align: 'center' },
           { title: 'Điểm TB', dataIndex: 'avg_rating', align: 'center', render: (v, r) => (v ? `${v}/5 (${r.rating_count})` : '—') },
-          { title: 'Thù lao/ca', dataIndex: 'fee', align: 'right', render: money },
+          { title: 'Thù lao/lượt', dataIndex: 'fee', align: 'right', render: money },
           { title: 'Thù lao tháng', dataIndex: 'payout', align: 'right', render: (v) => <b>{money(v)}</b> },
+          { title: 'Chênh lệch', dataIndex: 'margin', align: 'right', render: (v) => <Text type={v < 0 ? 'danger' : undefined}>{money(v)}</Text> },
+          {
+            title: 'Chi trả', key: 'paid', width: 150,
+            render: (_, r) => {
+              if (!r.snapshot) return <Text type="secondary">{closed.length ? 'Không có thù lao' : 'Chưa chốt'}</Text>;
+              if (r.snapshot.status === 'PAID') return <Tag color="green">Đã trả {r.snapshot.paid_ref}</Tag>;
+              return <Button size="small" type="primary" onClick={() => { setPaying(r.snapshot); setPaidRef(''); }}>Đánh dấu đã trả</Button>;
+            },
+          },
         ]}
       />
+
+      <Modal title="Ghi nhận đã trả thù lao" open={!!paying} onCancel={() => setPaying(null)} onOk={markPaid} okText="Xác nhận" cancelText="Đóng" destroyOnHidden>
+        <p className="mb-2">Chuyển {money(paying?.amount)} cho <b>{paying?.expert_name}</b>, rồi nhập mã giao dịch:</p>
+        <Input maxLength={50} placeholder="VD: FT26110212345" value={paidRef} onChange={(e) => setPaidRef(e.target.value)} />
+      </Modal>
     </div>
   );
 }

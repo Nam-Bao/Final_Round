@@ -34,7 +34,7 @@ const ProductDetail = sequelize.define('ProductDetail', {
   product_id: { type: DataTypes.UUID, allowNull: false, unique: true },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },      // đường dẫn /shops/<slug>
   is_published: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-  // Thuốc kê đơn (Rx): vẫn hiển thị trên web để tra cứu nhưng KHÔNG bán online; chỉ bác sĩ kê và bán tại quầy
+  // Thuốc kê đơn (Rx): không hiển thị trên web, không bán online; chỉ bác sĩ kê và bán tại quầy theo đơn
   is_prescription: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   published_at: { type: DataTypes.DATE },
   // Khuyến mãi khi mua online: giảm sale_percent % giá niêm yết, chỉ trong khoảng sale_start - sale_end (utils/pricing.js)
@@ -130,6 +130,31 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
   decided_at: { type: DataTypes.DATE },
   received_at: { type: DataTypes.DATE },
   received_by: { type: DataTypes.UUID },
+  receive_note: { type: DataTypes.TEXT }, // ghi chú khi nhận hàng (vd nhà cung cấp giao thiếu)
+});
+
+// Lô vật tư: xuất theo nguyên tắc hết hạn trước dùng trước; lô đã hết hạn không được xuất cho buổi trị liệu
+const MaterialLot = sequelize.define('MaterialLot', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  product_id: { type: DataTypes.UUID, allowNull: false },
+  lot_no: { type: DataTypes.STRING(50), allowNull: false },
+  expiry_date: { type: DataTypes.DATEONLY, allowNull: false },
+  quantity_received: { type: DataTypes.INTEGER, allowNull: false },
+  quantity_left: { type: DataTypes.INTEGER, allowNull: false },
+  unit_cost: { type: DataTypes.INTEGER },              // giá nhập / đơn vị; lô tồn đầu kỳ không có
+  purchase_request_id: { type: DataTypes.UUID },
+}, { indexes: [{ fields: ['product_id', 'expiry_date'] }] });
+
+// Phiếu kiểm kê: chênh lệch giữa số trên hệ thống và số đếm thực tế của từng lô
+const StockAdjustment = sequelize.define('StockAdjustment', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  product_id: { type: DataTypes.UUID, allowNull: false },
+  lot_id: { type: DataTypes.UUID, allowNull: false },
+  lot_no: { type: DataTypes.STRING(50) },
+  quantity_before: { type: DataTypes.INTEGER, allowNull: false },
+  quantity_after: { type: DataTypes.INTEGER, allowNull: false },
+  reason: { type: DataTypes.STRING(500), allowNull: false },
+  adjusted_by: { type: DataTypes.UUID, allowNull: false },
 });
 
 // Thông tin vật tư nội bộ (Product type MATERIAL): đơn vị tính, quy cách, nguồn gốc, mức tồn tối thiểu.
@@ -262,7 +287,9 @@ PromotionUsage.belongsTo(Promotion, { foreignKey: 'promotion_id' });
 
 Product.hasOne(MaterialSpec, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 MaterialSpec.belongsTo(Product, { foreignKey: 'product_id' });
+Product.hasMany(MaterialLot, { foreignKey: 'product_id', onDelete: 'CASCADE' });
+MaterialLot.belongsTo(Product, { foreignKey: 'product_id' });
 Product.hasMany(MaterialNorm, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 MaterialNorm.belongsTo(Product, { foreignKey: 'product_id' });
 
-module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };
+module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };

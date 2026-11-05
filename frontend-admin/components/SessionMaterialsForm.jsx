@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, InputNumber, Select, Button, Tag, Alert, Spin, Tooltip } from 'antd';
+import { Table, Input, InputNumber, Select, Button, Tag, Alert, Spin, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -7,8 +7,8 @@ const API = 'http://localhost:4000/api/commerce/materials';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 
 // Vật tư dùng trong 1 buổi: điền sẵn theo định mức của dịch vụ / gói, KTV sửa số thực dùng hoặc thêm vật tư khác.
-// value / onChange: [{ product_id, quantity }] để gửi kèm khi hoàn thành buổi (server trừ kho)
-export default function SessionMaterialsForm({ targetType, targetId, onChange }) {
+// onChange: [{ product_id, quantity }] để gửi kèm khi hoàn thành buổi (server trừ kho); onNoteChange: lý do khi vượt định mức
+export default function SessionMaterialsForm({ targetType, targetId, onChange, onNoteChange }) {
   const [rows, setRows] = useState([]);      // { product_id, name, unit, stock, norm, quantity }
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,9 @@ export default function SessionMaterialsForm({ targetType, targetId, onChange })
   if (error) return <Alert type="error" showIcon message={error} />;
 
   const notEnough = rows.filter((r) => (r.quantity || 0) > r.stock);
+  const hasNorm = rows.some((r) => r.norm !== null);
+  const overNorm = hasNorm && rows.some((r) => (r.quantity || 0) > (r.norm ?? 0));
+  const underNorm = rows.some((r) => r.norm !== null && (r.quantity || 0) < r.norm);
   return (
     <div>
       <Table size="small" pagination={false} rowKey="product_id" dataSource={rows}
@@ -68,9 +71,11 @@ export default function SessionMaterialsForm({ targetType, targetId, onChange })
       <Select className="mt-2 w-full" placeholder={<span><PlusOutlined /> Thêm vật tư khác đã dùng</span>} value={null} showSearch optionFilterProp="label"
         onChange={add}
         options={materials.filter((m) => !rows.some((r) => r.product_id === m.id)).map((m) => ({ value: m.id, label: `${m.name} (còn ${m.stock} ${m.unit})` }))} />
-      {rows.some((r) => r.norm !== null && r.quantity > r.norm) && (
-        <p className="text-xs text-orange-600 mt-2">Có vật tư dùng vượt định mức, quản lý sẽ thấy trong thống kê. Ghi rõ lý do ở phần ghi chú.</p>
+      {overNorm && (
+        <Input.TextArea className="mt-2" rows={2} maxLength={500} status="warning" onChange={(e) => onNoteChange?.(e.target.value)}
+          placeholder="Lý do dùng vượt định mức (bắt buộc), VD: Da khách nhiều nhân mụn, phải thay thêm găng tay" />
       )}
+      {underNorm && <p className="text-xs text-orange-600 mt-2">Có vật tư ghi thấp hơn định mức, hệ thống sẽ cảnh báo cho quản lý.</p>}
       {notEnough.length > 0 && (
         <Alert className="mt-2" type="warning" showIcon
           message={`Kho không đủ: ${notEnough.map((r) => r.name).join(', ')}. Buổi vẫn được lưu, hệ thống báo quản lý kiểm kê và nhập hàng.`} />

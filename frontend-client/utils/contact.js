@@ -3,6 +3,8 @@ export const HOTLINE = '0869694064';
 export const HOTLINE_DISPLAY = '0869 694 064';
 export const ZALO_URL = `https://zalo.me/${HOTLINE}`;
 export const WORKING_HOURS = '08:00 - 17:00 (Hàng ngày)';
+// Tư vấn chuyên gia qua video: giờ theo ca chuyên gia mở, khung cuối 20:00 - 21:00
+export const CONSULT_HOURS = '08:00 - 21:00 (Hàng ngày)';
 // Địa chỉ phòng khám cấu hình trong frontend-client/.env (VITE_CLINIC_ADDRESS, VITE_CLINIC_MAP_QUERY)
 export const CLINIC_ADDRESS = import.meta.env.VITE_CLINIC_ADDRESS || 'Đang cập nhật địa chỉ';
 // Bản đồ Google Maps nhúng (không cần API key) và link mở chỉ đường; tra theo địa chỉ đầy đủ nếu có

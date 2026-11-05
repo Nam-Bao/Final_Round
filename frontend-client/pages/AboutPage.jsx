@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Scan, Stethoscope, Sparkles, ShoppingBag, ShieldCheck, Receipt, MapPin, Phone, Clock } from 'lucide-react';
 import ClinicStats from '../components/ClinicStats';
-import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS, CLINIC_ADDRESS } from '../utils/contact';
+import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS } from '../utils/contact';
 
 // Mô hình O2O mà hệ thống đang vận hành (mỗi bước ứng với một chức năng có thật trên website)
 const JOURNEY = [
@@ -73,7 +73,8 @@ export default function AboutPage() {
         <div className="space-y-2 text-sm">
           <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> {CLINIC_ADDRESS}</p>
           <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-primary" /> Hotline: <a href={`tel:${HOTLINE}`} className="font-semibold text-primary">{HOTLINE_DISPLAY}</a></p>
-          <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> {WORKING_HOURS}</p>
+          <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Khám tại phòng khám: {WORKING_HOURS}</p>
+          <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Tư vấn chuyên gia online: {CONSULT_HOURS}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/doi-ngu-bac-si" className="btn btn-outline btn-primary">Đội ngũ bác sĩ</Link>

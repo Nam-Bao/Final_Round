@@ -5,7 +5,7 @@ import {
   LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
-  SettingOutlined, ShopOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
+  SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -186,34 +186,48 @@ export default function AdminLayout() {
   ];
   const MENU_GROUPS = {
     ADMIN: [
-      ['Hệ thống', <SettingOutlined />, [{ key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' }]],
-      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
-      ['Tư vấn chuyên gia', <VideoCameraOutlined />, [{ key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' }]],
-      ['Sản phẩm & Vật tư', <ShopOutlined />, [
+      ['Báo cáo', <LineChartOutlined />, [
+        { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
+        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát tiền vào' },
+      ]],
+      ['Hệ thống', <SettingOutlined />, [
+        { key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' },
+        { key: '/staff-records', icon: <IdcardOutlined />, label: 'Hồ sơ nhân sự' },
+      ]],
+      ['Dịch vụ', <HeartOutlined />, [{ key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' }]],
+      ['Kho hàng', <InboxOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
         { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
       ]],
       ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
     ],
     GEN_MANAGER: [
-      ['Báo cáo', <LineChartOutlined />, [{ key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' }]],
+      ['Báo cáo', <LineChartOutlined />, [
+        { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
+        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát tiền vào' },
+      ]],
       ['Nhân sự', <TeamOutlined />, [
         { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch làm việc' },
         { key: '/attendance-management', icon: <FieldTimeOutlined />, label: 'Chấm công nhân viên' },
+        { key: '/staff-records', icon: <IdcardOutlined />, label: 'Hồ sơ nhân sự' },
       ]],
       ['Lương', <WalletOutlined />, [
         { key: '/salary-rates', icon: <AccountBookOutlined />, label: 'Mức lương ca' },
         { key: '/payroll', icon: <WalletOutlined />, label: 'Bảng lương' },
       ]],
-      ['Sản phẩm & Dịch vụ', <ShopOutlined />, [
-        { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
-        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      ['Dịch vụ', <HeartOutlined />, [
         { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ spa lẻ' },
         { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói lộ trình' },
-        { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
         { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
       ]],
-      ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
+      ['Kho hàng', <InboxOutlined />, [
+        { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
+        { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+      ]],
+      ['Marketing & Website', <NotificationOutlined />, [
+        { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
+        { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' },
+      ]],
     ],
     DOCTOR: [
       ['Chuyên môn', <MedicineBoxOutlined />, [
@@ -226,9 +240,10 @@ export default function AdminLayout() {
       ['Chăm sóc khách hàng', <CustomerServiceOutlined />, [
         { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không gian tư vấn' },
         { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản lý lịch hẹn' },
+        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
         { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Hồ sơ khách hàng' },
         { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
-        { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
+        { key: '/bank-transactions', icon: <AccountBookOutlined />, label: 'Đối soát tiền vào' },
       ]],
       ['Cá nhân', <IdcardOutlined />, personal],
     ],
@@ -315,7 +330,7 @@ export default function AdminLayout() {
           <Button loading={uploadingAvatar} onClick={() => avatarInputRef.current?.click()}>
             {avatarUrl ? 'Đổi ảnh đại diện' : 'Tải ảnh đại diện'}
           </Button>
-          {role === 'DOCTOR' && <span className="text-xs text-gray-500">Ảnh này hiển thị ở trang Đội ngũ bác sĩ của website khách hàng.</span>}
+          {['DOCTOR', 'EXPERT'].includes(role) && <span className="text-xs text-gray-500">Ảnh này hiển thị công khai trên website khách hàng.</span>}
         </div>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Họ tên">{fullName}</Descriptions.Item>

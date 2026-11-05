@@ -170,7 +170,8 @@ export default function AppointmentManagementPage() {
       <ul className="events p-0 m-0 list-none">
         {listData.map(item => {
            let color = 'default'; 
-           if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') color = 'processing'; 
+           if (item.status === 'NO_SHOW') color = 'error';
+           else if (item.status === 'WAITING_FOR_SALE' || item.status === 'COMPLETED') color = 'processing'; 
            else if (item.type === 'FOLLOW_UP') color = 'warning'; 
            
            const custName = getPatientInfo(item.customer_id, item.patient_profile_id).name || 'Khách';
@@ -250,6 +251,23 @@ export default function AppointmentManagementPage() {
     }
   };
 
+  const NO_SHOW_GRACE_MINUTES = 15; // khớp server
+  const canMarkNoShow = (apt) => apt && ['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status)
+    && !dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).add(NO_SHOW_GRACE_MINUTES, 'minute'));
+  const handleNoShow = () => Modal.confirm({
+    title: 'Ghi nhận khách không đến?',
+    content: 'Khách mất tiền cọc như khi tự hủy. Cọc tư vấn đã trừ vào lịch này (nếu có) được trả lại cho khách.',
+    okText: 'Khách không đến', okButtonProps: { danger: true }, cancelText: 'Đóng',
+    onOk: async () => {
+      try {
+        const res = await axios.put(`http://localhost:4000/api/booking/appointments/${editingAppointment.id}/no-show`, {}, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        message.success(res.data.message);
+        setIsModalVisible(false);
+        fetchData();
+      } catch (error) { message.error(error.response?.data?.message || 'Không ghi nhận được'); }
+    },
+  });
+
   const openCancel = () => { setCancelInitiator(null); setCancelReason(''); setCancelOpen(true); };
 
   const handleCancelAppointment = async () => {
@@ -322,7 +340,7 @@ export default function AppointmentManagementPage() {
     } finally { setLoading(false); }
   };
 
-  const isReadOnly = editingAppointment && (editingAppointment.status === 'WAITING_FOR_SALE' || editingAppointment.status === 'COMPLETED');
+  const isReadOnly = editingAppointment && ['WAITING_FOR_SALE', 'COMPLETED', 'NO_SHOW'].includes(editingAppointment.status);
 
   return (
     <Row gutter={16} className="h-[85vh]">
@@ -333,6 +351,7 @@ export default function AppointmentManagementPage() {
             <Space className="text-xs font-medium bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
                <span><Badge status="processing" /> Đã khám xong</span>
                <span><Badge status="warning" /> Tái khám</span>
+               <span><Badge status="error" /> Khách không đến</span>
                <span><Badge status="default" /> Sắp tới / Chưa khám</span>
             </Space>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => handleSelectDate(dayjs())}>Tạo Lịch Mới</Button>
@@ -412,7 +431,7 @@ export default function AppointmentManagementPage() {
             <div className="mb-4 text-center">
               <Radio.Group value={customerType} onChange={e => setCustomerType(e.target.value)} buttonStyle="solid">
                 <Radio.Button value="EXISTING">Khách đã có tài khoản</Radio.Button>
-                <Radio.Button value="NEW">Khách mới (Vãng lai)</Radio.Button>
+                <Radio.Button value="NEW">Khách mới (chưa có hồ sơ)</Radio.Button>
               </Radio.Group>
             </div>
           )}
@@ -517,7 +536,10 @@ export default function AppointmentManagementPage() {
 
           <div className="flex justify-between items-center mt-6">
             {editingAppointment && !isReadOnly ? (
-              <Button danger type="text" icon={<DeleteOutlined />} onClick={openCancel}>Hủy Lịch</Button>
+              <Space>
+                <Button danger type="text" icon={<DeleteOutlined />} onClick={openCancel}>Hủy Lịch</Button>
+                {canMarkNoShow(editingAppointment) && <Button danger onClick={handleNoShow}>Khách không đến</Button>}
+              </Space>
             ) : <div/>}
             
             <Space>

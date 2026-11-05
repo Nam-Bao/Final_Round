@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
-  CalendarCheck, CalendarX, Video, Receipt, Layers, Truck, PackageX, Undo2, TicketPercent, Star, ShieldCheck, Headphones, ScrollText,
+  CalendarCheck, CalendarX, Video, MessagesSquare, Receipt, Layers, Truck, PackageX, Undo2, TicketPercent, Star, ShieldCheck, Headphones, ScrollText,
 } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS } from '../utils/contact';
+import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS, CONSULT_HOURS } from '../utils/contact';
 
 // Các con số dưới đây phải khớp với hằng số trong code server. Sửa ở server thì sửa cả ở đây:
 const EXAM_FEE = 100000;           // service-booking appointment.controller EXAM_FEE
@@ -28,6 +28,7 @@ const SECTIONS = [
   { id: 'huy-don', icon: PackageX, title: 'Hủy đơn hàng' },
   { id: 'hoan-tra', icon: Undo2, title: 'Hoàn / trả hàng' },
   { id: 'voucher', icon: TicketPercent, title: 'Voucher khuyến mãi' },
+  { id: 'tu-van', icon: MessagesSquare, title: 'Tư vấn chuyên gia' },
   { id: 'danh-gia', icon: Star, title: 'Đánh giá' },
   { id: 'bao-mat', icon: ShieldCheck, title: 'Bảo mật & dữ liệu cá nhân' },
   { id: 'lien-he', icon: Headphones, title: 'Hỗ trợ & khiếu nại' },
@@ -114,13 +115,14 @@ export default function PolicyPage() {
         <main className="space-y-6 min-w-0">
           <Section id="dat-lich">
             <Rules section="dat-lich" items={[
+              <><b>Đến thẳng phòng khám không cần đặt trước:</b> CSKH tiếp nhận theo số điện thoại, bạn ngồi chờ và được mời vào phòng khi bác sĩ khám xong. Khách đã đặt lịch được ưu tiên đúng giờ hẹn. Không cần đặt cọc, phí khám {vnd(EXAM_FEE)} thanh toán sau khi khám; hồ sơ đã từng khám được miễn phí khám như lịch đặt trước. Nếu sau này tạo tài khoản, nhập số điện thoại và mã hồ sơ CSKH đưa để giữ lịch sử khám.</>,
               <>Phí khám bác sĩ là <b>{vnd(EXAM_FEE)}</b>/lần. Mỗi lịch khám gắn với một <b>hồ sơ người khám</b> thuộc tài khoản của bạn (bản thân hoặc người thân).</>,
               <><b>Khám tại phòng khám:</b> đặt cọc <b>{vnd(OFFLINE_DEPOSIT)}</b>. Tiền cọc được trừ vào phí khám khi thanh toán hóa đơn sau buổi khám.</>,
               <><b>Khám trực tuyến:</b> thanh toán trước toàn bộ phí khám <b>{vnd(EXAM_FEE)}</b>.</>,
               <><b>Hồ sơ đã từng khám</b> (đã có lịch khám được thanh toán / phục vụ) được <b>miễn tiền cọc và miễn phí khám</b>. Ưu đãi xét theo từng hồ sơ người khám: người thân khám lần đầu vẫn phải đặt cọc. Lịch đã hủy hoặc chưa thanh toán không được tính.</>,
               <>Sau khi bấm đặt lịch, khung giờ được <b>giữ trong {PAYMENT_HOLD_MINUTES} phút</b> để bạn chuyển khoản. Quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch bị hủy và khung giờ được trả lại cho người khác.</>,
               <>Thanh toán bằng chuyển khoản VietQR, hệ thống tự xác nhận khi nhận được tiền. Nếu nộp tiền mặt tại quầy, nhân viên xác nhận cho bạn.</>,
-              <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:00, chiều 13:00 - 16:00; mỗi lượt khám 1 giờ) và chưa có người khác đặt.</>,
+              <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:30, chiều 13:00 - 16:30; mỗi lượt khám 30 phút) và chưa có người khác đặt. Tư vấn chuyên gia qua video có giờ riêng: {CONSULT_HOURS}, tùy lịch của từng chuyên gia.</>,
             ]} />
           </Section>
 
@@ -130,7 +132,9 @@ export default function PolicyPage() {
               <>Lịch đã đặt cọc mà bị hủy trước khi khám thì <b>mất 100% tiền cọc</b>, dù bạn tự hủy trên website hay nhờ CSKH hủy hộ. Với lịch khám trực tuyến, khoản mất là toàn bộ phí khám {vnd(EXAM_FEE)} đã trả trước. Hệ thống yêu cầu bạn xác nhận số tiền cọc bị mất trước khi hủy.</>,
               <>Trường hợp <b>phòng khám chủ động hủy lịch</b> (bác sĩ vắng, sự cố...), bạn được <b>hoàn lại 100% tiền cọc</b>. Lý do hủy và số tiền được hoàn hiển thị trong Sổ lịch khám; vui lòng liên hệ CSKH để cung cấp tài khoản nhận tiền. Khi chuyển khoản xong, mã giao dịch hoàn tiền được cập nhật vào lịch của bạn.</>,
               <>Lịch đã check-in, đang khám hoặc đã khám xong <b>không thể hủy</b>.</>,
-              <>Đổi ngày, giờ hoặc bác sĩ do nhân viên CSKH thực hiện; khung giờ mới cũng phải đúng ca làm và chưa có người đặt.</>,
+              <>Nếu bận, bạn nên đổi lịch thay vì hủy: trước giờ khám <b>ít nhất 24 giờ</b>, bạn được tự đổi ngày giờ <b>1 lần, không mất cọc</b> trong Sổ lịch khám.</>,
+              <>Sau giờ hẹn 15 phút mà bạn không đến, phòng khám ghi nhận <b>khách không đến</b> và bạn mất tiền cọc như khi tự hủy. Cọc tư vấn đã trừ vào lịch này được trả lại để dùng cho lần sau nếu còn hạn.</>,
+              <>Các trường hợp đổi lịch khác hoặc đổi bác sĩ do nhân viên CSKH thực hiện; khung giờ mới cũng phải đúng ca làm và chưa có người đặt.</>,
             ]} />
           </Section>
 
@@ -171,6 +175,7 @@ export default function PolicyPage() {
 
           <Section id="mua-hang">
             <Rules section="mua-hang" items={[
+              <><b>Thuốc kê đơn không bán trên website.</b> Thuốc chỉ được bác sĩ kê trong buổi khám và bán tại quầy theo đơn.</>,
               <>Thanh toán: <b>khi nhận hàng (COD)</b> hoặc <b>chuyển khoản VietQR</b>. Đơn chuyển khoản chỉ được duyệt sau khi hệ thống nhận được tiền.</>,
               <>Phí vận chuyển do Giao Hàng Nhanh (GHN) tính theo địa chỉ và cân nặng đơn hàng, hệ thống tự tính lại khi đặt. Đơn COD: shipper thu tiền hàng sau giảm giá cộng phí vận chuyển.</>,
               <>Đơn hàng đi qua các bước: <b>Chờ duyệt → Đã duyệt → Đang đóng gói → Đang giao → Đã nhận</b>. Mã vận đơn GHN có khi đơn chuyển sang Đang giao.</>,
@@ -210,7 +215,21 @@ export default function PolicyPage() {
               <>Mã phải còn trong thời gian áp dụng và còn lượt sử dụng. Lượt được tính ngay khi đơn / hóa đơn được tạo thành công.</>,
               <>Mỗi mã có phạm vi riêng: toàn bộ đơn, dịch vụ spa, sản phẩm hoặc gói liệu trình. Giá trị đơn tối thiểu và số tiền giảm chỉ tính trên phần thuộc phạm vi của mã.</>,
               <>Mã giảm theo % có thể có mức giảm tối đa. Số tiền giảm không vượt quá phần tiền thuộc phạm vi và không trừ vào phí vận chuyển.</>,
+              <>Voucher <b>không cộng dồn với giá khuyến mãi online</b>: sản phẩm đang giảm giá không được tính vào giá trị đơn tối thiểu và số tiền giảm của mã.</>,
               <>Voucher đã dùng không được hoàn lại khi đơn bị hủy hoặc hoàn trả.</>,
+            ]} />
+          </Section>
+
+          <Section id="tu-van">
+            <Rules section="tu-van" items={[
+              <>Mỗi buổi tư vấn online kéo dài <b>45 phút</b>. Phòng tư vấn đóng khi hết thời gian này.</>,
+              <>Buổi tư vấn được tính <b>hoàn thành</b> khi cả bạn và chuyên gia đã vào phòng và chuyên gia đã gửi kết quả. Kết quả hiển thị trong Sổ lịch khám, chậm nhất 24 giờ sau khi phòng đóng.</>,
+              <>Buổi hoàn thành thì tiền cọc được trừ vào phí khám của lần đặt khám tiếp theo trong 30 ngày.</>,
+              <>Bạn không vào phòng thì <b>mất cọc</b>. Chuyên gia vắng hoặc không gửi kết quả đúng hạn thì bạn được <b>hoàn cọc</b>.</>,
+              <>Trước giờ hẹn ít nhất 24 giờ, bạn được tự đổi lịch <b>1 lần, không mất cọc</b>. Tự hủy lịch thì mất cọc.</>,
+              <>Mỗi tài khoản không đặt được 2 lịch trùng giờ, kể cả với chuyên gia khác hoặc lịch khám của bạn.</>,
+              <>Sản phẩm chuyên gia gợi ý chỉ mang tính tham khảo, không phải đơn thuốc. Chuyên gia không kê thuốc.</>,
+              <>Đánh giá vi phạm quy định (xúc phạm, quảng cáo, thông tin sai) có thể bị quản lý ẩn.</>,
             ]} />
           </Section>
 

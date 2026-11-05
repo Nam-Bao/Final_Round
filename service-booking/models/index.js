@@ -48,8 +48,13 @@ const Appointment = sequelize.define('Appointment', {
     appointment_time: { type: DataTypes.TIME, allowNull: false },
     budget: { type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH') },
     pre_notes: { type: DataTypes.TEXT },
+    customer_reschedule_count: { type: DataTypes.INTEGER, defaultValue: 0 }, // khách tự đổi lịch (tối đa 1 lần)
+    source: { type: DataTypes.STRING(20) },  // WALK_IN: khách đến thẳng phòng khám; null: lịch đặt trước
+    arrived_at: { type: DataTypes.DATE },    // giờ khách đến thẳng vào danh sách chờ
+    queued_at: { type: DataTypes.DATE },     // giờ CSKH chuyển khách vào hàng chờ của bác sĩ
+    exam_started_at: { type: DataTypes.DATE }, // giờ bác sĩ bấm Bắt đầu khám
     status: {
-        type: DataTypes.ENUM('PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NEEDS_RESCHEDULE'),
+        type: DataTypes.ENUM('PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NEEDS_RESCHEDULE', 'NO_SHOW'),
         defaultValue: 'PENDING_PAYMENT'
     },
     type: {
@@ -251,6 +256,48 @@ const Consultation = sequelize.define('Consultation', {
     reviewed_at: { type: DataTypes.DATE },
     // Tiền cọc tư vấn được trừ vào phí khám của lịch khám này (mỗi buổi tư vấn chỉ trừ 1 lần)
     credit_appointment_id: { type: DataTypes.UUID },
+    // ---- Cột thêm sau (tự thêm vào bảng cũ khi khởi động) ----
+    // Kết quả tư vấn chuyên gia nhập: { assessment, advice, lifestyle, follow_up, products: [{ product_id, name, slug, image_url, price, quantity, usage }] }
+    result: { type: DataTypes.JSONB },
+    reschedule_count: { type: DataTypes.INTEGER, defaultValue: 0 }, // khách tự đổi lịch (tối đa 1 lần)
+    review_hidden: { type: DataTypes.BOOLEAN, defaultValue: false }, // quản lý ẩn đánh giá vi phạm
+    payment_ref: { type: DataTypes.STRING(50) },                    // mã giao dịch khi nhân viên xác nhận cọc thủ công
+});
+
+// Thù lao chuyên gia đã chốt theo tháng (chụp lại mức thù lao lúc chốt: đổi mức về sau không ảnh hưởng tháng cũ)
+const ExpertPayout = sequelize.define('ExpertPayout', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    month: { type: DataTypes.STRING(7), allowNull: false },
+    expert_id: { type: DataTypes.UUID, allowNull: false },
+    expert_name: { type: DataTypes.STRING },
+    completed: { type: DataTypes.INTEGER, defaultValue: 0 },
+    no_show: { type: DataTypes.INTEGER, defaultValue: 0 },
+    session_fee: { type: DataTypes.INTEGER, defaultValue: 0 },
+    amount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    status: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'CLOSED' }, // CLOSED: đã chốt | PAID: đã trả
+    closed_by: { type: DataTypes.UUID },
+    paid_ref: { type: DataTypes.STRING(50) },
+    paid_at: { type: DataTypes.DATE },
+    paid_by: { type: DataTypes.UUID },
+}, { indexes: [{ unique: true, fields: ['month', 'expert_id'] }] });
+
+// Sổ giao dịch ngân hàng SePay báo về: lưu MỌI khoản tiền vào để không mất dấu khoản không khớp được lịch nào
+const BankTransaction = sequelize.define('BankTransaction', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    external_id: { type: DataTypes.STRING(50), unique: true },  // mã giao dịch của SePay (chống xử lý trùng)
+    amount: { type: DataTypes.BIGINT, allowNull: false },
+    content: { type: DataTypes.STRING(500) },
+    code_type: { type: DataTypes.STRING(20) },   // APPOINTMENT | CONSULTATION | ORDER | NONE
+    code: { type: DataTypes.STRING(10) },
+    matched_id: { type: DataTypes.UUID },
+    status: { type: DataTypes.STRING(20), allowNull: false },   // MATCHED | PARTIAL | UNMATCHED | RESOLVED
+    reason: { type: DataTypes.STRING(300) },
+    received_at: { type: DataTypes.DATE },
+    resolved_action: { type: DataTypes.STRING(20) },            // REFUNDED | MANUAL | IGNORED
+    resolved_ref: { type: DataTypes.STRING(50) },
+    resolved_note: { type: DataTypes.STRING(500) },
+    resolved_by: { type: DataTypes.UUID },
+    resolved_at: { type: DataTypes.DATE },
 });
 
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
@@ -448,7 +495,7 @@ Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCAD
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
     const added = [];
-    for (const model of [AttendanceRecord]) {
+    for (const model of [AttendanceRecord, Consultation, Appointment]) {
         const table = model.getTableName();
         const existing = await qi.describeTable(table);
         for (const [name, attr] of Object.entries(model.getAttributes())) {
@@ -472,6 +519,8 @@ module.exports = {
     AttendanceRecord,
     AttendanceExplanation,
     AttendanceCheckoutRequest,
+    ExpertPayout,
+    BankTransaction,
     SalaryRate,
     Payroll,
     PayrollItem,

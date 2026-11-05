@@ -28,6 +28,7 @@ app.use(express.json());
 app.use('/auth', authRoute);
 app.use('/profile', profileRoute);
 app.use('/users', userRoute);
+app.use('/hr', require('./routes/hr.route.js')); // hồ sơ nhân sự
 app.use('/medical-records', medicalRecordRoutes);
 
 server.listen(PORT, async () => {

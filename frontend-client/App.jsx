@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 
 import ClientNavbar from './components/ClientNavbar';
 import ClientFooter from './components/ClientFooter';
+import ReminderBanner from './components/ReminderBanner';
 import PromoPopup from './components/PromoPopup';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -71,7 +72,7 @@ function ProtectedRoute({ children }) {
 
 const isWorkingHour = () => {
   const hour = dayjs().hour();
-  return hour >= 8 && hour < 20;
+  return hour >= 8 && hour < 17; // giờ làm việc của CSKH
 };
 
 function App() {
@@ -125,7 +126,7 @@ function App() {
       setOutOfOffice(true);
       setMessages(prev => [...prev, { 
         id: Date.now(), sender: 'cs', isSystem: true,
-        text: 'Hiện tại đã hết giờ làm việc của Tư vấn viên (08:00 - 20:00). Bạn có thể chat với tôi (Chat Box AI) hoặc liên hệ qua Hotline nếu cần hỗ trợ khẩn cấp.'
+        text: 'Hiện tại đã hết giờ làm việc của Tư vấn viên (08:00 - 17:00). Bạn có thể chat với tôi (Chat Box AI) hoặc liên hệ qua Hotline nếu cần hỗ trợ khẩn cấp.'
       }]);
       return;
     }
@@ -219,6 +220,7 @@ function App() {
         <ClientNavbar />
         
         <main className="flex-1 container mx-auto px-4 py-6 max-w-7xl">
+          <ReminderBanner />
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/sang-loc-da" element={<ProtectedRoute><AiTriagePage /></ProtectedRoute>} />

@@ -54,6 +54,49 @@ const DoctorProfile = sequelize.define('DoctorProfile', {
   updated_by: { type: DataTypes.UUID }
 });
 
+// 2c. Hồ sơ nhân sự: 1 tài khoản nhân viên = tối đa 1 hồ sơ. Họ tên, ngày sinh, SĐT, ảnh nằm ở Profiles.
+// paranoid: xóa mềm để giữ hồ sơ theo quy định lưu trữ; role_data là phần riêng theo vai trò (utils/staffRecordFields.js)
+const EmployeeRecord = sequelize.define('EmployeeRecord', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  user_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+  employee_code: { type: DataTypes.STRING(10), allowNull: false, unique: true },
+  // Nhân thân
+  national_id: { type: DataTypes.STRING(12), allowNull: false, unique: true },
+  national_id_issue_date: { type: DataTypes.DATEONLY },
+  national_id_issue_place: { type: DataTypes.STRING(200) },
+  permanent_address: { type: DataTypes.STRING(300), allowNull: false },
+  current_address: { type: DataTypes.STRING(300) },
+  nationality: { type: DataTypes.STRING(50), defaultValue: 'Việt Nam' },
+  ethnicity: { type: DataTypes.STRING(50) },
+  marital_status: { type: DataTypes.STRING(20) },   // SINGLE | MARRIED | OTHER
+  education_level: { type: DataTypes.STRING(100) },
+  emergency_contact_name: { type: DataTypes.STRING(100), allowNull: false },
+  emergency_contact_relation: { type: DataTypes.STRING(50) },
+  emergency_contact_phone: { type: DataTypes.STRING(15), allowNull: false },
+  // Công việc & hợp đồng
+  position: { type: DataTypes.STRING(100), allowNull: false },
+  employment_type: { type: DataTypes.STRING(20), allowNull: false },   // FULL_TIME | PART_TIME | COLLABORATOR
+  employment_status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'WORKING' }, // WORKING | ON_LEAVE | RESIGNED
+  start_date: { type: DataTypes.DATEONLY, allowNull: false },
+  end_date: { type: DataTypes.DATEONLY },
+  contract_type: { type: DataTypes.STRING(20), allowNull: false },     // PROBATION | FIXED_TERM | INDEFINITE | SERVICE
+  contract_no: { type: DataTypes.STRING(50) },
+  contract_start: { type: DataTypes.DATEONLY },
+  contract_end: { type: DataTypes.DATEONLY },
+  // Thuế, bảo hiểm, ngân hàng (trả lương)
+  tax_code: { type: DataTypes.STRING(14) },
+  social_insurance_no: { type: DataTypes.STRING(15) },
+  bank_name: { type: DataTypes.STRING(100) },
+  bank_account_no: { type: DataTypes.STRING(30) },
+  bank_account_name: { type: DataTypes.STRING(100) },
+  health_check_date: { type: DataTypes.DATEONLY },   // khám sức khỏe định kỳ gần nhất
+  role_data: { type: DataTypes.JSONB, defaultValue: {} },
+  documents: { type: DataTypes.JSONB, defaultValue: [] }, // [{ name, url }]
+  notes: { type: DataTypes.TEXT },
+  created_by: { type: DataTypes.UUID },
+  updated_by: { type: DataTypes.UUID },
+}, { paranoid: true });
+
 // 3. Bảng PatientProfiles (Hồ sơ người bệnh - THAY THẾ BẢNG GUARDIANS)
 const PatientProfile = sequelize.define('PatientProfile', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -65,6 +108,17 @@ const PatientProfile = sequelize.define('PatientProfile', {
 });
 
 // 4. Bảng Attendances (Chấm công nhân viên)
+// Hồ sơ khách đến thẳng phòng khám (chưa có tài khoản đăng nhập). Khách đăng ký online bằng đúng SĐT + mã này thì tài khoản tạm
+// trở thành tài khoản thật, giữ nguyên lịch khám và bệnh án. SĐT chưa được xác minh nên phải có mã do CSKH đưa tại quầy.
+const WalkInClaim = sequelize.define('WalkInClaim', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  user_id: { type: DataTypes.UUID, allowNull: false, unique: true },
+  phone: { type: DataTypes.STRING(15), allowNull: false, unique: true },
+  code: { type: DataTypes.STRING(6), allowNull: false },
+  attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }, // số lần nhập sai
+  claimed_at: { type: DataTypes.DATE },
+});
+
 const Attendance = sequelize.define('Attendance', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -107,6 +161,8 @@ Profile.belongsTo(User, { foreignKey: 'user_id' });
 
 User.hasOne(DoctorProfile, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 DoctorProfile.belongsTo(User, { foreignKey: 'user_id' });
+User.hasOne(EmployeeRecord, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+EmployeeRecord.belongsTo(User, { foreignKey: 'user_id' });
 
 // 1 User có thể quản lý nhiều Hồ sơ người bệnh (PatientProfiles)
 User.hasMany(PatientProfile, { foreignKey: 'user_id', as: 'PatientProfiles' });
@@ -135,4 +191,4 @@ ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi ở cả 2 nơi)
 
-module.exports = { sequelize, User, Profile, DoctorProfile, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };
+module.exports = { WalkInClaim, sequelize, User, Profile, DoctorProfile, EmployeeRecord, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

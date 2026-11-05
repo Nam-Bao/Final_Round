@@ -1,7 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User, Profile, PatientProfile, sequelize } = require('../models');
+const { User, Profile, PatientProfile, WalkInClaim, sequelize } = require('../models');
 const { getSecret } = require('../middlewares/auth.middleware.js');
+
+const MAX_CLAIM_ATTEMPTS = 5;
 
 const register = async (req, res) => {
   try {
@@ -18,6 +20,22 @@ const register = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
+
+    // Khách đã khám tại quầy: đúng SĐT + mã CSKH cấp => tài khoản tạm thành tài khoản thật, giữ nguyên lịch khám và bệnh án
+    const claimCode = String(req.body.claim_code || '').trim();
+    if (claimCode) {
+      const claim = await WalkInClaim.findOne({ where: { phone: String(phone || '').trim(), claimed_at: null } });
+      if (!claim || claim.attempts >= MAX_CLAIM_ATTEMPTS || claim.code !== claimCode) {
+        if (claim) await claim.increment('attempts');
+        return res.status(400).json({ message: 'SĐT hoặc mã hồ sơ không đúng. Nếu nhập sai nhiều lần, vui lòng liên hệ CSKH để được cấp mã mới' });
+      }
+      await sequelize.transaction(async (t) => {
+        const [count] = await WalkInClaim.update({ claimed_at: new Date() }, { where: { id: claim.id, claimed_at: null }, transaction: t });
+        if (!count) throw new Error('Hồ sơ đã được liên kết');
+        await User.update({ email, password_hash }, { where: { id: claim.user_id }, transaction: t });
+      });
+      return res.status(201).json({ message: 'Đăng ký thành công, đã liên kết hồ sơ khám tại phòng khám!', userId: claim.user_id, linked: true });
+    }
 
     const result = await sequelize.transaction(async (t) => {
       // 1. Tạo User Account
