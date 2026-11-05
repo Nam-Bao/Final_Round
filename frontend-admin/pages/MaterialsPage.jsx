@@ -9,6 +9,7 @@ const API = 'http://localhost:4000/api';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
+const PURCHASE_TAG = { PENDING: 'Đề xuất chờ duyệt', INCOMING: 'Đang chờ hàng về' };
 const STATUS = {
   OUT: { color: 'red', label: 'Hết hàng' },
   LOW: { color: 'volcano', label: 'Dưới tồn tối thiểu' },
@@ -19,8 +20,10 @@ const STATUS = {
 // ---------------- Tab 1: Tồn kho vật tư + cảnh báo sớm ----------------
 function StockTab({ materials, demandAvailable, reload }) {
   const [editing, setEditing] = useState(null);
+  const [counting, setCounting] = useState(null);
   const [form] = Form.useForm();
   const alerts = materials.filter((m) => m.status !== 'OK');
+  const expiring = materials.filter((m) => m.expired_qty > 0 || m.near_expiry_qty > 0);
 
   const openEdit = (m) => { setEditing(m); form.setFieldsValue(m); };
   const saveSpec = async () => {
@@ -48,17 +51,22 @@ function StockTab({ materials, demandAvailable, reload }) {
       {alerts.length > 0 ? (
         <Alert className="mb-3" type="error" showIcon
           message={`${alerts.length} vật tư cần nhập hàng`}
-          description={alerts.map((m) => `${m.name}: còn ${m.stock} ${m.unit} (${STATUS[m.status].label}${m.purchase_pending ? ', đã có đề xuất chờ duyệt' : ''})`).join(' • ')} />
+          description={alerts.map((m) => `${m.name}: còn ${m.stock} ${m.unit} (${STATUS[m.status].label}${m.purchase_status ? `, ${PURCHASE_TAG[m.purchase_status].toLowerCase()}` : ''})`).join(' • ')} />
       ) : <Alert className="mb-3" type="success" showIcon message="Tất cả vật tư đủ dùng cho lịch hẹn 14 ngày tới và trên mức tồn tối thiểu." />}
-      <Table rowKey="id" dataSource={materials} pagination={false} size="middle" scroll={{ x: 1200 }}
+      {expiring.length > 0 && (
+        <Alert className="mb-3" type="warning" showIcon message="Vật tư cần chú ý hạn dùng"
+          description={expiring.map((m) => `${m.name}: ${m.expired_qty ? `${m.expired_qty} ${m.unit} đã hết hạn (không xuất được)` : ''}${m.expired_qty && m.near_expiry_qty ? ', ' : ''}${m.near_expiry_qty ? `${m.near_expiry_qty} ${m.unit} sắp hết hạn` : ''}`).join(' • ')} />
+      )}
+      <Table rowKey="id" dataSource={materials} pagination={false} size="middle" scroll={{ x: 1300 }}
         columns={[
           { title: 'Vật tư', dataIndex: 'name', width: 260, render: (v, m) => <div><b>{v}</b><div className="text-xs text-gray-500">Quy cách: {m.pack_label || '-'} • Giá: {vnd(m.price)}</div></div> },
-          { title: 'Tồn kho', width: 130, render: (_, m) => <div><b>{m.stock}</b> {m.unit}<div className="text-xs text-gray-500">≈ {(m.stock / (m.pack_size || 1)).toFixed(1)} quy cách</div></div> },
+          { title: 'Tồn kho', width: 130, render: (_, m) => <div><b>{m.stock}</b> {m.unit}<div className="text-xs text-gray-500">≈ {(m.stock / (m.pack_size || 1)).toFixed(1)} quy cách</div>{m.expired_qty > 0 && <div className="text-xs text-red-600">Dùng được {m.usable_stock} {m.unit}</div>}</div> },
+          { title: 'Hạn gần nhất', dataIndex: 'next_expiry', width: 110, render: (v) => (v ? dayjs(v).format('DD/MM/YYYY') : '-') },
           { title: 'Tồn tối thiểu', dataIndex: 'min_stock', width: 110, render: (v, m) => `${v} ${m.unit}` },
           { title: 'Cần cho lịch 14 ngày', dataIndex: 'demand_14d', width: 120, render: (v, m) => `${v} ${m.unit}` },
           { title: 'Dùng TB / ngày', dataIndex: 'avg_daily', width: 110, render: (v, m) => (v ? `${v} ${m.unit}` : '-') },
           { title: 'Đủ dùng', dataIndex: 'days_left', width: 90, render: (v) => (v === null ? '-' : `~${v} ngày`) },
-          { title: 'Trạng thái', width: 170, render: (_, m) => <Space orientation="vertical" size={2}><Tag color={STATUS[m.status].color}>{STATUS[m.status].label}</Tag>{m.purchase_pending && <Tag color="blue">Đã đề xuất nhập</Tag>}</Space> },
+          { title: 'Trạng thái', width: 170, render: (_, m) => <Space orientation="vertical" size={2}><Tag color={STATUS[m.status].color}>{STATUS[m.status].label}</Tag>{m.purchase_status && <Tag color="blue">{PURCHASE_TAG[m.purchase_status]}</Tag>}</Space> },
           {
             title: 'Nguồn gốc', width: 280,
             render: (_, m) => (
@@ -76,6 +84,7 @@ function StockTab({ materials, demandAvailable, reload }) {
             render: (_, m) => (
               <Space orientation="vertical" size={4}>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(m)}>Thông tin</Button>
+                <Button size="small" onClick={() => setCounting(m)}>Lô & Kiểm kê</Button>
                 {m.status !== 'OK' && !m.purchase_pending && (
                   <Button size="small" type="primary" danger icon={<ShoppingCartOutlined />} onClick={() => requestPurchase(m)}>
                     Đề xuất nhập {m.suggested_packs > 0 ? `${m.suggested_packs}` : ''}
@@ -101,7 +110,59 @@ function StockTab({ materials, demandAvailable, reload }) {
           <Form.Item name="source_url" label="Link trang sản phẩm (nguồn thông tin)"><Input maxLength={500} placeholder="https://..." /></Form.Item>
         </Form>
       </Modal>
+      <StockCountModal material={counting} onClose={() => setCounting(null)} reload={reload} />
     </>
+  );
+}
+
+// Lô đang còn hàng của 1 vật tư + kiểm kê: nhập số đếm thực tế từng lô (hủy lô hết hạn = nhập 0)
+function StockCountModal({ material, onClose, reload }) {
+  const [lots, setLots] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [actual, setActual] = useState({});
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!material) return;
+    setReason('');
+    axios.get(`${API}/commerce/materials/${material.id}/lots`, authConfig()).then((r) => {
+      setLots(r.data.data || []);
+      setHistory(r.data.adjustments || []);
+      setActual(Object.fromEntries((r.data.data || []).map((l) => [l.id, l.quantity_left])));
+    }).catch((e) => message.error(e.response?.data?.message || 'Không tải được lô'));
+  }, [material]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await axios.put(`${API}/commerce/materials/${material.id}/stock-count`, {
+        reason, lots: Object.entries(actual).map(([lot_id, actual_quantity]) => ({ lot_id, actual_quantity })),
+      }, authConfig());
+      message.success('Đã lưu kiểm kê');
+      onClose();
+      reload();
+    } catch (e) { message.error(e.response?.data?.message || 'Không lưu được'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={material ? `Lô & Kiểm kê: ${material.name}` : ''} open={!!material} onCancel={onClose} onOk={save} okText="Lưu kiểm kê" confirmLoading={busy} width={720} destroyOnHidden>
+      <Table rowKey="id" size="small" pagination={false} dataSource={lots} locale={{ emptyText: 'Chưa có lô nào còn hàng' }}
+        columns={[
+          { title: 'Số lô', dataIndex: 'lot_no', render: (v) => (v === 'TON-DAU-KY' ? 'Tồn đầu kỳ' : v) },
+          { title: 'Hạn dùng', dataIndex: 'expiry_date', render: (v, l) => <span className={l.expired ? 'text-red-600 font-semibold' : ''}>{dayjs(v).format('DD/MM/YYYY')}{l.expired ? ' (hết hạn)' : ''}</span> },
+          { title: 'Giá nhập', dataIndex: 'unit_cost', align: 'right', render: (v) => (v == null ? '-' : vnd(v)) },
+          { title: 'Trên hệ thống', dataIndex: 'quantity_left', align: 'right', render: (v) => `${v} ${material?.unit || ''}` },
+          { title: 'Đếm thực tế', width: 130, render: (_, l) => <InputNumber size="small" min={0} precision={0} value={actual[l.id]} className="!w-full" onChange={(v) => setActual((a) => ({ ...a, [l.id]: v ?? 0 }))} /> },
+        ]} />
+      <Input.TextArea className="mt-3" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do chênh lệch (ít nhất 10 ký tự), VD: Hủy lô hết hạn theo quy định, hao hụt khi kiểm kê tháng" />
+      {history.length > 0 && (
+        <div className="mt-3 text-xs text-gray-500">
+          <div className="font-semibold mb-1">Lịch sử kiểm kê</div>
+          {history.slice(0, 5).map((h) => <div key={h.id}>{dayjs(h.createdAt).format('HH:mm DD/MM/YYYY')} • Lô {h.lot_no}: {h.quantity_before} → {h.quantity_after} • {h.reason}</div>)}
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -189,14 +250,16 @@ function UsageTab() {
   };
   useEffect(() => { load(); }, [range]);
   const over = data.data.filter((r) => r.over_norm).length;
+  const under = data.data.filter((r) => r.under_norm).length;
 
   return (
     <>
       <Space className="mb-3"><DatePicker.RangePicker value={range} onChange={(v) => v && setRange(v)} format="DD/MM/YYYY" allowClear={false} /><Button icon={<ReloadOutlined />} onClick={load} /></Space>
       <Row gutter={12} className="mb-3">
-        <Col span={8}><Card size="small"><Statistic title="Số buổi có xuất vật tư" value={data.data.length} /></Card></Col>
-        <Col span={8}><Card size="small"><Statistic title="Buổi dùng vượt định mức" value={over} styles={{ content: { color: over ? "#d4380d" : undefined } }} /></Card></Col>
-        <Col span={8}><Card size="small"><Statistic title="Buổi thiếu vật tư trong kho" value={data.data.filter((r) => r.shortage).length} /></Card></Col>
+        <Col xs={12} md={6}><Card size="small"><Statistic title="Số buổi có phiếu vật tư" value={data.data.length} /></Card></Col>
+        <Col xs={12} md={6}><Card size="small"><Statistic title="Buổi dùng vượt định mức" value={over} styles={{ content: { color: over ? "#d4380d" : undefined } }} /></Card></Col>
+        <Col xs={12} md={6}><Card size="small"><Statistic title="Buổi ghi thấp hơn định mức" value={under} styles={{ content: { color: under ? "#d48806" : undefined } }} /></Card></Col>
+        <Col xs={12} md={6}><Card size="small"><Statistic title="Buổi thiếu vật tư trong kho" value={data.data.filter((r) => r.shortage).length} /></Card></Col>
       </Row>
       <h4 className="font-semibold mb-2">Thống kê theo vật tư</h4>
       <Table rowKey="product_id" dataSource={data.summary} pagination={false} size="small" loading={loading} className="mb-6"
@@ -207,6 +270,7 @@ function UsageTab() {
           { title: 'Chênh lệch', render: (_, s) => { const d = s.used - s.norm_total; return <span className={d > 0 ? 'text-red-600 font-semibold' : 'text-green-700'}>{d > 0 ? '+' : ''}{d} {s.unit}</span>; } },
           { title: 'Số buổi', dataIndex: 'sessions' },
           { title: 'Buổi vượt ĐM', dataIndex: 'over_sessions', render: (v) => (v ? <Tag color="orange">{v}</Tag> : 0) },
+          { title: 'Buổi dưới ĐM', dataIndex: 'under_sessions', render: (v) => (v ? <Tag color="gold">{v}</Tag> : 0) },
           { title: 'Thiếu kho', render: (_, s) => (s.shortage ? <Tag color="red">{s.shortage} {s.unit}</Tag> : '-') },
         ]} />
       <h4 className="font-semibold mb-2">Phiếu xuất theo buổi</h4>
@@ -221,9 +285,10 @@ function UsageTab() {
               <div className="flex flex-wrap gap-1">
                 {(r.items || []).map((i) => (
                   <Tooltip key={i.product_id} title={i.norm !== null ? `Định mức ${i.norm} ${i.unit}` : 'Ngoài định mức'}>
-                    <Tag color={i.shortage ? 'red' : i.over_norm ? 'orange' : undefined}>{i.name}: {i.quantity} {i.unit}{i.shortage ? ` (thiếu ${i.shortage})` : ''}</Tag>
+                    <Tag color={i.shortage ? 'red' : i.over_norm ? 'orange' : i.under_norm ? 'gold' : undefined}>{i.name}: {i.quantity} {i.unit}{i.shortage ? ` (thiếu ${i.shortage})` : ''}</Tag>
                   </Tooltip>
                 ))}
+                {r.decision_note && <div className="w-full text-xs text-gray-500">Lý do: {r.decision_note}</div>}
               </div>
             ),
           },
@@ -239,6 +304,7 @@ function PurchaseTab({ reloadKey }) {
     axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => message.error('Không tải được đề xuất'));
   }, [reloadKey]);
   const [deciding, setDeciding] = useState(null); // { row, decision, note, packs: { product_id: n } }
+  const [receiving, setReceiving] = useState(null); // { row, note, items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }] }
   const [busy, setBusy] = useState(false);
   const reload = () => axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => {});
 
@@ -255,18 +321,23 @@ function PurchaseTab({ reloadKey }) {
       reload();
     } catch (e) { message.error(e.response?.data?.message || 'Không xử lý được'); } finally { setBusy(false); }
   };
-  const receive = (row) => Modal.confirm({
-    title: 'Xác nhận hàng đã về kho?',
-    content: (row.items || []).map((i) => <div key={i.product_id}>+ {i.quantity} {i.unit} {i.name}</div>),
-    okText: 'Đã nhận hàng, cộng kho',
-    onOk: async () => {
-      try {
-        await axios.put(`${API}/commerce/materials/purchase-requests/${row.id}/receive`, {}, authConfig());
-        message.success('Đã nhập kho');
-        reload();
-      } catch (e) { message.error(e.response?.data?.message || 'Không nhập kho được'); }
-    },
+  const openReceive = (row) => setReceiving({
+    row, note: '',
+    items: (row.items || []).map((i) => ({ product_id: i.product_id, name: i.name, unit: i.unit, approved: Number(i.quantity), received_quantity: Number(i.quantity), unit_cost: null, lot_no: '', expiry_date: null })),
   });
+  const updateReceive = (id, patch) => setReceiving((r) => ({ ...r, items: r.items.map((i) => (i.product_id === id ? { ...i, ...patch } : i)) }));
+  const submitReceive = async () => {
+    setBusy(true);
+    try {
+      await axios.put(`${API}/commerce/materials/purchase-requests/${receiving.row.id}/receive`, {
+        note: receiving.note,
+        items: receiving.items.map((i) => ({ ...i, expiry_date: i.expiry_date ? i.expiry_date.format('YYYY-MM-DD') : null })),
+      }, authConfig());
+      message.success('Đã nhập kho');
+      setReceiving(null);
+      reload();
+    } catch (e) { message.error(e.response?.data?.message || 'Không nhập kho được'); } finally { setBusy(false); }
+  };
   const statusTag = (r) => {
     if (r.status === 'APPROVED' && r.received_at) return <Tag color="green">Đã nhập kho</Tag>;
     return <Tag color={{ PENDING: 'gold', APPROVED: 'blue', REJECTED: 'red' }[r.status]}>{{ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt, chờ hàng về', REJECTED: 'Từ chối' }[r.status]}</Tag>;
@@ -274,19 +345,31 @@ function PurchaseTab({ reloadKey }) {
 
   return (
     <>
-      <Alert className="mb-3" type="info" showIcon message="Quy trình: Chờ duyệt → Duyệt (có thể chỉnh số lượng) hoặc Từ chối (ghi lý do) → Xác nhận hàng về kho (tự cộng tồn kho). Đề xuất tự tạo khi vật tư xuống dưới tồn tối thiểu, hoặc do quản lý tạo từ tab Tồn kho." />
+      <Alert className="mb-3" type="info" showIcon message="Quy trình: Chờ duyệt → Duyệt (có thể chỉnh số lượng) hoặc Từ chối (ghi lý do) → Nhận hàng theo số thực nhận, số lô, hạn dùng, giá nhập (tự cộng tồn kho). Đề xuất đã duyệt mà hàng chưa về thì không tạo đề xuất mới. Đề xuất tự tạo khi vật tư xuống dưới tồn tối thiểu, hoặc do quản lý tạo từ tab Tồn kho." />
       <Table rowKey="id" dataSource={rows} size="middle" pagination={{ pageSize: 10 }}
         columns={[
           { title: 'Ngày tạo', dataIndex: 'createdAt', width: 140, render: (v) => dayjs(v).format('HH:mm DD/MM/YYYY') },
           { title: 'Lý do', dataIndex: 'reason', width: 220 },
-          { title: 'Cần nhập', render: (_, r) => (r.items || []).map((i) => <div key={i.product_id}>{i.name}: <b>{i.packs} × {i.pack_label || 'quy cách'}</b> ({i.quantity} {i.unit}; tồn lúc đề xuất {i.stock})</div>) },
+          {
+            title: 'Cần nhập',
+            render: (_, r) => (r.items || []).map((i) => (
+              <div key={i.product_id}>
+                {i.name}: <b>{i.packs} × {i.pack_label || 'quy cách'}</b> ({i.quantity} {i.unit}; tồn lúc đề xuất {i.stock})
+                {i.received_quantity !== undefined && (
+                  <div className={`text-xs ${i.received_quantity < i.quantity ? 'text-red-600' : 'text-gray-500'}`}>
+                    Thực nhận {i.received_quantity} {i.unit}{i.lot_no ? ` • Lô ${i.lot_no}` : ''}{i.expiry_date ? ` • HSD ${dayjs(i.expiry_date).format('DD/MM/YYYY')}` : ''}{i.unit_cost != null ? ` • ${vnd(i.unit_cost)}/${i.unit}` : ''}
+                  </div>
+                )}
+              </div>
+            )),
+          },
           {
             title: 'Trạng thái', width: 220,
             render: (_, r) => (
               <div>
                 {statusTag(r)}
                 {r.decided_at && <div className="text-xs text-gray-500 mt-1">{r.status === 'REJECTED' ? 'Từ chối' : 'Duyệt'} lúc {dayjs(r.decided_at).format('HH:mm DD/MM')}{r.decision_note ? `: ${r.decision_note}` : ''}</div>}
-                {r.received_at && <div className="text-xs text-gray-500">Nhập kho lúc {dayjs(r.received_at).format('HH:mm DD/MM')}</div>}
+                {r.received_at && <div className="text-xs text-gray-500">Nhập kho lúc {dayjs(r.received_at).format('HH:mm DD/MM')}{r.receive_note ? `: ${r.receive_note}` : ''}</div>}
               </div>
             ),
           },
@@ -300,7 +383,7 @@ function PurchaseTab({ reloadKey }) {
                     <Button size="small" danger onClick={() => setDeciding({ row: r, decision: 'REJECT', note: '', packs: {} })}>Từ chối</Button>
                   </>
                 )}
-                {r.status === 'APPROVED' && !r.received_at && <Button size="small" type="primary" className="!bg-green-600" onClick={() => receive(r)}>Đã nhận hàng</Button>}
+                {r.status === 'APPROVED' && !r.received_at && <Button size="small" type="primary" className="!bg-green-600" onClick={() => openReceive(r)}>Nhận hàng</Button>}
               </Space>
             ),
           },
@@ -318,6 +401,18 @@ function PurchaseTab({ reloadKey }) {
         <Input.TextArea className="mt-2" rows={3} maxLength={1000} value={deciding?.note}
           placeholder={deciding?.decision === 'APPROVE' ? 'Ghi chú (không bắt buộc), vd nhà cung cấp, ngày giao dự kiến' : 'Lý do từ chối (bắt buộc)'}
           onChange={(e) => setDeciding((d) => ({ ...d, note: e.target.value }))} />
+      </Modal>
+      <Modal open={!!receiving} title="Nhận hàng về kho" onCancel={() => setReceiving(null)} onOk={submitReceive} confirmLoading={busy} okText="Nhập kho" width={860} destroyOnHidden>
+        <Table rowKey="product_id" size="small" pagination={false} dataSource={receiving?.items || []} scroll={{ x: 760 }}
+          columns={[
+            { title: 'Vật tư', dataIndex: 'name', render: (v, i) => <div>{v}<div className="text-xs text-gray-500">Đã duyệt {i.approved} {i.unit}</div></div> },
+            { title: 'Thực nhận', width: 120, render: (_, i) => <InputNumber size="small" min={0} max={i.approved} precision={0} value={i.received_quantity} suffix={i.unit} className="!w-full" onChange={(v) => updateReceive(i.product_id, { received_quantity: v ?? 0 })} /> },
+            { title: 'Giá nhập / đơn vị', width: 130, render: (_, i) => <InputNumber size="small" min={0} precision={0} value={i.unit_cost} className="!w-full" onChange={(v) => updateReceive(i.product_id, { unit_cost: v })} /> },
+            { title: 'Số lô', width: 130, render: (_, i) => <Input size="small" maxLength={50} value={i.lot_no} onChange={(e) => updateReceive(i.product_id, { lot_no: e.target.value })} /> },
+            { title: 'Hạn dùng', width: 140, render: (_, i) => <DatePicker size="small" format="DD/MM/YYYY" value={i.expiry_date} className="!w-full" disabledDate={(d) => !d.isAfter(dayjs(), 'day')} onChange={(v) => updateReceive(i.product_id, { expiry_date: v })} /> },
+          ]} />
+        <Input.TextArea className="mt-3" rows={2} maxLength={1000} value={receiving?.note} onChange={(e) => setReceiving((r) => ({ ...r, note: e.target.value }))}
+          placeholder="Ghi chú (bắt buộc nếu giao thiếu), VD: Nhà cung cấp giao thiếu 2 hộp, hẹn bù tuần sau" />
       </Modal>
     </>
   );

@@ -82,7 +82,7 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
           <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
             <div>
               <div className="font-semibold text-rose-700">Thuốc kê đơn (Rx)</div>
-              <div className="text-xs text-gray-500">Bật nếu bao bì ghi "Rx / Thuốc bán theo đơn": vẫn hiện trên web để tra cứu nhưng khách không mua online được; bác sĩ kê trong buổi khám và CSKH bán tại quầy.</div>
+              <div className="text-xs text-gray-500">Bật nếu bao bì ghi "Rx / Thuốc bán theo đơn": không hiện trên web và không được khuyến mãi; chỉ bác sĩ kê trong buổi khám và CSKH bán tại quầy theo đơn.</div>
             </div>
             <Form.Item name="is_prescription" valuePropName="checked" className="!mb-0"><Switch /></Form.Item>
           </div>

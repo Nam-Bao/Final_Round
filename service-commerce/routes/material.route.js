@@ -9,6 +9,10 @@ const managers = [verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER')];
 router.get('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'TECHNICIAN'), c.listMaterials);
 router.put('/:id/spec', ...managers, c.upsertSpec);
 
+// Lô vật tư + kiểm kê
+router.get('/:id/lots', ...managers, c.getLots);
+router.put('/:id/stock-count', ...managers, c.countStock);
+
 // Định mức theo dịch vụ / gói
 router.get('/norms', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'TECHNICIAN'), c.getNorms);
 router.get('/norms/all', ...managers, c.listAllNorms);

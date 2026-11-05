@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, DatePicker, Alert, Upload } from 'antd';
+import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, DatePicker, Alert, Upload, Modal, Radio } from 'antd';
 import { UserOutlined, PhoneOutlined, SolutionOutlined, CheckCircleOutlined, ReloadOutlined, CameraOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import WalkInModal from '../components/WalkInModal';
 
 const { Title, Text } = Typography;
 const { Search } = Input; // THÊM COMPONENT SEARCH
+const DOCTOR_STATE = {
+  FREE: { color: 'success', text: 'Đang rảnh' },
+  BUSY: { color: 'processing', text: 'Đang khám' },
+  QUEUED: { color: 'warning', text: 'Có khách chờ' },
+  OFF_SHIFT: { color: 'default', text: 'Chưa vào ca' },
+};
 
 export default function ConsultantWorkspacePage() {
   const [activeTab, setActiveTab] = useState('checkIn'); 
@@ -15,7 +22,9 @@ export default function ConsultantWorkspacePage() {
   const [form] = Form.useForm();
   
   const [uploadedImages, setUploadedImages] = useState([]);
-  const [queues, setQueues] = useState({ checkIn: [], followUp: [], reschedule: [] });
+  const [queues, setQueues] = useState({ checkIn: [], walkIn: [], followUp: [], reschedule: [] });
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [doctorBoard, setDoctorBoard] = useState([]); // tình trạng bác sĩ còn ca hôm nay
   
   // STATE MỚI: Dùng để tìm kiếm khách hàng
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,11 +46,38 @@ export default function ConsultantWorkspacePage() {
 
   useEffect(() => { fetchQueues(); }, []);
 
+  const fetchDoctorBoard = () => axios.get('http://localhost:4000/api/booking/appointments/walk-in/doctor-board', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } })
+    .then((res) => setDoctorBoard(res.data.data || []))
+    .catch(() => message.error('Không tải được tình trạng bác sĩ'));
+
+  // Mời khách vào phòng: có cảnh báo thì CSKH xác nhận rồi gửi lại
+  const inviteWalkIn = async (payload, confirm_warnings = false) => {
+    const invited = () => { message.success('Đã mời khách vào phòng khám!'); setSelectedCustomer(null); fetchQueues(); };
+    try {
+      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/invite`, { ...payload, confirm_warnings }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+      invited();
+    } catch (error) {
+      const data = error.response?.data;
+      if (data?.code !== 'NEEDS_CONFIRM') { message.error(data?.message || 'Không mời được khách'); return; }
+      Modal.confirm({
+        title: 'Vẫn mời khách vào phòng này?',
+        content: <ul className="list-disc pl-4">{data.warnings.map((w) => <li key={w}>{w}</li>)}</ul>,
+        okText: 'Vẫn mời', cancelText: 'Chọn lại',
+        onOk: () => inviteWalkIn(payload, true),
+        onCancel: fetchDoctorBoard,
+      });
+    }
+  };
+
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer);
     form.resetFields();
     setUploadedImages([]); 
     
+    if (activeTab === 'walkIn') {
+      form.setFieldsValue({ reason: customer.symptoms });
+      fetchDoctorBoard();
+    }
     if (activeTab === 'reschedule') {
       form.setFieldsValue({
         doctor_id: customer.doctor_id,
@@ -65,8 +101,12 @@ export default function ConsultantWorkspacePage() {
       else if (activeTab === 'checkIn') {
         const payload = { ...values, pre_exam_images: uploadedImages };
         await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/pre-check`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
-        message.success('Đã lưu hồ sơ, đính kèm ảnh và chuyển cho Bác sĩ!');
+        message.success('Đã chuyển hồ sơ cho bác sĩ. Khách chờ tới lượt trong hàng chờ của bác sĩ.');
       } 
+      else if (activeTab === 'walkIn') {
+        await inviteWalkIn({ ...values, pre_exam_images: uploadedImages });
+        return;
+      }
       else if (activeTab === 'followUp') {
         await axios.post(`http://localhost:4000/api/booking/follow-ups`, {
           appointment_id: selectedCustomer.id, customer_id: selectedCustomer.customer_id, ...values
@@ -76,8 +116,22 @@ export default function ConsultantWorkspacePage() {
       
       setSelectedCustomer(null);
       fetchQueues(); 
-    } catch (error) { message.error('Có lỗi xảy ra khi xử lý hệ thống!'); } finally { setLoading(false); }
+    } catch (error) { message.error(error.response?.data?.message || 'Có lỗi xảy ra khi xử lý hệ thống!'); } finally { setLoading(false); }
   };
+
+  // Khách chờ lâu nên về: chưa khám thì không phát sinh tiền
+  const handleWalkInLeft = () => Modal.confirm({
+    title: `Ghi nhận ${selectedCustomer.customer_name} đã rời đi?`,
+    content: 'Khách được đưa khỏi danh sách chờ và không phát sinh phí khám.',
+    okText: 'Khách đã rời đi', okButtonProps: { danger: true }, cancelText: 'Đóng',
+    onOk: async () => {
+      try {
+        await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/cancel`, { initiator: 'CUSTOMER', reason: 'Khách đến thẳng đã rời đi, chưa khám' }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        setSelectedCustomer(null);
+        fetchQueues();
+      } catch (error) { message.error(error.response?.data?.message || 'Không ghi nhận được'); }
+    },
+  });
 
   const handleCustomUpload = async ({ file, onSuccess, onError }) => {
     try {
@@ -143,6 +197,25 @@ export default function ConsultantWorkspacePage() {
          )}
       </Form.Item>
       
+      {activeTab === 'walkIn' && (
+        <Form.Item name="doctor_id" rules={[{ required: true, message: 'Chọn bác sĩ' }]}
+          label={<span>Mời vào phòng bác sĩ <Button size="small" type="link" icon={<ReloadOutlined />} onClick={fetchDoctorBoard}>Tải lại</Button></span>}>
+          <Radio.Group className="w-full">
+            {doctorBoard.length === 0 && <Text type="secondary">Hiện không có bác sĩ còn ca hôm nay</Text>}
+            {doctorBoard.map((d) => (
+              <Radio key={d.doctor_id} value={d.doctor_id} className="!flex w-full border rounded-lg p-2 mb-2">
+                <b>{d.doctor_name}</b> <Tag color={DOCTOR_STATE[d.state].color}>{DOCTOR_STATE[d.state].text}</Tag>
+                <div className="text-xs text-gray-500">
+                  {d.current && <div>Đang khám: {d.current.name}{d.current.started_at ? ` (từ ${dayjs(d.current.started_at).format('HH:mm')})` : ''}</div>}
+                  {d.waiting.length > 0 && <div>Đang chờ: {d.waiting.join(', ')}</div>}
+                  <div>{d.next_booked ? `Khách hẹn tiếp theo: ${d.next_booked.time} - ${d.next_booked.name}` : 'Không còn khách hẹn hôm nay'}</div>
+                </div>
+              </Radio>
+            ))}
+          </Radio.Group>
+        </Form.Item>
+      )}
+
       <Form.Item name="reason" label="Lý do khám (Tình trạng mong muốn khắc phục)"><Input.TextArea rows={2} className="w-full" /></Form.Item>
       
       <Row gutter={16}>
@@ -155,7 +228,7 @@ export default function ConsultantWorkspacePage() {
       <Form.Item name="pre_notes" label="Ghi chú nội bộ cho Bác sĩ"><Input.TextArea rows={2} className="w-full" /></Form.Item>
       
       <div className="text-right">
-        <Button type="primary" htmlType="submit" loading={loading} icon={<CheckCircleOutlined />}>Lưu Hồ Sơ & Chuyển Phòng Khám</Button>
+        <Button type="primary" htmlType="submit" loading={loading} icon={<CheckCircleOutlined />}>{activeTab === 'walkIn' ? 'Mời Khách Vào Phòng' : 'Lưu Hồ Sơ & Chuyển Phòng Khám'}</Button>
       </div>
     </Form>
   );
@@ -175,7 +248,8 @@ export default function ConsultantWorkspacePage() {
   );
 
   const queueTabs = [
-    { key: 'checkIn', label: `👋 Khách Đến Quầy (${queues.checkIn?.length || 0})` },
+    { key: 'checkIn', label: `👋 Khách đặt hôm nay (${queues.checkIn?.length || 0})` },
+    { key: 'walkIn', label: `🪑 Danh sách chờ (${queues.walkIn?.length || 0})` },
     { key: 'reschedule', label: <span className="text-red-600 font-bold">🚨 Xử lý dời lịch ({queues.reschedule?.length || 0})</span> },
     { key: 'followUp', label: `📞 Gọi thăm hỏi (${queues.followUp?.length || 0})` }
   ];
@@ -192,6 +266,7 @@ export default function ConsultantWorkspacePage() {
       <Col span={8} className="h-full">
         <Card variant="borderless" className="h-full shadow-sm" styles={{ body: { padding: '0 0 10px 0', height: '100%', display: 'flex', flexDirection: 'column' } }}>
           <div className="px-4 pt-2 border-b border-gray-200">
+             <Button block type="primary" className="mb-2" onClick={() => setWalkInOpen(true)}>Tiếp nhận khách tại quầy</Button>
              <Tabs activeKey={activeTab} onChange={(key) => { setActiveTab(key); setSelectedCustomer(null); setSearchTerm(''); }} items={queueTabs} />
              {/* THANH TÌM KIẾM KHÁCH HÀNG */}
              <Search 
@@ -215,7 +290,9 @@ export default function ConsultantWorkspacePage() {
                         <Text type="secondary" className="text-xs"><PhoneOutlined /> {item.customer_phone}</Text>
                         <div className="mt-1 flex gap-2 flex-wrap">
                           {/* ĐÃ THÊM: HIỂN THỊ CA KHÁM (GIỜ) */}
-                          <Tag icon={<ClockCircleOutlined />} color="default">{String(item.appointment_time).slice(0, 5)}</Tag>
+                          <Tag icon={<ClockCircleOutlined />} color="default">{activeTab === 'walkIn' ? `Đến ${dayjs(item.arrived_at).format('HH:mm')}` : String(item.appointment_time).slice(0, 5)}</Tag>
+                          {activeTab === 'walkIn' && <Tag color="warning">Đã chờ {dayjs().diff(dayjs(item.arrived_at), 'minute')} phút</Tag>}
+                          {activeTab === 'walkIn' && <Tag color={item.exam_fee ? 'blue' : 'green'}>{item.exam_fee ? 'Thu phí sau khám' : 'Miễn phí khám'}</Tag>}
                           
                           {activeTab === 'reschedule' && <Tag color="error">Cần đổi lịch</Tag>}
                           {activeTab === 'checkIn' && <Tag color="processing">Đang chờ phục vụ</Tag>}
@@ -245,16 +322,18 @@ export default function ConsultantWorkspacePage() {
                   <Avatar size={50} icon={<UserOutlined />} className={activeTab === 'reschedule' ? 'bg-red-400' : 'bg-gray-400'} />
                   <div><Title level={4} className="m-0 text-gray-800">{selectedCustomer.customer_name}</Title><Text type="secondary">SĐT: {selectedCustomer.customer_phone}</Text></div>
                 </Space>
+                {activeTab === 'walkIn' && <Button danger onClick={handleWalkInLeft}>Khách đã rời đi</Button>}
               </div>
               <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden">
                 {activeTab === 'reschedule' && <RenderRescheduleForm />}
-                {activeTab === 'checkIn' && <RenderPreDoctorForm />}
+                {(activeTab === 'checkIn' || activeTab === 'walkIn') && <RenderPreDoctorForm />}
                 {activeTab === 'followUp' && <RenderFollowUpForm />}
               </div>
             </div>
           )}
         </Card>
       </Col>
+      <WalkInModal open={walkInOpen} onClose={() => setWalkInOpen(false)} onDone={fetchQueues} />
     </Row>
   );
 }

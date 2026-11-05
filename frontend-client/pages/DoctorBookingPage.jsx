@@ -5,9 +5,10 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/authStore';
 import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfileModal';
 
+// Mỗi lượt khám 30 phút, khớp EXAM_SLOTS ở service-booking
 const SHIFT_SLOTS = {
-  MORNING: ['08:00', '09:00', '10:00', '11:00'],
-  AFTERNOON: ['13:00', '14:00', '15:00', '16:00'],
+  MORNING: ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'],
+  AFTERNOON: ['13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'],
 };
 
 export default function DoctorBookingPage() {

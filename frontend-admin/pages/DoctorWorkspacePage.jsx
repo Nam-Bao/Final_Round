@@ -3,7 +3,7 @@ import { Row, Col, Card, List, Tag, Tabs, Form, Input, InputNumber, Select, Butt
 import { PlusOutlined, MinusCircleOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import VideoCallModal from '../components/VideoCallModal';
+import { openVideoCall } from '../utils/videoCall';
 
 const { Title, Text } = Typography;
 
@@ -35,7 +35,6 @@ export default function DoctorWorkspacePage() {
   const [isNotesModalVisible, setIsNotesModalVisible] = useState(false); 
   const [patientHistory, setPatientHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [form] = Form.useForm();
 
@@ -59,6 +58,9 @@ export default function DoctorWorkspacePage() {
     fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
     fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
     fetchTodayAppointments();
+    // CSKH chuyển khách vào hàng chờ bất cứ lúc nào
+    const timer = setInterval(fetchTodayAppointments, 30000);
+    return () => clearInterval(timer);
   }, []);
 
   const fetchPatientHistory = async (patientProfileId) => {
@@ -92,14 +94,17 @@ export default function DoctorWorkspacePage() {
   const handleSelectPatient = async (patient) => {
     setSelectedPatient(patient);
     form.resetFields();
-    fetchPatientHistory(patient.patient_profile_id); 
-    if (patient.status === 'WAITING') {
-       try {
-         const token = sessionStorage.getItem('admin_token');
-         await axios.put(`http://localhost:4000/api/booking/appointments/${patient.id}`, { status: 'IN_PROGRESS' }, { headers: { 'Authorization': `Bearer ${token}` } });
-         handleUpdateStatus('IN_PROGRESS', patient.id);
-       } catch (e) {}
-    }
+    fetchPatientHistory(patient.patient_profile_id);
+  };
+
+  // Mở hồ sơ chỉ để xem; bác sĩ bấm nút thì mới chuyển trạng thái, CSKH dựa vào đó để biết phòng đang có khách
+  const changeExamState = async (action, status) => {
+    try {
+      const token = sessionStorage.getItem('admin_token');
+      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/${action}`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
+      handleUpdateStatus(status);
+      fetchTodayAppointments();
+    } catch (error) { message.error(error.response?.data?.message || 'Không chuyển được trạng thái'); }
   };
 
   const handleUpdateStatus = (status, id = selectedPatient?.id) => {
@@ -118,7 +123,7 @@ export default function DoctorWorkspacePage() {
       }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success('Đã lưu Bệnh án! Đang chuyển ra màn hình Thu Ngân.');
       handleUpdateStatus('WAITING_FOR_SALE'); setSelectedPatient(null); fetchTodayAppointments(); 
-    } catch (error) { message.error('Có lỗi xảy ra khi hoàn tất khám'); }
+    } catch (error) { message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hoàn tất khám'); }
   };
 
   const tabItems = [
@@ -170,7 +175,7 @@ export default function DoctorWorkspacePage() {
   return (
     <Row gutter={16} className="h-[85vh]">
       <Col span={7} className="h-full">
-        <Card title="Danh sách chờ (Hôm nay)" variant="borderless" className="h-full shadow-sm" styles={{ body: { padding: 0, height: 'calc(100% - 55px)', overflowY: 'auto' } }}>
+        <Card title={`Hàng chờ hôm nay (${patients.filter((p) => p.status === 'WAITING').length} khách chờ)`} variant="borderless" className="h-full shadow-sm" styles={{ body: { padding: 0, height: 'calc(100% - 55px)', overflowY: 'auto' } }}>
           <List itemLayout="horizontal" dataSource={patients} renderItem={(item) => (
               <List.Item onClick={() => handleSelectPatient(item)} className={`cursor-pointer px-4 py-3 border-b border-gray-100 hover:bg-blue-50 transition-colors ${selectedPatient?.id === item.id ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''}`}>
                 <List.Item.Meta
@@ -180,7 +185,7 @@ export default function DoctorWorkspacePage() {
                     <Space size="small" className="mt-1">
                       <Tag icon={<ClockCircleOutlined />} color="default">{item.time}</Tag>
                       {isOnlinePatient(item) && <Tag icon={<VideoCameraOutlined />} color="green">Online</Tag>}
-                      {item.status === 'WAITING' && <Tag color="warning">Đang chờ</Tag>}
+                      {item.status === 'WAITING' && <Tag color="warning">Thứ tự {patients.filter((p) => p.status === 'WAITING').indexOf(item) + 1}</Tag>}
                       {item.status === 'IN_PROGRESS' && <Tag color="processing">Đang khám</Tag>}
                       {(item.status === 'COMPLETED' || item.status === 'WAITING_FOR_SALE') && <Tag color="success">Đã xong</Tag>}
                     </Space>
@@ -209,14 +214,16 @@ export default function DoctorWorkspacePage() {
                            <Text type="secondary">SĐT: <span className="font-medium text-gray-700">{selectedPatient.phone}</span></Text>
                     </Space></div>
                     <div className="mt-2">
-                       <Tag color={selectedPatient.status === 'WAITING_FOR_SALE' ? 'success' : 'processing'}>{selectedPatient.status === 'WAITING_FOR_SALE' ? 'Đã khám xong' : 'Đang tiến hành khám...'}</Tag>
+                       <Tag color={selectedPatient.status === 'IN_PROGRESS' ? 'processing' : selectedPatient.status === 'WAITING' ? 'warning' : 'success'}>{selectedPatient.status === 'IN_PROGRESS' ? 'Đang khám' : selectedPatient.status === 'WAITING' ? 'Đang chờ' : 'Đã khám xong'}</Tag>
                        <Button size="small" type="dashed" icon={<SolutionOutlined />} onClick={() => setIsNotesModalVisible(true)} className="ml-2">Xem Lời khai & Hình ảnh da</Button>
                     </div>
                   </div>
                 </Space>
                 <Space direction="vertical" align="end">
-                  {isOnlinePatient(selectedPatient) && selectedPatient.status !== 'COMPLETED' && selectedPatient.status !== 'WAITING_FOR_SALE' && (
-                    <Button type="primary" className="bg-green-600" icon={<VideoCameraOutlined />} onClick={() => setIsVideoOpen(true)}>Vào phòng khám online</Button>
+                  {selectedPatient.status === 'WAITING' && <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => changeExamState('start-exam', 'IN_PROGRESS')}>Bắt đầu khám</Button>}
+                  {selectedPatient.status === 'IN_PROGRESS' && <Button onClick={() => changeExamState('return-to-queue', 'WAITING')}>Trả về hàng chờ</Button>}
+                  {isOnlinePatient(selectedPatient) && selectedPatient.status === 'IN_PROGRESS' && (
+                    <Button type="primary" className="bg-green-600" icon={<VideoCameraOutlined />} onClick={() => openVideoCall({ id: selectedPatient.id, name: selectedPatient.name })}>Vào phòng khám online</Button>
                   )}
                   <Button type="default" icon={<HistoryOutlined />} onClick={() => setIsHistoryVisible(true)}>Tra cứu Sổ y bạ</Button>
                 </Space>
@@ -229,7 +236,7 @@ export default function DoctorWorkspacePage() {
                   <div className="flex justify-end pb-4">
                     <Space>
                       <Button onClick={() => setSelectedPatient(null)}>Hủy bỏ</Button>
-                      <Button type="primary" size="large" htmlType="submit" disabled={selectedPatient.status === 'COMPLETED' || selectedPatient.status === 'WAITING_FOR_SALE'} icon={<CheckCircleOutlined />}>Hoàn tất khám</Button>
+                      <Button type="primary" size="large" htmlType="submit" disabled={selectedPatient.status !== 'IN_PROGRESS'} icon={<CheckCircleOutlined />}>Hoàn tất khám</Button>
                     </Space>
                   </div>
                 </Form>
@@ -238,13 +245,6 @@ export default function DoctorWorkspacePage() {
           )}
         </Card>
       </Col>
-
-      <VideoCallModal
-        open={isVideoOpen}
-        onClose={() => setIsVideoOpen(false)}
-        appointmentId={selectedPatient?.id}
-        patientName={selectedPatient?.name}
-      />
 
       <Modal title="Thông tin sơ bộ từ CSKH" open={isNotesModalVisible} onCancel={() => setIsNotesModalVisible(false)} footer={<Button type="primary" onClick={() => setIsNotesModalVisible(false)}>Đóng</Button>} width={600}>
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">

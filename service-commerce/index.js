@@ -58,7 +58,7 @@ app.listen(PORT, async() => {
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "sale_percent" INTEGER, ADD COLUMN IF NOT EXISTS "sale_start" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "sale_end" TIMESTAMPTZ');
-        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID');
+        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID, ADD COLUMN IF NOT EXISTS "receive_note" TEXT');
         // Mỗi buổi trị liệu chỉ có 1 phiếu xuất vật tư (chặn trừ kho 2 lần khi bấm hoàn thành 2 lần cùng lúc)
         await sequelize.query('CREATE UNIQUE INDEX IF NOT EXISTS "inventory_requests_reference_unique" ON "InventoryRequests" ("type", "reference_type", "reference_id") WHERE "reference_id" IS NOT NULL');
         console.log('✅ Đã kết nối DB và cập nhật bảng phân hệ Commerce!');

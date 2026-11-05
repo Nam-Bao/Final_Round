@@ -26,7 +26,16 @@ const {
   getAppointmentsByPatient,
   abandonUnpaidAppointment,
   getPendingDepositRefunds,
-  confirmDepositRefund
+  confirmDepositRefund,
+  markNoShow,
+  startExam,
+  returnToQueue,
+  getDoctorBoard,
+  createWalkIn,
+  inviteWalkIn,
+  getRescheduleSlots,
+  customerRescheduleAppointment,
+  getMyReminders
 } = require('../controllers/appointment.controller.js');
 const { getVideoToken } = require('../controllers/video.controller.js');
 
@@ -37,6 +46,9 @@ router.get('/', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN', 'CONSULTANT'
 router.get('/consultant-queues', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), getConsultantQueues);
 router.get('/my-today', verifyToken, authorizeRoles('DOCTOR'), getMyTodayAppointments);
 router.get('/my-history', verifyToken, getMyHistory);
+router.get('/my-reminders', verifyToken, authorizeRoles('CUSTOMER'), getMyReminders);
+router.get('/walk-in/doctor-board', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getDoctorBoard);
+router.post('/walk-in', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), createWalkIn);
 router.get('/taken-slots', getTakenSlots);
 // Lịch do phòng khám hủy, chờ CSKH hoàn cọc cho khách
 router.get('/pending-refunds', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getPendingDepositRefunds);
@@ -67,7 +79,13 @@ router.put('/:id/confirm-payment', verifyToken, authorizeRoles('CONSULTANT', 'GE
 router.delete('/:id/unpaid', verifyToken, authorizeRoles('CUSTOMER'), abandonUnpaidAppointment);
 
 router.put('/:id/reschedule', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), rescheduleAppointment);
+router.get('/:id/reschedule-slots', verifyToken, authorizeRoles('CUSTOMER'), getRescheduleSlots);
+router.put('/:id/customer-reschedule', verifyToken, authorizeRoles('CUSTOMER'), customerRescheduleAppointment);
+router.put('/:id/invite', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), inviteWalkIn);
+router.put('/:id/no-show', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), markNoShow);
 router.put('/:id/pre-check', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), preCheckAppointment);
+router.put('/:id/start-exam', verifyToken, authorizeRoles('DOCTOR'), startExam);
+router.put('/:id/return-to-queue', verifyToken, authorizeRoles('DOCTOR'), returnToQueue);
 router.put('/:id/finish-exam', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), finishExam);
 router.put('/:id/refund-deposit', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), confirmDepositRefund);
 router.put('/:id/cancel', verifyToken, authorizeRoles('CUSTOMER','CONSULTANT', 'GEN_MANAGER', 'ADMIN'), cancelAppointment);

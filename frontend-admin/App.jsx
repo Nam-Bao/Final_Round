@@ -30,6 +30,9 @@ import AttendanceKioskPage from './pages/AttendanceKioskPage';
 import SalaryRatesPage from './pages/SalaryRatesPage';
 import PayrollPage from './pages/PayrollPage';
 import MyPayslipPage from './pages/MyPayslipPage';
+import StaffRecordsPage from './pages/StaffRecordsPage';
+import VideoCallPage from './pages/VideoCallPage';
+import BankTransactionsPage from './pages/BankTransactionsPage';
 
 function App() {
   return (
@@ -38,6 +41,8 @@ function App() {
         <Route path="/login" element={<AdminLoginPage />} />
         {/* Máy chấm công tại quầy: toàn màn hình, không cần đăng nhập nhân viên */}
         <Route path="/kiosk" element={<AttendanceKioskPage />} />
+        {/* Phòng video mở ở tab riêng để bác sĩ / chuyên gia vừa gọi vừa nhập kết quả */}
+        <Route path="/video-call" element={<VideoCallPage />} />
         
         <Route element={<AdminLayout />}>
           <Route path="/" element={<DashboardPage />} />
@@ -69,6 +74,8 @@ function App() {
           <Route path="/salary-rates" element={<SalaryRatesPage />} />
           <Route path="/payroll" element={<PayrollPage />} />
           <Route path="/my-payslip" element={<MyPayslipPage />} />
+          <Route path="/staff-records" element={<StaffRecordsPage />} />
+          <Route path="/bank-transactions" element={<BankTransactionsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

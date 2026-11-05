@@ -109,7 +109,7 @@ const updateSessionStatus = async (req, res) => {
     // Lần đầu hoàn thành buổi: ghi vật tư đã dùng => service-commerce trừ kho (mỗi buổi 1 lần).
     // Ghi vật tư lỗi thì chưa chuyển trạng thái để KTV thử lại, tránh buổi đã xong mà kho không trừ.
     let materialResult = null;
-    if (status === 'COMPLETED' && !wasCompleted && Array.isArray(req.body.materials) && req.body.materials.length) {
+    if (status === 'COMPLETED' && !wasCompleted) {
       const isPackage = type === 'PACKAGE';
       let target_id = session.spa_service_id;
       let target_name = '';
@@ -124,7 +124,8 @@ const updateSessionStatus = async (req, res) => {
         const r = await axios.post('http://localhost:4000/api/commerce/materials/usage', {
           reference_type: isPackage ? 'TREATMENT_SESSION' : 'SERVICE_SESSION', reference_id: session.id,
           target_type: isPackage ? 'PACKAGE' : 'SERVICE', target_id, target_name,
-          items: req.body.materials,
+          items: Array.isArray(req.body.materials) ? req.body.materials : [],
+          note: req.body.materials_note,
         }, { headers: { Authorization: req.headers.authorization }, timeout: 10000 });
         materialResult = r.data;
       } catch (err) {

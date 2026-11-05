@@ -16,6 +16,7 @@ export default function TechnicianWorkspacePage() {
   const [uploadedImages, setUploadedImages] = useState([]);
   // Vật tư đã dùng trong buổi (gửi kèm khi hoàn thành => server trừ kho)
   const [materials, setMaterials] = useState([]);
+  const [materialsNote, setMaterialsNote] = useState('');
 
   const [queues, setQueues] = useState({ waiting: [], inProgress: [], completed: [] });
 
@@ -69,6 +70,7 @@ export default function TechnicianWorkspacePage() {
           type: selectedCustomer.type,
           post_treatment_images: uploadedImages, // Gửi ảnh lên server
           materials,
+          materials_note: materialsNote,
         }, 
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
@@ -212,7 +214,7 @@ export default function TechnicianWorkspacePage() {
                     </Form.Item>
 
                     <Form.Item label={<b className="text-gray-700">Vật tư đã dùng (theo định mức, sửa nếu dùng khác)</b>}>
-                      <SessionMaterialsForm key={selectedCustomer.id} targetType={selectedCustomer.target_type} targetId={selectedCustomer.target_id} onChange={setMaterials} />
+                      <SessionMaterialsForm key={selectedCustomer.id} targetType={selectedCustomer.target_type} targetId={selectedCustomer.target_id} onChange={setMaterials} onNoteChange={setMaterialsNote} />
                     </Form.Item>
 
                     <Form.Item name="technician_note" label={<b className="text-gray-700">Ghi chú thực hiện</b>} rules={[{ required: true, message: 'Vui lòng nhập ghi chú!' }]}>

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Input, Checkbox, Statistic, Row, Col, Tabs, DatePicker, message, Typography, Empty } from 'antd';
+import { Card, Table, Tag, Button, Statistic, Row, Col, Tabs, DatePicker, message, Typography, Empty } from 'antd';
 import { VideoCameraOutlined, EditOutlined, CalendarOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import VideoCallModal from '../components/VideoCallModal';
+import ConsultResultDrawer from '../components/ConsultResultDrawer';
+import { openVideoCall } from '../utils/videoCall';
 
 const { Text, Paragraph } = Typography;
 const API = 'http://localhost:4000/api';
@@ -12,7 +13,7 @@ const EXPERT_OPEN_BEFORE_MINUTES = 15; // khớp server
 
 const STATUS = {
   CONFIRMED: { color: 'blue', text: 'Sắp diễn ra' },
-  COMPLETED: { color: 'green', text: 'Đã tư vấn' },
+  COMPLETED: { color: 'green', text: 'Hoàn thành' },
   NO_SHOW: { color: 'orange', text: 'Khách vắng' },
   EXPERT_ABSENT: { color: 'red', text: 'Bạn vắng mặt' },
   CANCELLED: { color: 'default', text: 'Đã hủy' },
@@ -20,7 +21,7 @@ const STATUS = {
 const SHIFT_LABEL = { MORNING: 'Sáng (08:00 - 12:00)', AFTERNOON: 'Chiều (13:00 - 17:00)', EVENING: 'Tối (18:00 - 21:00)' };
 const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 
-// Trang làm việc của chuyên gia tư vấn thỉnh giảng: lịch tư vấn, vào phòng video, ghi chú cho khách, thống kê tháng
+// Trang làm việc của chuyên gia tư vấn thỉnh giảng: lịch tư vấn, vào phòng video (tab riêng), nhập kết quả cho khách, thống kê tháng
 export default function ExpertWorkspacePage() {
   const [list, setList] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -28,14 +29,10 @@ export default function ExpertWorkspacePage() {
   const [month, setMonth] = useState(dayjs());
   const [stats, setStats] = useState(null);
   const [fee, setFee] = useState(null);
-  const [videoItem, setVideoItem] = useState(null);
-  const [noteItem, setNoteItem] = useState(null);
-  const [note, setNote] = useState('');
-  const [recommendExam, setRecommendExam] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [resultItem, setResultItem] = useState(null);
 
-  const fetchList = async () => {
-    setLoading(true);
+  const fetchList = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [mine, sh] = await Promise.all([
         axios.get(`${API}/booking/consultations/expert/mine`, { headers: headers() }),
@@ -54,6 +51,14 @@ export default function ExpertWorkspacePage() {
       .then((res) => setFee(res.data.data?.session_fee ?? null)).catch(() => {});
   }, []);
 
+  // Cuộc gọi chạy ở tab khác: cập nhật khi quay lại tab này và định kỳ để biết khách đã vào phòng
+  useEffect(() => {
+    const refresh = () => fetchList(true);
+    window.addEventListener('focus', refresh);
+    const timer = setInterval(refresh, 30000);
+    return () => { window.removeEventListener('focus', refresh); clearInterval(timer); };
+  }, []);
+
   useEffect(() => {
     axios.get(`${API}/booking/consultations/expert/stats`, { headers: headers(), params: { month: month.format('YYYY-MM') } })
       .then((res) => setStats(res.data.data)).catch(() => setStats(null));
@@ -66,23 +71,8 @@ export default function ExpertWorkspacePage() {
       && !now.isBefore(start.subtract(EXPERT_OPEN_BEFORE_MINUTES, 'minute')) && now.isBefore(dayjs(c.room_closes_at));
   };
 
-  const openNote = (c) => {
-    setNoteItem(c);
-    setNote(c.expert_note || '');
-    setRecommendExam(!!c.recommend_exam);
-  };
-
-  const saveNote = async () => {
-    setSaving(true);
-    try {
-      await axios.put(`${API}/booking/consultations/${noteItem.id}/note`, { expert_note: note, recommend_exam: recommendExam }, { headers: headers() });
-      message.success('Đã gửi ghi chú tư vấn cho khách');
-      setNoteItem(null);
-      fetchList();
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Không lưu được ghi chú');
-    } finally { setSaving(false); }
-  };
+  // Cả 2 bên đã vào phòng và còn hạn gửi kết quả
+  const canSubmitResult = (c) => ['CONFIRMED', 'COMPLETED'].includes(c.status) && c.expert_joined && c.customer_joined && dayjs().isBefore(dayjs(c.result_deadline));
 
   const columns = [
     {
@@ -100,6 +90,9 @@ export default function ExpertWorkspacePage() {
         <>
           <Tag color={STATUS[c.status]?.color}>{STATUS[c.status]?.text || c.status}</Tag>
           {c.status === 'CONFIRMED' && c.customer_joined && <Tag color="cyan" className="mt-1">Khách đã vào</Tag>}
+          {c.status === 'CONFIRMED' && c.customer_joined && c.expert_joined && (
+            <Text type="warning" className="block text-xs mt-1">Chờ kết quả, hạn {dayjs(c.result_deadline).format('HH:mm DD/MM')}</Text>
+          )}
         </>
       ),
     },
@@ -108,10 +101,10 @@ export default function ExpertWorkspacePage() {
       render: (_, c) => (
         <div className="flex flex-col gap-1">
           {canJoin(c) && (
-            <Button type="primary" icon={<VideoCameraOutlined />} className="bg-green-600" onClick={() => setVideoItem(c)}>Vào phòng tư vấn</Button>
+            <Button type="primary" icon={<VideoCameraOutlined />} className="bg-green-600" onClick={() => openVideoCall({ id: c.id, kind: 'consultation', name: c.customer_name })}>Vào phòng tư vấn</Button>
           )}
-          {c.status === 'COMPLETED' && (
-            <Button icon={<EditOutlined />} onClick={() => openNote(c)}>{c.expert_note ? 'Sửa ghi chú' : 'Viết ghi chú tư vấn'}</Button>
+          {canSubmitResult(c) && (
+            <Button icon={<EditOutlined />} onClick={() => setResultItem(c)}>{c.status === 'COMPLETED' ? 'Sửa kết quả' : 'Nhập kết quả tư vấn'}</Button>
           )}
           {c.status === 'COMPLETED' && c.rating && <Text type="secondary">Khách đánh giá {c.rating}/5</Text>}
         </div>
@@ -121,6 +114,7 @@ export default function ExpertWorkspacePage() {
 
   const now = dayjs();
   const upcoming = list.filter((c) => c.status === 'CONFIRMED' || (c.status === 'COMPLETED' && now.isBefore(dayjs(c.room_closes_at)))).reverse();
+  const estimatedFee = fee == null ? null : (stats?.completed || 0) * fee;
   const past = list.filter((c) => !upcoming.includes(c));
   const futureShifts = shifts.filter((s) => !dayjs(s.date).isBefore(now, 'day'));
 
@@ -131,13 +125,13 @@ export default function ExpertWorkspacePage() {
         extra={<DatePicker picker="month" value={month} onChange={(v) => v && setMonth(v)} format="MM/YYYY" allowClear={false} />}
       >
         <Row gutter={16}>
-          <Col xs={12} md={6}><Statistic title="Ca hoàn thành" value={stats?.completed || 0} /></Col>
-          <Col xs={12} md={6}><Statistic title="Thù lao mỗi ca" value={fee == null ? '—' : money(fee)} /></Col>
-          <Col xs={12} md={6}><Statistic title="Thù lao dự kiến tháng" value={fee == null ? '—' : money((stats?.completed || 0) * fee)} valueStyle={{ color: '#16a34a' }} /></Col>
+          <Col xs={12} md={6}><Statistic title="Lượt tư vấn hoàn thành" value={stats?.completed || 0} /></Col>
+          <Col xs={12} md={6}><Statistic title="Thù lao mỗi lượt tư vấn" value={fee == null ? '—' : money(fee)} /></Col>
+          <Col xs={12} md={6}><Statistic title="Thù lao dự kiến tháng" value={estimatedFee == null ? '—' : money(estimatedFee)} valueStyle={{ color: '#16a34a' }} /></Col>
           <Col xs={12} md={6}><Statistic title="Đánh giá trung bình" value={stats?.avg_rating ? `${stats.avg_rating}/5 (${stats.rating_count})` : 'Chưa có'} /></Col>
         </Row>
         <Text type="secondary" className="block mt-2">
-          Chỉ ca có cả chuyên gia và khách vào phòng mới được tính thù lao. Ca bạn vắng mặt: khách được hoàn cọc và không tính thù lao.
+          Thù lao tính theo từng lượt khách, không theo ca làm việc. Lượt hoàn thành là lượt cả 2 bên đã vào phòng và bạn đã gửi kết quả (hạn 24 giờ sau khi phòng đóng). Khách không vào phòng: không tính thù lao. Bạn vắng hoặc không gửi kết quả đúng hạn: khách được hoàn cọc và không tính thù lao.
         </Text>
       </Card>
 
@@ -158,31 +152,7 @@ export default function ExpertWorkspacePage() {
         />
       </Card>
 
-      <VideoCallModal
-        kind="consultation"
-        open={!!videoItem}
-        appointmentId={videoItem?.id}
-        patientName={videoItem?.customer_name}
-        onClose={() => { setVideoItem(null); fetchList(); }}
-      />
-
-      <Modal
-        title={`Ghi chú tư vấn — ${noteItem?.customer_name || ''}`}
-        open={!!noteItem}
-        onCancel={() => setNoteItem(null)}
-        onOk={saveNote}
-        okText="Gửi cho khách"
-        cancelText="Hủy"
-        confirmLoading={saving}
-        destroyOnHidden
-      >
-        <p className="text-gray-500 text-sm mb-2">Khách đọc được ghi chú này trong Sổ lịch hẹn. Tóm tắt nhận định và lời khuyên; không kê đơn thuốc.</p>
-        <Input.TextArea rows={6} maxLength={3000} showCount value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder="VD: Da dầu, mụn viêm vùng cằm. Nên hạn chế đồ ngọt, sữa; uống đủ nước; ngủ trước 23h..." />
-        <Checkbox className="mt-3" checked={recommendExam} onChange={(e) => setRecommendExam(e.target.checked)}>
-          Khuyên khách đặt lịch khám với bác sĩ da liễu
-        </Checkbox>
-      </Modal>
+      <ConsultResultDrawer consultation={resultItem} onClose={() => setResultItem(null)} onSaved={() => { setResultItem(null); fetchList(); }} />
     </div>
   );
 }

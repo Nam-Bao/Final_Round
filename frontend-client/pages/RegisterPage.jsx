@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({ full_name: '', email: '', phone: '', password: '' });
+  const [formData, setFormData] = useState({ full_name: '', email: '', phone: '', password: '', claim_code: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -51,6 +51,11 @@ export default function RegisterPage() {
               <label className="label"><span className="label-text">Số điện thoại</span></label>
               <input type="tel" className="input input-bordered" required 
                 onChange={e => setFormData({...formData, phone: e.target.value})} />
+            </div>
+            <div className="form-control mb-2">
+              <label className="label"><span className="label-text">Mã hồ sơ tại phòng khám (nếu có)</span></label>
+              <input type="text" inputMode="numeric" maxLength={6} className="input input-bordered" placeholder="Đã khám tại quầy: nhập mã CSKH đưa để giữ lịch sử khám"
+                onChange={e => setFormData({...formData, claim_code: e.target.value})} />
             </div>
             <div className="form-control mb-4">
               <label className="label"><span className="label-text">Mật khẩu</span></label>

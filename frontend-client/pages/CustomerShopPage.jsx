@@ -94,6 +94,8 @@ export default function CustomerShopPage() {
   });
 
   const cartTotal = cartItems.reduce((sum, item) => sum + (item.Product.price * item.quantity), 0);
+  // Voucher không cộng dồn với giá khuyến mãi: chỉ tính trên sản phẩm đang bán giá thường
+  const voucherBase = cartItems.reduce((sum, item) => sum + (item.Product.original_price ? 0 : item.Product.price * item.quantity), 0);
   const totalWeight = cartItems.reduce((sum, item) => {
     // Ưu tiên lấy cân nặng thật từ database, nếu sản phẩm cũ chưa có thì lấy tạm 200g
     const productWeight = item.Product.weight || 200; 
@@ -287,10 +289,11 @@ export default function CustomerShopPage() {
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) return;
+    if (voucherBase <= 0) return alert('Mã giảm giá không áp dụng cho sản phẩm đang khuyến mãi');
     try {
       const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
-        code: voucherCode, order_value: cartTotal,
-        scope_values: { PRODUCT: cartTotal } // Giỏ hàng chỉ có sản phẩm
+        code: voucherCode, order_value: voucherBase,
+        scope_values: { PRODUCT: voucherBase } // Giỏ hàng chỉ có sản phẩm
       }, authConfig);
       const amount = res.data.data.discount_amount;
       setDiscountAmount(amount); setAppliedVoucher({ code: voucherCode.toUpperCase(), amount });

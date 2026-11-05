@@ -1,5 +1,6 @@
 // 1. ĐÃ SỬA: Import thêm 'sequelize' vào đây!
-const { User, Profile, DoctorProfile, PatientProfile, sequelize } = require('../models');
+const crypto = require('crypto');
+const { User, Profile, DoctorProfile, PatientProfile, WalkInClaim, sequelize } = require('../models');
 
 // Thông tin chuyên môn rút gọn hiển thị trên thẻ bác sĩ
 const DOCTOR_CARD_FIELDS = ['title', 'specialty', 'workplace', 'experience_years'];
@@ -88,6 +89,73 @@ const createQuickCustomer = async (req, res) => {
     });
 
     res.status(201).json({ message: 'Tạo khách hàng thành công', data: result });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// ===== KHÁCH ĐẾN THẲNG PHÒNG KHÁM: hồ sơ theo SĐT, chưa có tài khoản đăng nhập =====
+const PHONE_RE = /^0\d{9}$/;
+const newClaimCode = () => String(crypto.randomInt(100000, 1000000));
+
+// [CSKH] GET /users/walk-in/lookup?phone= — tìm khách theo SĐT (của chủ tài khoản hoặc của hồ sơ người khám)
+const lookupCustomerByPhone = async (req, res) => {
+  try {
+    const phone = String(req.query.phone || '').trim();
+    if (!PHONE_RE.test(phone)) return res.status(400).json({ message: 'SĐT gồm 10 số, bắt đầu bằng 0' });
+    const [owners, patients] = await Promise.all([
+      Profile.findAll({ where: { phone }, attributes: ['user_id'], raw: true }),
+      PatientProfile.findAll({ where: { phone }, attributes: ['user_id'], raw: true }),
+    ]);
+    const ids = [...new Set([...owners, ...patients].map((p) => p.user_id))];
+    const users = await User.findAll({
+      where: { id: { [Op.in]: ids }, role: 'CUSTOMER' },
+      include: [{ model: Profile, attributes: ['full_name'] }, { model: PatientProfile, as: 'PatientProfiles', attributes: ['id', 'full_name', 'relationship', 'dob'] }],
+    });
+    const claims = await WalkInClaim.findAll({ where: { user_id: { [Op.in]: users.map((u) => u.id) }, claimed_at: null }, raw: true });
+    res.status(200).json({
+      data: users.map((u) => ({
+        id: u.id, full_name: u.Profile?.full_name, profiles: u.PatientProfiles,
+        claim_code: claims.find((c) => c.user_id === u.id)?.code || null,
+      })),
+    });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [CSKH] POST /users/walk-in { full_name, phone, dob, gender } — tạo hồ sơ tại quầy, không cần email
+const createWalkInCustomer = async (req, res) => {
+  try {
+    const full_name = String(req.body.full_name || '').trim();
+    const phone = String(req.body.phone || '').trim();
+    const dob = req.body.dob || null;
+    const gender = ['MALE', 'FEMALE', 'OTHER'].includes(req.body.gender) ? req.body.gender : 'OTHER';
+    if (full_name.length < 2 || full_name.length > 100) return res.status(400).json({ message: 'Nhập họ tên khách' });
+    if (!PHONE_RE.test(phone)) return res.status(400).json({ message: 'SĐT gồm 10 số, bắt đầu bằng 0' });
+    if (await Profile.count({ where: { phone } }) || await PatientProfile.count({ where: { phone } })) {
+      return res.status(409).json({ message: 'SĐT này đã có hồ sơ, vui lòng chọn hồ sơ có sẵn' });
+    }
+    // Tài khoản tạm: email nội bộ, mật khẩu ngẫu nhiên nên chưa ai đăng nhập được
+    const password_hash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), await bcrypt.genSalt(10));
+    const code = newClaimCode();
+    const result = await sequelize.transaction(async (t) => {
+      const user = await User.create({ email: `walkin-${crypto.randomUUID()}@walkin.glowskin.local`, password_hash, role: 'CUSTOMER' }, { transaction: t });
+      await Profile.create({ user_id: user.id, full_name, phone, dob, gender }, { transaction: t });
+      const patient = await PatientProfile.create({ user_id: user.id, full_name, relationship: 'Bản thân', phone, dob, gender }, { transaction: t });
+      await WalkInClaim.create({ user_id: user.id, phone, code }, { transaction: t });
+      return { userId: user.id, patientProfileId: patient.id, claim_code: code };
+    });
+    res.status(201).json({ message: 'Đã tạo hồ sơ khách', data: result });
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ message: 'SĐT này đã có hồ sơ, vui lòng chọn hồ sơ có sẵn' });
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// [CSKH] POST /users/walk-in/:id/claim-code — cấp lại mã liên kết (khách làm mất hoặc nhập sai quá số lần)
+const renewClaimCode = async (req, res) => {
+  try {
+    const code = newClaimCode();
+    const [count] = await WalkInClaim.update({ code, attempts: 0 }, { where: { user_id: req.params.id, claimed_at: null } });
+    if (!count) return res.status(404).json({ message: 'Hồ sơ này không còn chờ liên kết' });
+    res.status(200).json({ message: 'Đã cấp mã mới', data: { claim_code: code } });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
@@ -277,4 +345,7 @@ const getEmployees = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };
+module.exports = {
+  lookupCustomerByPhone,
+  createWalkInCustomer,
+  renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };

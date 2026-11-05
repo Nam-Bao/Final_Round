@@ -6,6 +6,7 @@ import { MessagesSquare, Star, Briefcase, Clock, Calendar, Info, Video, IdCard }
 import { useAuthStore } from '../store/authStore';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import { CONSULT_FIELDS, CONSULT_DEPOSIT, CREDIT_VALID_DAYS, formatVnd } from '../utils/consult';
+import { CONSULT_HOURS } from '../utils/contact';
 
 const API = 'http://localhost:4000/api';
 // Chuyên gia không nhất thiết là bác sĩ => không tự thêm "BS."
@@ -88,6 +89,7 @@ export default function ConsultationBookingPage() {
           Gặp chuyên gia qua video call để được hỏi đáp và định hướng. Tư vấn không thay thế buổi khám:
           cần chẩn đoán, kê đơn hay làm liệu trình, vui lòng <Link to="/booking" className="link link-primary">đặt lịch khám bác sĩ</Link>.
         </p>
+        <p className="text-sm text-base-content/60 mt-1">Giờ tư vấn online: {CONSULT_HOURS}, tùy lịch của từng chuyên gia.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

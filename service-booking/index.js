@@ -26,6 +26,7 @@ app.use('/reports', require('./routes/report.route')); // Báo cáo doanh thu ch
 app.use('/consultations', require('./routes/consultation.route')); // Tư vấn chuyên gia (thỉnh giảng)
 app.use('/attendance', require('./routes/attendance.route')); // chấm công
 app.use('/payroll', require('./routes/payroll.route')); // lương
+app.use('/bank-transactions', require('./routes/bankTransaction.route')); // đối soát tiền vào
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);
@@ -35,6 +36,12 @@ app.listen(PORT, async() => {
         // chế độ này có thể XÓA cột không còn trong model, chỉ bật khi cần và nên backup DB trước.
         const alter = process.env.DB_SYNC_ALTER === 'true';
         if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
+        // sync không thêm giá trị mới cho ENUM đã có => tự bổ sung trạng thái "khách không đến" cho DB cũ
+        await sequelize.query(`DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Appointments_status') THEN
+            ALTER TYPE "enum_Appointments_status" ADD VALUE IF NOT EXISTS 'NO_SHOW';
+          END IF;
+        END $$;`);
         await sequelize.sync({ alter });
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "breakdown" JSONB');

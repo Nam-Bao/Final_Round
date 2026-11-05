@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, MapPin, Phone, Clock, CalendarCheck, MessageCircle, Navigation } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
+import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
 
 const LINK_GROUPS = [
   {
@@ -76,9 +76,12 @@ export default function ClientFooter() {
               <Phone className="w-4 h-4 text-primary shrink-0" />
               <span>Hotline: <a href={`tel:${HOTLINE}`} className="font-semibold text-base-content hover:text-primary">{HOTLINE_DISPLAY}</a></span>
             </li>
-            <li className="flex items-center gap-2.5">
-              <Clock className="w-4 h-4 text-primary shrink-0" />
-              <span>{WORKING_HOURS}</span>
+            <li className="flex items-start gap-2.5">
+              <Clock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <span>
+                Khám tại phòng khám: {WORKING_HOURS}
+                <br />Tư vấn chuyên gia online: {CONSULT_HOURS}
+              </span>
             </li>
           </ul>
           {HAS_CLINIC_MAP && (

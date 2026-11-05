@@ -6,8 +6,8 @@ const { Appointment, Invoice, Transaction, AppointmentCancellation, Consultation
 // BÁO CÁO DOANH THU PHÒNG KHÁM (ghi nhận khi dịch vụ đã thực hiện, không đếm trùng):
 // - Hoá đơn khám đã chốt: phí khám + dịch vụ lẻ + gói + mỹ phẩm kê tại quầy, giảm giá chia theo tỉ lệ từng phần.
 //   Cọc tư vấn chuyên gia được trừ vào phí khám đã tính ở nguồn "Tư vấn chuyên gia" => trừ ra khỏi hoá đơn.
-// - Cọc khám khách tự huỷ (mất cọc) => doanh thu tại ngày huỷ.
-// - Tư vấn chuyên gia: buổi đã diễn ra hoặc khách vắng mặt (giữ cọc).
+// - Cọc khách mất (khách tự huỷ / không đến, cả lịch khám và tư vấn): chỉ tính số tiền cọc, không tính phí dịch vụ.
+// - Tư vấn chuyên gia: buổi đã hoàn thành.
 // Mỹ phẩm bán online / NVBH tính ở service-commerce (/reports/sales); đơn tại quầy sau khám nằm trong hoá đơn khám.
 // ==========================================
 const EXAM_FEE = 100000;
@@ -108,23 +108,26 @@ exports.getClinicRevenue = async (req, res) => {
     });
     forfeits.forEach((c) => add(c.createdAt, 'forfeited', Number(c.deposit_paid || 0)));
 
-    // 3. Tư vấn chuyên gia: đã tư vấn hoặc khách vắng (giữ cọc); chuyên gia vắng / huỷ được hoàn => không tính
+    // 3. Tư vấn chuyên gia. Hoàn thành => doanh thu tư vấn; khách vắng / tự huỷ => phòng khám giữ cọc;
+    // chuyên gia vắng / phòng khám huỷ (hoàn cọc) => không tính
     const consults = await Consultation.findAll({
-      where: { status: { [Op.in]: ['COMPLETED', 'NO_SHOW'] }, deposit_outcome: { [Op.ne]: 'REFUNDED' } }, raw: true,
+      where: { paid_at: { [Op.ne]: null }, [Op.or]: [{ status: 'COMPLETED' }, { deposit_outcome: 'FORFEITED' }] }, raw: true,
     });
     let consultCount = 0;
+    let consultForfeited = 0;
     consults.forEach((c) => {
-      const when = dayjs(c.completed_at || `${c.appointment_date}T${c.appointment_time || '00:00'}`);
+      const completed = c.status === 'COMPLETED';
+      const when = dayjs(completed ? c.completed_at : (c.cancelled_at || `${c.appointment_date}T${c.appointment_time || '00:00'}`));
       if (when.isBefore(from) || when.isAfter(to)) return;
-      consultCount += 1;
-      add(when, 'consultation', Number(c.deposit_amount || 0));
+      if (completed) consultCount += 1; else consultForfeited += 1;
+      add(when, completed ? 'consultation' : 'forfeited', Number(c.deposit_amount || 0));
     });
 
     const series = Object.entries(days).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v }));
     const totals = Object.fromEntries(SOURCES.map((s) => [s, series.reduce((sum, d) => sum + d[s], 0)]));
     res.status(200).json({
       from: from.format('YYYY-MM-DD'), to: to.format('YYYY-MM-DD'), series, totals,
-      counts: { invoices: invoiceCount, consultations: consultCount, forfeited: forfeits.length },
+      counts: { invoices: invoiceCount, consultations: consultCount, forfeited: forfeits.length + consultForfeited },
       top_services: Object.values(topServices).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
       top_packages: Object.values(topPackages).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
     });

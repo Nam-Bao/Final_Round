@@ -1,6 +1,6 @@
 import React from 'react';
 import { Phone, MapPin, Clock, MessageCircle } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
+import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
 
 export default function ContactPage() {
   return (
@@ -16,9 +16,12 @@ export default function ContactPage() {
           <MessageCircle className="w-5 h-5 text-primary shrink-0" />
           <span>Zalo: <a href={ZALO_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-primary">{HOTLINE_DISPLAY}</a></span>
         </div>
-        <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5 text-primary shrink-0" />
-          <span>{WORKING_HOURS}</span>
+        <div className="flex items-start gap-3">
+          <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <span>
+            Khám tại phòng khám: {WORKING_HOURS}
+            <br />Tư vấn chuyên gia online: {CONSULT_HOURS}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <MapPin className="w-5 h-5 text-primary shrink-0" />

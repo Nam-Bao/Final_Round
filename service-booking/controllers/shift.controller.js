@@ -258,7 +258,7 @@ const getDoctorShifts = async (req, res) => {
 
     let whereClause = {
       employee_id: doctorId,
-      status: 'SCHEDULED' // Chỉ lấy những ca có lịch đi làm
+      status: { [Op.in]: ['SCHEDULED', 'ATTENDED'] } // Chỉ lấy những ca có lịch đi làm (đã chấm công vẫn tính)
     };
     
     if (startDate && endDate) {
@@ -285,7 +285,7 @@ const getEmployeeShifts = async (req, res) => {
 
     let whereClause = {
       employee_id: employeeId,
-      status: 'SCHEDULED' 
+      status: { [Op.in]: ['SCHEDULED', 'ATTENDED'] }
     };
     
     // Nếu có truyền ngày lên thì lọc theo ngày đó

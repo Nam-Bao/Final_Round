@@ -72,7 +72,8 @@ const getProducts = async (req, res) => {
 };
 
 // ==========================================
-// CỬA HÀNG WEB: chỉ sản phẩm đã được bật "Bán trên web" (ProductDetail.is_published)
+// CỬA HÀNG WEB: chỉ sản phẩm đã được bật "Bán trên web" (ProductDetail.is_published).
+// Thuốc kê đơn không hiện công khai: chỉ bác sĩ kê trong lịch khám và bán tại quầy theo đơn
 // ==========================================
 const SKIN_TYPES = ['Mọi loại da', 'Da thường', 'Da dầu', 'Da khô', 'Da hỗn hợp', 'Da nhạy cảm', 'Da mụn'];
 const SHOP_DETAIL_FIELDS = ['slug', 'brand', 'origin', 'capacity', 'skin_types', 'short_description', 'is_prescription', 'published_at', ...SALE_FIELDS];
@@ -102,7 +103,7 @@ const getShopProducts = async (req, res) => {
       where: { type: 'PRODUCT' },
       include: [
         { model: Category, attributes: ['id', 'name'] },
-        { model: ProductDetail, where: { is_published: true }, attributes: SHOP_DETAIL_FIELDS }
+        { model: ProductDetail, where: { is_published: true, is_prescription: false }, attributes: SHOP_DETAIL_FIELDS }
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -121,7 +122,7 @@ const getShopProduct = async (req, res) => {
       where: UUID_RE.test(key) ? { id: key, type: 'PRODUCT' } : { type: 'PRODUCT' },
       include: [
         { model: Category, attributes: ['id', 'name', 'description'] },
-        { model: ProductDetail, where: UUID_RE.test(key) ? { is_published: true } : { is_published: true, slug: key } }
+        { model: ProductDetail, where: UUID_RE.test(key) ? { is_published: true, is_prescription: false } : { is_published: true, is_prescription: false, slug: key } }
       ]
     });
     if (!product) return res.status(404).json({ message: 'Sản phẩm không tồn tại hoặc chưa bán trên web' });
@@ -191,6 +192,11 @@ const upsertProductDetail = async (req, res) => {
     values.is_published = 'is_published' in req.body ? req.body.is_published === true : Boolean(existing?.is_published);
     if ('is_prescription' in req.body) values.is_prescription = req.body.is_prescription === true;
     if ('sale_percent' in req.body) Object.assign(values, parseSale(req.body));
+    // Thuốc kê đơn không được khuyến mãi
+    if (values.is_prescription ?? existing?.is_prescription) {
+      if (values.sale_percent) throw Object.assign(new Error('Thuốc kê đơn không được đặt khuyến mãi'), { status: 400 });
+      Object.assign(values, { sale_percent: null, sale_start: null, sale_end: null });
+    }
     // Kiểm tra điều kiện mở bán trên nội dung sau khi lưu (giá trị mới, hoặc giá trị cũ nếu không gửi)
     const merged = { ...(existing?.toJSON() || {}), ...values };
 

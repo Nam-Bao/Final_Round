@@ -3,7 +3,7 @@ const { handleReturnWebhook } = require('./return.controller');
 const { Op } = require('sequelize');
 const { evaluatePromotion, redeemPromotion } = require('../utils/promotionRules');
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
-const { SALE_FIELDS, onlinePrice } = require('../utils/pricing');
+const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricing');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -133,6 +133,7 @@ exports.checkout = async (req, res) => {
 
   try {
     let total_amount = 0;
+    let voucher_base = 0; // voucher không cộng dồn với khuyến mãi online: chỉ tính trên sản phẩm đang bán giá thường
     const orderDetailsData = [];
 
     for (const item of cartItems) {
@@ -142,6 +143,7 @@ exports.checkout = async (req, res) => {
       // Giá online (đã tính khuyến mãi đang chạy) do server tự tính, không tin giá phía trình duyệt
       const unitPrice = onlinePrice(item.Product);
       total_amount += unitPrice * item.quantity;
+      if (activeSalePercent(item.Product) === null) voucher_base += unitPrice * item.quantity;
       orderDetailsData.push({
         product_id: item.Product.id, quantity: item.quantity, price: unitPrice,
         weight: item.Product.weight || DEFAULT_ITEM_WEIGHT // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
@@ -167,15 +169,16 @@ exports.checkout = async (req, res) => {
       if (promo.end_date && now > new Date(promo.end_date)) throw new Error('Mã này đã hết hạn');
       if (promo.usage_limit != null && Number(promo.used_count || 0) >= Number(promo.usage_limit)) throw new Error('Mã này đã hết lượt sử dụng');
       if (!['ALL', 'PRODUCT'].includes(promo.applicable_scope)) throw new Error('Mã này không áp dụng cho đơn mỹ phẩm');
-      if (total_amount < Number(promo.min_order_value || 0)) throw new Error('Đơn hàng chưa đạt giá trị tối thiểu để dùng mã');
+      if (voucher_base <= 0) throw new Error('Mã giảm giá không áp dụng cho sản phẩm đang khuyến mãi');
+      if (voucher_base < Number(promo.min_order_value || 0)) throw new Error('Giá trị sản phẩm không khuyến mãi chưa đạt mức tối thiểu để dùng mã');
 
       const isUsed = await PromotionUsage.findOne({ where: { customer_id, promotion_id: promo.id }, transaction: t });
       if (isUsed) throw new Error('Bạn đã dùng mã này');
 
       discount_amount = promo.discount_type === 'PERCENTAGE'
-        ? Math.min((total_amount * Number(promo.discount_value)) / 100, Number(promo.max_discount) || Infinity)
+        ? Math.min((voucher_base * Number(promo.discount_value)) / 100, Number(promo.max_discount) || Infinity)
         : Number(promo.discount_value);
-      discount_amount = Math.min(discount_amount, total_amount); // không giảm quá tiền hàng
+      discount_amount = Math.min(discount_amount, voucher_base); // không giảm quá tiền hàng được áp mã
 
       await Promotion.increment('used_count', { by: 1, where: { id: promo.id }, transaction: t });
       await SavedPromotion.destroy({ where: { customer_id, promotion_id: promo.id }, transaction: t });
@@ -496,10 +499,16 @@ exports.ghnWebhook = async (req, res) => {
 // ==========================================
 // [WEBHOOK] SEPAY DÀNH CHO ĐƠN HÀNG THƯƠNG MẠI
 // ==========================================
+// Ghi kết quả đối soát vào sổ giao dịch chung bên service-booking; lỗi ghi sổ không được làm hỏng việc nhận tiền
+const logBankTransaction = (body, entry) => axios.post('http://localhost:4000/api/booking/bank-transactions/order-log', {
+  externalId: body.id, amount: Number(body.transferAmount), content: body.content, receivedAt: body.transactionDate, ...entry,
+}, { headers: { Authorization: `Apikey ${process.env.SEPAY_API_KEY}` } })
+  .catch((e) => console.error('❌ [SEPAY WEBHOOK] Không ghi được sổ giao dịch:', body.id, e.message));
+
 exports.sepayOrderWebhook = async (req, res) => {
   try {
-    const { transferAmount, content } = req.body;
-    if (transferAmount > 0 && content) {
+    const { transferAmount, content, transferType } = req.body;
+    if ((!transferType || transferType === 'in') && transferAmount > 0 && content) {
       // Tìm cấu trúc "SP MãĐơnHàng". SePay gửi MỌI giao dịch tới cả webhook này lẫn webhook đặt lịch,
       // nên "SP" phải đứng riêng (tránh khớp nhầm trong chữ như "SPA", "GSP...")
       const match = content.match(/(?<![a-z0-9])SP\s?([a-z0-9]{6})/i);
@@ -510,6 +519,12 @@ exports.sepayOrderWebhook = async (req, res) => {
         // Mã 6 ký tự có thể trùng giữa 2 đơn => không tự đoán, để nhân viên đối soát tay
         if (candidates.length > 1) console.warn(`⚠️ [SEPAY WEBHOOK] Mã SP ${shortId} khớp ${candidates.length} đơn, cần đối soát tay`);
         const order = candidates.length === 1 ? candidates[0] : null;
+        if (!order) {
+          await logBankTransaction(req.body, {
+            code: shortId, status: 'UNMATCHED',
+            reason: candidates.length ? 'Mã trùng nhiều đơn hàng' : 'Không còn đơn chờ thanh toán (đã hủy hoặc đã trả)',
+          });
+        }
 
         if (order) {
            const amountToPay = Number(order.total_amount) - Number(order.discount_amount) + Number(order.shipping_fee || 0);
@@ -520,6 +535,9 @@ exports.sepayOrderWebhook = async (req, res) => {
                order.status = 'PAID';
                await order.save();
                console.log(`✅ [SEPAY WEBHOOK] Đã nhận thanh toán ${transferAmount} cho đơn hàng mua Mỹ phẩm ${order.id}`);
+               await logBankTransaction(req.body, { code: shortId, status: 'MATCHED', matched_id: order.id });
+           } else {
+               await logBankTransaction(req.body, { code: shortId, status: 'PARTIAL', matched_id: order.id, reason: `Chuyển thiếu: cần ${amountToPay.toLocaleString('vi-VN')}đ` });
            }
         }
       }
@@ -641,8 +659,11 @@ exports.createStaffOrder = async (req, res) => {
     let products;
     let shipping_fee = 0;
     try {
-        products = await Product.findAll({ where: { id: productIds, type: 'PRODUCT' } });
+        products = await Product.findAll({ where: { id: productIds, type: 'PRODUCT' }, include: [{ model: ProductDetail, attributes: ['is_prescription'] }] });
         if (products.length !== productIds.length) return res.status(400).json({ success: false, message: 'Có sản phẩm không tồn tại hoặc không bán' });
+        // Thuốc kê đơn chỉ bán theo đơn bác sĩ trong lịch khám (đơn tại quầy), NVBH không tự bán
+        const rx = products.find((p) => p.ProductDetail?.is_prescription);
+        if (rx) return res.status(400).json({ success: false, message: `${rx.name} là thuốc kê đơn, chỉ bán theo đơn của bác sĩ` });
 
         // Phí ship do server tự hỏi GHN (ngoài transaction, không giữ khóa DB khi chờ API bên ngoài)
         if (isDelivery) {
