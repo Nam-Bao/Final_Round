@@ -282,6 +282,25 @@ const ExpertPayout = sequelize.define('ExpertPayout', {
 }, { indexes: [{ unique: true, fields: ['month', 'expert_id'] }] });
 
 // Sổ giao dịch ngân hàng SePay báo về: lưu MỌI khoản tiền vào để không mất dấu khoản không khớp được lịch nào
+// Sàng lọc an toàn theo hồ sơ người khám: tình trạng liên quan chống chỉ định, dị ứng, lần hỏi gần nhất
+const PatientSafety = sequelize.define('PatientSafety', {
+    patient_profile_id: { type: DataTypes.UUID, primaryKey: true },
+    flags: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    allergies: { type: DataTypes.TEXT },
+    screened_at: { type: DataTypes.DATE },
+    screened_by: { type: DataTypes.UUID },
+});
+
+// Bác sĩ vẫn kê dù có cảnh báo: lưu lại cảnh báo đã thấy và lý do
+const SafetyOverride = sequelize.define('SafetyOverride', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    appointment_id: { type: DataTypes.UUID, allowNull: false },
+    patient_profile_id: { type: DataTypes.UUID },
+    doctor_id: { type: DataTypes.UUID, allowNull: false },
+    warnings: { type: DataTypes.JSONB, allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: false },
+}, { updatedAt: false });
+
 const BankTransaction = sequelize.define('BankTransaction', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     external_id: { type: DataTypes.STRING(50), unique: true },  // mã giao dịch của SePay (chống xử lý trùng)
@@ -521,6 +540,8 @@ module.exports = {
     AttendanceCheckoutRequest,
     ExpertPayout,
     BankTransaction,
+    PatientSafety,
+    SafetyOverride,
     SalaryRate,
     Payroll,
     PayrollItem,

@@ -41,11 +41,17 @@ const confirm = process.argv.includes('--xoa');
   const consultations = await B.Consultation.findAll({ where: { [Op.or]: [{ customer_id: ids }, { expert_id: ids }] }, raw: true });
 
   console.log(`Tài khoản test: ${users.length} (${users.map((u) => `${u.email} [${u.role}]`).join(', ')})`);
+  const safetyRows = await B.PatientSafety.count({ where: { patient_profile_id: profiles.map((p) => p.id) } });
+  console.log(`Sàng lọc an toàn: ${safetyRows}`);
   console.log(`Lịch khám: ${appointments.length}, hoá đơn: ${invoices.length}, gói liệu trình: ${customerPackages.length}, đơn hàng: ${orders.length}, phiên chat: ${chats.length}, lịch tư vấn: ${consultations.length}`);
   if (!confirm) {
     console.log('\nChưa xoá gì. Chạy lại với --xoa để xoá thật.');
     process.exit(0);
   }
+
+  // Sàng lọc an toàn và lý do bác sĩ vẫn kê (dữ liệu y tế của khách test)
+  await B.SafetyOverride.destroy({ where: { appointment_id: aptIds } });
+  await B.PatientSafety.destroy({ where: { patient_profile_id: profiles.map((p) => p.id) } });
 
   // Commerce: hoàn kho rồi xoá đơn, đánh giá, giỏ hàng, voucher đã lưu / đã dùng, địa chỉ
   for (const order of orders) {

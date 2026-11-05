@@ -4,6 +4,7 @@ import { UserOutlined, PhoneOutlined, SolutionOutlined, CheckCircleOutlined, Rel
 import axios from 'axios';
 import dayjs from 'dayjs';
 import WalkInModal from '../components/WalkInModal';
+import PatientSafetyPanel from '../components/PatientSafetyPanel';
 
 const { Title, Text } = Typography;
 const { Search } = Input; // THÊM COMPONENT SEARCH
@@ -326,6 +327,7 @@ export default function ConsultantWorkspacePage() {
               </div>
               <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden">
                 {activeTab === 'reschedule' && <RenderRescheduleForm />}
+                {(activeTab === 'checkIn' || activeTab === 'walkIn') && <PatientSafetyPanel key={selectedCustomer.id} patientProfileId={selectedCustomer.patient_profile_id} />}
                 {(activeTab === 'checkIn' || activeTab === 'walkIn') && <RenderPreDoctorForm />}
                 {activeTab === 'followUp' && <RenderFollowUpForm />}
               </div>

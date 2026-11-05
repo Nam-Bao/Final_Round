@@ -123,6 +123,7 @@ Hiện chỉ BS. Hiếu và BS. Khang có ca đến 07/11; BS. Thịnh, CSKH, KT
 
 ### 4.1. CSKH đón khách (`cskh.test@test.local`)
 - [ ] **Không gian tư vấn** → tab **Khách đặt hôm nay**: chọn khách có lịch hôm nay → nhập triệu chứng, chụp / tải ảnh da trước khám → lưu (hồ sơ chuyển cho bác sĩ).
+- [ ] Khung **Sàng lọc an toàn**: hỏi khách (mang thai, thuốc đang dùng, sẹo lồi, máy tạo nhịp, dị ứng...) → **Xác nhận đã hỏi khách**. CSKH hoặc bác sĩ hỏi đều được, nhưng phải hỏi lại **mỗi lần khám**.
 - [ ] **Khách đến thẳng, không đặt trước:** bấm **Tiếp nhận khách tại quầy** → tìm theo số điện thoại, chưa có thì tạo hồ sơ (không cần email) → **Đưa vào danh sách chờ**. Không cọc, phí khám thu sau khi khám; khách cũ miễn phí. Khách chưa có tài khoản được cấp **mã hồ sơ**.
 - [ ] Tab **Danh sách chờ**: chọn khách, xem tình trạng bác sĩ → **Mời Khách Vào Phòng**. Bác sĩ đang khám, đã có khách chờ, sắp có khách hẹn hoặc sắp hết ca thì hệ thống cảnh báo và CSKH phải xác nhận. Khách chờ lâu bỏ về: bấm **Khách đã rời đi** (không phát sinh tiền).
 - [ ] Khách vừa tiếp nhận tại quầy: đăng ký tài khoản ở web (3001), nhập **Mã hồ sơ tại phòng khám** để gắn hồ sơ.
@@ -134,6 +135,7 @@ Hiện chỉ BS. Hiếu và BS. Khang có ca đến 07/11; BS. Thịnh, CSKH, KT
 ### 4.2. Bác sĩ khám (`bacsi...@gmail.com` – bác sĩ khách đã chọn)
 - [ ] **Không gian khám bệnh**: khách đã check-in hiện trong hàng chờ kèm **Thứ tự** (trang tự cập nhật mỗi 30 giây). Mở hồ sơ chỉ để xem, chưa đổi trạng thái.
 - [ ] Bấm **Bắt đầu khám** (mỗi bác sĩ chỉ khám 1 khách một lúc; bấm nhầm thì **Trả về hàng chờ**) → ghi chẩn đoán, **kê dịch vụ / gói / mỹ phẩm (có số lượng)** → **Hoàn tất khám** (lịch chuyển "Chờ thu tiền"). Chưa bấm Bắt đầu khám thì không lưu được bệnh án.
+- [ ] Tab **Lộ trình & Kê đơn** có khung **Sàng lọc an toàn**. Chọn dịch vụ / gói / sản phẩm thì cảnh báo hiện ngay kèm nguồn (xem 7.7). Không kê gì thì không cần sàng lọc.
 - [ ] Lịch **khám online**: sau khi **Bắt đầu khám**, bấm **Vào phòng khám online** (video ZEGOCLOUD mở ở **tab riêng** để vừa gọi vừa ghi bệnh án) cùng lúc khách bấm **Vào phòng khám online** ở web khách (Sổ lịch khám).
 
 ### 4.3. Bác sĩ viết bài
@@ -207,3 +209,47 @@ node devops/xoa-du-lieu-test.js --xoa  # xoá thật: lịch, hoá đơn, đơn 
 Lệnh này chưa xoá dòng trong sổ **Đối soát tiền vào** tạo ra khi giả lập chuyển khoản.
 
 Dữ liệu thật (50 sản phẩm, 10 vật tư, định mức, dịch vụ, gói, bác sĩ) không bị xoá.
+
+---
+
+## 7. Tình huống ngoại lệ
+
+Các câu hỏi "nếu … thì sao?" hay gặp khi demo. Làm **trước** bước dọn dữ liệu ở mục 6.
+
+### 7.1. Đặt lịch và tiền cọc
+- [ ] **Giữ chỗ không chuyển cọc:** khách đặt lịch rồi không chuyển tiền. Trong 15 phút, khách khác không đặt được giờ đó. Quá 15 phút, lịch giữ chỗ tự xoá và giờ được nhả.
+- [ ] **Hai khách đặt cùng một giờ:** mở 2 trình duyệt, chọn cùng bác sĩ, cùng giờ. Chỉ 1 người đặt được, người sau nhận thông báo "Giờ này vừa có người đặt".
+- [ ] **Khách tự huỷ:** Sổ lịch khám → huỷ. Hệ thống hỏi xác nhận mất cọc; huỷ xong thì phòng khám giữ cọc và tiền này vào báo cáo doanh thu.
+- [ ] **Phòng khám huỷ:** CSKH mở lịch → **Hủy Lịch**, chọn bên huỷ là phòng khám, ghi lý do (≥ 10 ký tự). Lịch chuyển sang chờ hoàn cọc; CSKH nhập mã giao dịch để xác nhận đã hoàn. Không hoàn được lần 2.
+- [ ] **Lịch đã đóng:** lịch đã huỷ, khách không đến, đang khám hoặc đã khám thì không sửa, dời hay đón lại được.
+
+### 7.2. Bác sĩ, chuyên gia vắng
+- [ ] **Bác sĩ nghỉ đột xuất:** bác sĩ vào **Lịch làm việc của tôi** gửi đơn nghỉ ca có khách đã đặt → Quản lý duyệt ở **Lịch làm việc** → lịch của khách sang "Cần đổi lịch" → CSKH mở tab **Xử lý dời lịch** và dời sang bác sĩ khác hoặc giờ khác. Lưu ý: chỉ lịch **chưa check-in** mới tự chuyển; khách đã vào hàng chờ thì CSKH xử lý tay.
+- [ ] **Chuyên gia không vào phòng:** hết buổi (45 phút sau giờ hẹn) mà chuyên gia chưa vào, lịch chuyển sang chuyên gia vắng và chờ hoàn cọc. CSKH xác nhận đã hoàn ở **Tư vấn chuyên gia**.
+- [ ] **Khách không vào phòng tư vấn:** chuyên gia có vào nhưng khách không vào, khách mất cọc.
+
+### 7.3. Thu tiền và mã giảm giá
+- [ ] **Hết hàng lúc thu tiền:** bác sĩ kê số lượng lớn hơn tồn kho. Lúc **Chốt Hóa Đơn**, hệ thống chặn và báo "chỉ còn X trong kho"; lịch vẫn ở trạng thái chờ thu tiền, kho không đổi.
+- [ ] **Mã giảm giá không hợp lệ:** thử dùng lại mã đã dùng, mã hết hạn, mã hết lượt, mã sai phạm vi (mã dịch vụ cho đơn mỹ phẩm). Tất cả bị từ chối kèm lý do.
+
+### 7.4. Kho
+- [ ] **KTV dùng vật tư khi kho không đủ:** quản lý chỉnh tồn một vật tư còn rất ít bằng **Lô & Kiểm kê** → KTV ghi số dùng lớn hơn tồn. Buổi vẫn hoàn thành, kho về 0 (không âm), phiếu xuất ghi rõ phần thiếu và hệ thống tự tạo đề xuất nhập.
+
+### 7.5. Trả hàng
+Chỉ đơn giao qua GHN, đã nhận hàng và trong vòng 7 ngày mới gửi yêu cầu được; đơn tại quầy thì khách mang đến phòng khám. Mỗi đơn chỉ yêu cầu 1 lần.
+- [ ] Khách gửi yêu cầu kèm ảnh, số tài khoản nhận tiền → NVBH **Hoàn / trả hàng**: duyệt hoặc từ chối (ghi lý do ≥ 10 ký tự).
+- [ ] Duyệt → **Tạo đơn GHN lấy hàng** (⚠️ tạo vận đơn thật, xem 0.3) → nhận hàng → kiểm tra → hoàn tiền (nhập mã giao dịch, chọn có cộng lại kho hay không). Chưa nhận hàng thì chưa hoàn tiền được; không hoàn được lần 2.
+
+### 7.6. Chấm công
+- [ ] **Vắng không giải trình:** nhân viên không chấm công và không giải trình trong **24 giờ sau khi hết ca** thì hệ thống tự ghi vắng: không có lương ca đó và **mất thưởng chuyên cần 500.000đ của tháng**, chỉ cần vắng 1 ca.
+- [ ] Phần tự ghi vắng chỉ chạy sau khi đã có máy chấm công (bước 2.2), và cần chờ hết hạn 24 giờ nên khó demo trực tiếp. Khi demo, chuẩn bị sẵn một ca từ hôm trước.
+
+### 7.7. Cảnh báo chống chỉ định khi kê đơn
+Hệ thống chỉ **nhắc**, quyết định vẫn thuộc về bác sĩ. Có 3 mức: **Chống chỉ định**, **Thận trọng** (đều phải ghi lý do mới kê được) và **Lưu ý** (chỉ hiển thị).
+- [ ] **Chưa sàng lọc:** kê dịch vụ khi chưa bấm **Xác nhận đã hỏi khách** hôm nay → hệ thống yêu cầu hỏi hoặc ghi lý do.
+- [ ] **Mang thai:** tick "Đang mang thai", kê Laser Toning và Klenzit → 2 cảnh báo Chống chỉ định. Bấm **Hoàn tất khám** → hiện hộp cảnh báo; **Sửa lại đơn** hoặc ghi lý do (≥ 10 ký tự) rồi **Vẫn kê, lưu lý do**. Lý do được lưu kèm cảnh báo đã thấy.
+- [ ] **Máy tạo nhịp:** tick "Có máy tạo nhịp...", kê Nâng Cơ Bằng Sóng RF → Chống chỉ định.
+- [ ] **Sẹo lồi / chống đông:** kê Vi Kim hoặc gói Trị sẹo rỗ → Chống chỉ định. Gói được nhận ra theo mô tả.
+- [ ] **Dị ứng:** ghi "Niacinamide", kê sản phẩm có Niacinamide → Chống chỉ định. Chỉ so theo đúng chữ đã ghi trong bảng thành phần, nên ghi tên hoạt chất.
+- [ ] **Cho con bú + Retinol:** chỉ hiện Lưu ý, không cần ghi lý do.
+- [ ] **CSKH thêm dịch vụ lúc thu tiền:** dịch vụ ngoài đơn của bác sĩ mà bị Chống chỉ định thì không chốt được hoá đơn.

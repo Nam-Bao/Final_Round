@@ -4,6 +4,7 @@ import { PlusOutlined, MinusCircleOutlined, UserOutlined, ClockCircleOutlined, C
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { openVideoCall } from '../utils/videoCall';
+import PatientSafetyPanel, { SafetyWarnings } from '../components/PatientSafetyPanel';
 
 const { Title, Text } = Typography;
 
@@ -37,6 +38,26 @@ export default function DoctorWorkspacePage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [form] = Form.useForm();
+  const [safetyWarnings, setSafetyWarnings] = useState([]);   // cảnh báo theo đơn đang kê
+  const [safetyPending, setSafetyPending] = useState(null);   // đơn đang chờ bác sĩ ghi lý do
+  const [safetyReason, setSafetyReason] = useState('');
+  const [safetyVersion, setSafetyVersion] = useState(0);      // tăng khi lưu sàng lọc để kiểm tra lại
+  const watchedServices = Form.useWatch('spa_services', form);
+  const watchedPackage = Form.useWatch('treatment_package', form);
+  const watchedPrescriptions = Form.useWatch('prescriptions', form);
+
+  // Kiểm tra ngay khi bác sĩ chọn dịch vụ / gói / sản phẩm
+  useEffect(() => {
+    const prescriptions = (watchedPrescriptions || []).filter((p) => p?.product_id);
+    if (!selectedPatient?.patient_profile_id) { setSafetyWarnings([]); return undefined; }
+    const timer = setTimeout(() => {
+      axios.post('http://localhost:4000/api/booking/safety/check', {
+        patient_profile_id: selectedPatient.patient_profile_id, spa_services: watchedServices || [], treatment_package: watchedPackage, prescriptions,
+      }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } })
+        .then((r) => setSafetyWarnings(r.data.data)).catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [selectedPatient?.patient_profile_id, watchedServices, watchedPackage, watchedPrescriptions, safetyVersion]);
 
   const fetchTodayAppointments = async () => {
     try {
@@ -112,18 +133,23 @@ export default function DoctorWorkspacePage() {
     if (selectedPatient && selectedPatient.id === id) setSelectedPatient(prev => ({ ...prev, status }));
   };
 
-  const handleSubmitRecord = async (values) => {
+  const handleSubmitRecord = async (values, safety_reason) => {
     try {
       const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
         symptoms: values.symptoms, diagnosis: values.diagnosis, doctor_notes: values.doctor_notes,
         follow_up_date: values.follow_up_date ? values.follow_up_date.format('YYYY-MM-DD') : null, 
         spa_services: values.spa_services, treatment_package: values.treatment_package,
-        prescriptions: (values.prescriptions || []).filter(p => p?.product_id) // [{ product_id, quantity }]
+        prescriptions: (values.prescriptions || []).filter(p => p?.product_id), // [{ product_id, quantity }]
+        safety_reason
       }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success('Đã lưu Bệnh án! Đang chuyển ra màn hình Thu Ngân.');
-      handleUpdateStatus('WAITING_FOR_SALE'); setSelectedPatient(null); fetchTodayAppointments(); 
-    } catch (error) { message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hoàn tất khám'); }
+      setSafetyPending(null); setSafetyReason('');
+      handleUpdateStatus('WAITING_FOR_SALE'); setSelectedPatient(null); fetchTodayAppointments();
+    } catch (error) {
+      if (error.response?.data?.code === 'SAFETY_WARNINGS') { setSafetyPending({ values, warnings: error.response.data.warnings }); return; }
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hoàn tất khám');
+    }
   };
 
   const tabItems = [
@@ -140,6 +166,8 @@ export default function DoctorWorkspacePage() {
     },
     { key: '2', label: <><MedicineBoxOutlined /> Lộ trình & Kê đơn</>, children: (
         <div className="p-4 bg-white rounded-lg border border-gray-100">
+          <PatientSafetyPanel key={selectedPatient?.patient_profile_id} patientProfileId={selectedPatient?.patient_profile_id} onSaved={() => setSafetyVersion((v) => v + 1)} />
+          <SafetyWarnings warnings={safetyWarnings} />
           <Form.Item name="spa_services" label={<span className="text-blue-700 font-medium">Chỉ định Dịch vụ Spa lẻ (Làm ngay)</span>}>
             <Select mode="multiple" allowClear>{spaServices.map(srv => <Select.Option key={srv.id} value={srv.id}>{`${srv.name} — ${vnd(srv.price)}`}</Select.Option>)}</Select>
           </Form.Item>
@@ -303,6 +331,12 @@ export default function DoctorWorkspacePage() {
           )}
         </Spin>
       </Drawer>
+      <Modal title="Đơn kê có cảnh báo an toàn" open={!!safetyPending} width={640} okText="Vẫn kê, lưu lý do" cancelText="Sửa lại đơn"
+        okButtonProps={{ danger: true, disabled: safetyReason.trim().length < 10 }} onCancel={() => setSafetyPending(null)}
+        onOk={() => handleSubmitRecord(safetyPending.values, safetyReason)}>
+        <SafetyWarnings warnings={safetyPending?.warnings} />
+        <Input.TextArea rows={3} maxLength={1000} value={safetyReason} onChange={(e) => setSafetyReason(e.target.value)} placeholder="Lý do vẫn kê (ít nhất 10 ký tự), sẽ lưu vào hồ sơ" />
+      </Modal>
     </Row>
   );
 }

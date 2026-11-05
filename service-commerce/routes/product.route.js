@@ -1,5 +1,5 @@
 const express = require('express');
-const { getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts } = require('../controllers/product.controller.js');
+const { getProductSafetyInfo, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts } = require('../controllers/product.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -10,6 +10,8 @@ router.get('/', getProducts);
 // Trang Kho & Sản phẩm: xem cả vật tư nội bộ
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getProductsForAdmin);
 // Cửa hàng web: chỉ sản phẩm đã bật "Bán trên web"; chi tiết tra theo slug trên URL
+// Thành phần để kiểm tra chống chỉ định khi kê đơn (gồm cả thuốc kê đơn không hiện trên web)
+router.get('/safety-info', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getProductSafetyInfo);
 router.get('/shop', getShopProducts);
 router.get('/shop/:slug', getShopProduct);
 // Thông tin bán web (mô tả, thành phần, cách dùng...) do Quản lý / Admin nhập
