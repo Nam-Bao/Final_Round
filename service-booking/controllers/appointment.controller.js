@@ -558,12 +558,17 @@ const getConsultantQueues = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+// Lịch đã vào khám hoặc đã đóng: không sửa / dời / đón lại được, tránh lịch đã hủy hoặc khách không đến bị mở lại sau khi đã xử lý tiền cọc
+const CLOSED_STATUSES = ['IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+const CLOSED_MESSAGE = 'Lịch hẹn đang khám hoặc đã đóng, không thay đổi được nữa';
+
 const rescheduleAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { doctor_id, appointment_date, appointment_time, note } = req.body;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
     const slotError = await validateSlotChange(apt, { doctor_id: doctor_id || undefined, appointment_date, appointment_time });
     if (slotError) return res.status(slotError.status).json({ message: slotError.message });
     
@@ -601,6 +606,7 @@ const preCheckAppointment = async (req, res) => {
     const { id } = req.params;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    if (!['PENDING', 'CONFIRMED'].includes(apt.status)) return res.status(409).json({ message: 'Lịch này không còn ở bước đón khách' });
 
     applyPreCheck(apt, req.body, req.user.id);
     await apt.save();
@@ -660,11 +666,12 @@ const getAllAppointments = async (req, res) => {
 const updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes, status } = req.body;
-    // Hủy phải qua API /cancel để lưu bằng chứng và xử lý tiền cọc
-    if (status === 'CANCELLED') return res.status(400).json({ message: 'Hủy lịch vui lòng dùng chức năng Hủy lịch' });
+    const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes } = req.body;
+    // Trạng thái chỉ đổi qua các nút nghiệp vụ (hủy, không đến, bắt đầu khám, chốt bill...) để giữ đúng tiền cọc và thứ tự khám
+    if (req.body.status) return res.status(400).json({ message: 'Không đổi trạng thái lịch hẹn ở đây, vui lòng dùng đúng chức năng' });
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
     const slotError = await validateSlotChange(apt, { doctor_id, appointment_date, appointment_time });
     if (slotError) return res.status(slotError.status).json({ message: slotError.message });
     apt.doctor_id = doctor_id !== undefined ? doctor_id : apt.doctor_id;
@@ -673,7 +680,6 @@ const updateAppointment = async (req, res) => {
     apt.appointment_time = appointment_time || apt.appointment_time;
     apt.symptoms = symptoms || apt.symptoms;
     apt.pre_notes = pre_notes || apt.pre_notes;
-    apt.status = status || apt.status; 
     await apt.save();
     res.status(200).json({ message: 'Cập nhật thành công', data: apt });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
