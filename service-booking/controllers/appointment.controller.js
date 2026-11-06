@@ -1,4 +1,4 @@
-const { sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService, Consultation } = require('../models');
+const { SafetyOverride, sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService, Consultation } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
@@ -319,7 +319,7 @@ const getTakenSlots = async (req, res) => {
 };
 
 // Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
-const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId }) => {
+const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId, transaction }) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(appointment_date) || !/^\d{2}:\d{2}(:\d{2})?$/.test(appointment_time)) {
     return { status: 400, message: 'Ngày hoặc giờ khám không hợp lệ' };
   }
@@ -342,14 +342,15 @@ const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointmen
     where: {
       doctor_id, appointment_date, appointment_time: { [Op.in]: [time, `${time}:00`] }, ...occupiesSlot,
       ...(excludeId ? { id: { [Op.ne]: excludeId } } : {})
-    }
+    },
+    transaction
   });
   if (taken > 0) return { status: 409, message: 'Giờ này vừa có người đặt, vui lòng chọn giờ khác' };
   return null;
 };
 
 // Khi nhân viên đổi bác sĩ / ngày / giờ của lịch có sẵn: kiểm tra lại khung giờ mới
-const validateSlotChange = (apt, { doctor_id, appointment_date, appointment_time }) => {
+const validateSlotChange = (apt, { doctor_id, appointment_date, appointment_time }, transaction) => {
   const next = {
     doctor_id: doctor_id !== undefined ? doctor_id : apt.doctor_id,
     appointment_date: appointment_date || apt.appointment_date,
@@ -357,8 +358,12 @@ const validateSlotChange = (apt, { doctor_id, appointment_date, appointment_time
   };
   const changed = next.doctor_id !== apt.doctor_id || next.appointment_date !== apt.appointment_date
     || next.appointment_time.slice(0, 5) !== String(apt.appointment_time).slice(0, 5);
-  return changed ? validateAppointmentSlot({ ...next, isCustomer: false, excludeId: apt.id }) : null;
+  return changed ? validateAppointmentSlot({ ...next, isCustomer: false, excludeId: apt.id, transaction }) : null;
 };
+
+// Khoá lịch của bác sĩ trong ngày rồi mới kiểm tra và ghi: 2 người đặt / đổi vào cùng 1 giờ thì người sau thấy giờ đã có người
+const lockSlot = (doctorId, date, transaction) => (doctorId && date ? lockDoctor(doctorId, date, transaction) : null);
+const throwSlotError = (slotError) => { if (slotError) throw new WalkInError(slotError.message, slotError.status); };
 
 const createAppointment = async (req, res) => {
   try {
@@ -391,6 +396,8 @@ const createAppointment = async (req, res) => {
     const deposit = await calculateDeposit(customer_id, profile, finalPreNotes);
 
     const { newAppointment, invoice, consultCredit } = await sequelize.transaction(async (t) => {
+      await lockSlot(doctor_id, appointment_date, t);
+      throwSlotError(await validateAppointmentSlot({ doctor_id, appointment_date, appointment_time, isCustomer: req.user.role === 'CUSTOMER', transaction: t }));
       const created = await Appointment.create({
         customer_id,
         patient_profile_id,
@@ -432,7 +439,7 @@ const createAppointment = async (req, res) => {
       consult_credit: consultCredit,
       is_returning_customer: deposit.isReturningCustomer
     });
-  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+  } catch (error) { walkInFail(res, error); }
 };
 
 // Khách hỏi trạng thái thanh toán + số tiền cần chuyển (lấy từ hóa đơn, không lấy từ URL)
@@ -558,23 +565,29 @@ const getConsultantQueues = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+// Lịch đã vào khám hoặc đã đóng: không sửa / dời / đón lại được, tránh lịch đã hủy hoặc khách không đến bị mở lại sau khi đã xử lý tiền cọc
+const CLOSED_STATUSES = ['IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+const CLOSED_MESSAGE = 'Lịch hẹn đang khám hoặc đã đóng, không thay đổi được nữa';
+
 const rescheduleAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const { doctor_id, appointment_date, appointment_time, note } = req.body;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
-    const slotError = await validateSlotChange(apt, { doctor_id: doctor_id || undefined, appointment_date, appointment_time });
-    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
-    
-    apt.doctor_id = doctor_id || apt.doctor_id;
-    apt.appointment_date = appointment_date || apt.appointment_date;
-    apt.appointment_time = appointment_time || apt.appointment_time;
-    apt.status = 'CONFIRMED'; 
-    if (note) apt.pre_notes = `[ĐÃ DỜI LỊCH: ${note}] - ` + (apt.pre_notes || '');
-    await apt.save();
+    if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
+    await sequelize.transaction(async (t) => {
+      await lockSlot(doctor_id || apt.doctor_id, appointment_date || apt.appointment_date, t);
+      throwSlotError(await validateSlotChange(apt, { doctor_id: doctor_id || undefined, appointment_date, appointment_time }, t));
+      apt.doctor_id = doctor_id || apt.doctor_id;
+      apt.appointment_date = appointment_date || apt.appointment_date;
+      apt.appointment_time = appointment_time || apt.appointment_time;
+      apt.status = 'CONFIRMED';
+      if (note) apt.pre_notes = `[ĐÃ DỜI LỊCH: ${note}] - ` + (apt.pre_notes || '');
+      await apt.save({ transaction: t });
+    });
     res.status(200).json({ message: 'Dời lịch thành công!', data: apt });
-  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+  } catch (error) { walkInFail(res, error); }
 };
 
 // Ghi thông tin CSKH hỏi trước khám và chuyển khách vào hàng chờ của bác sĩ
@@ -601,6 +614,7 @@ const preCheckAppointment = async (req, res) => {
     const { id } = req.params;
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    if (!['PENDING', 'CONFIRMED'].includes(apt.status)) return res.status(409).json({ message: 'Lịch này không còn ở bước đón khách' });
 
     applyPreCheck(apt, req.body, req.user.id);
     await apt.save();
@@ -621,6 +635,17 @@ const finishExam = async (req, res) => {
     }
     if (apt.status !== 'IN_PROGRESS') {
       return res.status(400).json({ message: 'Cần bấm Bắt đầu khám trước khi lưu bệnh án' });
+    }
+
+    // Có cảnh báo chống chỉ định thì bác sĩ phải xem và ghi lý do mới kê được; server tự kiểm tra lại, không tin giao diện
+    const { checkPrescription } = require('./safety.controller');
+    const safetyWarnings = (await checkPrescription({
+      patient_profile_id: apt.patient_profile_id, services: spa_services || [], packages: treatment_package ? [treatment_package] : [],
+      medicines: normalizeMedicines(prescriptions).map((m) => m.product_id), authorization: req.headers.authorization,
+    })).filter((w) => w.severity !== 'INFO');
+    const safetyReason = String(req.body.safety_reason || '').trim().slice(0, 1000);
+    if (safetyWarnings.length && safetyReason.length < 10) {
+      return res.status(409).json({ code: 'SAFETY_WARNINGS', message: 'Đơn kê có cảnh báo an toàn, cần ghi lý do (ít nhất 10 ký tự)', warnings: safetyWarnings });
     }
 
     try {
@@ -644,8 +669,11 @@ const finishExam = async (req, res) => {
     apt.prescribed_packages = treatment_package ? [treatment_package] : []; 
     apt.prescribed_medicines = normalizeMedicines(prescriptions);
     
-    apt.status = 'WAITING_FOR_SALE'; 
+    apt.status = 'WAITING_FOR_SALE';
     await apt.save();
+    if (safetyWarnings.length) {
+      await SafetyOverride.create({ appointment_id: apt.id, patient_profile_id: apt.patient_profile_id, doctor_id: req.user.id, warnings: safetyWarnings, reason: safetyReason });
+    }
     res.status(200).json({ message: 'Khám xong, đã lưu Hồ sơ Y tế và chuyển Thu Ngân', data: apt });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
@@ -660,23 +688,25 @@ const getAllAppointments = async (req, res) => {
 const updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes, status } = req.body;
-    // Hủy phải qua API /cancel để lưu bằng chứng và xử lý tiền cọc
-    if (status === 'CANCELLED') return res.status(400).json({ message: 'Hủy lịch vui lòng dùng chức năng Hủy lịch' });
+    const { doctor_id, type, appointment_date, appointment_time, symptoms, pre_notes } = req.body;
+    // Trạng thái chỉ đổi qua các nút nghiệp vụ (hủy, không đến, bắt đầu khám, chốt bill...) để giữ đúng tiền cọc và thứ tự khám
+    if (req.body.status) return res.status(400).json({ message: 'Không đổi trạng thái lịch hẹn ở đây, vui lòng dùng đúng chức năng' });
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
-    const slotError = await validateSlotChange(apt, { doctor_id, appointment_date, appointment_time });
-    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
-    apt.doctor_id = doctor_id !== undefined ? doctor_id : apt.doctor_id;
-    apt.type = type || apt.type;
-    apt.appointment_date = appointment_date || apt.appointment_date;
-    apt.appointment_time = appointment_time || apt.appointment_time;
-    apt.symptoms = symptoms || apt.symptoms;
-    apt.pre_notes = pre_notes || apt.pre_notes;
-    apt.status = status || apt.status; 
-    await apt.save();
+    if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
+    await sequelize.transaction(async (t) => {
+      await lockSlot(doctor_id !== undefined ? doctor_id : apt.doctor_id, appointment_date || apt.appointment_date, t);
+      throwSlotError(await validateSlotChange(apt, { doctor_id, appointment_date, appointment_time }, t));
+      apt.doctor_id = doctor_id !== undefined ? doctor_id : apt.doctor_id;
+      apt.type = type || apt.type;
+      apt.appointment_date = appointment_date || apt.appointment_date;
+      apt.appointment_time = appointment_time || apt.appointment_time;
+      apt.symptoms = symptoms || apt.symptoms;
+      apt.pre_notes = pre_notes || apt.pre_notes;
+      await apt.save({ transaction: t });
+    });
     res.status(200).json({ message: 'Cập nhật thành công', data: apt });
-  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+  } catch (error) { walkInFail(res, error); }
 };
 
 // ===== HỦY LỊCH & TIỀN CỌC =====
@@ -733,11 +763,13 @@ const customerRescheduleAppointment = async (req, res) => {
     if (appointment_date === apt.appointment_date && String(appointment_time).slice(0, 5) === String(apt.appointment_time).slice(0, 5)) {
       return res.status(400).json({ message: 'Giờ mới trùng với giờ đang đặt' });
     }
-    const slotError = await validateAppointmentSlot({ doctor_id: apt.doctor_id, appointment_date, appointment_time, isCustomer: true, excludeId: apt.id });
-    if (slotError) return res.status(slotError.status).json({ message: slotError.message });
-    await apt.update({ appointment_date, appointment_time, customer_reschedule_count: 1 });
+    await sequelize.transaction(async (t) => {
+      await lockSlot(apt.doctor_id, appointment_date, t);
+      throwSlotError(await validateAppointmentSlot({ doctor_id: apt.doctor_id, appointment_date, appointment_time, isCustomer: true, excludeId: apt.id, transaction: t }));
+      await apt.update({ appointment_date, appointment_time, customer_reschedule_count: 1 }, { transaction: t });
+    });
     res.status(200).json({ message: 'Đã đổi lịch khám' });
-  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+  } catch (error) { walkInFail(res, error); }
 };
 
 // [CUSTOMER] GET /appointments/:id/reschedule-slots?date= — giờ trống của bác sĩ đang phụ trách lịch này
@@ -1080,6 +1112,19 @@ const checkoutAppointment = async (req, res) => {
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     if (apt.status !== 'WAITING_FOR_SALE') {
       return res.status(400).json({ message: 'Lịch hẹn chưa khám xong hoặc đã được thanh toán' });
+    }
+
+    // Mục CSKH thêm ngoài đơn của bác sĩ chưa qua bác sĩ xem => có chống chỉ định thì không bán, phải nhờ bác sĩ chỉ định
+    const notPrescribed = (list, prescribed) => list.filter((x) => !(prescribed || []).includes(x));
+    const { checkPrescription } = require('./safety.controller');
+    const addedWarnings = (await checkPrescription({
+      patient_profile_id: apt.patient_profile_id,
+      services: notPrescribed(selected_services, apt.prescribed_services), packages: notPrescribed(selected_packages, apt.prescribed_packages),
+      medicines: notPrescribed(selected_medicines.map((m) => m.product_id), (apt.prescribed_medicines || []).map((m) => (typeof m === 'string' ? m : m.product_id))),
+      authorization: req.headers.authorization,
+    })).filter((w) => w.severity === 'CONTRAINDICATED');
+    if (addedWarnings.length) {
+      return res.status(409).json({ code: 'SAFETY_WARNINGS', message: `${addedWarnings[0].item}: ${addedWarnings[0].message} Cần bác sĩ chỉ định.`, warnings: addedWarnings });
     }
 
     const invoice = await Invoice.findOne({ where: { appointment_id: id } });

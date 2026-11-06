@@ -322,4 +322,15 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, slugify, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };
+// [STAFF] GET /products/safety-info?ids=a,b — thành phần của các sản phẩm được kê
+const getProductSafetyInfo = async (req, res) => {
+  try {
+    const ids = String(req.query.ids || '').split(',').filter((id) => UUID_RE.test(id)).slice(0, 50);
+    const rows = await Product.findAll({ where: { id: ids }, attributes: ['id', 'name'], include: [{ model: ProductDetail, attributes: ['ingredients'] }] });
+    return res.status(200).json({ data: rows.map((p) => ({ id: p.id, name: p.name, ingredients: p.ProductDetail?.ingredients || '' })) });
+  } catch (error) {
+    return res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+module.exports = { getProductSafetyInfo, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, slugify, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };

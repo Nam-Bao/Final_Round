@@ -1,0 +1,175 @@
+CẬP NHẬT QUY TRÌNH MỚI - GLOWSKIN
+Nhánh: fix/khoa-lich-da-dong-va-tai-lieu-test
+Commit: 9b096fc, c0a6ea9 (tính từ main b14c367, tức sau PR #25 của bạn)
+
+TÓM TẮT
+Có 3 thay đổi về quy trình và 1 tính năng mới:
+  1. Lịch đã đóng không mở lại được nữa.
+  2. Trạng thái lịch chỉ đổi qua các nút nghiệp vụ.
+  3. Hai người không còn đặt trùng được một giờ khám.
+  4. Có cảnh báo chống chỉ định khi kê đơn.
+
+Mục 2 và 4 đổi hành vi của API đang có. Đọc kỹ phần "ẢNH HƯỞNG TỚI CODE CỦA BẠN".
+
+
+==================================================
+1. LỊCH ĐÃ ĐÓNG KHÔNG MỞ LẠI ĐƯỢC
+==================================================
+Lỗi cũ: lịch đã ghi "khách không đến" (khách đã mất cọc) gọi lại pre-check là quay về hàng chờ bác sĩ.
+Lịch đã huỷ cũng dời hoặc sửa được, trong khi tiền cọc đã xử lý xong.
+
+Bây giờ:
+  - Lịch ở IN_PROGRESS, WAITING_FOR_SALE, COMPLETED, CANCELLED, NO_SHOW: không dời, không sửa được.
+    PUT /appointments/:id và PUT /appointments/:id/reschedule trả 409.
+  - PUT /appointments/:id/pre-check chỉ nhận lịch PENDING hoặc CONFIRMED, còn lại trả 409.
+
+
+==================================================
+2. TRẠNG THÁI LỊCH CHỈ ĐỔI QUA NÚT NGHIỆP VỤ
+==================================================
+Lỗi cũ: PUT /appointments/:id cho đặt thẳng status, nên bỏ qua được Bắt đầu khám và cả chốt hoá đơn.
+
+Bây giờ: gửi status vào API này sẽ bị trả 400.
+Muốn đổi trạng thái thì dùng đúng API: start-exam, return-to-queue, finish-exam, no-show, cancel, checkout.
+Giao diện hiện tại không còn gửi status qua API này nên không bị ảnh hưởng.
+
+
+==================================================
+3. KHÔNG CÒN ĐẶT TRÙNG GIỜ
+==================================================
+Lỗi cũ: 2 khách bấm đặt cùng một giờ cùng lúc thì cả 2 đều đặt được. Thử 5 lần thì trùng cả 5.
+Lý do là code kiểm tra giờ trống rồi mới tạo lịch, không có khoá ở giữa.
+
+Bây giờ: khoá lịch của bác sĩ theo ngày (dùng lại lockDoctor của bạn) rồi mới kiểm tra và ghi trong cùng transaction.
+Áp dụng cho 4 chỗ: createAppointment, rescheduleAppointment, updateAppointment, customerRescheduleAppointment.
+Thử lại 5 lần thì lần nào cũng chỉ 1 người đặt được. Người sau nhận 409 "Giờ này vừa có người đặt".
+
+
+==================================================
+4. CẢNH BÁO CHỐNG CHỈ ĐỊNH KHI KÊ ĐƠN (TÍNH NĂNG MỚI)
+==================================================
+Mục đích: tránh kê laser, peel, retinoid... cho khách mang thai, hoặc RF cho người có máy tạo nhịp.
+Hệ thống chỉ nhắc, bác sĩ vẫn là người quyết định.
+
+Quy trình:
+  Bước 1. CSKH hoặc bác sĩ hỏi khách ở khung "Sàng lọc an toàn" rồi bấm "Xác nhận đã hỏi khách".
+          Có 13 tình trạng và 1 ô ghi dị ứng. Phải hỏi lại mỗi lần khám vì tình trạng có thể đổi.
+  Bước 2. Bác sĩ chọn dịch vụ, gói, sản phẩm ở tab "Lộ trình & Kê đơn". Cảnh báo hiện ngay, kèm link nguồn.
+  Bước 3. Bác sĩ bấm "Hoàn tất khám".
+          - Không có cảnh báo: lưu như cũ.
+          - Có "Chống chỉ định" hoặc "Thận trọng": hiện hộp cảnh báo. Bác sĩ sửa đơn, hoặc ghi lý do
+            (ít nhất 10 ký tự) để vẫn kê. Lý do được lưu cùng các cảnh báo đã thấy.
+          - Chỉ có "Lưu ý": hiển thị, không cần lý do.
+  Bước 4. Lúc thu tiền, nếu CSKH thêm mục ngoài đơn bác sĩ mà mục đó bị Chống chỉ định thì không chốt được hoá đơn.
+
+Trường hợp đặc biệt:
+  - Có kê đơn mà hôm nay chưa sàng lọc: tính là cảnh báo, phải hỏi khách hoặc ghi lý do.
+  - Không kê gì: không cần sàng lọc.
+  - Không đọc được thành phần sản phẩm: cũng cảnh báo, không coi là an toàn.
+
+Cách hệ thống nhận biết:
+  - Dịch vụ: theo từ khoá trong tên (peel, laser, vi kim, meso, RF, điện di).
+  - Gói: theo tên và mô tả, vì tên gói không nêu thủ thuật.
+  - Sản phẩm: theo cột ingredients (adapalene, tretinoin, retinol, salicylic acid).
+    Không tính Capryloyl Salicylic Acid và Ethylhexyl Salicylate.
+  - Dị ứng: so đúng chữ đã ghi với tên và thành phần sản phẩm.
+
+Toàn bộ 36 quy tắc và nguồn nằm trong service-booking/utils/safetyRules.js.
+Quy tắc nào cũng có nguồn. Thêm quy tắc mới thì phải có nguồn, vì đây là dữ liệu y khoa.
+
+
+==================================================
+ẢNH HƯỞNG TỚI CODE CỦA BẠN
+==================================================
+API đổi hành vi:
+  PUT /appointments/:id
+      Gửi status: 400. Lịch đang khám hoặc đã đóng: 409.
+  PUT /appointments/:id/reschedule
+      Lịch đang khám hoặc đã đóng: 409.
+  PUT /appointments/:id/pre-check
+      Chỉ nhận PENDING, CONFIRMED.
+  PUT /appointments/:id/finish-exam
+      Có thể trả 409 { code: 'SAFETY_WARNINGS', warnings: [...] }.
+      Gửi lại kèm safety_reason (ít nhất 10 ký tự) để vẫn lưu.
+  PUT /appointments/:id/checkout
+      Có thể trả 409 { code: 'SAFETY_WARNINGS' } khi mục ngoài đơn bị Chống chỉ định.
+
+API mới:
+  GET  /api/booking/safety/flags
+  GET  /api/booking/safety/patients/:id
+  PUT  /api/booking/safety/patients/:id
+  POST /api/booking/safety/check
+  GET  /api/commerce/products/safety-info?ids=a,b
+  Chỉ DOCTOR, CONSULTANT, GEN_MANAGER, ADMIN được gọi.
+
+Bảng mới (service booking tự tạo khi khởi động, không cần chạy tay):
+  PatientSafeties   sàng lọc theo hồ sơ người khám
+  SafetyOverrides   lý do bác sĩ vẫn kê
+
+File chính:
+  Mới:
+    service-booking/utils/safetyRules.js
+    service-booking/controllers/safety.controller.js
+    service-booking/routes/safety.route.js
+    frontend-admin/components/PatientSafetyPanel.jsx
+    docs/HUONG-DAN-TEST-QUY-TRINH.md
+    devops/gia-lap-chuyen-khoan.js
+  Sửa:
+    service-booking/controllers/appointment.controller.js  (sửa nhiều nhất, bạn cũng đang sửa file này)
+    service-booking/models/index.js
+    service-booking/index.js
+    service-commerce/controllers/product.controller.js
+    service-commerce/routes/product.route.js
+    frontend-admin/pages/DoctorWorkspacePage.jsx
+    frontend-admin/pages/ConsultantWorkspacePage.jsx
+    devops/xoa-du-lieu-test.js
+
+Nếu bạn đang sửa dở appointment.controller.js thì báo trước, để tránh xung đột khi merge.
+
+
+==================================================
+SAU KHI PULL CẦN LÀM GÌ
+==================================================
+  1. Khởi động lại service-booking và service-commerce.
+  2. Không cần npm install, không cần sửa .env.
+  3. Test theo docs/HUONG-DAN-TEST-QUY-TRINH.md, nhất là mục 7 (Tình huống ngoại lệ) và 7.7 (Chống chỉ định).
+  4. Muốn giả lập khách đã chuyển khoản khi chạy localhost:
+     node devops/gia-lap-chuyen-khoan.js "O2O xxxxxx" 100000
+
+
+==================================================
+ĐÃ TEST GÌ, CHƯA TEST GÌ
+==================================================
+Đã chạy qua API, đều đạt:
+  - Các luồng mới của PR #25: 82/82 bước.
+  - Tình huống ngoại lệ: 32/32 bước.
+  - Chống chỉ định: 30/30 bước.
+
+Chưa test:
+  - Chưa bấm trên giao diện. Trang admin mới build thành công, chưa mở thử khung sàng lọc và hộp cảnh báo.
+  - Video ZEGOCLOUD thật.
+  - Tạo vận đơn GHN thật (trả hàng test bỏ qua bước này).
+  - Tự ghi vắng khi không chấm công: chỉ đọc code, chạy thật sẽ ghi vắng cho các ca thật.
+  - Chấm công bằng camera, tính lương, thanh toán giỏ hàng có mã giảm giá.
+
+
+==================================================
+CẦN BẠN XEM HOẶC QUYẾT
+==================================================
+  1. Quy tắc y khoa cần bác sĩ duyệt trước khi coi là chính thức. Chưa đối chiếu quy định của Bộ Y tế Việt Nam.
+  2. Vài quy tắc chỉ dựa vào mục "Không phù hợp với" trong dữ liệu dịch vụ: meso khi mang thai hoặc cho con bú,
+     RF khi có cấy ghép kim loại vùng mặt.
+  3. Quy tắc điện di có bằng chứng yếu nhất, chỉ dựa trên tiêu chí loại trừ của một thử nghiệm.
+  4. Klenzit: mình giữ nguyên việc bạn ẩn thuốc kê đơn khỏi web, nên web hiện 49 sản phẩm.
+  5. seed-staff-records.js chưa chạy vì chứa CCCD, mã số thuế, số tài khoản giả, mà dự án đang ưu tiên data thật.
+     Nếu cần để demo Hồ sơ nhân sự thì mình bàn lại.
+
+
+==================================================
+GIỚI HẠN HIỆN TẠI
+==================================================
+  - Dịch vụ mới phải có từ khoá trong tên thì mới được kiểm tra.
+  - Ánh Sáng Sinh Học và Lấy Nhân Mụn chưa có quy tắc, vì chưa tìm được nguồn đủ tin cậy.
+  - Ghi dị ứng "aspirin" không tự khớp với salicylic acid. Nên ghi đúng tên hoạt chất.
+  - Chưa có trang cho quản lý xem lại các lý do bác sĩ đã ghi. Dữ liệu đang lưu ở bảng SafetyOverrides.
+  - xoa-du-lieu-test.js chưa xoá dòng trong sổ Đối soát tiền vào do giả lập chuyển khoản tạo ra.
