@@ -54,6 +54,7 @@ const FIFTEEN_MINUTES = 15 * 60 * 1000;
 app.post('/api/identity/auth/login', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, onlyFailures: true, message: 'Đăng nhập sai quá nhiều lần, vui lòng thử lại sau 15 phút' }));
 app.post('/api/identity/auth/register', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, message: 'Bạn đăng ký quá nhiều lần, vui lòng thử lại sau' }));
 // Upload ảnh và phân tích AI mở cho khách vãng lai (trang chủ) nên giới hạn để tránh lạm dụng Cloudinary / Roboflow
+app.post(/^\/api\/media\/pages\/(banners|popups)\/[^/]+\/click$/, rateLimit({ windowMs: FIFTEEN_MINUTES, max: 60, message: 'Thao tác quá nhanh' }));
 app.post('/api/media/upload', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 30, message: 'Bạn tải ảnh quá nhiều, vui lòng thử lại sau ít phút' }));
 app.post('/api/ai/chat', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 40, message: 'Bạn chat quá nhanh, vui lòng thử lại sau ít phút' }));
 app.post('/api/ai/analyze', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 20, message: 'Bạn phân tích quá nhiều lần, vui lòng thử lại sau ít phút' }));

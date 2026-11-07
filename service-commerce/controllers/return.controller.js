@@ -35,13 +35,14 @@ const assertOrderReturnable = (order) => {
 };
 
 // Số tiền hoàn: giá trị sản phẩm trả lại trừ phần voucher phân bổ theo tỷ lệ; trả toàn bộ đơn thì hoàn cả phí ship ban đầu
-const calcRefund = (order, items, isFullReturn) => {
+const refundGoodsValue = (order, items) => {
   const itemsValue = items.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
   const subtotal = Number(order.total_amount || 0);
   const discountShare = subtotal > 0 ? Math.round(Number(order.discount_amount || 0) * itemsValue / subtotal) : 0;
-  const shipping = isFullReturn ? Number(order.shipping_fee || 0) : 0;
-  return Math.max(0, itemsValue - discountShare) + shipping;
+  return Math.max(0, itemsValue - discountShare);
 };
+const calcRefund = (order, items, isFullReturn) => refundGoodsValue(order, items) + (isFullReturn ? Number(order.shipping_fee || 0) : 0);
+exports.refundGoodsValue = refundGoodsValue;
 
 const sendError = (res, error, fallback) => {
   if (error instanceof ReturnError) return res.status(400).json({ success: false, message: error.message });

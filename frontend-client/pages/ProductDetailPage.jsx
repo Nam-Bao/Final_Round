@@ -19,7 +19,7 @@ const shelfLife = (start, end) => {
 
 import { useAuthStore } from '../store/authStore';
 
-const API = 'http://localhost:4000/api/commerce';
+const API = '/api/commerce';
 const MAX_QTY = 20;
 
 const Stars = ({ value, size = 'w-4 h-4' }) => (
@@ -171,12 +171,12 @@ export default function ProductDetailPage() {
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
       {toast && (
-        <div className="fixed top-20 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2">
+        <div className="fixed top-20 left-3 right-3 sm:left-auto sm:right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2">
           <CheckCircle className="w-5 h-5 text-green-400" /> {toast}
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+      <div className="max-w-6xl mx-auto sm:px-6 sm:pt-6 space-y-4 sm:space-y-6">
         {/* Đường dẫn */}
         <nav className="flex items-center gap-1 text-sm text-slate-500 flex-wrap">
           <Link to="/" className="hover:text-teal-600">Trang chủ</Link>

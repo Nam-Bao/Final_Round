@@ -3,7 +3,7 @@ import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptio
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
-  ScheduleOutlined, SolutionOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
+  ScheduleOutlined, SolutionOutlined, PhoneOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
   SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
 } from '@ant-design/icons';
@@ -78,7 +78,7 @@ export default function AdminLayout() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [customers, setCustomers] = useState([]); 
-  const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [isChatMinimized, setIsChatMinimized] = useState(true); // thu gọn sẵn để không che màn hình làm việc, có tin mới thì tự mở
   const [isReady, setIsReady] = useState(true); 
   const messagesEndRef = useRef(null);
 
@@ -240,6 +240,7 @@ export default function AdminLayout() {
       ['Chăm sóc khách hàng', <CustomerServiceOutlined />, [
         { key: '/consultant-workspace', icon: <SolutionOutlined />, label: 'Không gian tư vấn' },
         { key: '/appointment-management', icon: <ScheduleOutlined />, label: 'Quản lý lịch hẹn' },
+        { key: '/customer-care', icon: <PhoneOutlined />, label: 'Gọi chăm sóc khách' },
         { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
         { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Hồ sơ khách hàng' },
         { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },

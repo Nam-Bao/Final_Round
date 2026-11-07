@@ -178,7 +178,7 @@ export default function ArticleManager() {
             <Form.Item name="author_name" label="Tác giả hiển thị" rules={[{ max: 255 }]}>
               <Input placeholder="Ban biên tập GlowSkin" />
             </Form.Item>
-            <ArticleFields />
+            <ArticleFields seo />
           </Form>
         </Spin>
       </Modal>

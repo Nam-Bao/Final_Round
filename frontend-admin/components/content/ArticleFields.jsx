@@ -168,7 +168,7 @@ export function ContentEditor({ value = '', onChange }) {
 
 // Các ô chung của bài viết (dùng cho quản lý và bác sĩ). sources nhập mỗi dòng 1 tài liệu.
 // research = bài bác sĩ viết: chỉ chọn Nghiên cứu / Kiến thức da liễu / Chăm sóc da, bắt buộc ảnh bìa và nội dung từ 300 ký tự.
-export default function ArticleFields({ research = false }) {
+export default function ArticleFields({ research = false, seo = false }) {
   return (
     <>
       <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }, { max: 200 }]}>
@@ -205,6 +205,26 @@ export default function ArticleFields({ research = false }) {
       <Form.Item name="sources" label={research ? 'Tài liệu tham khảo' : 'Nguồn tham khảo (không bắt buộc)'} extra="Mỗi dòng một tài liệu / đường dẫn">
         <Input.TextArea rows={3} placeholder={'Draelos ZD. Niacinamide in dermatology. J Cosmet Dermatol, 2020.\nhttps://pubmed.ncbi.nlm.nih.gov/...'} />
       </Form.Item>
+      {seo && (
+        <Collapse size="small" className="mb-4" items={[{
+          key: 'seo',
+          label: 'SEO và chia sẻ (không bắt buộc)',
+          forceRender: true,
+          children: (
+            <>
+              <Form.Item name="seo_title" label="Tiêu đề SEO" extra="Hiện trên Google và khi chia sẻ. Để trống sẽ dùng tiêu đề bài viết.">
+                <Input maxLength={70} showCount />
+              </Form.Item>
+              <Form.Item name="seo_description" label="Mô tả SEO" extra="Để trống sẽ dùng tóm tắt của bài viết.">
+                <Input.TextArea rows={2} maxLength={170} showCount />
+              </Form.Item>
+              <Form.Item name="share_image" label="Ảnh khi chia sẻ" extra="Tỉ lệ 1200x630. Để trống sẽ dùng ảnh bìa." className="mb-0">
+                <MediaField kind="image" />
+              </Form.Item>
+            </>
+          ),
+        }]} />
+      )}
     </>
   );
 }

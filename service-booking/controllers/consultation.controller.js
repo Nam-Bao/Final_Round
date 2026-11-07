@@ -271,7 +271,10 @@ const handleConsultTransfer = async (content, transferAmount) => {
   const c = candidates[0];
   if (Number(transferAmount) >= Number(c.deposit_amount)) {
     await c.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: 'VIETQR' });
-    return { code_type: 'CONSULTATION', code, status: 'MATCHED', matched_id: c.id };
+    const excess = Number(transferAmount) - Number(c.deposit_amount);
+    return excess > 0
+      ? { code_type: 'CONSULTATION', code, status: 'OVERPAID', matched_id: c.id, reason: `Chuyển thừa ${money(excess)}, cần hoàn phần dư` }
+      : { code_type: 'CONSULTATION', code, status: 'MATCHED', matched_id: c.id };
   }
   return { code_type: 'CONSULTATION', code, status: 'PARTIAL', matched_id: c.id, reason: `Chuyển thiếu: cần ${money(c.deposit_amount)}` };
 };

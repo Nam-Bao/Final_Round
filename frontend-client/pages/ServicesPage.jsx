@@ -41,7 +41,7 @@ export default function ServicesPage() {
     let isMounted = true;
 
     // Điểm đánh giá thật của từng dịch vụ: { [service_id]: { total, count } }
-    const reviewStatsPromise = fetch('http://localhost:4000/api/booking/reviews/services')
+    const reviewStatsPromise = fetch('/api/booking/reviews/services')
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((data) => (data.data || []).reduce((acc, r) => {
         acc[r.service_id] ??= { total: 0, count: 0 };
@@ -52,7 +52,7 @@ export default function ServicesPage() {
       .catch(() => ({}));
 
     Promise.all([
-      fetch('http://localhost:4000/api/booking/spa-services').then((res) => {
+      fetch('/api/booking/spa-services').then((res) => {
         if (!res.ok) throw new Error('Không thể kết nối API dịch vụ');
         return res.json();
       }),
@@ -283,7 +283,7 @@ export default function ServicesPage() {
       {/* Popup chi tiết dịch vụ: xem ngay trên trang, đóng lại vẫn ở vị trí cũ trong danh sách */}
       {detailId && (
         <div className="modal modal-open" role="dialog" aria-modal="true">
-          <div className="modal-box max-w-5xl max-h-[90vh] p-0 relative">
+          <div className="modal-box max-w-5xl max-h-[90dvh] p-0 relative">
             <button
               type="button"
               onClick={() => setDetailId(null)}
@@ -292,7 +292,7 @@ export default function ServicesPage() {
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="p-6 overflow-y-auto max-h-[90vh]">
+            <div className="p-6 overflow-y-auto max-h-[90dvh]">
               <ServiceDetail id={detailId} onSelectService={setDetailId} />
             </div>
           </div>

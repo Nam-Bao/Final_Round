@@ -26,6 +26,7 @@ router.get('/usage', ...managers, c.listUsage);
 router.get('/purchase-requests', ...managers, c.listPurchaseRequests);
 router.post('/purchase-requests', ...managers, c.createPurchaseRequest);
 router.put('/purchase-requests/:id/decision', ...managers, c.decidePurchaseRequest);
+router.put('/purchase-requests/:id/ordered', ...managers, c.markPurchaseOrdered);
 router.put('/purchase-requests/:id/receive', ...managers, c.receivePurchaseRequest);
 
 module.exports = router;

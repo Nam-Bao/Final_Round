@@ -22,7 +22,7 @@ export default function AboutPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-12">
       {/* Giới thiệu */}
-      <section className="bg-[#102A43] text-white rounded-3xl p-8 md:p-12 space-y-8">
+      <section className="bg-secondary text-white rounded-3xl p-5 md:p-12 space-y-8">
         <div className="max-w-3xl space-y-3">
           <span className="badge badge-outline text-teal-300 border-teal-300">Về GlowSkin</span>
           <h1 className="text-3xl md:text-4xl font-extrabold leading-tight">Phòng khám da liễu theo mô hình O2O</h1>

@@ -9,8 +9,8 @@ import RescheduleModal from './RescheduleModal';
 import { useAuthStore } from '../store/authStore';
 import { formatVnd } from '../utils/consult';
 
-const API = 'http://localhost:4000/api/booking/consultations';
-const EXPERTS_API = 'http://localhost:4000/api/identity/users/experts/public';
+const API = '/api/booking/consultations';
+const EXPERTS_API = '/api/identity/users/experts/public';
 
 const STATUS_UI = {
   CONFIRMED: <span className="badge badge-info gap-1 text-white"><Clock className="w-3 h-3" /> Đã đặt cọc</span>,

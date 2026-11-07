@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { doctorTitle } from '../utils/publicStats';
 
-const API = 'http://localhost:4000/api';
+const API = '/api';
 const getJson = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))));
 
 // Tên hiển thị kèm học vị: "ThS.BS Nguyễn Văn A"; chưa có học vị thì "BS. Nguyễn Văn A".
@@ -70,7 +70,7 @@ export default function DoctorProfileModal({ doctorId, onClose, onBook, kind = '
 
   return (
     <div className="modal modal-open" role="dialog" aria-modal="true">
-      <div className="modal-box max-w-3xl max-h-[90vh] p-0 relative">
+      <div className="modal-box max-w-3xl max-h-[90dvh] p-0 relative">
         <button
           type="button"
           onClick={onClose}
@@ -80,7 +80,7 @@ export default function DoctorProfileModal({ doctorId, onClose, onBook, kind = '
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-6 overflow-y-auto max-h-[90vh]">
+        <div className="p-6 overflow-y-auto max-h-[90dvh]">
           {status === 'loading' && (
             <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary"></span></div>
           )}

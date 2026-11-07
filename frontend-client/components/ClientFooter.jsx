@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, MapPin, Phone, Clock, CalendarCheck, MessageCircle, Navigation } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
+import { SOCIAL_LINKS, HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
 
 const LINK_GROUPS = [
   {
@@ -28,11 +28,11 @@ const LINK_GROUPS = [
 
 export default function ClientFooter() {
   return (
-    <footer className="mt-16 bg-gradient-to-b from-white to-teal-50/60 border-t border-base-300 text-base-content">
-      <div className="max-w-7xl mx-auto px-6 py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-12">
+    <footer className="mt-8 md:mt-16 bg-gradient-to-b from-white to-teal-50/60 border-t border-base-300 text-base-content">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12 grid grid-cols-2 gap-x-6 gap-y-8 lg:gap-10 lg:grid-cols-12">
 
         {/* Thương hiệu + kêu gọi đặt lịch */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="col-span-2 lg:col-span-4 space-y-4">
           <Link to="/" className="inline-flex items-center gap-2 text-xl font-bold text-primary">
             <span className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center"><Sparkles className="w-5 h-5" /></span>
             GlowSkin O2O
@@ -47,6 +47,9 @@ export default function ClientFooter() {
             <a href={ZALO_URL} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-primary btn-sm rounded-full gap-1.5">
               <MessageCircle className="w-4 h-4" /> Chat Zalo
             </a>
+            {SOCIAL_LINKS.map(({ label, url }) => (
+              <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-primary btn-sm rounded-full">{label}</a>
+            ))}
           </div>
         </div>
 
@@ -54,10 +57,10 @@ export default function ClientFooter() {
         {LINK_GROUPS.map((group) => (
           <nav key={group.title} className="lg:col-span-2">
             <h3 className="text-sm font-bold uppercase tracking-wide text-primary mb-4">{group.title}</h3>
-            <ul className="space-y-2.5 text-sm">
+            <ul className="space-y-1 lg:space-y-2.5 text-sm">
               {group.links.map(([to, label]) => (
                 <li key={to}>
-                  <Link to={to} className="text-base-content/70 hover:text-primary transition-colors">{label}</Link>
+                  <Link to={to} className="inline-block py-1 lg:py-0 text-base-content/70 hover:text-primary transition-colors">{label}</Link>
                 </li>
               ))}
             </ul>
@@ -65,7 +68,7 @@ export default function ClientFooter() {
         ))}
 
         {/* Liên hệ + bản đồ */}
-        <div className="lg:col-span-4 sm:col-span-2">
+        <div className="col-span-2 lg:col-span-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-primary mb-4">Về GlowSkin Clinic</h3>
           <ul className="space-y-2.5 text-sm text-base-content/70">
             <li className="flex items-start gap-2.5">
@@ -85,7 +88,12 @@ export default function ClientFooter() {
             </li>
           </ul>
           {HAS_CLINIC_MAP && (
-          <div className="relative mt-4 rounded-2xl overflow-hidden border border-base-300 shadow-sm">
+          <a href={MAP_DIRECTIONS_URL} target="_blank" rel="noopener noreferrer" className="sm:hidden btn btn-sm btn-outline btn-primary gap-1 mt-3">
+            <Navigation className="w-4 h-4" /> Chỉ đường đến phòng khám
+          </a>
+          )}
+          {HAS_CLINIC_MAP && (
+          <div className="hidden sm:block relative mt-4 rounded-2xl overflow-hidden border border-base-300 shadow-sm">
             <iframe title="Bản đồ GlowSkin Clinic" src={MAP_EMBED_URL} className="w-full h-40 border-0 block" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
             <a href={MAP_DIRECTIONS_URL} target="_blank" rel="noopener noreferrer"
               className="absolute bottom-2 right-2 btn btn-xs bg-white/95 border-base-300 shadow gap-1 text-primary hover:bg-white">
@@ -98,8 +106,8 @@ export default function ClientFooter() {
 
       {/* Chính sách + bản quyền */}
       <div className="border-t border-base-300 bg-white/70">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col-reverse md:flex-row items-center justify-between gap-2 text-xs text-base-content/60">
-          <p>© 2026 GlowSkin O2O Platform. Đồ án Hệ thống thông tin.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col-reverse md:flex-row items-center justify-between gap-2 text-xs text-base-content/60">
+          <p className="text-center">© 2026 GlowSkin O2O Platform. Đồ án Hệ thống thông tin.</p>
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 font-medium">
             <Link to="/chinh-sach" className="hover:text-primary">Chính sách & Quy định</Link>
             <Link to="/chinh-sach#hoan-tra" className="hover:text-primary">Hoàn / trả hàng</Link>

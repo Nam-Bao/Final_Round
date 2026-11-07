@@ -74,7 +74,7 @@ export default function PolicyPage() {
 
   // Quy định hoàn trả lấy trực tiếp từ server => luôn khớp với bước kiểm tra khi khách gửi yêu cầu
   useEffect(() => {
-    axios.get('http://localhost:4000/api/commerce/returns/policy').then((res) => setReturnPolicy(res.data.data)).catch(() => {});
+    axios.get('/api/commerce/returns/policy').then((res) => setReturnPolicy(res.data.data)).catch(() => {});
   }, []);
 
   // /chinh-sach-bao-mat (link trong hộp thoại đồng ý dùng ảnh) hoặc /chinh-sach#muc => cuộn tới mục tương ứng
@@ -89,7 +89,7 @@ export default function PolicyPage() {
   return (
     <div className="bg-slate-50 min-h-screen">
       <div className="bg-gradient-to-br from-teal-600 to-cyan-600 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-12">
           <div className="flex items-center gap-2 text-teal-100 text-sm mb-2"><ScrollText className="w-4 h-4" /> Áp dụng cho mọi khách hàng của GlowSkin Clinic</div>
           <h1 className="text-3xl font-bold mb-2">Chính sách & Quy định</h1>
           <p className="text-teal-50 max-w-2xl text-sm">
@@ -99,10 +99,10 @@ export default function PolicyPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 grid lg:grid-cols-[240px_1fr] gap-8">
+      <div className="max-w-6xl mx-auto sm:px-6 py-4 sm:py-8 grid lg:grid-cols-[240px_1fr] gap-4 lg:gap-8">
         {/* Mục lục */}
         <aside className="hidden lg:block">
-          <nav className="sticky top-24 bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+          <nav className="lg:sticky lg:top-24 bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
             <p className="text-xs font-semibold text-slate-400 uppercase px-2 mb-2">Mục lục</p>
             {SECTIONS.map((s, i) => (
               <a key={s.id} href={`#${s.id}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-teal-50 hover:text-teal-700">
@@ -121,6 +121,7 @@ export default function PolicyPage() {
               <><b>Khám trực tuyến:</b> thanh toán trước toàn bộ phí khám <b>{vnd(EXAM_FEE)}</b>.</>,
               <><b>Hồ sơ đã từng khám</b> (đã có lịch khám được thanh toán / phục vụ) được <b>miễn tiền cọc và miễn phí khám</b>. Ưu đãi xét theo từng hồ sơ người khám: người thân khám lần đầu vẫn phải đặt cọc. Lịch đã hủy hoặc chưa thanh toán không được tính.</>,
               <>Sau khi bấm đặt lịch, khung giờ được <b>giữ trong {PAYMENT_HOLD_MINUTES} phút</b> để bạn chuyển khoản. Quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch bị hủy và khung giờ được trả lại cho người khác.</>,
+              <>Nếu chuyển thừa, lịch hoặc đơn vẫn được xác nhận và CSKH sẽ hoàn phần dư. Nếu chuyển thiếu, lịch chưa được xác nhận, vui lòng liên hệ CSKH.</>,
               <>Thanh toán bằng chuyển khoản VietQR, hệ thống tự xác nhận khi nhận được tiền. Nếu nộp tiền mặt tại quầy, nhân viên xác nhận cho bạn.</>,
               <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:30, chiều 13:00 - 16:30; mỗi lượt khám 30 phút) và chưa có người khác đặt. Tư vấn chuyên gia qua video có giờ riêng: {CONSULT_HOURS}, tùy lịch của từng chuyên gia.</>,
             ]} />
@@ -188,8 +189,9 @@ export default function PolicyPage() {
             <Rules section="huy-don" items={[
               <>Bạn không tự hủy đơn trên website. Liên hệ hotline / nhân viên bán hàng để được hủy.</>,
               <>Đơn chỉ hủy được khi <b>chưa giao thành công</b>. Đơn đang giao chỉ hủy được nếu GHN chấp nhận hủy vận đơn.</>,
-              <>Đơn đã chuyển khoản khi bị hủy sẽ được hoàn tiền. Voucher đã dùng cho đơn <b>không được trả lại lượt sử dụng</b>.</>,
-              <>GHN giao không thành công và chuyển hàng về kho thì đơn tự động bị hủy.</>,
+              <>Đơn chuyển khoản không thanh toán trong <b>15 phút</b> sẽ tự hủy, sản phẩm được trả lại kho và <b>voucher đã dùng được trả lại lượt</b>. Nếu tiền về sau khi đơn đã hủy, CSKH sẽ hoàn lại cho bạn.</>,
+              <>Đơn đã chuyển khoản khi bị hủy sẽ được hoàn tiền. Voucher đã dùng được <b>trả lại lượt</b> nếu việc hủy không do bạn: đơn tự hủy vì quá hạn thanh toán, phòng khám hủy, đơn vị vận chuyển hủy hoặc lỗi vận chuyển. Bạn yêu cầu hủy hoặc không nhận hàng thì không được trả lại lượt.</>,
+              <>GHN giao không thành công và hàng đã về kho thì đơn tự động bị hủy. Nhân viên xác định nguyên nhân để xử lý voucher.</>,
             ]} />
           </Section>
 
@@ -216,7 +218,7 @@ export default function PolicyPage() {
               <>Mỗi mã có phạm vi riêng: toàn bộ đơn, dịch vụ spa, sản phẩm hoặc gói liệu trình. Giá trị đơn tối thiểu và số tiền giảm chỉ tính trên phần thuộc phạm vi của mã.</>,
               <>Mã giảm theo % có thể có mức giảm tối đa. Số tiền giảm không vượt quá phần tiền thuộc phạm vi và không trừ vào phí vận chuyển.</>,
               <>Voucher <b>không cộng dồn với giá khuyến mãi online</b>: sản phẩm đang giảm giá không được tính vào giá trị đơn tối thiểu và số tiền giảm của mã.</>,
-              <>Voucher đã dùng không được hoàn lại khi đơn bị hủy hoặc hoàn trả.</>,
+              <>Voucher đã dùng không được hoàn lại khi bạn yêu cầu hủy đơn, không nhận hàng hoặc hoàn trả hàng. Đơn bị hủy không do bạn thì được trả lại lượt (xem mục Hủy đơn hàng).</>,
             ]} />
           </Section>
 

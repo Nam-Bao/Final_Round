@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, ImagePlus, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
-const API = 'http://localhost:4000/api';
+const API = '/api';
 const formatVnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
 
 // Hộp thoại khách gửi yêu cầu hoàn/trả cho đơn đã nhận (quy định lấy từ server để luôn khớp khi kiểm tra)
@@ -73,7 +73,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start">
           <div>
             <h3 className="font-bold text-lg text-slate-800">Yêu cầu hoàn / trả hàng</h3>

@@ -23,7 +23,7 @@ export default function ConsultantWorkspacePage() {
   const [form] = Form.useForm();
   
   const [uploadedImages, setUploadedImages] = useState([]);
-  const [queues, setQueues] = useState({ checkIn: [], walkIn: [], followUp: [], reschedule: [] });
+  const [queues, setQueues] = useState({ checkIn: [], walkIn: [], reschedule: [] });
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [doctorBoard, setDoctorBoard] = useState([]); // tình trạng bác sĩ còn ca hôm nay
   
@@ -107,12 +107,6 @@ export default function ConsultantWorkspacePage() {
       else if (activeTab === 'walkIn') {
         await inviteWalkIn({ ...values, pre_exam_images: uploadedImages });
         return;
-      }
-      else if (activeTab === 'followUp') {
-        await axios.post(`http://localhost:4000/api/booking/follow-ups`, {
-          appointment_id: selectedCustomer.id, customer_id: selectedCustomer.customer_id, ...values
-        }, { headers: { 'Authorization': `Bearer ${token}` } });
-        message.success('Đã lưu nhật ký cuộc gọi!');
       }
       
       setSelectedCustomer(null);
@@ -234,25 +228,10 @@ export default function ConsultantWorkspacePage() {
     </Form>
   );
 
-  const RenderFollowUpForm = () => (
-    <Form form={form} layout="vertical" onFinish={handleSubmitForm}>
-      <div className="bg-green-50 p-4 rounded-lg mb-4 border border-green-100">
-        <Title level={5} className="text-green-700 m-0"><PhoneOutlined className="mr-2"/> Trạng thái Lịch hẹn</Title>
-        <Text className="text-base text-gray-800">Lịch khám ngày: <b>{selectedCustomer.appointment_date}</b></Text>
-      </div>
-      <Form.Item name="call_status" label="Trạng thái cuộc gọi" rules={[{ required: true }]}>
-        <Select placeholder="-- Tình trạng liên hệ --"><Select.Option value="SUCCESS">Nghe máy - Da phục hồi tốt</Select.Option><Select.Option value="COMPLAINT">Nghe máy - Có phàn nàn/kích ứng</Select.Option><Select.Option value="NO_ANSWER">Không nhấc máy / Máy bận</Select.Option></Select>
-      </Form.Item>
-      <Form.Item name="call_note" label="Nội dung trao đổi"><Input.TextArea rows={3} className="w-full" /></Form.Item>
-      <div className="text-right"><Button type="primary" htmlType="submit" loading={loading}>Lưu Nhật Ký Cuộc Gọi</Button></div>
-    </Form>
-  );
-
   const queueTabs = [
     { key: 'checkIn', label: `👋 Khách đặt hôm nay (${queues.checkIn?.length || 0})` },
     { key: 'walkIn', label: `🪑 Danh sách chờ (${queues.walkIn?.length || 0})` },
-    { key: 'reschedule', label: <span className="text-red-600 font-bold">🚨 Xử lý dời lịch ({queues.reschedule?.length || 0})</span> },
-    { key: 'followUp', label: `📞 Gọi thăm hỏi (${queues.followUp?.length || 0})` }
+    { key: 'reschedule', label: <span className="text-red-600 font-bold">🚨 Xử lý dời lịch ({queues.reschedule?.length || 0})</span> }
   ];
 
   // Logic Lọc danh sách theo ô tìm kiếm
@@ -268,7 +247,7 @@ export default function ConsultantWorkspacePage() {
         <Card variant="borderless" className="h-full shadow-sm" styles={{ body: { padding: '0 0 10px 0', height: '100%', display: 'flex', flexDirection: 'column' } }}>
           <div className="px-4 pt-2 border-b border-gray-200">
              <Button block type="primary" className="mb-2" onClick={() => setWalkInOpen(true)}>Tiếp nhận khách tại quầy</Button>
-             <Tabs activeKey={activeTab} onChange={(key) => { setActiveTab(key); setSelectedCustomer(null); setSearchTerm(''); }} items={queueTabs} />
+             <Tabs size="small" tabBarGutter={12} className="[&_.ant-tabs-nav-list]:!flex-wrap [&_.ant-tabs-nav-wrap]:!whitespace-normal [&_.ant-tabs-nav-operations]:!hidden [&_.ant-tabs-ink-bar]:!hidden [&_.ant-tabs-tab-active]:!border-b-2 [&_.ant-tabs-tab-active]:!border-blue-500" activeKey={activeTab} onChange={(key) => { setActiveTab(key); setSelectedCustomer(null); setSearchTerm(''); }} items={queueTabs} />
              {/* THANH TÌM KIẾM KHÁCH HÀNG */}
              <Search 
                 placeholder="Tìm tên hoặc SĐT khách..." 
@@ -297,7 +276,6 @@ export default function ConsultantWorkspacePage() {
                           
                           {activeTab === 'reschedule' && <Tag color="error">Cần đổi lịch</Tag>}
                           {activeTab === 'checkIn' && <Tag color="processing">Đang chờ phục vụ</Tag>}
-                          {activeTab === 'followUp' && <Tag color="default">Cần gọi lại</Tag>}
                         </div>
                       </Space>
                     }
@@ -329,7 +307,6 @@ export default function ConsultantWorkspacePage() {
                 {activeTab === 'reschedule' && <RenderRescheduleForm />}
                 {(activeTab === 'checkIn' || activeTab === 'walkIn') && <PatientSafetyPanel key={selectedCustomer.id} patientProfileId={selectedCustomer.patient_profile_id} />}
                 {(activeTab === 'checkIn' || activeTab === 'walkIn') && <RenderPreDoctorForm />}
-                {activeTab === 'followUp' && <RenderFollowUpForm />}
               </div>
             </div>
           )}

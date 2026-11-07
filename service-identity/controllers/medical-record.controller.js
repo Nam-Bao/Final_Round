@@ -60,15 +60,15 @@ const getCustomerMedicalHistory = async (req, res) => {
   }
 };
 
-// 3. Lấy danh sách Khách hàng có lịch tái khám sắp tới
+// 3. Khách có ngày tái khám trong 3 ngày tới, gồm cả 7 ngày đã qua để khách CSKH chưa gọi được không bị rơi khỏi danh sách
 const getUpcomingFollowUps = async (req, res) => {
   try {
-    const today = dayjs().startOf('day').toDate();
-    const threeDaysLater = dayjs().add(3, 'day').endOf('day').toDate();
+    const from = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
+    const to = dayjs().add(3, 'day').format('YYYY-MM-DD');
 
     const followUps = await MedicalRecord.findAll({
       where: {
-        follow_up_date: { [Op.between]: [today, threeDaysLater] }
+        follow_up_date: { [Op.between]: [from, to] }
       },
       include: [
         { 

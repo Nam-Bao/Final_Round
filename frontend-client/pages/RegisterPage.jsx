@@ -10,7 +10,7 @@ export default function RegisterPage() {
     e.preventDefault();
     try {
       // Gọi API Đăng ký thật xuống Backend
-      const response = await fetch('http://localhost:4000/api/identity/auth/register', {
+      const response = await fetch('/api/identity/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex h-screen items-center justify-center bg-base-200">
-      <div className="card w-96 bg-base-100 shadow-xl">
+      <div className="card w-full max-w-96 bg-base-100 shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl font-bold justify-center mb-4">Đăng Ký O2O</h2>
           {error && <div className="alert alert-error py-2 text-sm">{error}</div>}

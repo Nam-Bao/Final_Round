@@ -160,6 +160,7 @@ exports.checkout = async (req, res) => {
 
     // TÍNH VOUCHER & TĂNG LƯỢT DÙNG
     let discount_amount = 0;
+    let promotion_id = null;
     if (promotion_code) {
       // Kiểm tra mã đầy đủ như API /promotions/apply (trước đây checkout bỏ qua hạn dùng, giới hạn lượt, phạm vi áp dụng)
       const promo = await Promotion.findOne({ where: { code: String(promotion_code).toUpperCase(), status: 'ACTIVE' }, transaction: t, lock: t.LOCK.UPDATE });
@@ -183,6 +184,7 @@ exports.checkout = async (req, res) => {
       await Promotion.increment('used_count', { by: 1, where: { id: promo.id }, transaction: t });
       await SavedPromotion.destroy({ where: { customer_id, promotion_id: promo.id }, transaction: t });
       await PromotionUsage.create({ customer_id, promotion_id: promo.id }, { transaction: t });
+      promotion_id = promo.id;
     }
 
     // LƯU ĐỊA CHỈ: Bao gồm cả tọa độ thật
@@ -197,7 +199,7 @@ exports.checkout = async (req, res) => {
     const newOrder = await Order.create({
       customer_id, recipient_name, shipping_phone, shipping_address, 
       shipping_district_id, shipping_ward_code, shipping_fee, // TRƯỜNG DỮ LIỆU GHN MỚI
-      latitude, longitude, note, total_amount, discount_amount, 
+      latitude, longitude, note, total_amount, discount_amount, promotion_id,
       status: 'UNPAID', payment_method: validPaymentMethod
     }, { transaction: t });
 
@@ -278,7 +280,7 @@ const ORDER_TRANSITIONS = {
   UNPAID: ['CONFIRMED'],    // COD: NVBH kiểm tra & duyệt (đơn chuyển khoản chưa trả tiền bị chặn thêm ở dưới)
   PAID: ['CONFIRMED'],      // Chuyển khoản đã nhận tiền (SePay) -> NVBH duyệt
   CONFIRMED: ['PROCESSING'], // Bắt đầu đóng gói
-  PROCESSING: ['SHIPPING'], // Shipper đến lấy hàng -> tạo vận đơn GHN
+  PROCESSING: ['SHIPPING'], // Đóng gói xong -> tạo vận đơn GHN để shipper đến lấy
   SHIPPING: ['COMPLETED'],
 };
 // Thứ tự để webhook GHN chỉ được đẩy đơn TIẾN lên, không kéo lùi (vd. "ready_to_pick" đến sau khi đã SHIPPING)
@@ -304,7 +306,7 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Đơn chuyển khoản chưa nhận được thanh toán, chưa thể duyệt' });
     }
 
-    // Shipper đến lấy hàng => lúc này mới tạo vận đơn trên GHN
+    // Đóng gói xong => lúc này mới tạo vận đơn trên GHN để shipper đến lấy
     if (status === 'SHIPPING' && !order.tracking_code) {
       
       const warehouse = shopWarehouse(); // kho gửi hàng (cấu hình trong .env)
@@ -375,6 +377,12 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
+// Số tiền khách phải trả cho đơn
+const orderPayable = (order) => Number(order.total_amount) - Number(order.discount_amount) + Number(order.shipping_fee || 0);
+// Đơn chuyển khoản đã nhận tiền mà bị hủy => vào danh sách chờ hoàn tiền
+const refundFields = (order) => (order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID'
+  ? { refund_status: 'PENDING', refund_amount: orderPayable(order) } : {});
+
 const CANCELLABLE_ORDER_STATUSES = ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPING'];
 
 // Cộng lại tồn kho cho các dòng của đơn bị hủy/hoàn
@@ -385,7 +393,12 @@ const restoreStock = async (orderDetails, transaction) => {
 };
 
 // [SALE/ADMIN] Hủy đơn hàng và Hoàn lại tồn kho
+// Bên yêu cầu hủy quyết định voucher: lỗi không phải của khách thì khách được trả lại lượt
 exports.cancelOrder = async (req, res) => {
+  const initiator = req.body.initiator;
+  const reason = String(req.body.reason || '').trim().slice(0, 500);
+  if (!['CUSTOMER', 'CLINIC'].includes(initiator)) return res.status(400).json({ success: false, message: 'Chọn bên yêu cầu hủy: khách hàng hay phòng khám' });
+  if (reason.length < 10) return res.status(400).json({ success: false, message: 'Nhập lý do hủy (ít nhất 10 ký tự)' });
   const t = await sequelize.transaction();
   try {
     const order = await Order.findByPk(req.params.id, {
@@ -419,8 +432,11 @@ exports.cancelOrder = async (req, res) => {
     }
 
     // Nếu thao tác hủy qua GHN êm xuôi -> Hủy trạng thái ở CSDL GlowSkin
-    await order.update({ status: 'CANCELLED' }, { transaction: t });
+    await order.update({
+      status: 'CANCELLED', cancel_initiator: initiator, cancel_reason: reason, cancelled_by: req.user.id, cancelled_at: new Date(), ...refundFields(order),
+    }, { transaction: t });
     await restoreStock(order.OrderDetails, t);
+    if (initiator === 'CLINIC') await releaseVoucher(order, t);
 
     await t.commit();
     return res.status(200).json({
@@ -478,9 +494,18 @@ exports.ghnWebhook = async (req, res) => {
     if (newStatus !== order.status) {
       if (newStatus === 'CANCELLED') {
         // Hàng bị hủy/hoàn về kho => cộng lại tồn kho (trước đây chỉ đổi trạng thái, kho bị thiếu)
+        // GHN hủy trước khi lấy hàng: không phải lỗi của khách => trả lượt voucher.
+        // GHN hoàn hàng: chưa biết khách không nhận hay lỗi vận chuyển => đơn có voucher chờ nhân viên xác định
+        const carrierCancelled = Status === 'cancel';
         await sequelize.transaction(async (t) => {
-          await order.update({ status: newStatus }, { transaction: t });
+          await order.update({
+            status: newStatus, cancelled_at: new Date(), ...refundFields(order),
+            cancel_initiator: carrierCancelled ? 'CARRIER' : null,
+            cancel_reason: carrierCancelled ? 'Đơn vị vận chuyển hủy vận đơn' : 'Đơn vị vận chuyển hoàn hàng về kho',
+            cancel_review: !carrierCancelled && order.promotion_id ? 'PENDING' : null,
+          }, { transaction: t });
           await restoreStock(order.OrderDetails, t);
+          if (carrierCancelled) await releaseVoucher(order, t);
         });
       } else {
         await order.update({ status: newStatus });
@@ -499,10 +524,78 @@ exports.ghnWebhook = async (req, res) => {
 // ==========================================
 // [WEBHOOK] SEPAY DÀNH CHO ĐƠN HÀNG THƯƠNG MẠI
 // ==========================================
+// Trả lại lượt voucher: lượt của khách, số lượt đã dùng của mã, và mã trong ví của khách
+const releaseVoucher = async (order, transaction) => {
+  if (!order.promotion_id) return;
+  const removed = await PromotionUsage.destroy({ where: { customer_id: order.customer_id, promotion_id: order.promotion_id }, transaction });
+  if (!removed) return;
+  await Promotion.decrement('used_count', { by: 1, where: { id: order.promotion_id, used_count: { [Op.gt]: 0 } }, transaction });
+  await SavedPromotion.findOrCreate({ where: { customer_id: order.customer_id, promotion_id: order.promotion_id }, transaction });
+};
+
+// Giữ đơn VietQR chưa trả tiền trong thời hạn này, quá hạn thì tự hủy và nhả tồn kho.
+// Tiền về sau khi đơn đã hủy nằm ở Đối soát tiền vào để CSKH hoàn cho khách.
+const ORDER_PAYMENT_HOLD_MINUTES = Number(process.env.ORDER_PAYMENT_HOLD_MINUTES || 15);
+exports.releaseExpiredOrders = async () => {
+  const before = new Date(Date.now() - ORDER_PAYMENT_HOLD_MINUTES * 60 * 1000);
+  const orders = await Order.findAll({ where: { status: 'UNPAID', payment_method: 'VIETQR_SEPAY', createdAt: { [Op.lt]: before } }, include: [{ model: OrderDetail }] });
+  for (const order of orders) {
+    await sequelize.transaction(async (t) => {
+      // Điều kiện status: tiền vừa về đúng lúc này thì không hủy
+      const [count] = await Order.update(
+        { status: 'CANCELLED', cancel_initiator: 'SYSTEM', cancel_reason: `Quá ${ORDER_PAYMENT_HOLD_MINUTES} phút chưa thanh toán`, cancelled_at: new Date() },
+        { where: { id: order.id, status: 'UNPAID' }, transaction: t }
+      );
+      if (!count) return;
+      await restoreStock(order.OrderDetails, t);
+      // Khách có thể chưa chuyển được do lỗi ngân hàng, ví điện tử nên không mất lượt voucher
+      await releaseVoucher(order, t);
+    });
+  }
+  if (orders.length) console.log(`🧹 [ĐƠN HÀNG] Đã tự hủy ${orders.length} đơn VietQR quá ${ORDER_PAYMENT_HOLD_MINUTES} phút chưa thanh toán`);
+};
+
+// [SALE/ADMIN] PUT /orders/admin/:id/return-cause { cause } — đơn GHN hoàn về: CUSTOMER khách không nhận | CARRIER lỗi vận chuyển (trả lượt voucher)
+exports.setReturnCause = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { cause } = req.body;
+    if (!['CUSTOMER', 'CARRIER'].includes(cause)) throw Object.assign(new Error('Chọn nguyên nhân hoàn hàng'), { status: 400 });
+    const order = await Order.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!order || order.cancel_review !== 'PENDING') throw Object.assign(new Error('Đơn này không chờ xác định nguyên nhân'), { status: 409 });
+    await order.update({
+      cancel_review: null, cancel_initiator: cause, cancelled_by: req.user.id,
+      cancel_reason: cause === 'CARRIER' ? 'Lỗi vận chuyển' : 'Khách không nhận hàng',
+    }, { transaction: t });
+    if (cause === 'CARRIER') await releaseVoucher(order, t);
+    await t.commit();
+    return res.status(200).json({ success: true, message: cause === 'CARRIER' ? 'Đã ghi nhận lỗi vận chuyển và trả lượt voucher' : 'Đã ghi nhận khách không nhận hàng' });
+  } catch (error) {
+    await t.rollback();
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// [SALE/ADMIN] PUT /orders/admin/:id/refund { refund_ref } — ghi nhận đã hoàn tiền đơn bị hủy
+exports.confirmOrderRefund = async (req, res) => {
+  try {
+    const refund_ref = String(req.body.refund_ref || '').trim();
+    if (refund_ref.length < 4 || refund_ref.length > 50) return res.status(400).json({ success: false, message: 'Nhập mã giao dịch hoàn tiền (4 - 50 ký tự)' });
+    const [count] = await Order.update(
+      { refund_status: 'REFUNDED', refund_ref, refunded_at: new Date(), refunded_by: req.user.id },
+      { where: { id: req.params.id, refund_status: 'PENDING' } }
+    );
+    if (!count) return res.status(409).json({ success: false, message: 'Đơn này không có khoản chờ hoàn tiền' });
+    return res.status(200).json({ success: true, message: 'Đã ghi nhận hoàn tiền' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // Ghi kết quả đối soát vào sổ giao dịch chung bên service-booking; lỗi ghi sổ không được làm hỏng việc nhận tiền
 const logBankTransaction = (body, entry) => axios.post('http://localhost:4000/api/booking/bank-transactions/order-log', {
   externalId: body.id, amount: Number(body.transferAmount), content: body.content, receivedAt: body.transactionDate, ...entry,
-}, { headers: { Authorization: `Apikey ${process.env.SEPAY_API_KEY}` } })
+}, { headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY } })
   .catch((e) => console.error('❌ [SEPAY WEBHOOK] Không ghi được sổ giao dịch:', body.id, e.message));
 
 exports.sepayOrderWebhook = async (req, res) => {
@@ -535,7 +628,10 @@ exports.sepayOrderWebhook = async (req, res) => {
                order.status = 'PAID';
                await order.save();
                console.log(`✅ [SEPAY WEBHOOK] Đã nhận thanh toán ${transferAmount} cho đơn hàng mua Mỹ phẩm ${order.id}`);
-               await logBankTransaction(req.body, { code: shortId, status: 'MATCHED', matched_id: order.id });
+               const excess = Number(transferAmount) - amountToPay;
+               await logBankTransaction(req.body, excess > 0
+                 ? { code: shortId, status: 'OVERPAID', matched_id: order.id, reason: `Chuyển thừa ${excess.toLocaleString('vi-VN')}đ, cần hoàn phần dư` }
+                 : { code: shortId, status: 'MATCHED', matched_id: order.id });
            } else {
                await logBankTransaction(req.body, { code: shortId, status: 'PARTIAL', matched_id: order.id, reason: `Chuyển thiếu: cần ${amountToPay.toLocaleString('vi-VN')}đ` });
            }
@@ -559,8 +655,8 @@ exports.checkOrderPaymentStatus = async (req, res) => {
       return res.status(403).json({ message: 'Bạn không có quyền xem đơn hàng này' });
     }
 
-    // Nếu trạng thái khác UNPAID nghĩa là đã nhận được tiền hoặc bị hủy
-    const isPaid = order.status !== 'UNPAID';
+    // Đơn hủy (quá hạn thanh toán) không phải đã trả tiền
+    const isPaid = !['UNPAID', 'CANCELLED'].includes(order.status);
     return res.status(200).json({ isPaid, status: order.status });
   } catch (error) {
     return res.status(500).json({ message: 'Lỗi server', error: error.message });
@@ -693,11 +789,13 @@ exports.createStaffOrder = async (req, res) => {
 
         // Voucher: kiểm tra lại trên server (hạn, lượt, phạm vi sản phẩm, khách đã dùng chưa) rồi ghi nhận lượt dùng
         let discount_amount = 0;
+        let promotion_id = null;
         if (promotion_code) {
             const { promo, discount } = await evaluatePromotion({
                 code: promotion_code, order_value: total_amount, scope_values: { PRODUCT: total_amount }, customer_id, transaction: t
             });
             await redeemPromotion({ promo, customer_id, transaction: t });
+            promotion_id = promo.id;
             discount_amount = discount;
         }
 
@@ -712,7 +810,7 @@ exports.createStaffOrder = async (req, res) => {
             shipping_fee,
             note: note || (isDelivery ? 'Đơn NVBH đặt hộ khách' : 'Mua tại quầy'),
             total_amount,
-            discount_amount,
+            promotion_id, discount_amount,
             // Tại quầy: khách trả tiền và nhận hàng ngay. Giao hàng: chờ duyệt / chờ chuyển khoản như đơn online
             status: isDelivery ? 'UNPAID' : 'COMPLETED',
             payment_method

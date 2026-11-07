@@ -283,6 +283,7 @@ const unlockPayroll = async (req, res) => {
   const payroll = await Payroll.findByPk(req.params.id);
   if (!payroll) return res.status(404).json({ message: 'Không tìm thấy bảng lương' });
   if (payroll.status !== 'LOCKED') return res.status(400).json({ message: 'Bảng lương chưa khóa' });
+  if (payroll.paid_at) return res.status(400).json({ message: 'Đã chi trả lương tháng này, không mở khóa được. Sai sót xử lý ở khoản cộng hoặc trừ tháng sau' });
   const newer = await Payroll.findOne({ where: { status: 'LOCKED', month: { [Op.gt]: payroll.month } } });
   if (newer) return res.status(400).json({ message: `Phải mở khóa tháng ${newer.month.slice(5)}/${newer.month.slice(0, 4)} trước` });
   await payroll.update({ status: 'DRAFT', history: [...payroll.history, { action: 'UNLOCK', by: req.user.id, at: new Date(), reason }] });
@@ -290,6 +291,18 @@ const unlockPayroll = async (req, res) => {
 };
 
 // [MANAGER] POST /payroll/discipline { employee_id, month, action, reason, decided_at, delay_months }
+// [MANAGER] POST /payroll/:id/paid { paid_ref } — ghi nhận đã chi trả lương (sau khi khóa, chỉ 1 lần)
+const markPayrollPaid = async (req, res) => {
+  const paid_ref = text(req.body.paid_ref);
+  if (paid_ref.length < 4 || paid_ref.length > 50) return res.status(400).json({ message: 'Nhập mã lệnh chuyển lương (4 - 50 ký tự)' });
+  const payroll = await Payroll.findByPk(req.params.id);
+  if (!payroll) return res.status(404).json({ message: 'Không tìm thấy bảng lương' });
+  if (payroll.status !== 'LOCKED') return res.status(400).json({ message: 'Phải duyệt và khóa bảng lương trước khi chi trả' });
+  if (payroll.paid_at) return res.status(409).json({ message: 'Bảng lương này đã chi trả' });
+  await payroll.update({ paid_at: new Date(), paid_by: req.user.id, paid_ref, history: [...payroll.history, { action: 'PAID', by: req.user.id, at: new Date(), reason: paid_ref }] });
+  res.json({ message: 'Đã ghi nhận chi trả lương' });
+};
+
 const createDiscipline = async (req, res) => {
   const action = text(req.body.action);
   if (!DISCIPLINE_ACTIONS[action]) return res.status(400).json({ message: 'Hình thức kỷ luật không hợp lệ' });
@@ -311,7 +324,7 @@ const createDiscipline = async (req, res) => {
 
 // [STAFF] GET /payroll/me?month= — phiếu lương của mình (chỉ bảng lương đã khóa)
 const myPayslip = async (req, res) => {
-  const locked = await Payroll.findAll({ where: { status: 'LOCKED' }, attributes: ['id', 'month'], order: [['month', 'DESC']], raw: true });
+  const locked = await Payroll.findAll({ where: { status: 'LOCKED' }, attributes: ['id', 'month', 'paid_at'], order: [['month', 'DESC']], raw: true });
   const mineMonths = (await PayrollItem.findAll({ where: { employee_id: req.user.id, payroll_id: locked.map((p) => p.id) }, attributes: ['payroll_id'], raw: true })).map((i) => i.payroll_id);
   const months = locked.filter((p) => mineMonths.includes(p.id)).map((p) => p.month);
   const month = req.query.month && months.includes(req.query.month) ? req.query.month : months[0];
@@ -322,9 +335,9 @@ const myPayslip = async (req, res) => {
     PayrollAdjustment.findAll({ where: { payroll_id: payroll.id, employee_id: req.user.id }, attributes: ['type', 'category', 'amount', 'reason', 'createdAt'] }),
     DisciplinaryAction.findAll({ where: { employee_id: req.user.id, month }, attributes: ['action', 'reason', 'decided_at', 'delay_months'] }),
   ]);
-  res.json({ data: { month, item, adjustments, discipline }, months, categories: ADJUSTMENT_CATEGORIES, discipline_actions: DISCIPLINE_ACTIONS });
+  res.json({ data: { month, item, adjustments, discipline, paid_at: payroll.paid_at }, months, categories: ADJUSTMENT_CATEGORIES, discipline_actions: DISCIPLINE_ACTIONS });
 };
 
 module.exports = {
-  listRates, createRate, getPayroll, generatePayroll, addAdjustment, removeAdjustment, lockPayroll, unlockPayroll, createDiscipline, myPayslip,
+  listRates, createRate, getPayroll, generatePayroll, addAdjustment, removeAdjustment, lockPayroll, markPayrollPaid, unlockPayroll, createDiscipline, myPayslip,
 };

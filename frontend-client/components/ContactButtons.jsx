@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Phone, Copy, Check, X } from 'lucide-react';
 import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, canPhoneCall } from '../utils/contact';
+import { copyText } from '../utils/copyText';
 
 // Hai nút nổi Hotline + Zalo, đặt phía trên nút chat.
 // Hotline: điện thoại bấm là gọi; máy tính không gọi được nên hiện số kèm nút sao chép.
@@ -16,7 +17,7 @@ export default function ContactButtons() {
 
   const copyNumber = async () => {
     try {
-      await navigator.clipboard.writeText(HOTLINE);
+      await copyText(HOTLINE);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -25,7 +26,7 @@ export default function ContactButtons() {
   };
 
   return (
-    <div className="flex flex-col items-end gap-3 mb-4">
+    <div className="hidden lg:flex flex-col items-end gap-3 mb-4">
       {showHotline && (
         <div className="card bg-base-100 shadow-xl border border-base-200 p-4 w-64 animate-fade-in-up">
           <div className="flex justify-between items-start">

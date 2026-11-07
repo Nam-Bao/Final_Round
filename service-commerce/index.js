@@ -58,7 +58,13 @@ app.listen(PORT, async() => {
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "sale_percent" INTEGER, ADD COLUMN IF NOT EXISTS "sale_start" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "sale_end" TIMESTAMPTZ');
-        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID, ADD COLUMN IF NOT EXISTS "receive_note" TEXT');
+        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID, ADD COLUMN IF NOT EXISTS "receive_note" TEXT, ADD COLUMN IF NOT EXISTS "ordered_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "ordered_by" UUID, ADD COLUMN IF NOT EXISTS "supplier" VARCHAR(200), ADD COLUMN IF NOT EXISTS "expected_date" DATE');
+        await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "promotion_id" UUID, ADD COLUMN IF NOT EXISTS "cancel_initiator" VARCHAR(20), ADD COLUMN IF NOT EXISTS "cancel_reason" VARCHAR(500), ADD COLUMN IF NOT EXISTS "cancelled_by" UUID, ADD COLUMN IF NOT EXISTS "cancelled_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "cancel_review" VARCHAR(20), ADD COLUMN IF NOT EXISTS "refund_status" VARCHAR(20), ADD COLUMN IF NOT EXISTS "refund_amount" DECIMAL(12,2), ADD COLUMN IF NOT EXISTS "refund_ref" VARCHAR(50), ADD COLUMN IF NOT EXISTS "refunded_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "refunded_by" UUID');
+        // Đơn VietQR quá hạn chưa trả tiền: tự hủy và nhả tồn kho
+        const { releaseExpiredOrders } = require('./controllers/order.controller');
+        const releaseOrders = () => releaseExpiredOrders().catch((e) => console.error('Lỗi tự hủy đơn quá hạn:', e.message));
+        releaseOrders();
+        setInterval(releaseOrders, 60 * 1000);
         // Mỗi buổi trị liệu chỉ có 1 phiếu xuất vật tư (chặn trừ kho 2 lần khi bấm hoàn thành 2 lần cùng lúc)
         await sequelize.query('CREATE UNIQUE INDEX IF NOT EXISTS "inventory_requests_reference_unique" ON "InventoryRequests" ("type", "reference_type", "reference_id") WHERE "reference_id" IS NOT NULL');
         console.log('✅ Đã kết nối DB và cập nhật bảng phân hệ Commerce!');

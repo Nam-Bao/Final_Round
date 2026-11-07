@@ -47,6 +47,7 @@ export default function SaleOrderManagement() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(null); // { id, initiator, reason }
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
@@ -84,11 +85,38 @@ export default function SaleOrderManagement() {
     }
   };
 
-  const handleCancelOrder = async (orderId) => {
-    if (!window.confirm('Cảnh báo: Việc này sẽ hủy đơn và tự động cộng lại tồn kho. Bạn có chắc chắn?')) return;
+  // Đơn chuyển khoản đã trả tiền bị hủy: chuyển khoản trả khách rồi nhập mã giao dịch
+  const handleReturnCause = async (order, cause) => {
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/cancel`, {}, authConfig());
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/return-cause`, { cause }, authConfig());
+      alert(res.data?.message);
+      setSelectedOrder(null);
+      fetchOrders();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Không ghi nhận được');
+    }
+  };
+
+  const handleConfirmRefund = async (order) => {
+    const refund_ref = window.prompt(`Chuyển trả ${Number(order.refund_amount).toLocaleString('vi-VN')} ₫ cho khách rồi nhập mã giao dịch:`);
+    if (refund_ref === null) return;
+    try {
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/refund`, { refund_ref }, authConfig());
+      alert(res.data?.message);
+      setSelectedOrder(null);
+      fetchOrders();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Không ghi nhận được');
+    }
+  };
+
+  // Bên yêu cầu hủy quyết định voucher: phòng khám hủy thì khách được trả lại lượt
+  const handleCancelOrder = async () => {
+    try {
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${cancelling.id}/cancel`, { initiator: cancelling.initiator, reason: cancelling.reason }, authConfig());
       alert(res.data?.message || 'Đã hủy đơn và hoàn kho!'); // có nhắc hoàn tiền nếu đơn đã chuyển khoản
+      setCancelling(null);
+      setSelectedOrder(null);
       fetchOrders();
     } catch (error) {
       alert(error.response?.data?.message || 'Lỗi hủy đơn');
@@ -122,7 +150,10 @@ export default function SaleOrderManagement() {
 
   // Lọc theo kênh trước, số đếm ở các tab trạng thái tính trên kênh đang chọn
   const channelOrders = orders.filter(o => matchChannel(o, channel));
-  const filteredOrders = activeTab === 'ALL' ? channelOrders : channelOrders.filter(o => o.status === activeTab);
+  const filteredOrders = activeTab === 'ALL' ? channelOrders
+    : activeTab === 'REFUND' ? channelOrders.filter(o => o.refund_status === 'PENDING')
+    : activeTab === 'REVIEW' ? channelOrders.filter(o => o.cancel_review === 'PENDING')
+    : channelOrders.filter(o => o.status === activeTab);
 
   if (loading) return <div className="p-10 text-center text-slate-500">Đang tải dữ liệu...</div>;
 
@@ -152,6 +183,12 @@ export default function SaleOrderManagement() {
           <div className="flex flex-wrap gap-1.5">
             <button onClick={() => setActiveTab('ALL')} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
               Tất cả · {channelOrders.length}
+            </button>
+            <button onClick={() => setActiveTab('REFUND')} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === 'REFUND' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700'}`}>
+              Chờ hoàn tiền · {channelOrders.filter(o => o.refund_status === 'PENDING').length}
+            </button>
+            <button onClick={() => setActiveTab('REVIEW')} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === 'REVIEW' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700'}`}>
+              Cần xem xét · {channelOrders.filter(o => o.cancel_review === 'PENDING').length}
             </button>
             {Object.keys(STATUS_MAP).map(key => (
               <button key={key} onClick={() => setActiveTab(key)} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${activeTab === key ? STATUS_MAP[key].color.replace('text-', 'bg-').replace('100', '600') + ' text-white' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
@@ -203,6 +240,7 @@ export default function SaleOrderManagement() {
                         <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 w-fit whitespace-nowrap ${statusInfo.color}`}>
                           <StatusIcon className="w-3.5 h-3.5"/> {statusInfo.label}
                         </span>
+                        {order.refund_status === 'PENDING' && <span className="mt-1 block text-xs font-semibold text-rose-600">Chờ hoàn tiền</span>}
                       </td>
                       <td className="p-4 text-right">
                         <button className="p-2 text-slate-400 hover:text-blue-600 bg-white rounded-lg border shadow-sm"><Eye className="w-4 h-4"/></button>
@@ -348,6 +386,27 @@ export default function SaleOrderManagement() {
                 </p>
               )}
 
+              {selectedOrder.cancel_reason && (
+                <p className="text-sm text-slate-600 bg-slate-50 border p-3 rounded-xl">Lý do hủy: {selectedOrder.cancel_reason}</p>
+              )}
+              {selectedOrder.cancel_review === 'PENDING' && (
+                <div className="text-sm bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-2">
+                  <p className="font-semibold text-amber-800">GHN đã hoàn hàng. Xác định nguyên nhân để xử lý voucher của khách:</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleReturnCause(selectedOrder, 'CUSTOMER')} className="flex-1 py-2 rounded-lg border bg-white font-semibold">Khách không nhận</button>
+                    <button onClick={() => handleReturnCause(selectedOrder, 'CARRIER')} className="flex-1 py-2 rounded-lg bg-amber-600 text-white font-semibold">Lỗi vận chuyển</button>
+                  </div>
+                </div>
+              )}
+              {selectedOrder.refund_status === 'PENDING' && (
+                <button onClick={() => handleConfirmRefund(selectedOrder)} className="w-full py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700">
+                  Đã hoàn {Number(selectedOrder.refund_amount).toLocaleString('vi-VN')} ₫ cho khách
+                </button>
+              )}
+              {selectedOrder.refund_status === 'REFUNDED' && (
+                <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-xl">Đã hoàn tiền, mã giao dịch: <b>{selectedOrder.refund_ref}</b></p>
+              )}
+
               {/* 1. Kiểm tra & duyệt: COD duyệt ngay; chuyển khoản phải chờ SePay báo đã nhận tiền (PAID) */}
               {((selectedOrder.status === 'UNPAID' && selectedOrder.payment_method === 'COD') || selectedOrder.status === 'PAID') && (
                 <button onClick={() => handleUpdateStatus(selectedOrder.id, 'CONFIRMED', 'Xác nhận đã kiểm tra và DUYỆT đơn hàng này?')} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-sm">
@@ -362,10 +421,10 @@ export default function SaleOrderManagement() {
                 </button>
               )}
 
-              {/* 3. Shipper đến lấy hàng => tạo vận đơn GHN, chuyển Đang giao */}
+              {/* 3. Đóng gói xong => tạo vận đơn GHN để shipper đến lấy, chuyển Đang giao */}
               {selectedOrder.status === 'PROCESSING' && (
-                <button onClick={() => handleUpdateStatus(selectedOrder.id, 'SHIPPING', 'Shipper đã đến lấy hàng? Hệ thống sẽ gửi đơn lên GHN và chuyển sang Đang giao.')} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm">
-                  Shipper đã lấy hàng - Gửi GHN
+                <button onClick={() => handleUpdateStatus(selectedOrder.id, 'SHIPPING', 'Đơn đã đóng gói xong? Hệ thống sẽ tạo vận đơn trên GHN để shipper đến lấy hàng và chuyển sang Đang giao.')} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm">
+                  Tạo đơn - Gửi GHN
                 </button>
               )}
 
@@ -386,7 +445,7 @@ export default function SaleOrderManagement() {
 
               {/* Nút hủy đơn */}
               {['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPING'].includes(selectedOrder.status) && (
-                <button onClick={() => handleCancelOrder(selectedOrder.id)} className="w-full py-3 bg-white border-2 border-red-100 text-red-600 hover:bg-red-50 font-bold rounded-xl transition">
+                <button onClick={() => setCancelling({ id: selectedOrder.id, initiator: '', reason: '' })} className="w-full py-3 bg-white border-2 border-red-100 text-red-600 hover:bg-red-50 font-bold rounded-xl transition">
                   Hủy đơn & Hoàn lại tồn kho
                 </button>
               )}
@@ -399,6 +458,22 @@ export default function SaleOrderManagement() {
           </div>
         )}
       </div>
+
+      {cancelling && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-3">
+            <h3 className="text-lg font-bold text-slate-800">Hủy đơn hàng</h3>
+            <p className="text-sm text-slate-500">Đơn bị hủy và cộng lại tồn kho. Bên yêu cầu hủy quyết định voucher của khách.</p>
+            <label className="flex gap-2 text-sm"><input type="radio" name="cancel-initiator" checked={cancelling.initiator === 'CUSTOMER'} onChange={() => setCancelling({ ...cancelling, initiator: 'CUSTOMER' })} /> <span><b>Khách yêu cầu</b>: không trả lại lượt voucher</span></label>
+            <label className="flex gap-2 text-sm"><input type="radio" name="cancel-initiator" checked={cancelling.initiator === 'CLINIC'} onChange={() => setCancelling({ ...cancelling, initiator: 'CLINIC' })} /> <span><b>Phòng khám hủy</b> (hết hàng, lỗi hàng, sai giá): trả lại lượt voucher</span></label>
+            <textarea rows={3} maxLength={500} className="w-full border rounded-lg p-2 text-sm" placeholder="Lý do hủy (ít nhất 10 ký tự), khách sẽ thấy nội dung này" value={cancelling.reason} onChange={(e) => setCancelling({ ...cancelling, reason: e.target.value })} />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCancelling(null)} className="px-4 py-2 rounded-lg border font-semibold">Đóng</button>
+              <button onClick={handleCancelOrder} disabled={!cancelling.initiator || cancelling.reason.trim().length < 10} className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold disabled:opacity-50">Xác nhận hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <CreateOrderModal open={isCreateOpen} onClose={() => setIsCreateOpen(false)} onCreated={fetchOrders} />
     </div>

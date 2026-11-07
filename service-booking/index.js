@@ -27,6 +27,7 @@ app.use('/consultations', require('./routes/consultation.route')); // Tư vấn 
 app.use('/attendance', require('./routes/attendance.route')); // chấm công
 app.use('/payroll', require('./routes/payroll.route')); // lương
 app.use('/bank-transactions', require('./routes/bankTransaction.route')); // đối soát tiền vào
+app.use('/follow-ups', require('./routes/followUp.route')); // CSKH gọi chăm sóc khách
 app.use('/safety', require('./routes/safety.route')); // sàng lọc an toàn, cảnh báo chống chỉ định
 
 app.listen(PORT, async() => {

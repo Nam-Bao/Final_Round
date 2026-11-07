@@ -34,6 +34,8 @@ router.get('/admin', salesStaff, orderController.getAllOrdersForAdmin);
 router.post('/admin', salesStaff, orderController.createStaffOrder); // NVBH tạo đơn hộ khách (tại quầy / giao GHN)
 router.put('/admin/:id/status', salesStaff, orderController.updateOrderStatus);
 router.put('/admin/:id/cancel', salesStaff, orderController.cancelOrder);
+router.put('/admin/:id/refund', salesStaff, orderController.confirmOrderRefund);
+router.put('/admin/:id/return-cause', salesStaff, orderController.setReturnCause);
 
 // 4. Danh sách đơn hàng của khách đang đăng nhập (GET /api/commerce/orders)
 router.get('/', customerOnly, orderController.getCustomerOrders);

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ChevronLeft, ChevronRight, Newspaper, Search, FlaskConical, Pin, X } from 'lucide-react';
 
-const API = 'http://localhost:4000/api/media/news';
+const API = '/api/media/news';
 const PAGE_SIZE = 6;
 
 // Tin tức: danh mục và bài viết đều lấy từ service-media (phân trang ở server)

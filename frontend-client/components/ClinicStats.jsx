@@ -30,7 +30,7 @@ export default function ClinicStats({ className = '' }) {
           key={tile.label}
           className="bg-white text-slate-800 rounded-2xl p-5 text-center shadow-lg hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-center"
         >
-          <div className="text-2xl md:text-3xl font-extrabold text-[#0B69A3] tracking-tight">
+          <div className="text-2xl md:text-3xl font-extrabold text-primary tracking-tight">
             {tile.value ?? '—'}
           </div>
           <div className="text-xs md:text-sm text-slate-600 font-medium mt-1">{tile.label}</div>

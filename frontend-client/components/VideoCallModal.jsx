@@ -24,7 +24,7 @@ const VideoCallModal = ({ appointmentId, userName, isOpen, onClose, kind = 'appo
     const joinRoom = async () => {
       try {
         // Booking kiểm tra quyền + khung giờ rồi ký token Zego, frontend không giữ serverSecret
-        const res = await axios.get(`http://localhost:4000/api/booking/${isConsult ? 'consultations' : 'appointments'}/${appointmentId}/video-token`, {
+        const res = await axios.get(`/api/booking/${isConsult ? 'consultations' : 'appointments'}/${appointmentId}/video-token`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cancelled) return;

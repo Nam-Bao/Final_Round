@@ -11,6 +11,7 @@ const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 const STATUS = {
   PARTIAL: { color: 'orange', text: 'Chuyển thiếu' },
   UNMATCHED: { color: 'red', text: 'Chưa khớp' },
+  OVERPAID: { color: 'purple', text: 'Chuyển thừa' },
   MATCHED: { color: 'green', text: 'Đã khớp' },
   RESOLVED: { color: 'blue', text: 'Đã xử lý' },
 };
@@ -49,7 +50,7 @@ export default function BankTransactionsPage() {
 
   return (
     <Card title="Đối soát tiền vào">
-      {open > 0 && <Alert className="mb-3" type="warning" showIcon message={`Có ${open} khoản tiền chưa xử lý`} description="Liên hệ khách theo nội dung chuyển khoản. Khách chuyển thiếu hoặc chuyển sau khi hết giữ chỗ: hoàn tiền, hoặc xác nhận cọc thủ công rồi ghi lại tại đây." />}
+      {open > 0 && <Alert className="mb-3" type="warning" showIcon message={`Có ${open} khoản tiền chưa xử lý`} description="Liên hệ khách theo nội dung chuyển khoản. Khách chuyển thiếu hoặc chuyển sau khi hết giữ chỗ: hoàn tiền, hoặc xác nhận cọc thủ công rồi ghi lại tại đây. Khách chuyển thừa: lịch hoặc đơn đã được xác nhận, chỉ cần hoàn phần dư." />}
       <Segmented
         className="mb-3" value={tab} onChange={setTab}
         options={[{ value: 'OPEN', label: `Chưa xử lý (${open})` }, { value: 'RESOLVED', label: 'Đã xử lý' }, { value: 'MATCHED', label: 'Đã khớp tự động' }]}
@@ -73,7 +74,7 @@ export default function BankTransactionsPage() {
           },
           {
             title: '', key: 'a', width: 90,
-            render: (_, r) => ['PARTIAL', 'UNMATCHED'].includes(r.status) && (
+            render: (_, r) => ['PARTIAL', 'UNMATCHED', 'OVERPAID'].includes(r.status) && (
               <Button size="small" type="primary" onClick={() => { setResolving(r); setForm({ action: 'REFUNDED', ref: '', note: '' }); }}>Xử lý</Button>
             ),
           },

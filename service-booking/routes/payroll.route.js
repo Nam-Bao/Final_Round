@@ -18,6 +18,7 @@ router.post('/:id/adjustments', ...manager, wrap(c.addAdjustment));
 router.delete('/:id/adjustments/:adjustmentId', ...manager, wrap(c.removeAdjustment));
 router.post('/:id/lock', ...manager, wrap(c.lockPayroll));
 router.post('/:id/unlock', ...manager, wrap(c.unlockPayroll));
+router.post('/:id/paid', ...manager, wrap(c.markPayrollPaid));
 router.post('/discipline', ...manager, wrap(c.createDiscipline));
 
 // Phiếu lương của nhân viên

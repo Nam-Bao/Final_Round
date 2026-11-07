@@ -7,6 +7,9 @@ import dayjs from 'dayjs';
 
 import ClientNavbar from './components/ClientNavbar';
 import ClientFooter from './components/ClientFooter';
+import MobileTabBar from './components/MobileTabBar';
+import ScrollManager from './components/ScrollManager';
+import BackToTop from './components/BackToTop';
 import ReminderBanner from './components/ReminderBanner';
 import PromoPopup from './components/PromoPopup';
 import LoginPage from './pages/LoginPage';
@@ -39,7 +42,7 @@ import ContactButtons from './components/ContactButtons';
 // ====== CHATBOT AI ======
 // Gemini chạy ở service-ai-analysis, frontend không giữ API key; bắt buộc đăng nhập
 async function streamConsultReply(messages, token, onText) {
-  const res = await fetch('http://localhost:4000/api/ai/chat', {
+  const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ messages }),
@@ -133,7 +136,7 @@ function App() {
 
     setChatMode('WAITING'); 
     // Gửi token để server biết khách là ai (server từ chối kết nối nếu chưa đăng nhập)
-    const newSocket = io('http://localhost:4001', { auth: { token } });
+    const newSocket = io({ auth: { token } });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);
@@ -216,10 +219,11 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-slate-50 relative">
+      <ScrollManager onNavigate={() => setIsChatOpen(false)} />
+      <div className="min-h-screen flex flex-col bg-[#F7FAF9] relative pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         <ClientNavbar />
         
-        <main className="flex-1 container mx-auto px-4 py-6 max-w-7xl">
+        <main className="flex-1 w-full mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
           <ReminderBanner />
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -259,20 +263,22 @@ function App() {
         <PromoPopup />
 
         {/* NÚT BẤM VÀ KHUNG CHAT AI / CSKH */}
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <MobileTabBar />
+        <div className={`fixed right-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6 lg:right-6 flex flex-col items-end ${isChatOpen ? 'z-[70]' : 'z-40'}`}>
+          {!isChatOpen && <BackToTop />}
           {/* Hotline + Zalo: ẩn khi đang mở khung chat cho gọn */}
           {!isChatOpen && <ContactButtons />}
           {isChatOpen && (
-            <div className="card w-80 bg-base-100 shadow-2xl border border-base-200 mb-4 overflow-hidden animate-fade-in-up">
-              <div className="bg-primary text-white p-3 flex justify-between items-center">
+            <div className="fixed inset-0 z-[70] flex flex-col bg-base-100 sm:static sm:z-auto sm:w-96 sm:mb-4 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-base-200 overflow-hidden animate-fade-in-up">
+              <div className="bg-primary text-white p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pt-3 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="avatar online"><div className="w-8 rounded-full bg-white text-primary flex items-center justify-center font-bold">CS</div></div>
                   <span className="font-bold text-sm">GlowSkin O2O</span>
                 </div>
-                <button onClick={() => setIsChatOpen(false)} className="hover:text-gray-200"><X className="w-5 h-5" /></button>
+                <button onClick={() => setIsChatOpen(false)} className="btn btn-ghost btn-sm btn-circle text-white" aria-label="Đóng khung chat"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="p-4 h-64 overflow-y-auto bg-base-200 flex flex-col gap-3">
+              <div className="p-4 flex-1 min-h-0 sm:flex-none sm:h-80 overflow-y-auto bg-base-200 flex flex-col gap-3">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`chat ${msg.sender === 'user' ? 'chat-end' : 'chat-start'}`}>
                     <div className={`chat-bubble text-sm shadow-sm break-words ${msg.sender === 'user' ? 'bg-base-100 text-base-content' : 'chat-bubble-primary text-white'}`}>
@@ -307,7 +313,7 @@ function App() {
                   </Link>
                 </div>
               ) : (
-              <div className="p-2 bg-base-100 border-t flex flex-col gap-2">
+              <div className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:pb-2 bg-base-100 border-t flex flex-col gap-2 shrink-0">
                 {chatMode === 'AI' && !outOfOffice && (
                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
                     <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
@@ -324,10 +330,10 @@ function App() {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                     placeholder={chatMode === 'AI' || chatMode === 'WAITING' ? "Hỏi AI..." : "Nhắn CSKH..."}
-                    className="input input-bordered input-sm flex-1"
+                    className="input input-bordered flex-1 min-w-0 h-11"
                     disabled={isLoading && chatMode === 'AI'} 
                   />
-                  <button className="btn btn-primary btn-sm btn-circle" onClick={handleSendMessage} disabled={isLoading && chatMode === 'AI'}>
+                  <button className="btn btn-primary btn-circle" aria-label="Gửi" onClick={handleSendMessage} disabled={isLoading && chatMode === 'AI'}>
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
@@ -337,7 +343,8 @@ function App() {
           )}
 
           <button 
-            className={`btn btn-primary btn-circle btn-lg shadow-2xl transition-transform hover:scale-110 ${!isChatOpen ? 'animate-bounce' : ''}`} 
+            aria-label={isChatOpen ? 'Đóng khung chat' : 'Mở khung chat tư vấn'}
+            className={`btn btn-primary btn-circle w-12 h-12 min-h-12 lg:w-14 lg:h-14 lg:min-h-14 shadow-xl transition-transform hover:scale-105 ${isChatOpen ? 'hidden sm:inline-flex' : ''}`} 
             onClick={() => setIsChatOpen(!isChatOpen)}
           >
             {isChatOpen ? <X className="w-8 h-8 text-white" /> : <MessageCircle className="w-8 h-8 text-white" />}

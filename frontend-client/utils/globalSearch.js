@@ -4,7 +4,7 @@ import { getImages, productUrl } from '../components/ProductCard';
 
 // Tìm kiếm chung toàn website: sản phẩm, dịch vụ, gói liệu trình, bác sĩ, bài viết.
 // Tải danh sách công khai 1 lần (lần đầu bấm vào ô tìm kiếm), sau đó lọc ngay trên trình duyệt.
-const API = 'http://localhost:4000/api';
+const API = '/api';
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
 export const SEARCH_GROUPS = [

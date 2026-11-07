@@ -93,7 +93,7 @@ export default function AppointmentHistoryPage() {
 
   const handleSubmitReview = async ({ rating, comment }) => {
     const token = sessionStorage.getItem('token');
-    await axios.post('http://localhost:4000/api/booking/reviews', { appointment_id: reviewApt.id, rating, comment }, {
+    await axios.post('/api/booking/reviews', { appointment_id: reviewApt.id, rating, comment }, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     setMyReviews(prev => ({ ...prev, [reviewApt.id]: { appointment_id: reviewApt.id, rating } }));
@@ -106,7 +106,7 @@ export default function AppointmentHistoryPage() {
 
   const handleSubmitServiceReview = async ({ rating, comment }) => {
     const token = sessionStorage.getItem('token');
-    await axios.post('http://localhost:4000/api/booking/reviews/services', {
+    await axios.post('/api/booking/reviews/services', {
       session_id: reviewSession.id, session_type: reviewSession.session_type, rating, comment
     }, { headers: { 'Authorization': `Bearer ${token}` } });
     setMyServiceReviews(prev => ({ ...prev, [reviewSession.id]: { session_id: reviewSession.id, rating } }));
@@ -124,16 +124,16 @@ export default function AppointmentHistoryPage() {
       if (!token) return navigate('/client-login');
       const headers = { 'Authorization': `Bearer ${token}` };
       const [aptRes, docRes, recRes, profRes, sessionRes, srvRes, pkgRes, prodRes, reviewRes, serviceReviewRes] = await Promise.all([
-        axios.get('http://localhost:4000/api/booking/appointments/my-history', { headers }),
-        axios.get('http://localhost:4000/api/identity/users/doctors', { headers }),
-        axios.get('http://localhost:4000/api/identity/medical-records/my-records', { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get('http://localhost:4000/api/identity/users/profile', { headers }).catch(() => ({ data: { data: {} } })),
-        axios.get('http://localhost:4000/api/booking/sessions/my-sessions', { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get('http://localhost:4000/api/booking/spa-services'),
-        axios.get('http://localhost:4000/api/booking/packages'),
-        axios.get('http://localhost:4000/api/commerce/products'),
-        axios.get('http://localhost:4000/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get('http://localhost:4000/api/booking/reviews/services/mine', { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get('/api/booking/appointments/my-history', { headers }),
+        axios.get('/api/identity/users/doctors', { headers }),
+        axios.get('/api/identity/medical-records/my-records', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('/api/identity/users/profile', { headers }).catch(() => ({ data: { data: {} } })),
+        axios.get('/api/booking/sessions/my-sessions', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('/api/booking/spa-services'),
+        axios.get('/api/booking/packages'),
+        axios.get('/api/commerce/products'),
+        axios.get('/api/booking/reviews/mine', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('/api/booking/reviews/services/mine', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
       setApts(aptRes.data?.data || []);
       setMyReviews(Object.fromEntries((reviewRes.data?.data || []).map(r => [r.appointment_id, r])));
@@ -167,7 +167,7 @@ Bạn vẫn muốn hủy lịch?`
     if (!window.confirm(confirmText)) return;
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${apt.id}/cancel`, { accept_forfeit: deposit > 0 }, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await axios.put(`/api/booking/appointments/${apt.id}/cancel`, { accept_forfeit: deposit > 0 }, { headers: { 'Authorization': `Bearer ${token}` } });
       alert(res.data.message || 'Hủy lịch thành công!');
       fetchData();
     } catch (error) {
@@ -177,9 +177,9 @@ Bạn vẫn muốn hủy lịch?`
   };
 
   const authHeaders = { Authorization: `Bearer ${sessionStorage.getItem('token')}` };
-  const fetchRescheduleSlots = (date) => axios.get(`http://localhost:4000/api/booking/appointments/${reschedulingApt.id}/reschedule-slots`, { headers: authHeaders, params: { date } }).then((res) => res.data.data || []);
+  const fetchRescheduleSlots = (date) => axios.get(`/api/booking/appointments/${reschedulingApt.id}/reschedule-slots`, { headers: authHeaders, params: { date } }).then((res) => res.data.data || []);
   const handleReschedule = async (appointment_date, appointment_time) => {
-    await axios.put(`http://localhost:4000/api/booking/appointments/${reschedulingApt.id}/customer-reschedule`, { appointment_date, appointment_time }, { headers: authHeaders });
+    await axios.put(`/api/booking/appointments/${reschedulingApt.id}/customer-reschedule`, { appointment_date, appointment_time }, { headers: authHeaders });
     setApts((list) => list.map((a) => (a.id === reschedulingApt.id ? { ...a, appointment_date, appointment_time, customer_reschedule_count: 1 } : a)));
     setReschedulingApt(null);
   };

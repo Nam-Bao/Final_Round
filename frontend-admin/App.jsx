@@ -19,6 +19,7 @@ import SpaServicesPage from './pages/SpaServicesPage';
 import PromotionsPage from './pages/PromotionsPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import AppointmentManagementPage from './pages/AppointmentManagementPage';
+import CustomerCarePage from './pages/CustomerCarePage';
 import ConsultantCheckoutPage from './pages/ConsultantCheckoutPage';
 import ContentManagementPage from './pages/ContentManagementPage';
 import MyArticlesPage from './pages/MyArticlesPage';
@@ -63,6 +64,7 @@ function App() {
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/customer-profiles" element={<CustomerProfilePage />} />
           <Route path="/appointment-management" element={<AppointmentManagementPage />} />
+          <Route path="/customer-care" element={<CustomerCarePage />} />
           <Route path="/consultant-checkout" element={<ConsultantCheckoutPage />} />
           <Route path="/content" element={<ContentManagementPage />} />
           <Route path="/page-info" element={<Navigate to="/content" replace />} />

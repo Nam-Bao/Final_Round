@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Clock, Sparkles, Star, ListOrdered, UserCheck, ShieldAlert, CalendarCheck, Stethoscope } from 'lucide-react';
 
-const API = 'http://localhost:4000/api/booking';
+const API = '/api/booking';
 const formatPrice = (price) => `${Number(price || 0).toLocaleString('vi-VN')} đ`;
 
 const Stars = ({ value, size = 'w-4 h-4' }) => (

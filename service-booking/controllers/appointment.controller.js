@@ -502,7 +502,10 @@ const sepayWebhook = async (req, res) => {
         const invoice = await Invoice.findOne({ where: { appointment_id: apt.id } });
         if (invoice && amount >= Number(invoice.total_amount)) {
           await markDepositPaid(apt, invoice, 'VIETQR', `Khách thanh toán cọc VietQR cho đơn ${orderCode.toUpperCase()}`);
-          outcome = { code_type: 'APPOINTMENT', code: orderCode, status: 'MATCHED', matched_id: apt.id };
+          const excess = amount - Number(invoice.total_amount);
+          outcome = excess > 0
+            ? { code_type: 'APPOINTMENT', code: orderCode, status: 'OVERPAID', matched_id: apt.id, reason: `Chuyển thừa ${excess.toLocaleString('vi-VN')}đ, cần hoàn phần dư` }
+            : { code_type: 'APPOINTMENT', code: orderCode, status: 'MATCHED', matched_id: apt.id };
         } else {
           outcome = { code_type: 'APPOINTMENT', code: orderCode, status: 'PARTIAL', matched_id: apt.id, reason: `Chuyển thiếu: cần ${Number(invoice?.total_amount || 0).toLocaleString('vi-VN')}đ` };
         }
@@ -533,7 +536,7 @@ const getConsultantQueues = async (req, res) => {
       allUsers = (await axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': token } })).data.data;
     } catch (error) {}
 
-    const queues = { checkIn: [], walkIn: [], hotLeads: [], followUp: [], reschedule: [] };
+    const queues = { checkIn: [], walkIn: [], hotLeads: [], reschedule: [] };
     // Cọc tư vấn chuyên gia đã gắn vào các lịch khám đang chờ (trừ khi chốt bill)
     const credits = await Consultation.findAll({
       where: { credit_appointment_id: { [Op.in]: appointments.map(a => a.id) } }, attributes: ['credit_appointment_id', 'deposit_amount'], raw: true
@@ -576,6 +579,8 @@ const rescheduleAppointment = async (req, res) => {
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
+    // Dời lịch chuyển lịch sang "đã xác nhận": lịch chưa trả cọc hoặc khách đang ở danh sách chờ không đi qua đây
+    if (['PENDING_PAYMENT', 'CHECK_IN'].includes(apt.status)) return res.status(409).json({ message: 'Lịch này chưa đủ điều kiện dời: đang chờ cọc hoặc đang ở danh sách chờ' });
     await sequelize.transaction(async (t) => {
       await lockSlot(doctor_id || apt.doctor_id, appointment_date || apt.appointment_date, t);
       throwSlotError(await validateSlotChange(apt, { doctor_id: doctor_id || undefined, appointment_date, appointment_time }, t));

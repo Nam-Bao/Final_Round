@@ -48,7 +48,7 @@ export default function CustomerShopPage() {
     setReviewProduct(product);
     setProductReviews(null);
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/reviews/product/${product.id}`);
+      const res = await axios.get(`/api/commerce/reviews/product/${product.id}`);
       setProductReviews(res.data.data);
     } catch (err) {
       setProductReviews({ avg_rating: 0, review_count: 0, reviews: [] });
@@ -105,7 +105,7 @@ export default function CustomerShopPage() {
 
   // Load danh sách Tỉnh/Thành ngay từ đầu để sẵn sàng dò tìm
   useEffect(() => {
-    axios.get('http://localhost:4000/api/commerce/orders/ghn/province')
+    axios.get('/api/commerce/orders/ghn/province')
       .then(res => setProvinces(res.data.data))
       .catch(err => console.error("Lỗi lấy Tỉnh:", err));
   }, []);
@@ -126,7 +126,7 @@ export default function CustomerShopPage() {
   const fetchProducts = async () => {
     try {
       // Chỉ sản phẩm đã mở bán trên web (kèm slug để mở trang chi tiết)
-      const res = await axios.get('http://localhost:4000/api/commerce/products/shop');
+      const res = await axios.get('/api/commerce/products/shop');
       setProducts(res.data.data || []);
     } catch (err) { console.error('Lỗi tải SP:', err); }
     finally { setProductsLoading(false); }
@@ -135,14 +135,14 @@ export default function CustomerShopPage() {
   const fetchCart = async () => {
     if (!customer_id) return;
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/carts', authConfig);
+      const res = await axios.get('/api/commerce/carts', authConfig);
       setCartItems(res.data.data.items || []);
     } catch (err) { console.error('Lỗi giỏ hàng:', err); }
   };
 
   const fetchAddressBook = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/orders/addresses', authConfig);
+      const res = await axios.get('/api/commerce/orders/addresses', authConfig);
       const addresses = res.data.data || [];
       setAddressBook(addresses);
       
@@ -161,7 +161,7 @@ export default function CustomerShopPage() {
 
     if (addr.shipping_district_id && addr.shipping_ward_code) {
       try {
-        const feeRes = await axios.post('http://localhost:4000/api/commerce/orders/ghn/fee', {
+        const feeRes = await axios.post('/api/commerce/orders/ghn/fee', {
           to_district_id: addr.shipping_district_id,
           to_ward_code: addr.shipping_ward_code,
           weight: totalWeight
@@ -204,7 +204,7 @@ export default function CustomerShopPage() {
           pId = matchedProv.ProvinceID;
           try {
             // Load Huyện
-            const distRes = await axios.get(`http://localhost:4000/api/commerce/orders/ghn/district?province_id=${pId}`);
+            const distRes = await axios.get(`/api/commerce/orders/ghn/district?province_id=${pId}`);
             setDistricts(distRes.data.data);
 
             if (!dId) {
@@ -214,7 +214,7 @@ export default function CustomerShopPage() {
 
             if (dId) {
               // Load Phường
-              const wardRes = await axios.get(`http://localhost:4000/api/commerce/orders/ghn/ward?district_id=${dId}`);
+              const wardRes = await axios.get(`/api/commerce/orders/ghn/ward?district_id=${dId}`);
               setWards(wardRes.data.data);
 
               if (!wCode) {
@@ -250,7 +250,7 @@ export default function CustomerShopPage() {
     setModalForm({ ...modalForm, province_id: pId, province_name: pName, district_id: '', district_name: '', ward_code: '', ward_name: '' });
     setWards([]);
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/orders/ghn/district?province_id=${pId}`);
+      const res = await axios.get(`/api/commerce/orders/ghn/district?province_id=${pId}`);
       setDistricts(res.data.data);
     } catch (err) { console.error(err); }
   };
@@ -260,7 +260,7 @@ export default function CustomerShopPage() {
     const dName = e.target.options[e.target.selectedIndex].text;
     setModalForm({ ...modalForm, district_id: dId, district_name: dName, ward_code: '', ward_name: '' });
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/orders/ghn/ward?district_id=${dId}`);
+      const res = await axios.get(`/api/commerce/orders/ghn/ward?district_id=${dId}`);
       setWards(res.data.data);
     } catch (err) { console.error(err); }
   };
@@ -277,8 +277,8 @@ export default function CustomerShopPage() {
     };
 
     try {
-      if (addressModal.mode === 'ADD') await axios.post('http://localhost:4000/api/commerce/orders/addresses', payload, authConfig);
-      else await axios.put(`http://localhost:4000/api/commerce/orders/addresses/${addressModal.data.id}`, payload, authConfig);
+      if (addressModal.mode === 'ADD') await axios.post('/api/commerce/orders/addresses', payload, authConfig);
+      else await axios.put(`/api/commerce/orders/addresses/${addressModal.data.id}`, payload, authConfig);
       
       setAddressModal({ isOpen: false });
       fetchAddressBook(); 
@@ -291,7 +291,7 @@ export default function CustomerShopPage() {
     if (!voucherCode.trim()) return;
     if (voucherBase <= 0) return alert('Mã giảm giá không áp dụng cho sản phẩm đang khuyến mãi');
     try {
-      const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
+      const res = await axios.post('/api/commerce/promotions/apply', {
         code: voucherCode, order_value: voucherBase,
         scope_values: { PRODUCT: voucherBase } // Giỏ hàng chỉ có sản phẩm
       }, authConfig);
@@ -305,7 +305,7 @@ export default function CustomerShopPage() {
   const handleAddToCart = async (productId) => {
     if (!customer_id) return setShowLoginModal(true);
     try {
-      await axios.post('http://localhost:4000/api/commerce/carts/add', { product_id: productId, quantity: 1 }, authConfig);
+      await axios.post('/api/commerce/carts/add', { product_id: productId, quantity: 1 }, authConfig);
       fetchCart();
       setToastMsg('Đã thêm sản phẩm vào giỏ hàng thành công!');
       setTimeout(() => setToastMsg(''), 3000);
@@ -315,8 +315,8 @@ export default function CustomerShopPage() {
   const handleUpdateQuantity = async (itemId, currentQty, delta) => {
     const newQty = currentQty + delta;
     try {
-      if (newQty <= 0) await axios.delete(`http://localhost:4000/api/commerce/carts/item/${itemId}`, authConfig);
-      else await axios.put(`http://localhost:4000/api/commerce/carts/item/${itemId}`, { quantity: newQty }, authConfig);
+      if (newQty <= 0) await axios.delete(`/api/commerce/carts/item/${itemId}`, authConfig);
+      else await axios.put(`/api/commerce/carts/item/${itemId}`, { quantity: newQty }, authConfig);
       fetchCart();
     } catch (err) { alert('Lỗi cập nhật số lượng'); }
   };
@@ -332,7 +332,7 @@ export default function CustomerShopPage() {
       const payload = {
         ...checkoutForm, promotion_code: appliedVoucher?.code || null, save_address_to_book: false
       };
-      const res = await axios.post('http://localhost:4000/api/commerce/orders/checkout', payload, authConfig);
+      const res = await axios.post('/api/commerce/orders/checkout', payload, authConfig);
       
       const newOrder = res.data.data;
       
@@ -355,9 +355,15 @@ export default function CustomerShopPage() {
     if (!showQRModal || !currentOrder) return;
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`http://localhost:4000/api/commerce/orders/${currentOrder.id}/check-payment`, authConfig);
+        const res = await axios.get(`/api/commerce/orders/${currentOrder.id}/check-payment`, authConfig);
         
-        if (res.data.isPaid) {
+        if (res.data.status === 'CANCELLED') {
+          clearInterval(interval);
+          setShowQRModal(false);
+          alert('Đơn đã tự hủy vì quá 15 phút chưa thanh toán, voucher đã dùng được trả lại. Nếu bạn đã chuyển khoản, vui lòng liên hệ CSKH để được hoàn tiền.');
+          fetchCart();
+          setActiveView('SHOP');
+        } else if (res.data.isPaid) {
           clearInterval(interval);
           setShowQRModal(false);
           setToastMsg('🎉 Đã nhận thanh toán! Đơn hàng đang được chuẩn bị.');
@@ -396,7 +402,7 @@ export default function CustomerShopPage() {
             <h3 className="text-lg font-bold text-slate-800">Vui lòng đăng nhập</h3>
             <p className="text-sm text-slate-600">Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng và đặt mua.</p>
             <div className="flex gap-3">
-              <button onClick={() => navigate('/login')} className="flex-1 py-2.5 bg-slate-900 text-white font-medium rounded-xl">Đăng nhập</button>
+              <button onClick={() => navigate('/login')} className="flex-1 py-2.5 bg-primary text-white font-medium rounded-xl">Đăng nhập</button>
               <button onClick={() => navigate('/register')} className="flex-1 py-2.5 border border-slate-300 font-medium rounded-xl">Đăng ký</button>
             </div>
             <button onClick={() => setShowLoginModal(false)} className="text-sm text-slate-500 hover:underline">Để sau</button>
@@ -404,14 +410,14 @@ export default function CustomerShopPage() {
         </div>
       )}
       {toastMsg && (
-        <div className="fixed top-10 right-10 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-20 left-3 right-3 sm:left-auto sm:right-10 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
           <CheckCircle className="w-5 h-5 text-green-400" />
           <span className="font-medium">{toastMsg}</span>
         </div>
       )}
 
       {activeView === 'SHOP' && (
-        <div className="max-w-6xl mx-auto p-6">
+        <div className="max-w-6xl mx-auto sm:p-6">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Cửa hàng Dược Mỹ phẩm</h1>
             <button onClick={() => { if (!customer_id) setShowLoginModal(true); else setActiveView('CART'); }} className="relative p-3 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition shadow-sm">
@@ -430,42 +436,42 @@ export default function CustomerShopPage() {
               <button onClick={() => updateFilters({ ...EMPTY_FILTERS, sort: filters.sort })} className="btn btn-sm btn-outline">Xóa bộ lọc</button>
             </div>
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
             {visibleProducts.map(p => {
               const outOfStock = !(p.stock_quantity > 0);
               return (
-              <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div key={p.id} className="bg-white rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
                 <div>
-                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="relative block aspect-square bg-slate-100 rounded-xl mb-4 overflow-hidden group">
+                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="relative block aspect-square bg-slate-100 rounded-xl mb-2 md:mb-4 overflow-hidden group">
                     <img src={getProductImage(p.image_url)} alt={p.name} className={`w-full h-full object-cover transition duration-300 group-hover:scale-105 ${outOfStock ? 'opacity-50 grayscale' : ''}`} />
                     {outOfStock && <span className="absolute top-2 left-2 bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded-lg">Hết hàng</span>}
-                    {p.ProductDetail?.is_prescription && <span className="absolute bottom-2 left-2 bg-rose-600 text-white text-xs font-semibold px-2 py-1 rounded-lg">Thuốc kê đơn</span>}
+                    {p.ProductDetail?.is_prescription && <span className="absolute bottom-2 left-2 bg-rose-600 text-white text-[11px] md:text-xs font-semibold px-2 py-1 rounded-lg">Thuốc kê đơn</span>}
                     <ProductBadges product={p} />
                   </Link>
                   {p.Category && <p className="text-xs text-teal-600 font-medium mb-1 line-clamp-1">{p.Category.name}</p>}
-                  <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 mb-2 hover:underline">
+                  <button type="button" onClick={() => openProductReviews(p)} className="flex items-center gap-1 min-h-6 mb-1 md:mb-2 hover:underline">
                     <Star className={`w-4 h-4 ${p.review_count ? 'text-yellow-400 fill-yellow-400' : 'text-slate-300'}`} />
-                    <span className="text-sm text-slate-600 font-medium">
-                      {p.review_count ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count} đánh giá)` : 'Chưa có đánh giá'}
+                    <span className="text-xs md:text-sm text-slate-600 font-medium">
+                      {p.review_count ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count})` : 'Chưa có đánh giá'}
                     </span>
                   </button>
-                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="block font-bold text-lg text-slate-800 line-clamp-1 hover:text-primary">{p.name}</Link>
+                  <Link to={`/shops/${p.ProductDetail?.slug || p.id}`} className="block font-semibold md:font-bold text-sm md:text-lg leading-snug text-slate-800 line-clamp-2 min-h-[2.5rem] md:min-h-[3.5rem] hover:text-primary">{p.name}</Link>
                   {p.ProductDetail?.short_description && (
-                    <p className="text-sm text-slate-500 mt-1 line-clamp-2" title={p.ProductDetail.short_description}>{p.ProductDetail.short_description}</p>
+                    <p className="hidden md:block text-sm text-slate-500 mt-1 line-clamp-2" title={p.ProductDetail.short_description}>{p.ProductDetail.short_description}</p>
                   )}
-                  <div className="flex items-end justify-between gap-2 my-2">
-                    <ProductPrice product={p} className="text-primary font-bold text-lg" />
-                    <span className="text-xs text-slate-500 whitespace-nowrap mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
+                  <div className="flex flex-wrap items-end justify-between gap-x-2 my-1 md:my-2">
+                    <ProductPrice product={p} className="text-primary font-bold text-[15px] md:text-lg" />
+                    <span className="text-[11px] md:text-xs text-slate-500 whitespace-nowrap md:mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
                 {p.ProductDetail?.is_prescription ? (
                   // Thuốc kê đơn: không bán online, chỉ bác sĩ kê sau khi khám (server cũng chặn thêm vào giỏ)
-                  <Link to="/booking" className="w-full py-2.5 border border-rose-200 bg-rose-50 text-rose-700 font-medium rounded-xl flex items-center justify-center gap-2 mt-4 text-sm">
+                  <Link to="/booking" className="w-full py-2 px-1 border border-rose-200 bg-rose-50 text-rose-700 font-medium rounded-xl flex items-center justify-center text-center gap-2 mt-2 md:mt-4 text-xs md:text-sm">
                     Kê đơn tại phòng khám – Đặt lịch khám
                   </Link>
                 ) : (
                 <button onClick={() => handleAddToCart(p.id)} disabled={outOfStock}
-                  className="w-full py-2.5 bg-slate-900 text-white font-medium rounded-xl flex items-center justify-center gap-2 mt-4 disabled:bg-slate-300 disabled:cursor-not-allowed">
+                  className="w-full min-h-10 py-2 bg-primary hover:brightness-95 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-1.5 mt-2 md:mt-4 disabled:bg-slate-300 disabled:cursor-not-allowed">
                   {outOfStock ? 'Tạm hết hàng' : <><Plus className="w-4 h-4"/> Thêm vào giỏ</>}
                 </button>
                 )}
@@ -478,7 +484,7 @@ export default function CustomerShopPage() {
       )}
 
       {activeView === 'CART' && (
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="max-w-4xl mx-auto sm:p-6">
           <button onClick={() => setActiveView('SHOP')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 font-medium"><ArrowLeft className="w-5 h-5"/> Mua tiếp</button>
           <h1 className="text-3xl font-bold text-slate-800 mb-8">Giỏ hàng</h1>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -498,16 +504,16 @@ export default function CustomerShopPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-slate-900 text-white p-6 rounded-2xl h-fit">
-              <div className="flex justify-between mb-8 text-lg font-bold"><span>Tạm tính</span><span className="text-primary">{cartTotal.toLocaleString()} ₫</span></div>
-              <button onClick={() => setActiveView('CHECKOUT')} className="w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2">Thanh toán <ArrowLeft className="w-4 h-4 rotate-180"/></button>
+            <div className="bg-secondary text-white p-4 sm:p-6 rounded-2xl h-fit">
+              <div className="flex justify-between mb-4 sm:mb-8 text-lg font-bold"><span>Tạm tính</span><span>{cartTotal.toLocaleString()} ₫</span></div>
+              <button onClick={() => setActiveView('CHECKOUT')} className="w-full py-3 bg-white text-secondary font-bold rounded-xl flex items-center justify-center gap-2">Thanh toán <ArrowLeft className="w-4 h-4 rotate-180"/></button>
             </div>
           </div>
         </div>
       )}
 
       {activeView === 'CHECKOUT' && (
-        <div className="max-w-5xl mx-auto p-6">
+        <div className="max-w-5xl mx-auto sm:p-6">
           <button onClick={() => setActiveView('CART')} className="flex items-center gap-2 text-slate-500 mb-6 font-medium"><ArrowLeft className="w-5 h-5"/> Quay lại Giỏ hàng</button>
           
           <form onSubmit={handleCheckout} className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -574,7 +580,7 @@ export default function CustomerShopPage() {
 
             {/* BILL & VOUCHER */}
             <div>
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 sticky top-6">
+              <div className="bg-slate-50 p-4 sm:p-6 rounded-2xl border border-slate-200 md:sticky md:top-24">
                  <h3 className="font-bold text-lg text-slate-800 mb-4">Tóm tắt đơn hàng</h3>
                  
                  <div className="flex justify-between text-sm mb-2 text-slate-600"><span>Tiền hàng</span><span className="font-medium text-slate-800">{cartTotal.toLocaleString()} ₫</span></div>
@@ -650,6 +656,7 @@ export default function CustomerShopPage() {
             </h3>
             
             <div className="text-center space-y-4">
+              <p className="text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2">Vui lòng chuyển khoản trong 15 phút, quá thời gian đơn sẽ tự hủy.</p>
               <p className="text-sm font-medium text-slate-500">Mã đơn hàng: <b className="text-slate-800">#{currentOrder.id.slice(0,8).toUpperCase()}</b></p>
               
               <div className="p-3 border-2 border-primary rounded-xl inline-block bg-white mx-auto shadow-sm">
@@ -711,7 +718,7 @@ export default function CustomerShopPage() {
       {/* Modal đánh giá thật của sản phẩm */}
       {reviewProduct && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewProduct(null)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[85dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start border-b pb-3 mb-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{reviewProduct.name}</h3>

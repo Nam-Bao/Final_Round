@@ -37,7 +37,7 @@ const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin'; // địa ch
 const RETURN_WINDOW_DAYS = 7;
 const RETURN_STATUS = {
   PENDING: { label: 'Chờ nhân viên duyệt', color: 'bg-amber-50 border-amber-200 text-amber-800' },
-  APPROVED: { label: 'Đã duyệt, chờ GHN đến lấy hàng', color: 'bg-cyan-50 border-cyan-200 text-cyan-800' },
+  APPROVED: { label: 'Đã duyệt, chờ nhân viên tạo đơn lấy hàng', color: 'bg-cyan-50 border-cyan-200 text-cyan-800' },
   PICKING: { label: 'GHN đang lấy hàng về kho', color: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
   RECEIVED: { label: 'Kho đã nhận hàng, đang kiểm tra', color: 'bg-blue-50 border-blue-200 text-blue-800' },
   REFUNDED: { label: 'Đã hoàn tiền', color: 'bg-green-50 border-green-200 text-green-800' },
@@ -89,7 +89,9 @@ function OrderProgress({ order, isCounterOrder, currentStep }) {
   if (order.status === 'CANCELLED') {
     return (
       <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 text-sm font-semibold">
-        <XCircle className="w-5 h-5 shrink-0" /> Đơn hàng đã bị hủy
+        <XCircle className="w-5 h-5 shrink-0" /> Đơn hàng đã bị hủy{order.cancel_reason ? `: ${order.cancel_reason}` : ''}
+        {order.refund_status === 'PENDING' && <span className="font-normal">. Phòng khám sẽ hoàn {Number(order.refund_amount).toLocaleString('vi-VN')}đ, vui lòng liên hệ CSKH để cung cấp tài khoản nhận tiền.</span>}
+        {order.refund_status === 'REFUNDED' && <span className="font-normal">. Đã hoàn {Number(order.refund_amount).toLocaleString('vi-VN')}đ, mã giao dịch {order.refund_ref}.</span>}
       </div>
     );
   }
@@ -104,20 +106,20 @@ function OrderProgress({ order, isCounterOrder, currentStep }) {
           const current = idx === currentStep && !done;
           return (
             <React.Fragment key={step.status}>
-              <div className="flex flex-col items-center w-14 sm:w-20 shrink-0">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+              <div className="flex flex-col items-center w-14 sm:w-20 min-w-0 shrink">
+                <div className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center transition ${
                   done ? 'bg-teal-600 text-white shadow-sm'
                     : current ? 'bg-white text-teal-600 border-2 border-teal-500 ring-4 ring-teal-100'
                       : 'bg-white text-slate-300 border border-slate-200'}`}>
                   <Icon className="w-4 h-4" />
                 </div>
-                <span className={`mt-1.5 text-[11px] sm:text-xs text-center leading-tight ${
+                <span className={`mt-1.5 text-[10px] sm:text-xs text-center leading-tight ${
                   done ? 'text-teal-700 font-medium' : current ? 'text-teal-700 font-bold' : 'text-slate-400'}`}>
                   {step.label}
                 </span>
               </div>
               {idx < lastIdx && (
-                <div className={`flex-1 h-1 rounded-full mt-4 mx-0.5 ${idx < currentStep ? 'bg-teal-500' : 'bg-slate-200'}`} />
+                <div className={`flex-1 min-w-1 h-1 rounded-full mt-4 mx-0.5 ${idx < currentStep ? 'bg-teal-500' : 'bg-slate-200'}`} />
               )}
             </React.Fragment>
           );
@@ -150,8 +152,8 @@ export default function PharmacyOrdersPage() {
         setLoading(true);
         const headers = { Authorization: `Bearer ${token}` };
         const [res, reviewRes] = await Promise.all([
-          axios.get(`http://localhost:4000/api/commerce/orders`, { headers }),
-          axios.get(`http://localhost:4000/api/commerce/reviews/mine`, { headers }).catch(() => ({ data: { data: [] } })),
+          axios.get(`/api/commerce/orders`, { headers }),
+          axios.get(`/api/commerce/reviews/mine`, { headers }).catch(() => ({ data: { data: [] } })),
         ]);
         setOrders(res.data.data || []);
         setMyReviews(Object.fromEntries((reviewRes.data.data || []).map((r) => [`${r.order_id}:${r.product_id}`, r])));
@@ -167,7 +169,7 @@ export default function PharmacyOrdersPage() {
   const handleCancelReturn = async (id) => {
     if (!window.confirm('Hủy yêu cầu hoàn trả này?')) return;
     try {
-      await axios.put(`http://localhost:4000/api/commerce/returns/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(`/api/commerce/returns/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
       setReloadKey((k) => k + 1);
     } catch (err) {
       alert(err.response?.data?.message || 'Không hủy được yêu cầu');
@@ -176,7 +178,7 @@ export default function PharmacyOrdersPage() {
 
   const handleSubmitReview = async ({ rating, comment }) => {
     const { order_id, product_id } = reviewTarget;
-    const res = await axios.post('http://localhost:4000/api/commerce/reviews', { order_id, product_id, rating, comment }, {
+    const res = await axios.post('/api/commerce/reviews', { order_id, product_id, rating, comment }, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setMyReviews((prev) => ({ ...prev, [`${order_id}:${product_id}`]: res.data.data }));
@@ -184,9 +186,9 @@ export default function PharmacyOrdersPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">Lịch Sử Đơn Hàng Dược Mỹ Phẩm</h2>
+    <div className="max-w-4xl mx-auto sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-secondary">Lịch Sử Đơn Hàng Dược Mỹ Phẩm</h2>
         <Link to="/shops" className="btn btn-sm btn-outline gap-2"><ShoppingBag className="w-4 h-4" /> Tiếp tục mua sắm</Link>
       </div>
 

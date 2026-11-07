@@ -106,6 +106,11 @@ const pickArticleFields = (body, isCreate) => {
       if (data.content.length > MAX_CONTENT) return { error: `Nội dung tối đa ${MAX_CONTENT.toLocaleString('vi-VN')} ký tự` };
       checkContentMedia(data.content);
     }
+    if (body.seo_title !== undefined) data.seo_title = text(body.seo_title) || null;
+    if (body.seo_description !== undefined) data.seo_description = text(body.seo_description) || null;
+    if (data.seo_title && data.seo_title.length > 70) return { error: 'Tiêu đề SEO tối đa 70 ký tự' };
+    if (data.seo_description && data.seo_description.length > 170) return { error: 'Mô tả SEO tối đa 170 ký tự' };
+    if (body.share_image !== undefined) data.share_image = optionalUrl(body.share_image, 'Ảnh khi chia sẻ');
     if (body.thumbnail_url !== undefined) data.thumbnail_url = optionalUrl(body.thumbnail_url, 'Ảnh bìa');
     if (body.video_url !== undefined) data.video_url = optionalUrl(body.video_url, 'Video');
     if (body.tags !== undefined) data.tags = stringList(body.tags, { max: 10, maxLength: 40, separator: /[,\n]/ });
