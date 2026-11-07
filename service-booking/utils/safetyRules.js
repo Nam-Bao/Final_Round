@@ -109,7 +109,10 @@ const normalize = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 
 const proceduresOf = (text) => Object.keys(PROCEDURES).filter((k) => PROCEDURES[k].re.test(normalize(text)));
 const ingredientsOf = (text) => Object.keys(INGREDIENTS).filter((k) => INGREDIENTS[k].re.test(normalize(text)));
-const allergyTerms = (text) => String(text || '').split(/[,;\n]/).map((t) => normalize(t).trim()).filter((t) => t.length >= 3);
+// Bỏ các cách ghi "không có dị ứng", và so theo nguyên từ để "mat" không khớp vào "kem mat"
+const NO_ALLERGY = /^(khong|ko|chua|none|n\/a)\b/;
+const allergyTerms = (text) => String(text || '').split(/[,;\n]/).map((t) => normalize(t).trim()).filter((t) => t.length >= 3 && !NO_ALLERGY.test(t));
+const hasTerm = (haystack, term) => new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(haystack);
 
 const toWarning = (r, itemName) => ({
   code: `${r.flag}:${r.target}`, severity: r.severity, severity_label: SEVERITY[r.severity],
@@ -123,7 +126,7 @@ const evaluate = ({ flags = [], allergies = '', items = [] }) => {
   for (const item of items) {
     RULES.filter((r) => flags.includes(r.flag) && item.targets.includes(r.target)).forEach((r) => warnings.push(toWarning(r, item.name)));
     const haystack = normalize(item.text);
-    terms.filter((t) => haystack.includes(t)).forEach((t) => warnings.push({
+    terms.filter((t) => hasTerm(haystack, t)).forEach((t) => warnings.push({
       code: `ALLERGY:${t}`, severity: 'CONTRAINDICATED', severity_label: SEVERITY.CONTRAINDICATED, condition: 'Dị ứng đã ghi trong hồ sơ', item: item.name,
       message: `Hồ sơ ghi dị ứng "${t}", sản phẩm có thành phần này.`, sources: [],
     }));

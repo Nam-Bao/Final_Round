@@ -8,7 +8,7 @@ import DoctorProfileModal from '../components/DoctorProfileModal';
 import { CONSULT_FIELDS, CONSULT_DEPOSIT, CREDIT_VALID_DAYS, formatVnd } from '../utils/consult';
 import { CONSULT_HOURS } from '../utils/contact';
 
-const API = 'http://localhost:4000/api';
+const API = '/api';
 // Chuyên gia không nhất thiết là bác sĩ => không tự thêm "BS."
 const expertName = (e) => (e.title ? `${e.title} ${e.full_name}` : e.full_name);
 
@@ -199,7 +199,7 @@ export default function ConsultationBookingPage() {
 
         {/* Tóm tắt */}
         <div className="md:col-span-1">
-          <div className="card bg-base-100 p-6 shadow-xl border border-base-200 sticky top-24 space-y-4">
+          <div className="card bg-base-100 p-6 shadow-xl border border-base-200 md:sticky md:top-24 space-y-4">
             <h2 className="font-bold text-lg">Tóm tắt lịch tư vấn</h2>
             <div className="text-sm space-y-2">
               <p>Lĩnh vực: <b>{CONSULT_FIELDS[field].label}</b></p>

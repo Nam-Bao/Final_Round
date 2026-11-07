@@ -18,7 +18,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       // Gọi API Đăng nhập thật xuống Backend
-      const response = await fetch('http://localhost:4000/api/identity/auth/login', {
+      const response = await fetch('/api/identity/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -49,7 +49,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex h-screen items-center justify-center bg-base-200">
-      <div className="card w-96 bg-base-100 shadow-xl">
+      <div className="card w-full max-w-96 bg-base-100 shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl font-bold justify-center mb-4">Đăng Nhập</h2>
           {expired && !error && (

@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs, Badge, Result } from 'antd';
-import { FileTextOutlined, AuditOutlined, PictureOutlined, NotificationOutlined } from '@ant-design/icons';
+import { FileTextOutlined, AuditOutlined, PictureOutlined, NotificationOutlined, ShopOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import ArticleManager from '../components/content/ArticleManager';
 import SubmissionReview from '../components/content/SubmissionReview';
 import BannerManager from '../components/content/BannerManager';
 import PopupManager from '../components/content/PopupManager';
+import ClinicInfoForm from '../components/content/ClinicInfoForm';
 import { MEDIA_API, authConfig } from '../components/content/contentApi';
 
 const MANAGER_ROLES = ['ADMIN', 'GEN_MANAGER'];
 
-// Quản lý trang web khách hàng: bài viết, duyệt bài bác sĩ, banner trang chủ, popup quảng cáo
+// Quản lý trang web khách hàng: bài viết, duyệt bài bác sĩ, banner trang chủ, popup quảng cáo, thông tin phòng khám
 export default function ContentManagementPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'articles';
@@ -40,6 +41,7 @@ export default function ContentManagementPage() {
         },
         { key: 'banners', label: <span><PictureOutlined /> Banner trang chủ</span>, children: <BannerManager /> },
         { key: 'popups', label: <span><NotificationOutlined /> Popup quảng cáo</span>, children: <PopupManager /> },
+        { key: 'clinic', label: <span><ShopOutlined /> Thông tin phòng khám</span>, children: <ClinicInfoForm /> },
       ]} />
     </div>
   );

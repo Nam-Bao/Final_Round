@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { trackClick } from '../utils/trackClick';
 
-const API = 'http://localhost:4000/api/media/pages/banners';
+const API = '/api/media/pages/banners';
 
 // Nút / ảnh banner dẫn tới trang trong web (Link) hoặc web ngoài (mở tab mới)
-function BannerLink({ to, className, children, label }) {
+function BannerLink({ to, bannerId, className, children, label }) {
   if (!to) return <div className={className}>{children}</div>;
+  const onClick = () => trackClick('banners', bannerId);
   return to.startsWith('/')
-    ? <Link to={to} className={className} aria-label={label}>{children}</Link>
-    : <a href={to} target="_blank" rel="noopener noreferrer" className={className} aria-label={label}>{children}</a>;
+    ? <Link to={to} className={className} aria-label={label} onClick={onClick}>{children}</Link>
+    : <a href={to} target="_blank" rel="noopener noreferrer" className={className} aria-label={label} onClick={onClick}>{children}</a>;
 }
 
 // Banner trình chiếu do quản lý cấu hình. Chưa có banner đang chạy => hiện phần giới thiệu mặc định (fallback).
@@ -35,6 +37,9 @@ export default function HomeBanner({ fallback }) {
   if (banners === null) return <div className="rounded-3xl bg-base-200 animate-pulse aspect-[4/5] sm:aspect-[8/3]" />;
   if (!count) return fallback;
 
+  // Ảnh điện thoại làm theo khung dọc 4:5; chưa banner nào có ảnh riêng thì dùng khung thấp hơn cho ảnh ngang đỡ bị cắt
+  const mobileRatio = banners.some((b) => b.mobile_image_url) ? 'aspect-[4/5]' : 'aspect-[5/4]';
+
   const go = (step) => setIndex((i) => (i + step + count) % count);
 
   return (
@@ -44,10 +49,10 @@ export default function HomeBanner({ fallback }) {
         {banners.map((b, i) => (
           <div key={b.id} className="relative w-full shrink-0" aria-hidden={i !== index}>
             {/* Cả ảnh bấm được khi không hiện chữ (ảnh đã có sẵn chữ / nút) */}
-            <BannerLink to={b.show_text === false ? b.link_url : null} label={b.title} className="block">
+            <BannerLink to={b.show_text === false ? b.link_url : null} bannerId={b.id} label={b.title} className="block">
               <picture>
                 {b.mobile_image_url && <source media="(max-width: 640px)" srcSet={b.mobile_image_url} />}
-                <img src={b.image_url} alt={b.title} className="w-full aspect-[4/5] sm:aspect-[8/3] object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+                <img src={b.image_url} alt={b.title} className={`w-full ${mobileRatio} sm:aspect-[8/3] object-cover`} loading={i === 0 ? 'eager' : 'lazy'} />
               </picture>
             </BannerLink>
             {b.show_text !== false ? (
@@ -56,13 +61,13 @@ export default function HomeBanner({ fallback }) {
                   <h2 className="text-2xl sm:text-4xl font-extrabold leading-tight drop-shadow">{b.title}</h2>
                   {b.subtitle && <p className="text-sm sm:text-lg text-white/90 leading-relaxed">{b.subtitle}</p>}
                   {b.link_url && (
-                    <BannerLink to={b.link_url} className="btn btn-primary text-white rounded-full mt-2">{b.button_text || 'Xem ngay'}</BannerLink>
+                    <BannerLink to={b.link_url} bannerId={b.id} className="btn btn-primary text-white rounded-full mt-2">{b.button_text || 'Xem ngay'}</BannerLink>
                   )}
                 </div>
               </div>
             ) : b.link_url && (
               // Ảnh đã có sẵn chữ: chỉ đặt nút ở góc dưới bên trái
-              <BannerLink to={b.link_url} className="btn btn-primary text-white rounded-full shadow-lg absolute left-6 bottom-10 sm:left-12 sm:bottom-12">
+              <BannerLink to={b.link_url} bannerId={b.id} className="btn btn-primary text-white rounded-full shadow-lg absolute left-6 bottom-10 sm:left-12 sm:bottom-12">
                 {b.button_text || 'Xem ngay'}
               </BannerLink>
             )}

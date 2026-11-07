@@ -3,8 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ArrowLeft, Calendar, Eye, Clock, Newspaper, FlaskConical, Link2, Check, BookOpen, Stethoscope } from 'lucide-react';
 import ArticleBody, { VideoEmbed } from '../components/ArticleBody';
+import { applyPageMeta } from '../utils/pageMeta';
+import { copyText } from '../utils/copyText';
 
-const API = 'http://localhost:4000/api/media/news';
+const API = '/api/media/news';
 
 // Thời gian đọc ước tính: ~220 từ / phút
 const readingMinutes = (text = '') => Math.max(1, Math.round(String(text).split(/\s+/).filter(Boolean).length / 220));
@@ -36,9 +38,20 @@ export default function NewsDetailPage() {
     return () => { isMounted = false; };
   }, [slug]);
 
+  // Tiêu đề, mô tả, ảnh cho Google và khi chia sẻ; quản lý không nhập thì lấy từ chính bài viết
+  useEffect(() => {
+    if (!article) return undefined;
+    return applyPageMeta({
+      title: `${article.seo_title || article.title} | GlowSkin Clinic`,
+      description: article.seo_description || article.summary,
+      image: article.share_image || article.thumbnail_url,
+      url: window.location.href,
+    });
+  }, [article]);
+
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await copyText(window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* trình duyệt chặn clipboard */ }

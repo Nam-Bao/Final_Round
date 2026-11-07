@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, message, Radio } from 'antd';
-import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, HistoryOutlined, DollarOutlined } from '@ant-design/icons';
+import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, DollarOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import { useLocation } from 'react-router-dom'; 
-dayjs.extend(isSameOrBefore);
+import { useLocation, useNavigate } from 'react-router-dom'; 
 
 const { Title, Text } = Typography;
 
 export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState([]);
-  const [medicalFollowUps, setMedicalFollowUps] = useState([]); 
   const [customers, setCustomers] = useState([]); 
   const [patientProfiles, setPatientProfiles] = useState([]); 
   
@@ -34,24 +31,23 @@ export default function AppointmentManagementPage() {
   const [refundTarget, setRefundTarget] = useState(null);
   const [refundRef, setRefundRef] = useState('');
   const [refundNote, setRefundNote] = useState('');
-  const location = useLocation(); 
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const fetchData = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [resApt, resCust, resFollowUps, resRefunds] = await Promise.all([
+      const [resApt, resCust, resRefunds] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments', { headers }),
         axios.get('http://localhost:4000/api/identity/users/customers', { headers }),
-        axios.get('http://localhost:4000/api/identity/medical-records/follow-ups/upcoming', { headers }).catch(() => ({ data: { data: [] } })),
         axios.get('http://localhost:4000/api/booking/appointments/pending-refunds', { headers }).catch(() => ({ data: { data: [] } }))
       ]);
       setPendingRefunds(resRefunds.data?.data || []);
 
       setAppointments(resApt.data?.data || []);
       setCustomers(resCust.data?.data || []);
-      setMedicalFollowUps(resFollowUps.data?.data || []);
     } catch (error) {
       message.error('Không thể tải dữ liệu');
     }
@@ -118,39 +114,6 @@ export default function AppointmentManagementPage() {
     } catch (error) { return []; }
   };
 
-  const getUpcomingReminders = () => {
-    const today = dayjs().startOf('day');
-    const threeDaysLater = dayjs().add(3, 'day').endOf('day');
-
-    const aptReminders = (appointments || []).filter(apt => {
-        if (!apt.appointment_date) return false;
-        const aptDate = dayjs(apt.appointment_date);
-        return (apt.status === 'PENDING' || apt.status === 'CONFIRMED') && aptDate.isAfter(today) && aptDate.isSameOrBefore(threeDaysLater);
-      }).map(apt => ({
-         id: apt.id, isMedicalRecord: false, customer_id: apt.customer_id,
-         date: apt.appointment_date, time: apt.appointment_time ? String(apt.appointment_time).slice(0,5) : '--:--',
-         type: apt.type, raw: apt
-      }));
-
-    // Bệnh án không lưu customer_id => lấy tài khoản từ hồ sơ bệnh nhân (Patient.user_id), lùi về lịch hẹn cũ
-    const followUpReminders = (medicalFollowUps || []).map(record => {
-         const oldApt = appointments.find(a => a.id === record.appointment_id);
-         return {
-             id: record.id, isMedicalRecord: true,
-             customer_id: record.Patient?.user_id || oldApt?.customer_id,
-             patient_profile_id: record.patient_profile_id || oldApt?.patient_profile_id,
-             doctor_id: record.doctor_id || oldApt?.doctor_id,
-             customer_name: record.Patient?.full_name || 'Khách', customer_phone: record.Patient?.phone || 'Chưa có',
-             date: record.follow_up_date, time: 'Chưa xếp giờ', type: 'FOLLOW_UP', old_time: oldApt ? oldApt.appointment_time : null, raw: record
-         };
-      }).filter(item => {
-         const alreadyScheduled = appointments.some(apt => apt.patient_profile_id === item.patient_profile_id && apt.type === 'FOLLOW_UP' && (apt.status === 'PENDING' || apt.status === 'CONFIRMED'));
-         return !alreadyScheduled;
-      });
-
-    return [...aptReminders, ...followUpReminders].sort((a, b) => dayjs(a.date).unix() - dayjs(b.date).unix());
-  };
-
   // Lịch có thể đặt cho người thân => hiện tên/SĐT của HỒ SƠ được khám, chỉ lùi về tên tài khoản khi lịch cũ chưa có hồ sơ
   const getPatientInfo = (customerId, profileId) => {
     const cust = customers.find(c => c.id === customerId);
@@ -202,54 +165,35 @@ export default function AppointmentManagementPage() {
   };
 
   const handleEdit = async (item) => {
-    if (item.isMedicalRecord) {
-      setEditingAppointment(null);
-      form.resetFields();
-      setCustomerType('EXISTING');
-      
-      const targetDate = dayjs(item.date);
-      form.setFieldsValue({
-        customer_id: item.customer_id, patient_profile_id: item.patient_profile_id,
-        type: 'FOLLOW_UP', appointment_date: targetDate, method: 'OFFLINE',
-        symptoms: item.raw?.diagnosis ? `Tái khám: ${item.raw.diagnosis}` : undefined
-      });
-
-      setIsModalVisible(true);
-      if (item.customer_id) fetchPatientProfiles(item.customer_id, item.patient_profile_id);
-      else message.warning('Không tìm thấy tài khoản của khách, vui lòng chọn thủ công.');
-
-      const dateStr = targetDate.format('YYYY-MM-DD');
-      const docs = await fetchAvailableDoctors(dateStr);
-      const oldDocId = item.doctor_id;
-      if (oldDocId && docs.some(d => d.id === oldDocId)) {
-         form.setFieldsValue({ doctor_id: oldDocId });
-         const slots = await fetchAvailableSlots(oldDocId, dateStr);
-         const oldTime = item.old_time ? String(item.old_time).slice(0, 5) : null;
-         if (oldTime && slots.includes(oldTime)) form.setFieldsValue({ appointment_time: oldTime });
-         else if (oldTime) message.info(`Giờ khám lần trước (${oldTime}) đã kín, vui lòng chọn giờ khác.`);
-      } else if (oldDocId) {
-         message.info('Bác sĩ khám lần trước không có ca vào ngày tái khám, vui lòng chọn bác sĩ khác.');
-      }
-    } else {
-      const record = item.raw || item;
-      setEditingAppointment(record);
-      setCustomerType('EXISTING');
-      form.setFieldsValue({
-        ...record,
-        appointment_date: record.appointment_date ? dayjs(record.appointment_date) : dayjs(),
-        appointment_time: record.appointment_time ? String(record.appointment_time).slice(0, 5) : null,
-        method: record.pre_notes?.includes('[ONLINE]') ? 'ONLINE' : 'OFFLINE',
-        pre_notes: record.pre_notes?.replace('[ONLINE] ', '')
-      });
-      
-      setIsModalVisible(true);
-      if (record.customer_id) fetchPatientProfiles(record.customer_id, record.patient_profile_id);
-      
-      const aptDate = record.appointment_date ? dayjs(record.appointment_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
-      await fetchAvailableDoctors(aptDate); 
-      if (record.doctor_id) await fetchAvailableSlots(record.doctor_id, aptDate);
-    }
+    const record = item.raw || item;
+    setEditingAppointment(record);
+    setCustomerType('EXISTING');
+    form.setFieldsValue({
+      ...record,
+      appointment_date: record.appointment_date ? dayjs(record.appointment_date) : dayjs(),
+      appointment_time: record.appointment_time ? String(record.appointment_time).slice(0, 5) : null,
+      method: record.pre_notes?.includes('[ONLINE]') ? 'ONLINE' : 'OFFLINE',
+      pre_notes: record.pre_notes?.replace('[ONLINE] ', '')
+    });
+    
+    setIsModalVisible(true);
+    if (record.customer_id) fetchPatientProfiles(record.customer_id, record.patient_profile_id);
+    
+    const aptDate = record.appointment_date ? dayjs(record.appointment_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+    await fetchAvailableDoctors(aptDate); 
+    if (record.doctor_id) await fetchAvailableSlots(record.doctor_id, aptDate);
   };
+
+  // Từ trang Gọi chăm sóc khách sang: mở sẵn lịch khách không đến được để đổi
+  useEffect(() => {
+    const appointmentId = location.state?.editAppointmentId;
+    if (!appointmentId || appointments.length === 0) return;
+    navigate(location.pathname, { replace: true, state: null });
+    const target = appointments.find((apt) => apt.id === appointmentId);
+    if (target) handleEdit(target);
+    else message.warning('Không tìm thấy lịch hẹn cần đổi');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, appointments]);
 
   const NO_SHOW_GRACE_MINUTES = 15; // khớp server
   const canMarkNoShow = (apt) => apt && ['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status)
@@ -344,7 +288,7 @@ export default function AppointmentManagementPage() {
 
   return (
     <Row gutter={16} className="h-[85vh]">
-      <Col span={18} className="h-full">
+      <Col span={pendingRefunds.length > 0 ? 18 : 24} className="h-full">
         <Card variant="borderless" className="h-full shadow-sm overflow-y-auto" styles={{ body: { padding: 10 } }}>
           <div className="flex justify-between items-center mb-4 p-2">
             <Title level={4} className="m-0 text-blue-800"><CalendarOutlined className="mr-2"/> Lịch Khám & Dịch vụ</Title>
@@ -360,8 +304,8 @@ export default function AppointmentManagementPage() {
         </Card>
       </Col>
 
+      {pendingRefunds.length > 0 && (
       <Col span={6} className="h-full flex flex-col gap-3">
-        {pendingRefunds.length > 0 && (
           <Card size="small" title={<span className="text-red-600"><DollarOutlined className="mr-2"/>Chờ hoàn cọc ({pendingRefunds.length})</span>} variant="borderless"
             className="shadow-sm bg-red-50 border-red-100 shrink-0" styles={{ body: { padding: 0, maxHeight: 220, overflowY: 'auto' } }}>
             <List
@@ -384,38 +328,8 @@ export default function AppointmentManagementPage() {
               }}
             />
           </Card>
-        )}
-        <Card title={<><AlertOutlined className="text-orange-500 mr-2"/> Cần gọi nhắc (3 ngày tới)</>} variant="borderless" className="flex-1 min-h-0 shadow-sm bg-orange-50 border-orange-100" styles={{ body: { padding: 0, overflowY: 'auto', height: 'calc(100% - 55px)' } }}>
-          <List
-            dataSource={getUpcomingReminders()}
-            locale={{ emptyText: 'Không có lịch nhắc nhở nào sắp tới.' }}
-            renderItem={item => {
-              const patient = item.isMedicalRecord ? null : getPatientInfo(item.customer_id, item.raw?.patient_profile_id);
-              const custName = item.isMedicalRecord ? item.customer_name : patient.name;
-              const custPhone = item.isMedicalRecord ? item.customer_phone : patient.phone;
-              const daysLeft = dayjs(item.date).diff(dayjs().startOf('day'), 'day');
-              
-              return (
-                <List.Item className="px-4 py-3 border-b border-orange-100 hover:bg-orange-100 cursor-pointer" onClick={() => handleEdit(item)}>
-                  <List.Item.Meta
-                    title={<b className="text-gray-800">{custName || 'Khách không tên'}</b>}
-                    description={
-                      <Space direction="vertical" size={0}>
-                        <Text type="secondary" className="text-xs"><PhoneOutlined/> {custPhone || 'Chưa có SĐT'}</Text>
-                        <Text className={`text-sm font-medium mt-1 ${item.isMedicalRecord ? 'text-red-500' : ''}`}>Ngày hẹn: {dayjs(item.date).format('DD/MM/YYYY')} ({item.time})</Text>
-                      </Space>
-                    }
-                  />
-                  <div className="text-right">
-                    <Tag color={daysLeft <= 1 ? "red" : "orange"} className="mr-0 mb-1 block text-center">Còn {daysLeft} ngày</Tag>
-                    {item.isMedicalRecord ? <Tag icon={<HistoryOutlined />} color="error" className="mr-0 text-xs">Y bạ: Gọi xếp lịch</Tag> : item.type === 'FOLLOW_UP' && <Tag color="cyan" className="mr-0 text-xs mt-1 block">Tái khám</Tag>}
-                  </div>
-                </List.Item>
-              )
-            }}
-          />
-        </Card>
       </Col>
+      )}
 
       <Modal title={editingAppointment ? 'Cập nhật Lịch hẹn' : 'Tạo Lịch hẹn mới'} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null} width={700}>
         {isReadOnly && (

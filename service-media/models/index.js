@@ -33,6 +33,9 @@ const Article = sequelize.define('Article', {
   sources: { type: DataTypes.JSONB, defaultValue: [] }, // tài liệu tham khảo, mỗi phần tử 1 dòng
   is_featured: { type: DataTypes.BOOLEAN, defaultValue: false }, // ghim lên đầu trang Tin tức
   view_count: { type: DataTypes.INTEGER, defaultValue: 0 },
+  seo_title: { type: DataTypes.STRING(70) },        // tiêu đề trên Google và khi chia sẻ; trống thì dùng tiêu đề bài
+  seo_description: { type: DataTypes.STRING(170) }, // mô tả trên Google và khi chia sẻ; trống thì dùng tóm tắt
+  share_image: { type: DataTypes.STRING(500) },     // ảnh khi chia sẻ; trống thì dùng ảnh bìa
   submission_id: { type: DataTypes.UUID },         // bài do bác sĩ gửi duyệt
   updated_by: { type: DataTypes.UUID },
 });
@@ -90,6 +93,7 @@ const Banner = sequelize.define('Banner', {
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
   start_at: { type: DataTypes.DATE },          // để trống = hiện ngay
   end_at: { type: DataTypes.DATE },            // để trống = không hết hạn
+  click_count: { type: DataTypes.INTEGER, defaultValue: 0 },
   created_by: { type: DataTypes.UUID },
   updated_by: { type: DataTypes.UUID },
 });
@@ -110,14 +114,31 @@ const Popup = sequelize.define('Popup', {
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
   start_at: { type: DataTypes.DATE },
   end_at: { type: DataTypes.DATE },
+  click_count: { type: DataTypes.INTEGER, defaultValue: 0 },
   created_by: { type: DataTypes.UUID },
+  updated_by: { type: DataTypes.UUID },
+});
+
+// Thông tin phòng khám hiện trên website, chỉ có 1 dòng. Ô trống => website dùng giá trị mặc định
+const ClinicInfo = sequelize.define('ClinicInfo', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  hotline: { type: DataTypes.STRING(20) },
+  address: { type: DataTypes.STRING(300) },
+  map_query: { type: DataTypes.STRING(300) },
+  working_hours: { type: DataTypes.STRING(100) },
+  consult_hours: { type: DataTypes.STRING(100) },
+  zalo_url: { type: DataTypes.STRING(500) },
+  facebook_url: { type: DataTypes.STRING(500) },
+  instagram_url: { type: DataTypes.STRING(500) },
+  tiktok_url: { type: DataTypes.STRING(500) },
+  youtube_url: { type: DataTypes.STRING(500) },
   updated_by: { type: DataTypes.UUID },
 });
 
 ArticleSubmission.hasMany(ArticleReview, { foreignKey: 'submission_id', as: 'reviews' });
 ArticleReview.belongsTo(ArticleSubmission, { foreignKey: 'submission_id' });
 
-const MODELS = [Article, ArticleSubmission, ArticleReview, Banner, Popup];
+const MODELS = [Article, ArticleSubmission, ArticleReview, Banner, Popup, ClinicInfo];
 
 // sync() chỉ tạo bảng còn thiếu, KHÔNG thêm cột mới vào bảng đã có => tự thêm các cột còn thiếu.
 // Chỉ thêm, không sửa / xóa cột nên không mất dữ liệu (khác với sync({ alter: true })).
@@ -147,4 +168,4 @@ const syncSchema = async () => {
   return added;
 };
 
-module.exports = { sequelize, Article, ArticleSubmission, ArticleReview, Banner, Popup, syncSchema };
+module.exports = { sequelize, Article, ArticleSubmission, ArticleReview, Banner, Popup, ClinicInfo, syncSchema };

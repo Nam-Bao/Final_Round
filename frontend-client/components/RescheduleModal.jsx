@@ -10,6 +10,7 @@ export default function RescheduleModal({ title, onClose, fetchSlots, onSubmit }
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     setTime('');
@@ -33,8 +34,26 @@ export default function RescheduleModal({ title, onClose, fetchSlots, onSubmit }
     } catch (err) {
       setError(err.response?.data?.message || 'Không đổi được lịch, vui lòng thử lại');
       setSaving(false);
+      setConfirming(false);
     }
   };
+
+  if (confirming) {
+    return (
+      <div className="modal modal-open" role="dialog">
+        <div className="modal-box">
+          <h3 className="font-bold text-lg">Xác nhận đổi lịch</h3>
+          <p className="py-3">Lịch mới của bạn: <b>{time} ngày {dayjs(date).format('DD/MM/YYYY')}</b></p>
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Mỗi lịch chỉ được đổi 1 lần. Sau khi xác nhận, bạn không thể đổi lịch này thêm lần nữa.</p>
+          <div className="modal-action">
+            <button className="btn" disabled={saving} onClick={() => setConfirming(false)}>Chọn lại</button>
+            <button className="btn btn-primary" disabled={saving} onClick={submit}>Xác nhận đổi lịch</button>
+          </div>
+        </div>
+        <div className="modal-backdrop"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal modal-open" role="dialog">
@@ -60,7 +79,7 @@ export default function RescheduleModal({ title, onClose, fetchSlots, onSubmit }
         {error && <p className="text-sm text-error mt-2">{error}</p>}
         <div className="modal-action">
           <button className="btn" onClick={onClose}>Đóng</button>
-          <button className="btn btn-primary" disabled={!time || saving} onClick={submit}>Đổi lịch</button>
+          <button className="btn btn-primary" disabled={!time} onClick={() => setConfirming(true)}>Đổi lịch</button>
         </div>
       </div>
       <div className="modal-backdrop" onClick={onClose}></div>

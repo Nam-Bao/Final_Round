@@ -61,7 +61,7 @@ export default function PhotoConsentModal({ open, onAccept, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="photo-consent-title"
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col outline-none"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90dvh] flex flex-col outline-none"
       >
         {/* Tiêu đề */}
         <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100">

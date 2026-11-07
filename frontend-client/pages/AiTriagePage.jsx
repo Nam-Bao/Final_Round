@@ -4,8 +4,8 @@ import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle, CalendarCheck 
 import axios from 'axios';
 import PhotoConsentModal from '../components/PhotoConsentModal';
 
-// Vite: đặt VITE_API_URL trong frontend-client/.env nếu gateway không chạy ở cổng 4000
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Gọi cùng địa chỉ với website, Vite chuyển /api về gateway (xem vite.config.js)
+const API_URL = '';
 
 export default function AiTriagePage() {
   const [images, setImages] = useState([]); // [{ url, result, consent }]

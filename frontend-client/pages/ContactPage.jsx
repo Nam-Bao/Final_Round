@@ -1,10 +1,10 @@
 import React from 'react';
 import { Phone, MapPin, Clock, MessageCircle } from 'lucide-react';
-import { HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
+import { SOCIAL_LINKS, HOTLINE, HOTLINE_DISPLAY, ZALO_URL, WORKING_HOURS, CONSULT_HOURS, CLINIC_ADDRESS, MAP_EMBED_URL, MAP_DIRECTIONS_URL, HAS_CLINIC_MAP } from '../utils/contact';
 
 export default function ContactPage() {
   return (
-    <div className="max-w-4xl mx-auto py-10 px-4 space-y-6">
+    <div className="max-w-4xl mx-auto sm:py-10 sm:px-4 space-y-4 sm:space-y-6">
       <h1 className="text-2xl md:text-3xl font-extrabold text-secondary text-center">Liên hệ GlowSkin Clinic</h1>
 
       <div className="bg-base-100 rounded-2xl border border-base-200 shadow-sm p-6 space-y-4">
@@ -27,6 +27,13 @@ export default function ContactPage() {
           <MapPin className="w-5 h-5 text-primary shrink-0" />
           <span>{CLINIC_ADDRESS}</span>
         </div>
+        {SOCIAL_LINKS.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {SOCIAL_LINKS.map(({ label, url }) => (
+              <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-primary btn-sm rounded-full">{label}</a>
+            ))}
+          </div>
+        )}
       </div>
 
       {HAS_CLINIC_MAP && (

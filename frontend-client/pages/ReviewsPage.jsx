@@ -10,7 +10,7 @@ const TABS = {
   doctor: {
     label: 'Bác sĩ',
     icon: Stethoscope,
-    url: 'http://localhost:4000/api/booking/reviews',
+    url: '/api/booking/reviews',
     subjectKey: 'doctor_id',
     subjectName: (r) => (r.doctor_name ? doctorTitle(r.doctor_name) : null),
     allLabel: 'Tất cả bác sĩ',
@@ -21,7 +21,7 @@ const TABS = {
   service: {
     label: 'Dịch vụ & Liệu trình',
     icon: Sparkles,
-    url: 'http://localhost:4000/api/booking/reviews/services',
+    url: '/api/booking/reviews/services',
     subjectKey: 'service_id',
     subjectName: (r) => r.service_name,
     allLabel: 'Tất cả dịch vụ',
@@ -32,7 +32,7 @@ const TABS = {
   product: {
     label: 'Mỹ phẩm',
     icon: ShoppingBag,
-    url: 'http://localhost:4000/api/commerce/reviews',
+    url: '/api/commerce/reviews',
     subjectKey: 'product_id',
     subjectName: (r) => r.product_name,
     allLabel: 'Tất cả sản phẩm',
@@ -131,7 +131,7 @@ export default function ReviewsPage() {
       </div>
 
       {/* Chọn loại đánh giá */}
-      <div role="tablist" className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 w-fit flex-wrap">
+      <div role="tablist" className="flex gap-1 p-1 rounded-xl bg-base-200 overflow-x-auto no-scrollbar mb-4">
         {Object.entries(TABS).map(([key, t]) => {
           const Icon = t.icon;
           return (
@@ -139,7 +139,7 @@ export default function ReviewsPage() {
               key={key}
               role="tab"
               onClick={() => switchTab(key)}
-              className={`tab gap-2 font-medium ${tab === key ? 'tab-active' : ''}`}
+              className={`flex-1 min-w-max min-h-10 px-3 rounded-lg flex items-center justify-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${tab === key ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/70'}`}
             >
               <Icon className="w-4 h-4" /> {t.label}
               <span className="badge badge-sm">{reviewsByTab[key].length}</span>

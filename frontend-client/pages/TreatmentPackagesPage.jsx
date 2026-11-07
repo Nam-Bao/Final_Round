@@ -4,7 +4,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { Layers, CalendarCheck, CheckCircle2, Clock, CalendarX, Info } from 'lucide-react';
 
-const API = 'http://localhost:4000/api/booking/packages/mine';
+const API = '/api/booking/packages/mine';
 const authHeaders = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
 const formatDate = (d) => dayjs(d).format('DD/MM/YYYY');
 const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];

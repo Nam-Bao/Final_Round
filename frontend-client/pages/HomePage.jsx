@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scan, CalendarCheck, Stethoscope, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Scan, CalendarCheck, Stethoscope, ShoppingBag, ArrowRight, ShieldCheck, TicketPercent } from 'lucide-react';
 import CustomerConcerns from '../components/CustomerConcerns';
 import GlowSkinValueProp from '../components/GlowSkinValueProp';
 import HomeBanner from '../components/HomeBanner';
@@ -31,15 +31,23 @@ const STEPS = [
   },
 ];
 
+// Lối tắt kiểu ứng dụng cho màn hình nhỏ
+const QUICK_LINKS = [
+  { to: '/sang-loc-da', label: 'Soi da AI', icon: Scan, color: 'bg-teal-50 text-teal-700' },
+  { to: '/booking', label: 'Đặt lịch', icon: CalendarCheck, color: 'bg-sky-50 text-sky-700' },
+  { to: '/shops', label: 'Mỹ phẩm', icon: ShoppingBag, color: 'bg-rose-50 text-rose-600' },
+  { to: '/promotions', label: 'Ưu đãi', icon: TicketPercent, color: 'bg-amber-50 text-amber-700' },
+];
+
 export default function HomePage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-10">
       {/* Banner do quản lý cấu hình; chưa có banner nào đang chạy thì hiện phần giới thiệu mặc định */}
       <HomeBanner fallback={
-      <section className="bg-gradient-to-br from-primary/10 via-base-100 to-teal-50 rounded-3xl border border-base-200 px-6 py-12 md:px-14 md:py-16">
+      <section className="bg-gradient-to-br from-primary/10 via-base-100 to-teal-50 rounded-3xl border border-base-200 px-5 py-8 md:px-14 md:py-16">
         <div className="max-w-3xl">
           <span className="badge badge-primary badge-outline font-semibold mb-4">Phòng khám da liễu O2O</span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-secondary leading-tight">
+          <h1 className="text-[1.75rem] md:text-5xl font-extrabold text-secondary leading-tight">
             Chăm sóc da chuẩn y khoa, <span className="text-primary">từ online đến phòng khám</span>
           </h1>
           <p className="text-base md:text-lg text-base-content/70 mt-4 leading-relaxed">
@@ -62,13 +70,22 @@ export default function HomePage() {
       </section>
       } />
 
+      <nav aria-label="Lối tắt" className="grid grid-cols-4 gap-2 lg:hidden">
+        {QUICK_LINKS.map(({ to, label, icon: Icon, color }) => (
+          <Link key={to} to={to} className="flex flex-col items-center gap-1.5 py-1 text-xs font-medium text-base-content/80">
+            <span className={`w-12 h-12 rounded-2xl flex items-center justify-center ${color}`}><Icon className="w-6 h-6" /></span>
+            {label}
+          </Link>
+        ))}
+      </nav>
+
       {/* Hành trình 3 bước */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
         {STEPS.map((step, idx) => {
           const Icon = step.icon;
           return (
-            <div key={step.title} className="bg-base-100 rounded-2xl border border-base-200 p-6 flex flex-col">
-              <div className="flex items-center gap-3 mb-3">
+            <div key={step.title} className="bg-base-100 rounded-2xl border border-base-200 p-4 md:p-6 flex flex-col shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-2 md:mb-3">
                 <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                   <Icon className="w-5 h-5" />
                 </div>
@@ -76,7 +93,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-lg font-bold text-secondary mb-2">{step.title}</h3>
               <p className="text-sm text-base-content/70 leading-relaxed flex-1">{step.desc}</p>
-              <Link to={step.link} className="btn btn-sm btn-ghost text-primary gap-1 self-start mt-4 px-0">
+              <Link to={step.link} className="btn btn-sm btn-ghost text-primary gap-1 self-start mt-2 md:mt-4 px-0 hover:bg-transparent">
                 {step.linkText} <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

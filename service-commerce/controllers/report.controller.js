@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const { Product, ProductDetail, Order, OrderDetail, OrderReturn, InventoryRequest } = require('../models');
+const { refundGoodsValue } = require('./return.controller');
 
 // ==========================================
 // BÁO CÁO BÁN MỸ PHẨM + CẢNH BÁO HẾT HÀNG cho quản lý
@@ -30,7 +31,10 @@ exports.getSalesReport = async (req, res) => {
       where: { status: 'COMPLETED', appointment_id: null, createdAt: { [Op.between]: [from, to] } },
       include: [{ model: OrderDetail, include: [{ model: Product, attributes: ['id', 'name'] }] }],
     });
-    const refunds = await OrderReturn.findAll({ where: { status: 'REFUNDED', refunded_at: { [Op.between]: [from, to] } }, raw: true });
+    const refunds = await OrderReturn.findAll({
+      where: { status: 'REFUNDED', refunded_at: { [Op.between]: [from, to] } },
+      include: [{ model: Order, attributes: ['total_amount', 'discount_amount'] }],
+    });
 
     const days = {};
     const bump = (d, key, v) => { const k = day(d); days[k] = days[k] || { online_products: 0, store_products: 0, refunds: 0 }; days[k][key] += v; };
@@ -45,7 +49,8 @@ exports.getSalesReport = async (req, res) => {
         t.revenue += Number(d.price) * d.quantity;
       });
     });
-    refunds.forEach((r) => bump(r.refunded_at, 'refunds', -Number(r.refund_amount || 0)));
+    // Doanh thu mỹ phẩm không gồm phí ship nên chỉ trừ phần tiền hàng, phí ship hoàn cho khách không phải doanh thu bị giảm
+    refunds.forEach((r) => bump(r.refunded_at, 'refunds', -refundGoodsValue(r.Order, r.items || [])));
     const series = Object.entries(days).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v }));
     const totals = ['online_products', 'store_products', 'refunds'].reduce((acc, k) => ({ ...acc, [k]: series.reduce((s, d) => s + d[k], 0) }), {});
     res.status(200).json({

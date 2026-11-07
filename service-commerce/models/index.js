@@ -95,7 +95,14 @@ const Order = sequelize.define('Order', {
   longitude: { type: DataTypes.DECIMAL(11, 8), allowNull: true }, 
   note: { type: DataTypes.TEXT }, 
   total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
-  discount_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 }, 
+  discount_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  promotion_id: { type: DataTypes.UUID }, // mã đã dùng cho đơn, để trả lại lượt khi hủy không do khách
+  // Bên gây ra việc hủy: CUSTOMER khách | CLINIC phòng khám | CARRIER đơn vị vận chuyển | SYSTEM tự hủy quá hạn
+  cancel_initiator: { type: DataTypes.STRING(20) },
+  cancel_reason: { type: DataTypes.STRING(500) },
+  cancelled_by: { type: DataTypes.UUID },
+  cancelled_at: { type: DataTypes.DATE },
+  cancel_review: { type: DataTypes.STRING(20) }, // PENDING: GHN hoàn hàng, nhân viên phải xác định nguyên nhân để xử lý voucher
   tracking_code: { type: DataTypes.STRING, allowNull: true },
   status: { 
     type: DataTypes.ENUM(
@@ -104,7 +111,13 @@ const Order = sequelize.define('Order', {
     ), 
     defaultValue: 'UNPAID' 
   },
-  payment_method: { type: DataTypes.ENUM('COD', 'VIETQR_SEPAY'), defaultValue: 'COD', allowNull: false } 
+  payment_method: { type: DataTypes.ENUM('COD', 'VIETQR_SEPAY'), defaultValue: 'COD', allowNull: false },
+  // Đơn chuyển khoản đã nhận tiền mà bị hủy: PENDING chờ hoàn -> REFUNDED đã hoàn
+  refund_status: { type: DataTypes.STRING(20) },
+  refund_amount: { type: DataTypes.DECIMAL(12, 2) },
+  refund_ref: { type: DataTypes.STRING(50) },
+  refunded_at: { type: DataTypes.DATE },
+  refunded_by: { type: DataTypes.UUID },
 });
 
 const OrderDetail = sequelize.define('OrderDetail', {
@@ -130,6 +143,11 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
   decided_at: { type: DataTypes.DATE },
   received_at: { type: DataTypes.DATE },
   received_by: { type: DataTypes.UUID },
+  // Đặt hàng nhà cung cấp sau khi duyệt: chưa đặt thì chưa nhận hàng được
+  ordered_at: { type: DataTypes.DATE },
+  ordered_by: { type: DataTypes.UUID },
+  supplier: { type: DataTypes.STRING(200) },
+  expected_date: { type: DataTypes.DATEONLY },
   receive_note: { type: DataTypes.TEXT }, // ghi chú khi nhận hàng (vd nhà cung cấp giao thiếu)
 });
 

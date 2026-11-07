@@ -15,7 +15,7 @@ export default function ReminderBanner() {
 
   useEffect(() => {
     if (!token) return setItems([]);
-    axios.get('http://localhost:4000/api/booking/appointments/my-reminders', { headers: { Authorization: `Bearer ${token}` } })
+    axios.get('/api/booking/appointments/my-reminders', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setItems(res.data.data || []))
       .catch(() => setItems([]));
   }, [token]);

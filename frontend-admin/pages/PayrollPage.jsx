@@ -50,6 +50,8 @@ export default function PayrollPage() {
   const [disciplineFor, setDisciplineFor] = useState(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockReason, setUnlockReason] = useState('');
+  const [paidOpen, setPaidOpen] = useState(false);
+  const [paidRef, setPaidRef] = useState('');
   const [openGroup, setOpenGroup] = useState(null);
   const navigate = useNavigate();
   const [adjForm] = Form.useForm();
@@ -99,7 +101,7 @@ export default function PayrollPage() {
   const grouped = Object.fromEntries(PROBLEM_GROUPS.map((g) => [g.key, problems.filter((p) => p.category === g.key)]));
   const blocking = problems.filter((p) => p.category !== 'UPCOMING');
   const systemProblem = problems.find((p) => p.category === 'SYSTEM');
-  const step = locked ? 2 : payroll ? 1 : 0;
+  const step = payroll?.paid_at ? 3 : locked ? 2 : payroll ? 1 : 0;
   const adjustments = payroll?.adjustments || [];
   const cats = state?.categories || { PLUS: {}, MINUS: {} };
   const actions = state?.discipline_actions || {};
@@ -184,6 +186,7 @@ export default function PayrollPage() {
           { title: 'Chốt công', description: step > 0 ? 'Đã chốt' : blocking.length ? `${blocking.length} việc cần xử lý` : grouped.UPCOMING.length ? 'Chờ hết tháng' : 'Sẵn sàng' },
           { title: 'Bảng lương nháp', description: payroll ? 'Nhập khoản khác' : 'Chưa tạo' },
           { title: 'Duyệt & khóa', description: locked ? `Đã khóa ${dayjs(payroll.locked_at).format('DD/MM')}` : 'Nhân viên xem phiếu lương' },
+          { title: 'Chi trả', description: payroll?.paid_at ? `Đã trả ${dayjs(payroll.paid_at).format('DD/MM')}` : 'Chuyển lương cho nhân viên' },
         ]} />
       </div>
 
@@ -256,8 +259,10 @@ export default function PayrollPage() {
             <Space wrap>
               <Button icon={<DownloadOutlined />} onClick={exportSummary}>Xuất bảng lương</Button>
               <Button icon={<DownloadOutlined />} onClick={exportDetail}>Chi tiết từng ca</Button>
+              {payroll?.paid_at && <Tag color="green">Đã chi trả: {payroll.paid_ref}</Tag>}
+              {locked && !payroll.paid_at && <Button type="primary" icon={<DollarOutlined />} onClick={() => { setPaidRef(''); setPaidOpen(true); }}>Đã chi trả lương</Button>}
               {payroll && (locked ? (
-                <Button icon={<UnlockOutlined />} onClick={() => { setUnlockReason(''); setUnlockOpen(true); }}>Mở khóa</Button>
+                !payroll.paid_at && <Button icon={<UnlockOutlined />} onClick={() => { setUnlockReason(''); setUnlockOpen(true); }}>Mở khóa</Button>
               ) : (
                 <Popconfirm title="Duyệt và khóa bảng lương?" description="Sau khi khóa không sửa được bảng lương và chấm công của tháng này; nhân viên sẽ xem được phiếu lương."
                   onConfirm={() => act('lock', () => axios.post(`${PAYROLL_API}/${payroll.id}/lock`, {}, authConfig()))}>
@@ -278,7 +283,7 @@ export default function PayrollPage() {
           <summary className="cursor-pointer">Lịch sử bảng lương ({payroll.history.length})</summary>
           <Timeline className="mt-3" items={[...payroll.history].reverse().map((h) => ({
             color: h.action === 'LOCK' ? 'green' : h.action === 'UNLOCK' ? 'red' : 'blue',
-            children: <span>{{ GENERATE: 'Tạo bảng lương', REGENERATE: 'Tạo lại', LOCK: 'Duyệt & khóa', UNLOCK: 'Mở khóa' }[h.action]} · {dayjs(h.at).format('HH:mm DD/MM/YYYY')}{h.reason ? ` · Lý do: ${h.reason}` : ''}</span>,
+            children: <span>{{ GENERATE: 'Tạo bảng lương', REGENERATE: 'Tạo lại', LOCK: 'Duyệt & khóa', UNLOCK: 'Mở khóa', PAID: 'Chi trả lương' }[h.action]} · {dayjs(h.at).format('HH:mm DD/MM/YYYY')}{h.reason ? ` · Lý do: ${h.reason}` : ''}</span>,
           }))} />
         </details>
       )}
@@ -374,6 +379,11 @@ export default function PayrollPage() {
         )}
       </Modal>
 
+      <Modal open={paidOpen} title="Ghi nhận đã chi trả lương" onCancel={() => setPaidOpen(false)} okText="Xác nhận"
+        onOk={async () => { if (await act('paid', () => axios.post(`${PAYROLL_API}/${payroll.id}/paid`, { paid_ref: paidRef }, authConfig()))) setPaidOpen(false); }}>
+        <p className="mb-2">Chuyển lương cho nhân viên rồi nhập mã lệnh chuyển. Sau bước này không mở khóa bảng lương được nữa.</p>
+        <Input maxLength={50} placeholder="Mã lệnh chuyển lương" value={paidRef} onChange={(e) => setPaidRef(e.target.value)} />
+      </Modal>
       <Modal open={unlockOpen} title="Mở khóa bảng lương" onCancel={() => setUnlockOpen(false)} okText="Mở khóa" okButtonProps={{ danger: true }} confirmLoading={busy === 'unlock'}
         onOk={async () => { if (await act('unlock', () => axios.post(`${PAYROLL_API}/${payroll.id}/unlock`, { reason: unlockReason }, authConfig()))) setUnlockOpen(false); }}>
         <p className="text-gray-600">Mở khóa sẽ cho sửa lại bảng lương; nhân viên tạm không xem được phiếu lương tháng này. Lý do được lưu vào lịch sử.</p>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Users, Plus, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, Save, Users, Plus, Trash2, CalendarDays, ClipboardList, Package, LogOut, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export default function ProfilePage() {
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, logout } = useAuthStore();
+  const navigate = useNavigate();
   
   const [accountData, setAccountData] = useState({ 
     full_name: '', phone: '', dob: '', gender: 'OTHER'
@@ -44,7 +46,7 @@ export default function ProfilePage() {
   const loadAccount = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const res = await fetch('http://localhost:4000/api/identity/profile/me', {
+      const res = await fetch('/api/identity/profile/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) return;
@@ -62,7 +64,7 @@ export default function ProfilePage() {
   const fetchPatientProfiles = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const res = await fetch('http://localhost:4000/api/identity/profile/patients', {
+      const res = await fetch('/api/identity/profile/patients', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -73,7 +75,7 @@ export default function ProfilePage() {
   const handleSaveAccount = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const res = await fetch('http://localhost:4000/api/identity/profile/me', {
+      const res = await fetch('/api/identity/profile/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(toPayload(accountData))
@@ -113,8 +115,8 @@ export default function ProfilePage() {
     try {
       const token = sessionStorage.getItem('token');
       const url = editingPatientId 
-        ? `http://localhost:4000/api/identity/profile/patients/${editingPatientId}` 
-        : 'http://localhost:4000/api/identity/profile/patients';
+        ? `/api/identity/profile/patients/${editingPatientId}` 
+        : '/api/identity/profile/patients';
         
       const method = editingPatientId ? 'PUT' : 'POST';
 
@@ -140,7 +142,7 @@ export default function ProfilePage() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa hồ sơ này không?')) return;
     try {
       const token = sessionStorage.getItem('token');
-      const res = await fetch(`http://localhost:4000/api/identity/profile/patients/${editingPatientId}`, {
+      const res = await fetch(`/api/identity/profile/patients/${editingPatientId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -157,10 +159,22 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Cài Đặt Hồ Sơ</h1>
+      <h1 className="text-2xl font-bold text-secondary">Cài Đặt Hồ Sơ</h1>
+
+      {/* Điện thoại không có menu tài khoản trên thanh đầu trang: đưa lối vào ngay đây */}
+      <nav aria-label="Tài khoản" className="lg:hidden bg-base-100 rounded-2xl border border-base-200 shadow-sm divide-y divide-base-200">
+        {[['/appointments', 'Sổ lịch khám', CalendarDays], ['/treatments', 'Gói liệu trình của tôi', ClipboardList], ['/orders', 'Đơn hàng mỹ phẩm', Package]].map(([to, label, Icon]) => (
+          <Link key={to} to={to} className="flex items-center gap-3 px-4 min-h-12 font-medium">
+            <Icon className="w-5 h-5 text-primary" /> {label} <ChevronRight className="w-4 h-4 ml-auto text-base-content/40" />
+          </Link>
+        ))}
+        <button onClick={() => { logout(); navigate('/login'); }} className="flex items-center gap-3 px-4 min-h-12 w-full font-medium text-error">
+          <LogOut className="w-5 h-5" /> Đăng xuất
+        </button>
+      </nav>
       
       {/* THÔNG TIN TÀI KHOẢN CHÍNH */}
-      <div className="card bg-base-100 shadow-xl border border-base-200 p-6">
+      <div className="card bg-base-100 shadow-sm border border-base-200 p-4 sm:p-6">
         <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
           <User className="text-primary"/> Thông tin tài khoản
         </h2>
@@ -204,7 +218,23 @@ export default function ProfilePage() {
           </button>
         </div>
         
-        <div className="overflow-x-auto border rounded-lg">
+        {/* Điện thoại: mỗi hồ sơ là 1 thẻ, không phải kéo ngang bảng */}
+        <div className="sm:hidden space-y-2">
+          {patientProfiles.length === 0 && <p className="text-center opacity-50 py-4">Chưa có dữ liệu</p>}
+          {patientProfiles.map((profile) => (
+            <button key={profile.id} type="button" onClick={() => openEditModal(profile)} className="w-full text-left border border-base-200 rounded-xl p-3 active:bg-base-200">
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-primary min-w-0 truncate">{profile.full_name}</span>
+                <span className={`badge shrink-0 ${profile.relationship === 'Bản thân' ? 'badge-primary' : 'badge-ghost'}`}>{profile.relationship}</span>
+              </span>
+              <span className="block text-sm text-base-content/70 mt-1">
+                {[profile.phone, profile.dob, profile.gender === 'MALE' ? 'Nam' : profile.gender === 'FEMALE' ? 'Nữ' : 'Khác'].filter(Boolean).join(' • ')}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto border rounded-lg">
           <table className="table w-full table-zebra">
             <thead>
               <tr className="bg-base-200">

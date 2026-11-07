@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { trackClick } from '../utils/trackClick';
 
-const API = 'http://localhost:4000/api/media/pages/popups';
+const API = '/api/media/pages/popups';
 const HIDDEN_PATHS = ['/login', '/register', '/payment']; // không làm phiền khi đang đăng nhập / thanh toán
 
 // Khóa theo id + lần sửa cuối: quản lý sửa popup thì khách sẽ thấy lại bản mới
@@ -62,9 +63,10 @@ export default function PromoPopup() {
   const hasText = !!(current.title || current.content);
   const hasImage = !!current.image_url;
   // Liên kết trong web dùng Link, web ngoài mở tab mới
+  const clickLink = () => { trackClick('popups', current.id); close(); };
   const ToLink = ({ className, children, label }) => (external
-    ? <a href={current.link_url} target="_blank" rel="noopener noreferrer" className={className} onClick={close} aria-label={label}>{children}</a>
-    : <Link to={current.link_url} className={className} onClick={close} aria-label={label}>{children}</Link>);
+    ? <a href={current.link_url} target="_blank" rel="noopener noreferrer" className={className} onClick={clickLink} aria-label={label}>{children}</a>
+    : <Link to={current.link_url} className={className} onClick={clickLink} aria-label={label}>{children}</Link>);
 
   // Máy tính (sm trở lên): popup vuông cạnh ~560px, ảnh phủ kín, chữ nằm trên nền trắng mờ ở phần dưới.
   // Điện thoại: ảnh vuông ở trên, chữ bên dưới cho dễ đọc.

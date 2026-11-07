@@ -131,7 +131,7 @@ export default function ShopFilters({ filters, onChange, categories, total, show
   ].filter(Boolean);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 shadow-sm space-y-3">
+    <div className="bg-white border border-slate-200 rounded-2xl p-3 md:p-4 mb-4 md:mb-6 shadow-sm space-y-3">
       {/* Tìm kiếm + sắp xếp */}
       <div className="flex flex-col md:flex-row gap-3">
         <label className="flex-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100">
@@ -140,8 +140,8 @@ export default function ShopFilters({ filters, onChange, categories, total, show
             className="w-full py-2.5 outline-none text-sm bg-transparent" maxLength={100} />
           {search && <button type="button" onClick={() => { setSearch(''); onChange({ q: '' }); }} aria-label="Xóa từ khóa"><X className="w-4 h-4 text-slate-400 hover:text-slate-600" /></button>}
         </label>
-        <div className="flex gap-2">
-          <select value={filters.sort} onChange={(e) => onChange({ sort: e.target.value })} className="select select-bordered select-sm h-auto min-h-0 py-2 rounded-xl text-sm">
+        <div className="flex gap-2 min-w-0">
+          <select value={filters.sort} onChange={(e) => onChange({ sort: e.target.value })} className="select select-bordered select-sm h-11 md:h-auto min-h-0 py-2 rounded-xl text-sm flex-1 min-w-0 md:flex-none">
             {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
           <button type="button" onClick={() => setShowMore((v) => !v)}
@@ -152,7 +152,7 @@ export default function ShopFilters({ filters, onChange, categories, total, show
       </div>
 
       {/* Nhóm sản phẩm: Tất cả / Mới / Bán chạy / Đang giảm giá */}
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
         {SHOP_TABS.map(({ key, label, icon: Icon, test }) => {
           const active = (filters.tab || '') === key;
           return (
@@ -165,7 +165,7 @@ export default function ShopFilters({ filters, onChange, categories, total, show
       </div>
 
       {/* Danh mục */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         <Chip active={!filters.cat} onClick={() => onChange({ cat: '' })}>Tất cả</Chip>
         {categories.map((c) => (
           <Chip key={c.id} active={filters.cat === c.id} onClick={() => onChange({ cat: filters.cat === c.id ? '' : c.id })}>

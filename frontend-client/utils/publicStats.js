@@ -1,5 +1,5 @@
 // Số liệu thật của phòng khám (đếm từ database), dùng cho trang chủ, giới thiệu, đội ngũ bác sĩ.
-const API = 'http://localhost:4000/api';
+const API = '/api';
 
 const getJson = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))));
 

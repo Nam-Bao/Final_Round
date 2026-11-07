@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
-const { Banner, Popup } = require('../models');
+const { Article, Banner, ClinicInfo, Popup } = require('../models');
 const { LINK_URL, text, optionalUrl, optionalDate } = require('../utils/validate');
+const { TYPE_KEYS } = require('../utils/articleTypes');
 
 // Banner trang chủ và popup quảng cáo do quản lý cấu hình
 
@@ -96,6 +97,85 @@ const pickPopup = (body, isCreate) => {
   return data;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// [PUBLIC] POST /pages/banners/:id/click, /pages/popups/:id/click — khách bấm vào banner / popup
+const trackClick = (Model) => async (req, res) => {
+  try {
+    if (!UUID.test(req.params.id)) return res.status(400).json({ message: 'Mã không hợp lệ' });
+    await Model.increment('click_count', { where: { id: req.params.id }, silent: true });
+    res.status(204).end();
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// [MANAGER] GET /pages/stats — lượt bấm banner, popup và lượt xem bài viết theo loại cho trang tổng quan
+const getContentStats = async (req, res) => {
+  try {
+    const clicks = { attributes: ['id', 'click_count', 'is_active'], order: [['click_count', 'DESC']], limit: 5 };
+    const [bannerRows, popupRows, articles] = await Promise.all([
+      Banner.findAll({ ...clicks, attributes: [...clicks.attributes, 'title'] }),
+      Popup.findAll({ ...clicks, attributes: [...clicks.attributes, 'name'] }),
+      Article.findAll({ where: { status: 'PUBLISHED' }, attributes: ['id', 'title', 'slug', 'article_type', 'view_count'], order: [['view_count', 'DESC']], raw: true }),
+    ]);
+    const by_type = TYPE_KEYS.map((type) => {
+      const list = articles.filter((a) => a.article_type === type);
+      return { type, articles: list.length, views: list.reduce((sum, a) => sum + a.view_count, 0), top: list[0] || null };
+    }).filter((row) => row.articles > 0).sort((a, b) => b.views - a.views);
+    res.json({
+      data: {
+        clicks: [
+          ...bannerRows.map((b) => ({ id: b.id, kind: 'BANNER', name: b.title, clicks: b.click_count, is_active: b.is_active })),
+          ...popupRows.map((p) => ({ id: p.id, kind: 'POPUP', name: p.name, clicks: p.click_count, is_active: p.is_active })),
+        ].sort((a, b) => b.clicks - a.clicks),
+        by_type,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+const CLINIC_TEXT_FIELDS = { address: ['Địa chỉ', 300], map_query: ['Địa điểm bản đồ', 300], working_hours: ['Giờ khám', 100], consult_hours: ['Giờ tư vấn', 100] };
+const CLINIC_URL_FIELDS = { zalo_url: 'Zalo', facebook_url: 'Facebook', instagram_url: 'Instagram', tiktok_url: 'TikTok', youtube_url: 'YouTube' };
+
+const pickClinicInfo = (body) => {
+  const hotline = text(body.hotline).replace(/\s/g, '');
+  if (hotline && !/^0\d{9,10}$/.test(hotline)) throw new Error('Hotline phải bắt đầu bằng 0, gồm 10 hoặc 11 số');
+  const data = { hotline: hotline || null };
+  for (const [field, [label, max]] of Object.entries(CLINIC_TEXT_FIELDS)) {
+    data[field] = text(body[field]) || null;
+    if (data[field] && data[field].length > max) throw new Error(`${label} tối đa ${max} ký tự`);
+  }
+  for (const [field, label] of Object.entries(CLINIC_URL_FIELDS)) data[field] = optionalUrl(body[field], label);
+  return data;
+};
+
+const clinicInfo = {
+  // [PUBLIC] GET /pages/clinic-info
+  get: async (req, res) => {
+    try {
+      const row = await ClinicInfo.findOne({ attributes: { exclude: ['id', 'updated_by', 'createdAt', 'updatedAt'] } });
+      res.json({ data: row || {} });
+    } catch (error) {
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+  },
+  // [MANAGER] PUT /pages/clinic-info
+  update: async (req, res) => {
+    let data;
+    try { data = pickClinicInfo(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
+    try {
+      const row = await ClinicInfo.findOne();
+      const saved = row ? await row.update({ ...data, updated_by: req.user.id }) : await ClinicInfo.create({ ...data, updated_by: req.user.id });
+      res.json({ message: 'Đã lưu thông tin phòng khám', data: saved });
+    } catch (error) {
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+  },
+};
+
 // Tạo bộ CRUD giống nhau cho banner và popup
 const crud = (Model, pick, label, publicOrder) => ({
   listPublic: async (req, res) => {
@@ -153,4 +233,4 @@ const crud = (Model, pick, label, publicOrder) => ({
 const banners = crud(Banner, pickBanner, 'banner', [['sort_order', 'ASC'], ['createdAt', 'DESC']]);
 const popups = crud(Popup, pickPopup, 'popup', [['priority', 'DESC'], ['createdAt', 'DESC']]);
 
-module.exports = { banners, popups };
+module.exports = { banners, popups, clinicInfo, getContentStats, trackBannerClick: trackClick(Banner), trackPopupClick: trackClick(Popup) };

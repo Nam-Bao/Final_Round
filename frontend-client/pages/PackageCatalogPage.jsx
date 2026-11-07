@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { Layers, CalendarRange, Hourglass, Repeat, Stethoscope, ClipboardCheck, CreditCard, CalendarCheck, Info, PackageCheck } from 'lucide-react';
 
-const API = 'http://localhost:4000/api';
+const API = '/api';
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
 const getImage = (img) => {
@@ -121,7 +121,7 @@ export default function PackageCatalogPage() {
   return (
     <div className="bg-slate-50 min-h-screen">
       <div className="bg-gradient-to-br from-teal-600 to-cyan-600 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-12">
           <h1 className="text-3xl font-bold mb-2">Gói lộ trình trị liệu</h1>
           <p className="text-teal-50 max-w-2xl text-sm">
             Các lộ trình nhiều buổi được thiết kế cho từng vấn đề da. Mỗi gói cần được bác sĩ chỉ định sau khi thăm khám,
@@ -130,7 +130,7 @@ export default function PackageCatalogPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-6xl mx-auto sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 text-sm text-amber-800">
           <Info className="w-5 h-5 shrink-0 mt-0.5" />
           <p>

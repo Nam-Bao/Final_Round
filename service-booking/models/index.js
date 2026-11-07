@@ -98,7 +98,14 @@ const FollowUpLog = sequelize.define('FollowUpLog', {
     appointment_id: { type: DataTypes.UUID, allowNull: false },
     consultant_id: { type: DataTypes.UUID, allowNull: false },
     call_status: { type: DataTypes.ENUM('SUCCESS', 'COMPLAINT', 'NO_ANSWER') },
-    call_note: { type: DataTypes.TEXT }
+    call_note: { type: DataTypes.TEXT },
+    call_type: { type: DataTypes.STRING(20) },        // REMINDER: nhắc lịch hẹn | REVISIT: nhắc tái khám | AFTERCARE: thăm hỏi sau khám
+    outcome: { type: DataTypes.STRING(20) },          // CAN_COME | CANNOT_COME | RESCHEDULED | CANCELLED | ANSWERED | NO_ANSWER
+    reason: { type: DataTypes.TEXT },                 // lý do khách không đến được
+    patient_profile_id: { type: DataTypes.UUID },
+    medical_record_id: { type: DataTypes.UUID },      // bệnh án có ngày hẹn tái khám
+    scheduled_for: { type: DataTypes.STRING(16) },    // ngày giờ của lịch lúc gọi, lịch đổi sau đó thì biết để gọi lại
+    aftercare: { type: DataTypes.JSONB }              // tình trạng da, triệu chứng, dùng thuốc, hài lòng, khiếu nại
 });
 
 // Đánh giá bác sĩ sau buổi khám đã hoàn tất (mỗi lịch hẹn 1 đánh giá).
@@ -309,7 +316,7 @@ const BankTransaction = sequelize.define('BankTransaction', {
     code_type: { type: DataTypes.STRING(20) },   // APPOINTMENT | CONSULTATION | ORDER | NONE
     code: { type: DataTypes.STRING(10) },
     matched_id: { type: DataTypes.UUID },
-    status: { type: DataTypes.STRING(20), allowNull: false },   // MATCHED | PARTIAL | UNMATCHED | RESOLVED
+    status: { type: DataTypes.STRING(20), allowNull: false },   // MATCHED | PARTIAL | UNMATCHED | OVERPAID (đã xác nhận, còn phải hoàn phần dư) | RESOLVED
     reason: { type: DataTypes.STRING(300) },
     received_at: { type: DataTypes.DATE },
     resolved_action: { type: DataTypes.STRING(20) },            // REFUNDED | MANUAL | IGNORED
@@ -435,6 +442,9 @@ const Payroll = sequelize.define('Payroll', {
     locked_at: { type: DataTypes.DATE },
     locked_by: { type: DataTypes.UUID },
     history: { type: DataTypes.JSONB, defaultValue: [] }, // tạo / tạo lại / khóa / mở khóa (kèm lý do)
+    paid_at: { type: DataTypes.DATE },        // đã chi trả lương tháng này
+    paid_by: { type: DataTypes.UUID },
+    paid_ref: { type: DataTypes.STRING(50) }, // mã lệnh chuyển lương
 });
 
 // Dòng lương của 1 nhân viên (số liệu chụp lại lúc tạo bảng lương)
@@ -514,7 +524,7 @@ Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCAD
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
     const added = [];
-    for (const model of [AttendanceRecord, Consultation, Appointment]) {
+    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog]) {
         const table = model.getTableName();
         const existing = await qi.describeTable(table);
         for (const [name, attr] of Object.entries(model.getAttributes())) {

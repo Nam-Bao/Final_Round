@@ -17,7 +17,7 @@ export default function HomeProductSections() {
   const [products, setProducts] = useState(null);
 
   useEffect(() => {
-    axios.get('http://localhost:4000/api/commerce/products/shop')
+    axios.get('/api/commerce/products/shop')
       .then((res) => setProducts(res.data.data || []))
       .catch(() => setProducts([]));
   }, []);
@@ -55,22 +55,22 @@ export default function HomeProductSections() {
   if (sections.length === 0) return null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-10">
       {sections.map(({ key, title, icon: Icon, color, desc, link, items }) => (
         <section key={key}>
-          <div className="flex items-end justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-2 mb-3 md:mb-4">
+            <div className="flex items-center gap-3 min-w-0">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}><Icon className="w-5 h-5" /></div>
               <div>
                 <h2 className="text-xl md:text-2xl font-bold text-secondary">{title}</h2>
-                <p className="text-sm text-base-content/60">{desc}</p>
+                <p className="hidden sm:block text-sm text-base-content/60">{desc}</p>
               </div>
             </div>
-            <Link to={link} className="btn btn-sm btn-ghost text-primary gap-1 shrink-0">
+            <Link to={link} className="btn btn-sm btn-ghost text-primary gap-1 shrink-0 px-2">
               Xem tất cả <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             {items.slice(0, PER_SECTION).map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>

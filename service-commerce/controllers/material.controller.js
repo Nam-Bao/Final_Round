@@ -78,13 +78,14 @@ const assess = (item, demand, used30) => {
   return { demand_14d: demand, used_30d: used30, avg_daily: Math.round(avgDaily * 10) / 10, days_left: daysLeft, status, suggested_packs: suggestedPacks };
 };
 
-// Vật tư đang có đề xuất chưa xong: product_id -> PENDING (chờ duyệt) | INCOMING (đã duyệt, đang chờ hàng về)
+// Vật tư đang có đề xuất chưa xong: product_id -> PENDING (chờ duyệt) | TO_ORDER (đã duyệt, chưa đặt) | INCOMING (đã đặt, chờ hàng về)
 const pendingPurchaseProducts = async (transaction) => {
   const rows = await InventoryRequest.findAll({
     where: { type: 'PURCHASE_ORDER', [Op.or]: [{ status: 'PENDING' }, { status: 'APPROVED', received_at: null }] },
-    attributes: ['items', 'status'], raw: true, transaction,
+    attributes: ['items', 'status', 'ordered_at'], raw: true, transaction,
   });
-  return new Map(rows.flatMap((r) => (r.items || []).map((i) => [i.product_id, r.status === 'PENDING' ? 'PENDING' : 'INCOMING'])));
+  const stateOf = (r) => (r.status === 'PENDING' ? 'PENDING' : r.ordered_at ? 'INCOMING' : 'TO_ORDER');
+  return new Map(rows.flatMap((r) => (r.items || []).map((i) => [i.product_id, stateOf(r)])));
 };
 
 const lotTotals = async (ids, transaction) => {
@@ -401,7 +402,8 @@ exports.createPurchaseRequest = async (req, res) => {
     if (products.length !== ids.length) throw bad('Có sản phẩm / vật tư không tồn tại');
     const pending = await pendingPurchaseProducts();
     const duplicate = products.find((p) => pending.has(p.id));
-    if (duplicate) throw bad(`${duplicate.name} đã có đề xuất ${pending.get(duplicate.id) === 'PENDING' ? 'đang chờ duyệt' : 'đã duyệt, đang chờ hàng về'}`, 409);
+    const STATE_TEXT = { PENDING: 'đang chờ duyệt', TO_ORDER: 'đã duyệt, chưa đặt hàng', INCOMING: 'đã đặt hàng, đang chờ về' };
+    if (duplicate) throw bad(`${duplicate.name} đã có đề xuất ${STATE_TEXT[pending.get(duplicate.id)]}`, 409);
     const row = await InventoryRequest.create({
       requester_id: req.user.id, type: 'PURCHASE_ORDER', status: 'PENDING', reason,
       items: products.map((p) => ({ ...toItem(p), unit: p.MaterialSpec?.unit || 'sản phẩm', pack_label: p.MaterialSpec?.pack_label || '1 sản phẩm', type: p.type })).map((m) => ({
@@ -447,6 +449,23 @@ exports.decidePurchaseRequest = async (req, res) => {
   } catch (error) { await t.rollback(); fail(res, error); }
 };
 
+// [ADMIN/GEN_MANAGER] Ghi nhận đã đặt hàng nhà cung cấp { supplier, expected_date } => chuyển sang chờ hàng về
+exports.markPurchaseOrdered = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const row = await findRequest(req.params.id, t);
+    if (row.status !== 'APPROVED') throw bad('Chỉ đặt hàng cho đề xuất đã duyệt', 409);
+    if (row.ordered_at) throw bad('Đề xuất này đã đặt hàng', 409);
+    const supplier = String(req.body.supplier || '').trim().slice(0, 200);
+    if (supplier.length < 2) throw bad('Nhập nhà cung cấp');
+    const expected_date = req.body.expected_date || null;
+    if (expected_date && !isDate(expected_date)) throw bad('Ngày dự kiến giao không hợp lệ');
+    await row.update({ ordered_at: new Date(), ordered_by: req.user.id, supplier, expected_date }, { transaction: t });
+    await t.commit();
+    res.status(200).json({ message: 'Đã ghi nhận đặt hàng', data: row });
+  } catch (error) { await t.rollback(); fail(res, error); }
+};
+
 // [ADMIN/GEN_MANAGER] Xác nhận hàng đã về kho theo số thực nhận (chỉ 1 lần).
 // items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }]; vật tư phải có số lô + hạn dùng; giao thiếu phải ghi chú
 exports.receivePurchaseRequest = async (req, res) => {
@@ -455,6 +474,7 @@ exports.receivePurchaseRequest = async (req, res) => {
     const row = await findRequest(req.params.id, t);
     if (row.status !== 'APPROVED') throw bad('Chỉ nhận hàng cho đề xuất đã duyệt', 409);
     if (row.received_at) throw bad('Đề xuất này đã nhập kho', 409);
+    if (!row.ordered_at) throw bad('Chưa ghi nhận đặt hàng nhà cung cấp', 409);
     const note = String(req.body.note || '').trim().slice(0, 1000);
     const input = Object.fromEntries((Array.isArray(req.body.items) ? req.body.items : []).map((i) => [i?.product_id, i]));
     const products = await Product.findAll({ where: { id: (row.items || []).map((i) => i.product_id) }, transaction: t, lock: t.LOCK.UPDATE });

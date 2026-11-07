@@ -55,7 +55,7 @@ export default function DoctorBookingPage() {
         // Lấy danh sách Hồ sơ người khám thật (server tự tạo hồ sơ "Bản thân" từ thông tin tài khoản nếu chưa có)
         let profiles = [];
         try {
-          const profileRes = await fetch('http://localhost:4000/api/identity/profile/patients', { headers });
+          const profileRes = await fetch('/api/identity/profile/patients', { headers });
           if (profileRes.ok) {
             const profileData = await profileRes.json();
             profiles = profileData.data || [];
@@ -68,12 +68,12 @@ export default function DoctorBookingPage() {
         setSelectedProfileId(profiles[0]?.id || '');
 
         // Lấy danh sách Bác sĩ
-        const docRes = await fetch('http://localhost:4000/api/identity/users/doctors', { headers }).catch(() => null);
+        const docRes = await fetch('/api/identity/users/doctors', { headers }).catch(() => null);
         if (docRes && docRes.ok) {
           const docData = await docRes.json();
           setDoctors(docData.data || []); 
         }
-        const statsRes = await fetch('http://localhost:4000/api/booking/reviews/doctor-stats').catch(() => null);
+        const statsRes = await fetch('/api/booking/reviews/doctor-stats').catch(() => null);
         if (statsRes && statsRes.ok) setDoctorStats((await statsRes.json()).data || {});
         // Khách cũ / khách mới xét theo từng hồ sơ người khám: xem effect deposit-quote bên dưới
       } catch (error) {
@@ -91,7 +91,7 @@ export default function DoctorBookingPage() {
     const fetchQuote = async () => {
       try {
         const token = getToken();
-        const quoteRes = await fetch(`http://localhost:4000/api/booking/appointments/deposit-quote?patient_profile_id=${selectedProfileId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const quoteRes = await fetch(`/api/booking/appointments/deposit-quote?patient_profile_id=${selectedProfileId}`, { headers: { 'Authorization': `Bearer ${token}` } });
         const quoteData = await quoteRes.json();
         const old = quoteRes.ok && !!quoteData.data?.isOldCustomer;
         setIsOldCustomer(old);
@@ -115,7 +115,7 @@ export default function DoctorBookingPage() {
           'Content-Type': 'application/json'
         };
 
-        const shiftRes = await fetch(`http://localhost:4000/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, { headers }).catch(() => null);
+        const shiftRes = await fetch(`/api/booking/shifts/doctor-shifts?doctorId=${selectedDoc.id}&startDate=${date}&endDate=${date}`, { headers }).catch(() => null);
         
         let doctorShifts = [];
         if (shiftRes && shiftRes.ok) {
@@ -129,7 +129,7 @@ export default function DoctorBookingPage() {
           ];
         }
         
-        const takenRes = await fetch(`http://localhost:4000/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, { headers }).catch(() => null);
+        const takenRes = await fetch(`/api/booking/appointments/taken-slots?doctorId=${selectedDoc.id}&date=${date}`, { headers }).catch(() => null);
         let takenTimes = [];
         if (takenRes && takenRes.ok) {
           const takenData = await takenRes.json();
@@ -216,7 +216,7 @@ export default function DoctorBookingPage() {
         payload.pre_notes = `[OFFLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`;
       }
 
-      const res = await fetch('http://localhost:4000/api/booking/appointments', {
+      const res = await fetch('/api/booking/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
@@ -344,7 +344,7 @@ export default function DoctorBookingPage() {
                 
                 <div className="space-y-4">
                   <div>
-                     <label className="label text-sm font-medium pb-1 text-blue-900">Tình trạng da hiện tại của bạn? *</label>
+                     <label className="label text-sm font-medium pb-1 text-secondary">Tình trạng da hiện tại của bạn? *</label>
                      <textarea 
                         className="textarea textarea-bordered w-full h-16" 
                         placeholder="Ví dụ: Da đỏ, có mụn viêm sưng, nhiều dầu nhờn..." 
@@ -353,7 +353,7 @@ export default function DoctorBookingPage() {
                      ></textarea>
                   </div>
                   <div>
-                     <label className="label text-sm font-medium pb-1 text-blue-900">Các sản phẩm bạn đang dùng (nếu có)?</label>
+                     <label className="label text-sm font-medium pb-1 text-secondary">Các sản phẩm bạn đang dùng (nếu có)?</label>
                      <input 
                         type="text" 
                         className="input input-bordered w-full" 
@@ -363,7 +363,7 @@ export default function DoctorBookingPage() {
                      />
                   </div>
                   <div>
-                     <label className="label text-sm font-medium pb-1 text-blue-900">Bạn có đang bị dị ứng hay dùng thuốc gì không?</label>
+                     <label className="label text-sm font-medium pb-1 text-secondary">Bạn có đang bị dị ứng hay dùng thuốc gì không?</label>
                      <input 
                         type="text" 
                         className="input input-bordered w-full" 
@@ -470,7 +470,7 @@ export default function DoctorBookingPage() {
           </div>
           
           {/* TÓM TẮT LỊCH HẸN */}
-          <div className="card bg-base-100 p-6 shadow-xl border border-primary/20 h-fit space-y-4 sticky top-24">
+          <div className="card bg-base-100 p-6 shadow-xl border border-primary/20 h-fit space-y-4 md:sticky md:top-24">
             <h2 className="font-bold border-b pb-2">Tóm tắt lịch hẹn</h2>
             <div className="text-sm space-y-2 opacity-80">
               <p>Loại: <b>{appointmentType === 'OFFLINE' ? 'Trực tiếp' : 'Online'}</b></p>

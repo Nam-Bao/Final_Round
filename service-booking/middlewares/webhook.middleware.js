@@ -24,4 +24,16 @@ const verifySepay = (req, res, next) => {
   next();
 };
 
-module.exports = { verifySepay, safeEqual };
+// Gọi nội bộ giữa các service: header X-Internal-Key phải trùng INTERNAL_API_KEY trong .env của cả 2 bên.
+// Không dùng chung SEPAY_API_KEY vì mỗi webhook SePay có key riêng.
+const verifyInternal = (req, res, next) => {
+  const expected = process.env.INTERNAL_API_KEY;
+  if (!expected) {
+    console.error('❌ [NỘI BỘ] Chưa cấu hình INTERNAL_API_KEY trong .env => từ chối yêu cầu');
+    return res.status(503).json({ message: 'Chưa cấu hình khoá nội bộ' });
+  }
+  if (!safeEqual(req.header('X-Internal-Key') || '', expected)) return res.status(401).json({ message: 'Unauthorized' });
+  next();
+};
+
+module.exports = { verifySepay, verifyInternal, safeEqual };

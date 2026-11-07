@@ -54,7 +54,7 @@ export default function MyPayslipPage() {
             <div className="rounded-2xl p-5 text-white bg-gradient-to-br from-teal-500 to-teal-700 shadow-md">
               <div className="text-sm text-white/80">Thực nhận tháng {dayjs(`${data.month}-01`).format('MM/YYYY')}</div>
               <div className="text-3xl font-bold">{money(item.total)}</div>
-              <div className="text-sm text-white/80">{item.employee_name} · đã làm tròn đến 1.000đ</div>
+              <div className="text-sm text-white/80">{item.employee_name} · đã làm tròn đến 1.000đ · {data.paid_at ? `đã chi trả ngày ${dayjs(data.paid_at).format('DD/MM/YYYY')}` : 'chưa chi trả'}</div>
             </div>
 
             <div className="bg-white border rounded-xl divide-y">

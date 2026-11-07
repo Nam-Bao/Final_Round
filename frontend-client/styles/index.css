@@ -1,3 +1,91 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    @apply antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    overflow-wrap: break-word;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+}
+
+/* Icon và chữ trong nút luôn nằm cùng hàng, chữ dài thì xuống dòng trong nút */
+.btn {
+  flex-wrap: nowrap;
+}
+
+/* Ô trong lưới co theo màn hình, không bị chữ dài hoặc ảnh đẩy rộng ra */
+.grid > * {
+  min-width: 0;
+}
+
+/* Safari trên iPhone giữ chiều rộng riêng cho ô chọn ngày nên ô tràn khỏi khung */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+/* iPhone tự phóng to khi chạm vào ô nhập có chữ nhỏ hơn 16px */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Màn hình cảm ứng: nút đủ lớn để bấm bằng ngón tay */
+@media (pointer: coarse) {
+  .btn-sm {
+    height: 2.5rem;
+    min-height: 2.5rem;
+  }
+  .btn-xs {
+    height: 2.25rem;
+    min-height: 2.25rem;
+  }
+  .btn-sm.btn-circle {
+    width: 2.5rem;
+  }
+  .btn-xs.btn-circle {
+    width: 2.25rem;
+  }
+}
+
+/* Hộp thoại trên điện thoại trượt lên từ đáy màn hình */
+@media (max-width: 639px) {
+  .modal {
+    place-items: end center;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Dải cuộn ngang không hiện thanh cuộn */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

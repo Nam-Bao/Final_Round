@@ -82,7 +82,7 @@ export default function GlowSkinValueProp() {
 
   useEffect(() => {
     let isMounted = true;
-    fetch('http://localhost:4000/api/booking/spa-services')
+    fetch('/api/booking/spa-services')
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then(({ data = [] }) => {
         if (!isMounted) return;
@@ -116,7 +116,7 @@ export default function GlowSkinValueProp() {
       
       {/* KHỐI 1: QUOTE & THỐNG KÊ (STYLE BANNER XANH NAVY) */}
       <section className="container mx-auto px-4 max-w-6xl">
-        <div className="bg-[#102A43] text-white rounded-3xl p-8 md:p-14 shadow-2xl relative overflow-hidden">
+        <div className="bg-secondary text-white rounded-3xl p-5 md:p-14 shadow-2xl relative overflow-hidden">
           <span className="text-8xl md:text-9xl font-serif text-teal-400/20 absolute -top-4 left-6 select-none leading-none">
             “
           </span>
@@ -144,7 +144,7 @@ export default function GlowSkinValueProp() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
           {ADVANTAGES.map((item) => {
             const IconComponent = item.icon;
             return (
@@ -185,7 +185,7 @@ export default function GlowSkinValueProp() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
           {TREATMENT_TIERS.map((tier) => {
             // Thẻ dịch vụ: 3 dịch vụ thật đầu tiên của nhóm (kèm giá) + số dịch vụ còn lại
             const group = groups[tier.id];
@@ -266,7 +266,7 @@ export default function GlowSkinValueProp() {
         <div className="mt-12 text-center">
           <button
             onClick={() => setShowModal(true)}
-            className="px-8 py-3.5 rounded-xl bg-[#102A43] hover:bg-[#1C3D5A] text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm tracking-wide"
+            className="px-8 py-3.5 rounded-xl bg-secondary hover:bg-primary text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm tracking-wide"
           >
             Xem so sánh chi tiết
           </button>
@@ -276,7 +276,7 @@ export default function GlowSkinValueProp() {
       {/* MODAL POPUP BẢNG SO SÁNH */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col">
             
             <button
               onClick={() => setShowModal(false)}
@@ -289,7 +289,7 @@ export default function GlowSkinValueProp() {
               <div className="border border-slate-200 rounded-2xl overflow-hidden">
                 <table className="w-full text-left border-collapse text-xs md:text-sm">
                   <thead>
-                    <tr className="bg-[#102A43] text-white text-center">
+                    <tr className="bg-secondary text-white text-center">
                       <th className="p-3.5 md:p-4 text-left font-semibold border-r border-slate-600 w-1/4">
                         Tiêu chí so sánh
                       </th>

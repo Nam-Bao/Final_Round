@@ -43,7 +43,7 @@ export default function PaymentPage({ kind = 'appointment' }) {
 
     const checkPayment = async () => {
       try {
-        const res = await axios.get(`http://localhost:4000/api/booking/${cfg.api}/${id}/check-payment`, { headers: authHeaders() });
+        const res = await axios.get(`/api/booking/${cfg.api}/${id}/check-payment`, { headers: authHeaders() });
         setPayment(res.data);
         if (res.data.isPaid) setIsPaid(true);
       } catch (error) {
@@ -63,7 +63,7 @@ export default function PaymentPage({ kind = 'appointment' }) {
   // RỜI TRANG MÀ CHƯA THANH TOÁN (bấm quay lại / chuyển trang) => hủy giữ chỗ, ca khám được trả về trống.
   // Đóng tab thì không gọi được => server tự xóa khi hết thời gian giữ chỗ.
   const releaseHold = () =>
-    axios.delete(`http://localhost:4000/api/booking/${cfg.api}/${id}/unpaid`, { headers: authHeaders() })
+    axios.delete(`/api/booking/${cfg.api}/${id}/unpaid`, { headers: authHeaders() })
       .catch(() => {}); // 409 = vừa thanh toán xong, giữ nguyên lịch
   useEffect(() => {
     mountedRef.current = true;

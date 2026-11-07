@@ -24,10 +24,10 @@ export default function SearchPage() {
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <form onSubmit={(e) => { e.preventDefault(); if (draft.trim()) setSearchParams({ q: draft.trim() }); }}
         className="flex items-center gap-2 bg-base-100 border border-base-300 focus-within:border-primary rounded-2xl px-4 h-12 shadow-sm">
-        <Search className="w-5 h-5 text-base-content/50" />
+        <Search className="w-5 h-5 shrink-0 text-base-content/50" />
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Tìm sản phẩm, dịch vụ, gói liệu trình, bác sĩ, bài viết..."
-          maxLength={100} className="flex-1 bg-transparent outline-none" autoFocus />
-        <button type="submit" className="btn btn-primary btn-sm">Tìm</button>
+          maxLength={100} className="flex-1 min-w-0 bg-transparent outline-none" autoFocus />
+        <button type="submit" className="btn btn-primary btn-sm shrink-0">Tìm</button>
       </form>
 
       {!q.trim() ? (

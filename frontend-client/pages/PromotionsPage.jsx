@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tag, Copy, Check, Sparkles, Clock, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react';
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
+import { copyText } from '../utils/copyText';
 
 const SCOPE_LABELS = {
   ALL: 'Toàn bộ dịch vụ & sản phẩm',
@@ -26,14 +27,15 @@ export default function PromotionsPage() {
 
   useEffect(() => {
     fetchPromotions();
-    if (customer_id) 
+    if (customer_id) {
       fetchSavedPromotions();
       fetchUsedPromotions();
+    }
   }, [customer_id]);
 
   const fetchPromotions = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/promotions');
+      const res = await axios.get('/api/commerce/promotions');
       const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       setPromotions(list);
     } catch (err) {
@@ -45,20 +47,20 @@ export default function PromotionsPage() {
 
   const fetchUsedPromotions = async () => {
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/used`, authConfig);
+      const res = await axios.get(`/api/commerce/promotions/used`, authConfig);
       setUsedPromoIds(res.data.data || []);
     } catch (err) { console.error('Lỗi lấy mã đã dùng:', err); }
   };
 
   const fetchSavedPromotions = async () => {
     try {
-      const res = await axios.get(`http://localhost:4000/api/commerce/promotions/saved`, authConfig);
+      const res = await axios.get(`/api/commerce/promotions/saved`, authConfig);
       setSavedPromoIds(res.data.data || []);
     } catch (err) { console.error('Lỗi lấy mã đã lưu:', err); }
   };
 
   const handleCopy = (code) => {
-    navigator.clipboard.writeText(code);
+    copyText(code).catch(() => {});
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
@@ -69,7 +71,7 @@ export default function PromotionsPage() {
       return;
     }
     try {
-      await axios.post('http://localhost:4000/api/commerce/promotions/save', { promotion_id }, authConfig);
+      await axios.post('/api/commerce/promotions/save', { promotion_id }, authConfig);
       setSavedPromoIds(prev => [...prev, promotion_id]); // Cập nhật UI ngay lập tức
     } catch (error) {
       alert(error.response?.data?.message || 'Lỗi lưu mã');

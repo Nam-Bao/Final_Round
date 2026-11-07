@@ -9,7 +9,7 @@ const API = 'http://localhost:4000/api';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
-const PURCHASE_TAG = { PENDING: 'Đề xuất chờ duyệt', INCOMING: 'Đang chờ hàng về' };
+const PURCHASE_TAG = { PENDING: 'Đề xuất chờ duyệt', TO_ORDER: 'Đã duyệt, chưa đặt hàng', INCOMING: 'Đã đặt, chờ hàng về' };
 const STATUS = {
   OUT: { color: 'red', label: 'Hết hàng' },
   LOW: { color: 'volcano', label: 'Dưới tồn tối thiểu' },
@@ -304,6 +304,7 @@ function PurchaseTab({ reloadKey }) {
     axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => message.error('Không tải được đề xuất'));
   }, [reloadKey]);
   const [deciding, setDeciding] = useState(null); // { row, decision, note, packs: { product_id: n } }
+  const [ordering, setOrdering] = useState(null); // { row, supplier, expected_date }
   const [receiving, setReceiving] = useState(null); // { row, note, items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }] }
   const [busy, setBusy] = useState(false);
   const reload = () => axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => {});
@@ -320,6 +321,17 @@ function PurchaseTab({ reloadKey }) {
       setDeciding(null);
       reload();
     } catch (e) { message.error(e.response?.data?.message || 'Không xử lý được'); } finally { setBusy(false); }
+  };
+  const submitOrdered = async () => {
+    setBusy(true);
+    try {
+      await axios.put(`${API}/commerce/materials/purchase-requests/${ordering.row.id}/ordered`, {
+        supplier: ordering.supplier, expected_date: ordering.expected_date ? ordering.expected_date.format('YYYY-MM-DD') : null,
+      }, authConfig());
+      message.success('Đã ghi nhận đặt hàng');
+      setOrdering(null);
+      reload();
+    } catch (e) { message.error(e.response?.data?.message || 'Không ghi nhận được'); } finally { setBusy(false); }
   };
   const openReceive = (row) => setReceiving({
     row, note: '',
@@ -340,12 +352,13 @@ function PurchaseTab({ reloadKey }) {
   };
   const statusTag = (r) => {
     if (r.status === 'APPROVED' && r.received_at) return <Tag color="green">Đã nhập kho</Tag>;
-    return <Tag color={{ PENDING: 'gold', APPROVED: 'blue', REJECTED: 'red' }[r.status]}>{{ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt, chờ hàng về', REJECTED: 'Từ chối' }[r.status]}</Tag>;
+    if (r.status === 'APPROVED' && r.ordered_at) return <Tag color="cyan">Đã đặt hàng, chờ hàng về</Tag>;
+    return <Tag color={{ PENDING: 'gold', APPROVED: 'blue', REJECTED: 'red' }[r.status]}>{{ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt, chưa đặt hàng', REJECTED: 'Từ chối' }[r.status]}</Tag>;
   };
 
   return (
     <>
-      <Alert className="mb-3" type="info" showIcon message="Quy trình: Chờ duyệt → Duyệt (có thể chỉnh số lượng) hoặc Từ chối (ghi lý do) → Nhận hàng theo số thực nhận, số lô, hạn dùng, giá nhập (tự cộng tồn kho). Đề xuất đã duyệt mà hàng chưa về thì không tạo đề xuất mới. Đề xuất tự tạo khi vật tư xuống dưới tồn tối thiểu, hoặc do quản lý tạo từ tab Tồn kho." />
+      <Alert className="mb-3" type="info" showIcon message="Quy trình: Chờ duyệt → Duyệt (có thể chỉnh số lượng) hoặc Từ chối (ghi lý do) → Ghi nhận đã đặt hàng nhà cung cấp → Nhận hàng theo số thực nhận, số lô, hạn dùng, giá nhập (tự cộng tồn kho). Đề xuất đã duyệt mà hàng chưa về thì không tạo đề xuất mới. Đề xuất tự tạo khi vật tư xuống dưới tồn tối thiểu, hoặc do quản lý tạo từ tab Tồn kho." />
       <Table rowKey="id" dataSource={rows} size="middle" pagination={{ pageSize: 10 }}
         columns={[
           { title: 'Ngày tạo', dataIndex: 'createdAt', width: 140, render: (v) => dayjs(v).format('HH:mm DD/MM/YYYY') },
@@ -369,6 +382,7 @@ function PurchaseTab({ reloadKey }) {
               <div>
                 {statusTag(r)}
                 {r.decided_at && <div className="text-xs text-gray-500 mt-1">{r.status === 'REJECTED' ? 'Từ chối' : 'Duyệt'} lúc {dayjs(r.decided_at).format('HH:mm DD/MM')}{r.decision_note ? `: ${r.decision_note}` : ''}</div>}
+                {r.ordered_at && <div className="text-xs text-gray-500">Đặt của {r.supplier}{r.expected_date ? `, dự kiến ${dayjs(r.expected_date).format('DD/MM')}` : ''}</div>}
                 {r.received_at && <div className="text-xs text-gray-500">Nhập kho lúc {dayjs(r.received_at).format('HH:mm DD/MM')}{r.receive_note ? `: ${r.receive_note}` : ''}</div>}
               </div>
             ),
@@ -383,7 +397,8 @@ function PurchaseTab({ reloadKey }) {
                     <Button size="small" danger onClick={() => setDeciding({ row: r, decision: 'REJECT', note: '', packs: {} })}>Từ chối</Button>
                   </>
                 )}
-                {r.status === 'APPROVED' && !r.received_at && <Button size="small" type="primary" className="!bg-green-600" onClick={() => openReceive(r)}>Nhận hàng</Button>}
+                {r.status === 'APPROVED' && !r.ordered_at && <Button size="small" type="primary" onClick={() => setOrdering({ row: r, supplier: '', expected_date: null })}>Đã đặt hàng</Button>}
+                {r.status === 'APPROVED' && r.ordered_at && !r.received_at && <Button size="small" type="primary" className="!bg-green-600" onClick={() => openReceive(r)}>Nhận hàng</Button>}
               </Space>
             ),
           },
@@ -401,6 +416,10 @@ function PurchaseTab({ reloadKey }) {
         <Input.TextArea className="mt-2" rows={3} maxLength={1000} value={deciding?.note}
           placeholder={deciding?.decision === 'APPROVE' ? 'Ghi chú (không bắt buộc), vd nhà cung cấp, ngày giao dự kiến' : 'Lý do từ chối (bắt buộc)'}
           onChange={(e) => setDeciding((d) => ({ ...d, note: e.target.value }))} />
+      </Modal>
+      <Modal open={!!ordering} title="Ghi nhận đã đặt hàng nhà cung cấp" onCancel={() => setOrdering(null)} onOk={submitOrdered} confirmLoading={busy} okText="Lưu" destroyOnHidden>
+        <Input className="mb-3" maxLength={200} placeholder="Nhà cung cấp" value={ordering?.supplier} onChange={(e) => setOrdering((o) => ({ ...o, supplier: e.target.value }))} />
+        <DatePicker className="w-full" format="DD/MM/YYYY" placeholder="Ngày dự kiến giao (không bắt buộc)" value={ordering?.expected_date} onChange={(v) => setOrdering((o) => ({ ...o, expected_date: v }))} />
       </Modal>
       <Modal open={!!receiving} title="Nhận hàng về kho" onCancel={() => setReceiving(null)} onOk={submitReceive} confirmLoading={busy} okText="Nhập kho" width={860} destroyOnHidden>
         <Table rowKey="product_id" size="small" pagination={false} dataSource={receiving?.items || []} scroll={{ x: 760 }}
