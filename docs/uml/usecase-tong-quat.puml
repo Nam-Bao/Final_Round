@@ -1,0 +1,240 @@
+@startuml usecase-tong-quat
+' Sơ đồ use case tổng quát hệ thống GlowSkin O2O, cập nhật theo hệ thống hiện tại
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #0F766E
+  ArrowColor #555555
+}
+skinparam rectangle {
+  BackgroundColor #E6F4F1
+  BorderColor #0F766E
+}
+
+actor "Khách vãng lai" as Guest
+actor "Khách hàng" as Customer
+actor "Nhân viên" as Staff
+actor "Bác sĩ" as Doctor
+actor "Chăm sóc khách hàng" as CSKH
+actor "Kỹ thuật viên" as Tech
+actor "Nhân viên bán hàng" as Sales
+actor "Chuyên gia" as Expert
+actor "Quản lý chung" as Manager
+actor "Quản trị viên" as Admin
+
+Customer -|> Guest
+Doctor -|> Staff
+CSKH -|> Staff
+Tech -|> Staff
+Sales -|> Staff
+
+rectangle "Hệ thống chăm sóc và khám da liễu O2O" {
+
+  usecase "Đăng nhập" as UC_Login
+
+  ' ===== Khách vãng lai =====
+  usecase "Xem tin tức, sự kiện,\nthông tin phòng khám" as G1
+  usecase "Tìm kiếm" as G2
+  usecase "Đăng ký tài khoản" as G3
+  usecase "Xem sản phẩm, dịch vụ,\ngói liệu trình" as G4
+  usecase "Xem đội ngũ bác sĩ\nvà đánh giá" as G5
+  usecase "Xem khuyến mãi" as G6
+
+  ' ===== Khách hàng =====
+  usecase "Sàng lọc da bằng AI" as C1
+  usecase "Đặt lịch khám bác sĩ" as C2
+  usecase "Thanh toán\n(VietQR)" as C3
+  usecase "Khám bệnh" as C4
+  usecase "Khám trực tiếp" as C4a
+  usecase "Khám trực tuyến\n(video call)" as C4b
+  usecase "Đặt lịch tư vấn\nchuyên gia" as C5
+  usecase "Quản lý lịch khám" as C6
+  usecase "Hủy lịch" as C6a
+  usecase "Đổi lịch" as C6b
+  usecase "Quản lý hồ sơ\nngười khám hộ" as C7
+  usecase "Xem lịch sử\nvà kết quả khám" as C8
+  usecase "Theo dõi gói liệu trình" as C9
+  usecase "Đặt / hủy buổi trị liệu" as C9a
+  usecase "Mua sản phẩm" as C10
+  usecase "Áp dụng mã khuyến mãi" as C10a
+  usecase "Quản lý đơn hàng" as C11
+  usecase "Hủy đơn hàng" as C11a
+  usecase "Yêu cầu hoàn / trả hàng" as C11b
+  usecase "Đánh giá bác sĩ,\ndịch vụ, sản phẩm" as C12
+  usecase "Chat với AI / CSKH" as C13
+  usecase "Lưu mã khuyến mãi" as C14
+  usecase "Quản lý thông tin\ncá nhân" as C15
+
+  ' ===== Nhân viên (chung) =====
+  usecase "Xem lịch làm việc" as S1
+  usecase "Gửi đơn xin nghỉ / đổi ca" as S2
+  usecase "Chấm công" as S3
+  usecase "Xem phiếu lương" as S4
+  usecase "Xem thông tin cá nhân" as S5
+
+  ' ===== Bác sĩ =====
+  usecase "Quản lý hàng chờ khám" as D1
+  usecase "Xem hồ sơ và kết quả\nsoi da của khách" as D2
+  usecase "Chẩn đoán, ghi bệnh án,\nhẹn tái khám" as D3
+  usecase "Kê đơn và chỉ định\nliệu trình" as D4
+  usecase "Kiểm tra cảnh báo\nchống chỉ định" as D4a
+  usecase "Viết bài gửi duyệt" as D5
+
+  ' ===== Chăm sóc khách hàng =====
+  usecase "Tiếp nhận khách\nđặt lịch hôm nay" as K1
+  usecase "Tiếp nhận khách đến thẳng\n(danh sách chờ)" as K2
+  usecase "Quản lý lịch hẹn\ncủa khách" as K3
+  usecase "Hoàn cọc cho khách" as K3a
+  usecase "Gọi chăm sóc khách\n(nhắc lịch, tái khám, thăm hỏi)" as K4
+  usecase "Quản lý hồ sơ khách hàng" as K5
+  usecase "Thu tiền và chốt hóa đơn" as K6
+  usecase "Đối soát tiền vào" as K7
+  usecase "Tư vấn khách hàng\nqua chat" as K8
+  usecase "Quản lý lịch tư vấn\nchuyên gia" as K9
+
+  ' ===== Kỹ thuật viên =====
+  usecase "Xem danh sách khách\nlàm dịch vụ" as T1
+  usecase "Thực hiện và hoàn thành\nbuổi dịch vụ" as T2
+  usecase "Cập nhật ảnh da\nsau dịch vụ" as T2a
+  usecase "Ghi nhận vật tư đã dùng" as T2b
+
+  ' ===== Nhân viên bán hàng =====
+  usecase "Xử lý đơn hàng\n(duyệt, đóng gói, gửi GHN)" as B1
+  usecase "Hủy đơn và hoàn tiền" as B1a
+  usecase "Xử lý hoàn / trả hàng" as B2
+
+  ' ===== Chuyên gia =====
+  usecase "Tư vấn trực tuyến\nqua video" as E1
+  usecase "Gửi kết quả tư vấn" as E2
+  usecase "Xem lịch tư vấn\nvà thù lao" as E3
+
+  ' ===== Quản lý chung =====
+  usecase "Xem tổng quan\nvà báo cáo doanh thu" as M1
+  usecase "Phân công lịch làm việc" as M2
+  usecase "Duyệt đơn xin nghỉ / đổi ca" as M2a
+  usecase "Quản lý chấm công" as M3
+  usecase "Quản lý hồ sơ nhân sự" as M4
+  usecase "Tính lương và chi trả" as M5
+  usecase "Quản lý dịch vụ\nvà gói liệu trình" as M6
+  usecase "Quản lý tư vấn chuyên gia" as M7
+  usecase "Quản lý kho và sản phẩm" as M8
+  usecase "Quản lý vật tư\nvà định mức" as M9
+  usecase "Duyệt đề xuất nhập hàng" as M9a
+  usecase "Quản lý khuyến mãi" as M10
+  usecase "Quản lý trang\n(bài viết, banner, popup,\nthông tin phòng khám)" as M11
+  usecase "Duyệt bài viết bác sĩ" as M11a
+
+  ' ===== Quản trị viên =====
+  usecase "Quản lý người dùng" as A1
+  usecase "Quản lý thông tin trang" as A2
+}
+
+' Khách vãng lai
+Guest --> G1
+Guest --> G2
+Guest --> G3
+Guest --> G4
+Guest --> G5
+Guest --> G6
+
+' Khách hàng
+Customer --> UC_Login
+Customer --> C1
+Customer --> C2
+Customer --> C4
+Customer --> C5
+Customer --> C6
+Customer --> C7
+Customer --> C8
+Customer --> C9
+Customer --> C10
+Customer --> C11
+Customer --> C12
+Customer --> C13
+Customer --> C14
+Customer --> C15
+C2 ..> C3 : <<include>>
+C5 ..> C3 : <<include>>
+C10 ..> C3 : <<include>>
+C4a -|> C4
+C4b -|> C4
+C6a ..> C6 : <<extend>>
+C6b ..> C6 : <<extend>>
+C9a ..> C9 : <<extend>>
+C10a ..> C10 : <<extend>>
+C11a ..> C11 : <<extend>>
+C11b ..> C11 : <<extend>>
+
+' Nhân viên
+Staff --> UC_Login
+Staff --> S1
+Staff --> S2
+Staff --> S3
+Staff --> S4
+Staff --> S5
+
+' Bác sĩ
+C4 <-- Doctor
+Doctor --> D1
+Doctor --> D2
+Doctor --> D3
+Doctor --> D4
+Doctor --> D5
+D4 ..> D4a : <<include>>
+
+' Chăm sóc khách hàng
+CSKH --> K1
+CSKH --> K2
+CSKH --> K3
+CSKH --> K4
+CSKH --> K5
+CSKH --> K6
+CSKH --> K7
+CSKH --> K8
+CSKH --> K9
+K3a ..> K3 : <<extend>>
+
+' Kỹ thuật viên
+Tech --> T1
+Tech --> T2
+T2 ..> T2a : <<include>>
+T2 ..> T2b : <<include>>
+
+' Nhân viên bán hàng
+Sales --> B1
+Sales --> B2
+B1a ..> B1 : <<extend>>
+
+' Chuyên gia
+Expert --> UC_Login
+Expert --> E1
+Expert --> E2
+Expert --> E3
+
+' Quản lý chung
+Manager --> UC_Login
+Manager --> M1
+Manager --> K7
+Manager --> M2
+Manager --> M3
+Manager --> M4
+Manager --> M5
+Manager --> M6
+Manager --> M7
+Manager --> M8
+Manager --> M9
+Manager --> M10
+Manager --> M11
+M2a ..> M2 : <<extend>>
+M9a ..> M9 : <<extend>>
+M11a ..> M11 : <<extend>>
+
+' Quản trị viên: giữ 2 use case, đang cân nhắc gộp vào Quản lý chung
+Admin --> UC_Login
+Admin --> A1
+Admin --> A2
+@enduml
