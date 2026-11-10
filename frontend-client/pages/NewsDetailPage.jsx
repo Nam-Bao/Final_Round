@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ArrowLeft, Calendar, Eye, Clock, Newspaper, FlaskConical, Link2, Check, BookOpen, Stethoscope } from 'lucide-react';
 import ArticleBody, { VideoEmbed } from '../components/ArticleBody';
+import { SourceLine } from '../components/ServiceDetail';
 import { applyPageMeta } from '../utils/pageMeta';
 import { copyText } from '../utils/copyText';
 
@@ -120,7 +121,7 @@ export default function NewsDetailPage() {
             <ol className="list-decimal pl-5 space-y-1 text-sm text-slate-600">
               {article.sources.map((s, i) => (
                 <li key={i} className="break-words">
-                  {/^https:\/\/\S+$/.test(s) ? <a href={s} target="_blank" rel="noopener noreferrer" className="text-teal-700 underline">{s}</a> : s}
+                  <SourceLine text={s} />
                 </li>
               ))}
             </ol>

@@ -1,6 +1,6 @@
 const { SpaService } = require('../models');
 
-const LIST_FIELDS = ['includes', 'procedure_steps', 'suitable_for', 'aftercare'];
+const LIST_FIELDS = ['includes', 'procedure_steps', 'suitable_for', 'aftercare', 'sources'];
 const EDITABLE_FIELDS = ['name', 'description', 'category', 'duration_minutes', 'price', 'image_url', 'status', ...LIST_FIELDS];
 
 // Chỉ nhận các trường được phép sửa; danh sách nội dung: bỏ dòng trống, tối đa 20 dòng x 300 ký tự

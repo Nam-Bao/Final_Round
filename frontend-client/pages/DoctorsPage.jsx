@@ -38,6 +38,7 @@ export default function DoctorsPage() {
         <p className="text-base-content/60 mt-1">
           Bác sĩ da liễu trực tiếp thăm khám, chẩn đoán và chỉ định liệu trình cho khách hàng tại GlowSkin.
         </p>
+        <p className="text-xs text-base-content/50 mt-1 italic">Hồ sơ nhân sự là giả định, phục vụ đồ án.</p>
       </div>
 
       {status === 'error' ? (

@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Clock, Sparkles, Star, ListOrdered, UserCheck, ShieldAlert, CalendarCheck, Stethoscope } from 'lucide-react';
+import { Check, Clock, Sparkles, Star, ListOrdered, UserCheck, ShieldAlert, CalendarCheck, Stethoscope, BookOpen } from 'lucide-react';
+
+// "Tên nguồn: https://..." => tên + link; dòng chỉ có link thì hiện link
+export const SourceLine = ({ text }) => {
+  const m = String(text).match(/^(.*?):\s*(https:\/\/\S+)$/) || String(text).match(/^()(https:\/\/\S+)$/);
+  if (!m) return text;
+  return <>{m[1] && `${m[1]}: `}<a href={m[2]} target="_blank" rel="noopener noreferrer" className="text-teal-700 underline break-all">{m[2]}</a></>;
+};
 
 const API = '/api/booking';
 const formatPrice = (price) => `${Number(price || 0).toLocaleString('vi-VN')} đ`;
@@ -149,6 +156,15 @@ export default function ServiceDetail({ id, onSelectService }) {
         <DetailSection icon={ListOrdered} title="Quy trình thực hiện" items={service.procedure_steps} ordered />
         <DetailSection icon={ShieldAlert} title="Chăm sóc sau điều trị" items={service.aftercare} />
       </div>
+
+      {service.sources?.length > 0 && (
+        <section className="bg-slate-50 rounded-2xl p-4 sm:p-5">
+          <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-2"><BookOpen className="w-4 h-4 text-primary" /> Nguồn tham khảo</h2>
+          <ol className="list-decimal pl-5 space-y-1 text-sm text-slate-600">
+            {service.sources.map((s, i) => <li key={i} className="break-words"><SourceLine text={s} /></li>)}
+          </ol>
+        </section>
+      )}
 
       {/* Đánh giá thật của khách đã dùng dịch vụ */}
       <div id={`danh-gia-${service.id}`} className="card bg-base-100 border border-base-200 p-6 space-y-4">

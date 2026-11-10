@@ -179,6 +179,7 @@ const SpaService = sequelize.define('SpaService', {
     duration_minutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 60 },
     price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     image_url: { type: DataTypes.STRING },
+    sources: { type: DataTypes.JSONB, defaultValue: [] }, // Nguồn tham khảo cho nội dung y khoa, mỗi phần tử "Tên nguồn: https://..."
     status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
 });
 
@@ -658,7 +659,7 @@ Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCAD
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
     const added = [];
-    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog, BankTransaction, PatientSafety, SafetyRule, SafetyTarget, SafetySource, SafetyRuleReview]) {
+    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog, BankTransaction, PatientSafety, SafetyRule, SafetyTarget, SafetySource, SafetyRuleReview, SpaService]) {
         const table = model.getTableName();
         const existing = await qi.describeTable(table);
         for (const [name, attr] of Object.entries(model.getAttributes())) {

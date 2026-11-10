@@ -161,7 +161,7 @@ CẦN BẠN XEM HOẶC QUYẾT
      RF khi có cấy ghép kim loại vùng mặt.
   3. Quy tắc điện di có bằng chứng yếu nhất, chỉ dựa trên tiêu chí loại trừ của một thử nghiệm.
   4. Klenzit: mình giữ nguyên việc bạn ẩn thuốc kê đơn khỏi web, nên web hiện 49 sản phẩm.
-  5. seed-staff-records.js chưa chạy vì chứa CCCD, mã số thuế, số tài khoản giả, mà dự án đang ưu tiên data thật.
+  5. Đã xoá seed-staff-records.js và devops/seed-demo/ vì chứa dữ liệu giả (CCCD, mã số thuế, số tài khoản, khách demo). Còn trong lịch sử git nếu cần xem lại.
      Nếu cần để demo Hồ sơ nhân sự thì mình bàn lại.
 
 
@@ -169,7 +169,7 @@ CẦN BẠN XEM HOẶC QUYẾT
 GIỚI HẠN HIỆN TẠI
 ==================================================
   - Dịch vụ mới phải có từ khoá trong tên thì mới được kiểm tra.
-  - Ánh Sáng Sinh Học và Lấy Nhân Mụn chưa có quy tắc, vì chưa tìm được nguồn đủ tin cậy.
+  - Chiếu Ánh Sáng Xanh / Đỏ Trị Mụn và Lấy Nhân Mụn chưa có quy tắc chống chỉ định, vì chưa tìm được nguồn đủ tin cậy.
   - Ghi dị ứng "aspirin" không tự khớp với salicylic acid. Nên ghi đúng tên hoạt chất.
   - Chưa có trang cho quản lý xem lại các lý do bác sĩ đã ghi. Dữ liệu đang lưu ở bảng SafetyOverrides.
   - xoa-du-lieu-test.js chưa xoá dòng trong sổ Đối soát tiền vào do giả lập chuyển khoản tạo ra.

@@ -90,6 +90,7 @@ export default function ConsultationBookingPage() {
           cần chẩn đoán, kê đơn hay làm liệu trình, vui lòng <Link to="/booking" className="link link-primary">đặt lịch khám bác sĩ</Link>.
         </p>
         <p className="text-sm text-base-content/60 mt-1">Giờ tư vấn online: {CONSULT_HOURS}, tùy lịch của từng chuyên gia.</p>
+        <p className="text-xs text-base-content/50 mt-1 italic">Hồ sơ chuyên gia là giả định, phục vụ đồ án.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

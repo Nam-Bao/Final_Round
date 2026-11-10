@@ -20,7 +20,7 @@ Tài liệu đi theo **một câu chuyện liền mạch**: quản lý thiết l
 | CSKH (CONSULTANT) | `cskh.test@test.local` | `TestGlow@2026` | 3000 |
 | Kỹ thuật viên | `ktv.test@test.local` | `TestGlow@2026` | 3000 |
 | Nhân viên bán hàng (SALES) | **chưa có** – Admin tạo ở bước 1.1 | | 3000 |
-| Chuyên gia tư vấn (6 người) | `tuvan.dalieu@test.local`, `tuvan.dinhduong@test.local`, `tuvan.mypham@test.local` (+ `...2@test.local`) | `TestGlow@2026` | 3000 |
+| Chuyên gia tư vấn (6 người) | `tuvan.dalieu@glowskin.example`, `tuvan.dinhduong@glowskin.example`, `tuvan.mypham@glowskin.example` (+ `...2@glowskin.example`) | `TestGlow@2026` | 3000 |
 | Khách hàng (12 người) | `thuha.test@test.local`, `minhanh.test@test.local`, `quocbao.test@test.local`, ... | `TestGlow@2026` | 3001 |
 
 Tài khoản `@test.local` là dữ liệu test, xoá sạch bằng `node devops/xoa-du-lieu-test.js --xoa` (lưu ý: lệnh này xoá cả 6 chuyên gia và tài khoản test bạn tạo thêm có đuôi `@test.local`).
@@ -202,7 +202,7 @@ Hiện chỉ BS. Hiếu và BS. Khang có ca đến 07/11; BS. Thịnh, CSKH, KT
 - [ ] Tab đang làm: tải ảnh sau dịch vụ, bảng **Vật tư đã dùng** điền sẵn theo **định mức** → sửa số thực dùng (thử dùng **vượt** 1 vật tư: **bắt buộc ghi lý do**; thử ghi **thấp hơn** định mức: có cảnh báo cho quản lý) → **Hoàn thành**.
 - [ ] Kết quả: kho vật tư tự trừ theo lô (lô hết hạn trước xuất trước, lô đã hết hạn không xuất); vật tư xuống dưới tồn tối thiểu → thông báo "Đã báo quản lý nhập hàng".
 
-### 4.6. Chuyên gia tư vấn (`tuvan.dalieu@test.local` – chuyên gia khách đã đặt)
+### 4.6. Chuyên gia tư vấn (`tuvan.dalieu@glowskin.example` – chuyên gia khách đã đặt)
 - [ ] Đăng nhập chỉ thấy **Lịch tư vấn của tôi**. Chuyên gia vào phòng được trước giờ hẹn 15 phút, khách vào **đúng giờ hẹn**; video mở ở tab riêng.
 - [ ] Khách: **Sổ lịch khám** → mục tư vấn chuyên gia → **Vào phòng tư vấn**.
 - [ ] Sau khi cả 2 bên vào phòng **ít nhất 5 phút**: chuyên gia nhập **Kết quả tư vấn** (nhận định, lời khuyên, sinh hoạt, hẹn theo dõi) → **Gửi cho khách**. Buổi chỉ **Hoàn thành** khi đã gửi kết quả; quá **24 giờ** không gửi thì khách được hoàn cọc và chuyên gia không có thù lao.
@@ -312,7 +312,7 @@ Chỉ đơn giao qua GHN, đã nhận hàng và trong vòng 7 ngày mới gửi 
 Hệ thống chỉ **nhắc**, quyết định vẫn thuộc về bác sĩ. Có 3 mức: **Chống chỉ định**, **Thận trọng** (đều phải ghi lý do mới kê được) và **Lưu ý** (chỉ hiển thị).
 - [ ] **Chưa sàng lọc:** kê dịch vụ khi chưa bấm **Xác nhận đã hỏi khách** hôm nay → hệ thống yêu cầu hỏi hoặc ghi lý do.
 - [ ] **Mang thai:** tick "Đang mang thai", kê Laser Toning và Klenzit → 2 cảnh báo Chống chỉ định. Bấm **Hoàn tất khám** → hiện hộp cảnh báo; **Sửa lại đơn** hoặc ghi lý do (≥ 10 ký tự) rồi **Vẫn kê, lưu lý do**. Lý do được lưu kèm cảnh báo đã thấy.
-- [ ] **Máy tạo nhịp:** tick "Có máy tạo nhịp...", kê Nâng Cơ Bằng Sóng RF → Chống chỉ định.
+- [ ] **Máy tạo nhịp:** tick "Có máy tạo nhịp...", kê Điều Trị Bằng Sóng RF → Chống chỉ định.
 - [ ] **Sẹo lồi / chống đông:** kê Vi Kim hoặc gói Trị sẹo rỗ → Chống chỉ định. Gói được nhận ra theo mô tả.
 - [ ] **Dị ứng:** ghi "Niacinamide", kê sản phẩm có Niacinamide → Chống chỉ định. Chỉ so theo đúng chữ đã ghi trong bảng thành phần, nên ghi tên hoạt chất.
 - [ ] **Cho con bú + Retinol:** chỉ hiện Lưu ý, không cần ghi lý do.

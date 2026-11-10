@@ -11,6 +11,7 @@ const LIST_FIELDS = [
   { name: 'procedure_steps', label: 'Quy trình thực hiện (theo thứ tự)', placeholder: 'VD: Tẩy trang, làm sạch da' },
   { name: 'suitable_for', label: 'Phù hợp với', placeholder: 'VD: Da mụn đầu đen, mụn ẩn' },
   { name: 'aftercare', label: 'Chăm sóc sau điều trị', placeholder: 'VD: Không trang điểm trong 24 giờ' },
+  { name: 'sources', label: 'Nguồn tham khảo (bắt buộc với nội dung y khoa)', placeholder: 'VD: AAD - Chemical peels FAQs: https://www.aad.org/...' },
 ];
 const toLines = (arr) => (Array.isArray(arr) ? arr.join('\n') : '');
 const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
