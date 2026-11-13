@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { AiAnalysis } = require('../models');
 const pp = require('../services/postprocess'); // dùng chung với scripts/evaluate.js
+const { concernsOf, pickCandidates, ruleAdvice } = require('../services/productMatch');
 const cfg = pp.config;                         // config/aiConfig.json: class, nhóm, ngưỡng
 
 /* ------------------------------------------------------------------ */
@@ -30,17 +31,32 @@ const isAllowedUrl = (url) => {
   }
 };
 
-// Fallback mô tả bằng model thị giác. Tùy chọn: thiếu SDK/API key hoặc hết hạn mức ngày thì bỏ qua.
+// Danh mục sản phẩm đang bán trên web (để Gemini gợi ý), lưu tạm 10 phút
+let catalogCache = { at: 0, data: [] };
+const getAdviceCatalog = async () => {
+  if (Date.now() - catalogCache.at < 10 * 60 * 1000) return catalogCache.data;
+  try {
+    const res = await axios.get(`${process.env.GATEWAY_URL || 'http://localhost:4000'}/api/commerce/products/advice-catalog`, { timeout: 8000 });
+    catalogCache = { at: Date.now(), data: res.data.data || [] };
+  } catch (e) {
+    console.error('[Vision] Không lấy được danh mục sản phẩm:', e.message);
+  }
+  return catalogCache.data;
+};
+
+// Nhận xét cho khách bằng Gemini (đọc ảnh + kết quả Roboflow): mô tả, lời khuyên chăm sóc / sinh hoạt / ăn uống,
+// chọn sản phẩm trong danh sách ứng viên đã lọc theo quy tắc. Thiếu GEMINI_API_KEY, Gemini lỗi hoặc hết hạn mức ngày
+// => trả null, controller dùng kết quả theo quy tắc (productMatch.ruleAdvice).
 let visionCalls = 0;
 let visionDay = new Date().toDateString();
-const tryDescribeSkin = async (imageUrl) => {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+const tryDescribeSkin = async (imageUrl, findings, candidates) => {
+  if (!process.env.GEMINI_API_KEY) return null;
   if (visionDay !== new Date().toDateString()) { visionDay = new Date().toDateString(); visionCalls = 0; }
   if (visionCalls >= VISION_DAILY_CAP) return null;
   visionCalls++;
   try {
     const { describeSkin } = require('../services/skinVision');
-    return await describeSkin(imageUrl);
+    return await describeSkin(imageUrl, findings, candidates);
   } catch (e) {
     console.error('[Vision fallback]', e.message);
     return null;
@@ -57,7 +73,9 @@ exports.analyzeFace = async (req, res) => {
 
   const { image_url, consent } = req.body;
   // Khách hàng: luôn lấy từ token; nhân viên phân tích hộ khách thì được truyền customer_id
-  const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : (req.body.customer_id || req.user.id);
+  // Chưa đăng nhập: ghi là khách vãng lai, đếm lượt theo IP (analysisQuota)
+  const customer_id = !req.user ? 'GUEST_ANALYSIS'
+    : req.user.role === 'CUSTOMER' ? req.user.id : (req.body.customer_id || req.user.id);
 
   if (!image_url) {
     return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });
@@ -159,8 +177,16 @@ exports.analyzeFace = async (req, res) => {
       return acc;
     }, {});
 
-    // 6) Detection không chắc => nhờ model thị giác mô tả để nhân viên tham khảo
-    const ai_summary = level !== 'detected' ? await tryDescribeSkin(sentUrl) : null;
+    // 6) Quy tắc lọc sản phẩm ứng viên theo vấn đề da phát hiện được; Gemini xem ảnh, viết lời khuyên và chọn trong
+    //    danh sách ứng viên. Gemini không chạy được thì dùng lời khuyên mẫu + sản phẩm theo quy tắc.
+    const presentGroups = groups.filter((g) => g.present);
+    const concerns = concernsOf(presentGroups);
+    const candidates = pickCandidates(await getAdviceCatalog(), concerns);
+    const ai_summary = (await tryDescribeSkin(sentUrl, {
+      level,
+      concerns,
+      groups: presentGroups.map((g) => ({ name: g.name, confirmed: g.confirmed, possible: g.possible })),
+    }, candidates)) || ruleAdvice(concerns, candidates);
 
     const record = await AiAnalysis.create({
       customer_id,

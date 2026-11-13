@@ -5,6 +5,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { ArticlePreview, ReviewHistory } from './SubmissionView';
 import { MEDIA_API, CLIENT_URL, authConfig, errorText, validateForm, SUBMISSION_STATUS, ARTICLE_TYPES } from './contentApi';
+import { useLiveRefresh } from '../Notifications';
 
 // Quản lý duyệt bài nghiên cứu bác sĩ gửi: duyệt => tự đăng lên web; không duyệt => bắt buộc ghi lý do / yêu cầu sửa
 export default function SubmissionReview({ onPendingChange }) {
@@ -30,6 +31,7 @@ export default function SubmissionReview({ onPendingChange }) {
     }
   };
   useEffect(() => { load(); }, [status]);
+  useLiveRefresh(['articles'], load);
 
   const openDetail = async (id) => {
     setDetail({ id });

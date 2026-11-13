@@ -2,6 +2,7 @@ const { sequelize, Product, ProductDetail, Category, Review, Order, OrderDetail,
 const { Op } = require('sequelize'); // getAllProducts dùng Op/sequelize/Review (trước đây thiếu import)
 const { getRatingStats } = require('./review.controller');
 const { SALE_FIELDS, withOnlinePrice } = require('../utils/pricing');
+const { CONCERNS, sanitizeConcerns } = require('../utils/concerns');
 
 // Số lượng đã bán thật: tổng số lượng trong các đơn đã giao xong (COMPLETED, gồm cả đơn tại quầy),
 // trừ phần khách đã trả lại và được hoàn tiền. productIds bỏ trống => tính cho tất cả sản phẩm.
@@ -59,12 +60,16 @@ const getProducts = async (req, res) => {
   try {
     const products = await Product.findAll({
       where: { type: 'PRODUCT' },
-      include: [{ model: Category, attributes: ['id', 'name'] }],
+      // is_prescription: NVBH ẩn thuốc kê đơn khi tạo đơn tại quầy (bác sĩ vẫn thấy để kê)
+      include: [{ model: Category, attributes: ['id', 'name'] }, { model: ProductDetail, attributes: ['is_prescription'], required: false }],
       order: [['createdAt', 'DESC']]
     });
     // Điểm đánh giá thật từ bảng Reviews và số đã bán từ các đơn đã giao (trang shop hiển thị)
     const [ratingStats, soldStats] = await Promise.all([getRatingStats(), getSoldStats()]);
-    const data = products.map(p => withStats(p, ratingStats, soldStats));
+    const data = products.map((p) => {
+      const { ProductDetail: detail, ...rest } = withStats(p, ratingStats, soldStats);
+      return { ...rest, is_prescription: !!detail?.is_prescription };
+    });
     res.status(200).json({ data });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
@@ -103,7 +108,8 @@ const getShopProducts = async (req, res) => {
       where: { type: 'PRODUCT' },
       include: [
         { model: Category, attributes: ['id', 'name'] },
-        { model: ProductDetail, where: { is_published: true, is_prescription: false }, attributes: SHOP_DETAIL_FIELDS }
+        // Thuốc kê đơn vẫn hiện (khách tra cứu được) nhưng không mua online: nút "Tư vấn ngay" dẫn tới đặt lịch khám; giỏ hàng / đặt hàng chặn ở server
+        { model: ProductDetail, where: { is_published: true }, attributes: SHOP_DETAIL_FIELDS }
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -122,7 +128,7 @@ const getShopProduct = async (req, res) => {
       where: UUID_RE.test(key) ? { id: key, type: 'PRODUCT' } : { type: 'PRODUCT' },
       include: [
         { model: Category, attributes: ['id', 'name', 'description'] },
-        { model: ProductDetail, where: UUID_RE.test(key) ? { is_published: true, is_prescription: false } : { is_published: true, is_prescription: false, slug: key } }
+        { model: ProductDetail, where: UUID_RE.test(key) ? { is_published: true } : { is_published: true, slug: key } }
       ]
     });
     if (!product) return res.status(404).json({ message: 'Sản phẩm không tồn tại hoặc chưa bán trên web' });
@@ -140,9 +146,9 @@ const getProductDetailAdmin = async (req, res) => {
     const product = await Product.findByPk(req.params.id, { include: [{ model: ProductDetail }] });
     if (!product) return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
     const detail = product.ProductDetail?.toJSON() || {
-      slug: await uniqueSlug(slugify(product.name), product.id), is_published: false, skin_types: []
+      slug: await uniqueSlug(slugify(product.name), product.id), is_published: false, skin_types: [], concerns: []
     };
-    res.status(200).json({ data: detail, skin_type_options: SKIN_TYPES });
+    res.status(200).json({ data: detail, skin_type_options: SKIN_TYPES, concern_options: CONCERNS });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -189,6 +195,7 @@ const upsertProductDetail = async (req, res) => {
     if ('skin_types' in req.body) {
       values.skin_types = (Array.isArray(req.body.skin_types) ? req.body.skin_types : []).filter((x) => SKIN_TYPES.includes(x));
     }
+    if ('concerns' in req.body) values.concerns = sanitizeConcerns(req.body.concerns);
     values.is_published = 'is_published' in req.body ? req.body.is_published === true : Boolean(existing?.is_published);
     if ('is_prescription' in req.body) values.is_prescription = req.body.is_prescription === true;
     if ('sale_percent' in req.body) Object.assign(values, parseSale(req.body));
@@ -326,11 +333,62 @@ const getAllProducts = async (req, res) => {
 const getProductSafetyInfo = async (req, res) => {
   try {
     const ids = String(req.query.ids || '').split(',').filter((id) => UUID_RE.test(id)).slice(0, 50);
-    const rows = await Product.findAll({ where: { id: ids }, attributes: ['id', 'name'], include: [{ model: ProductDetail, attributes: ['ingredients'] }] });
-    return res.status(200).json({ data: rows.map((p) => ({ id: p.id, name: p.name, ingredients: p.ProductDetail?.ingredients || '' })) });
+    const rows = await Product.findAll({ where: { id: ids }, attributes: ['id', 'name'], include: [{ model: ProductDetail, attributes: ['ingredients', 'warnings', 'concerns'] }] });
+    return res.status(200).json({ data: rows.map((p) => ({ id: p.id, name: p.name, ingredients: p.ProductDetail?.ingredients || '', warnings: p.ProductDetail?.warnings || '', concerns: p.ProductDetail?.concerns || [] })) });
   } catch (error) {
     return res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };
 
-module.exports = { getProductSafetyInfo, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, slugify, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };
+// [STAFF] GET /products/safety-catalog — sản phẩm còn hàng, có bảng thành phần: chọn sản phẩm thay thế theo quy tắc, xem trước từ khóa quy tắc.
+// Trả ĐỦ bảng thành phần (hoạt chất có thể nằm cuối danh sách, VD Salicylic Acid của Effaclar Duo+M ở ký tự thứ 700)
+const clip = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
+const getSafetyCatalog = async (req, res) => {
+  try {
+    const rows = await Product.findAll({
+      where: { type: 'PRODUCT', stock_quantity: { [Op.gt]: 0 } }, attributes: ['id', 'name', 'price'],
+      include: [{ model: ProductDetail, required: true, attributes: ['ingredients', 'warnings', 'benefits', 'short_description', 'skin_types', 'concerns', 'is_prescription'], where: { ingredients: { [Op.ne]: '' } } }],
+      order: [['name', 'ASC']], limit: 200,
+    });
+    return res.status(200).json({
+      data: rows.map((p) => ({
+        id: p.id, name: p.name, price: Number(p.price), prescription: !!p.ProductDetail.is_prescription,
+        ingredients: clip(p.ProductDetail.ingredients, 3000), benefits: clip(p.ProductDetail.benefits || p.ProductDetail.short_description, 300),
+        warnings: clip(p.ProductDetail.warnings, 300), skin_types: p.ProductDetail.skin_types || [], concerns: p.ProductDetail.concerns || [],
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// Danh mục cho AI gợi ý sản phẩm sau khi soi da: chỉ mỹ phẩm đang bán trên web, còn hàng, không phải thuốc kê đơn.
+// Công khai vì đều là thông tin đã hiện ở trang sản phẩm.
+const getAdviceCatalog = async (req, res) => {
+  try {
+    const rows = await Product.findAll({
+      where: { type: 'PRODUCT', stock_quantity: { [Op.gt]: 0 } }, attributes: ['id', 'name', 'price', 'image_url'],
+      include: [{ model: ProductDetail, required: true, where: { is_published: true, is_prescription: false },
+        attributes: ['slug', 'ingredients', 'benefits', 'short_description', 'skin_types', 'concerns', ...SALE_FIELDS] }],
+      order: [['name', 'ASC']], limit: 120,
+    });
+    return res.status(200).json({
+      data: rows.map((row) => {
+        const p = withOnlinePrice(row.toJSON());
+        let images = p.image_url;
+        try { if (typeof images === 'string') images = JSON.parse(images); } catch { /* 1 URL */ }
+        const image = Array.isArray(images) ? images[0] : images;
+        return {
+          id: p.id, name: p.name, slug: p.ProductDetail.slug || p.id, price: Number(p.price), image: image || null,
+          skin_types: p.ProductDetail.skin_types || [], concerns: p.ProductDetail.concerns || [],
+          benefits: clip(p.ProductDetail.benefits || p.ProductDetail.short_description, 200),
+          ingredients: clip(p.ProductDetail.ingredients, 250),
+        };
+      }),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+module.exports = { getAdviceCatalog, getSafetyCatalog, getProductSafetyInfo, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, slugify, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts };

@@ -4,6 +4,7 @@ import { EditOutlined, ShoppingCartOutlined, ReloadOutlined, LinkOutlined, PlusO
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { useSearchParams } from 'react-router-dom';
+import { useLiveRefresh } from '../components/Notifications';
 
 const API = 'http://localhost:4000/api';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
@@ -308,6 +309,7 @@ function PurchaseTab({ reloadKey }) {
   const [receiving, setReceiving] = useState(null); // { row, note, items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }] }
   const [busy, setBusy] = useState(false);
   const reload = () => axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => {});
+  useLiveRefresh(['purchase-requests'], reload);
 
   const submitDecision = async () => {
     const { row, decision, note, packs } = deciding;

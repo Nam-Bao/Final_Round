@@ -8,6 +8,7 @@ const { EXAM_SLOTS, EXAM_SHIFT_HOURS } = require('../utils/shiftSlots');
 // Cọc buổi tư vấn chuyên gia đã hoàn thành được trừ vào phí khám
 const { findAvailableCredit, getCreditForAppointment, releaseCredit, handleConsultTransfer } = require('./consultation.controller');
 const { isDuplicateTransaction, recordTransaction } = require('../utils/bankLog');
+const { recordOutgoing, recordClaim, validateClaimInput } = require('../utils/refunds');
 
 // Phí khám bác sĩ 100k. Khám online trả trước toàn bộ; khám tại phòng khám cọc 50k, phần còn lại thu khi chốt sale.
 // Server tự quyết định, không tin số tiền / ghi chú từ client.
@@ -55,7 +56,8 @@ const findPatientProfile = async (req, customer_id, patient_profile_id) => {
 // ===== GIỮ CHỖ CHỜ THANH TOÁN =====
 // Lịch khách tự đặt ở trạng thái PENDING_PAYMENT chỉ giữ ca khám trong PAYMENT_HOLD_MINUTES phút.
 // Khách rời trang thanh toán (bấm quay lại) hoặc quá hạn mà chưa trả => xóa hẳn lịch + hóa đơn cọc, trả ca về trống.
-const PAYMENT_HOLD_MINUTES = Number(process.env.PAYMENT_HOLD_MINUTES || 15);
+const { TIMING, durationLabel } = require('../utils/timing');
+const PAYMENT_HOLD_MINUTES = TIMING.paymentHoldMinutes;
 const holdExpiresAt = (apt) => new Date(new Date(apt.createdAt).getTime() + PAYMENT_HOLD_MINUTES * 60 * 1000);
 
 const discardUnpaid = (where) => sequelize.transaction(async (t) => {
@@ -251,12 +253,18 @@ const getMyTodayAppointments = async (req, res) => {
       console.warn("Không thể gọi sang service-identity:", identityError.message);
     }
 
+    // Phí khám và tiền đã cọc: bác sĩ xem tạm tính số tiền khách phải trả khi tư vấn dịch vụ / gói / mỹ phẩm
+    const invoices = await Invoice.findAll({ where: { appointment_id: appointments.map((a) => a.id) }, raw: true });
+
     const enrichedAppointments = appointments.map(apt => {
       const customerInfo = allUsers.find(u => u.id === apt.customer_id);
       const patientProfile = customerInfo?.PatientProfiles?.find(p => p.id === apt.patient_profile_id);
+      const invoice = invoices.find((inv) => inv.appointment_id === apt.id);
 
       return {
         ...apt,
+        exam_fee: getExamFee(invoice),
+        deposit_paid: getDepositPaid(invoice),
         customer_name: patientProfile?.full_name || customerInfo?.Profile?.full_name || 'Khách vãng lai',
         customer_phone: patientProfile?.phone || customerInfo?.Profile?.phone || 'Chưa cập nhật',
         dob: patientProfile?.dob || customerInfo?.Profile?.dob || null,
@@ -319,7 +327,7 @@ const getTakenSlots = async (req, res) => {
 };
 
 // Trả về { status, message } nếu không đặt được, null nếu hợp lệ. Giờ tính theo múi giờ của server (VN).
-const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId, transaction }) => {
+const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointment_time, isCustomer, excludeId, transaction, allowPastTime = false }) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(appointment_date) || !/^\d{2}:\d{2}(:\d{2})?$/.test(appointment_time)) {
     return { status: 400, message: 'Ngày hoặc giờ khám không hợp lệ' };
   }
@@ -328,8 +336,9 @@ const validateAppointmentSlot = async ({ doctor_id, appointment_date, appointmen
   if (!slotStart.isValid() || slotStart.format('YYYY-MM-DD') !== appointment_date) {
     return { status: 400, message: 'Ngày hoặc giờ khám không hợp lệ' };
   }
-  // Khách chỉ đặt giờ trong tương lai; nhân viên được xếp lịch trong ngày (khách vãng lai tới quầy) nhưng không lùi ngày
-  if (isCustomer ? !slotStart.isAfter(dayjs()) : slotStart.isBefore(dayjs(), 'day')) {
+  // Chỉ đặt giờ trong tương lai (khách vãng lai đã có danh sách chờ riêng, không cần giờ). Riêng đổi bác sĩ mà giữ nguyên
+  // ngày giờ của lịch hôm nay (allowPastTime) thì vẫn được, để CSKH chuyển khách sang bác sĩ khác khi khách tới trễ.
+  if (allowPastTime ? slotStart.isBefore(dayjs(), 'day') : !slotStart.isAfter(dayjs())) {
     return { status: 400, message: 'Không thể đặt lịch vào thời gian đã qua, vui lòng chọn ngày giờ khác' };
   }
   if (!doctor_id) return null;
@@ -356,9 +365,9 @@ const validateSlotChange = (apt, { doctor_id, appointment_date, appointment_time
     appointment_date: appointment_date || apt.appointment_date,
     appointment_time: String(appointment_time || apt.appointment_time)
   };
-  const changed = next.doctor_id !== apt.doctor_id || next.appointment_date !== apt.appointment_date
-    || next.appointment_time.slice(0, 5) !== String(apt.appointment_time).slice(0, 5);
-  return changed ? validateAppointmentSlot({ ...next, isCustomer: false, excludeId: apt.id, transaction }) : null;
+  const sameTime = next.appointment_date === apt.appointment_date && next.appointment_time.slice(0, 5) === String(apt.appointment_time).slice(0, 5);
+  const changed = next.doctor_id !== apt.doctor_id || !sameTime;
+  return changed ? validateAppointmentSlot({ ...next, isCustomer: false, excludeId: apt.id, transaction, allowPastTime: sameTime }) : null;
 };
 
 // Khoá lịch của bác sĩ trong ngày rồi mới kiểm tra và ghi: 2 người đặt / đổi vào cùng 1 giờ thì người sau thấy giờ đã có người
@@ -479,9 +488,15 @@ const confirmPayment = async (req, res) => {
 // API key SePay đã được kiểm tra ở route (middleware verifySepay) để chống giả mạo.
 const sepayWebhook = async (req, res) => {
   try {
-    const { id: externalId, transferAmount, content, transferType, transactionDate } = req.body;
+    const { id: externalId, transferAmount, content, transferType, transactionDate, referenceCode } = req.body;
     const amount = Number(transferAmount);
-    if ((transferType && transferType !== 'in') || !(amount > 0)) return res.status(200).json({ success: true });
+    if (!(amount > 0)) return res.status(200).json({ success: true });
+    // Tiền ra: dùng để xác minh các khoản nhân viên báo "đã hoàn tiền" (nội dung "HOAN <mã>")
+    if (transferType === 'out') {
+      if (!(await isDuplicateTransaction(externalId))) await recordOutgoing({ externalId, amount, content, receivedAt: transactionDate, referenceCode });
+      return res.status(200).json({ success: true });
+    }
+    if (transferType && transferType !== 'in') return res.status(200).json({ success: true });
     // Mã đơn mỹ phẩm "SP xxxxxx": service-commerce xử lý và tự lưu sổ
     if (/(?<![a-z0-9])SP\s?[a-z0-9]{6}/i.test(String(content || ''))) return res.status(200).json({ success: true });
     // SePay gửi lại giao dịch đã xử lý => bỏ qua
@@ -512,7 +527,7 @@ const sepayWebhook = async (req, res) => {
       }
     }
     await recordTransaction({
-      externalId, amount, content, receivedAt: transactionDate,
+      externalId, amount, content, receivedAt: transactionDate, referenceCode,
       ...(outcome || { code_type: 'NONE', status: 'UNMATCHED', reason: 'Nội dung chuyển khoản không có mã lịch' }),
     });
     res.status(200).json({ success: true });
@@ -587,7 +602,12 @@ const rescheduleAppointment = async (req, res) => {
       apt.doctor_id = doctor_id || apt.doctor_id;
       apt.appointment_date = appointment_date || apt.appointment_date;
       apt.appointment_time = appointment_time || apt.appointment_time;
-      apt.status = 'CONFIRMED';
+      // Khám online đã trả tiền đi thẳng vào hàng chờ bác sĩ (không qua quầy tiếp nhận) => giữ ở hàng chờ của bác sĩ mới;
+      // khám tại phòng khám về "đã xác nhận", chờ khách tới quầy
+      if (isOnlineAppointment(apt)) {
+        apt.status = 'WAITING';
+        apt.queued_at = apt.queued_at || new Date();
+      } else apt.status = 'CONFIRMED';
       if (note) apt.pre_notes = `[ĐÃ DỜI LỊCH: ${note}] - ` + (apt.pre_notes || '');
       await apt.save({ transaction: t });
     });
@@ -620,6 +640,8 @@ const preCheckAppointment = async (req, res) => {
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     if (!['PENDING', 'CONFIRMED'].includes(apt.status)) return res.status(409).json({ message: 'Lịch này không còn ở bước đón khách' });
+    const { isScreenedForVisit, SCREENING_REQUIRED } = require('./safety.controller');
+    if (!(await isScreenedForVisit(apt.patient_profile_id))) return res.status(409).json({ code: 'NOT_SCREENED', message: SCREENING_REQUIRED });
 
     applyPreCheck(apt, req.body, req.user.id);
     await apt.save();
@@ -643,11 +665,16 @@ const finishExam = async (req, res) => {
     }
 
     // Có cảnh báo chống chỉ định thì bác sĩ phải xem và ghi lý do mới kê được; server tự kiểm tra lại, không tin giao diện
-    const { checkPrescription } = require('./safety.controller');
-    const safetyWarnings = (await checkPrescription({
-      patient_profile_id: apt.patient_profile_id, services: spa_services || [], packages: treatment_package ? [treatment_package] : [],
+    const { checkPrescription, aiWarningsFor } = require('./safety.controller');
+    const rx = {
+      services: spa_services || [], packages: treatment_package ? [treatment_package] : [],
       medicines: normalizeMedicines(prescriptions).map((m) => m.product_id), authorization: req.headers.authorization,
-    })).filter((w) => w.severity !== 'INFO');
+    };
+    // Bảng quy tắc + cảnh báo của lần AI rà soát gần nhất (mục còn trong đơn): đều phải ghi lý do
+    const safetyWarnings = [
+      ...(await checkPrescription({ patient_profile_id: apt.patient_profile_id, ...rx })).filter((w) => w.severity !== 'INFO'),
+      ...await aiWarningsFor({ appointment_id: apt.id, ...rx }),
+    ];
     const safetyReason = String(req.body.safety_reason || '').trim().slice(0, 1000);
     if (safetyWarnings.length && safetyReason.length < 10) {
       return res.status(409).json({ code: 'SAFETY_WARNINGS', message: 'Đơn kê có cảnh báo an toàn, cần ghi lý do (ít nhất 10 ký tự)', warnings: safetyWarnings });
@@ -717,8 +744,8 @@ const updateAppointment = async (req, res) => {
 // ===== HỦY LỊCH & TIỀN CỌC =====
 // Khách tự hủy (hoặc nhờ CSKH hủy hộ) => MẤT cọc. Phòng khám chủ động hủy => hoàn cọc: CSKH liên hệ khách,
 // chuyển khoản rồi ghi nhận mã giao dịch. Mọi lần hủy đều lưu vào AppointmentCancellations làm bằng chứng.
-const NO_SHOW_GRACE_MINUTES = 15;        // quá giờ hẹn 15 phút mới được ghi khách không đến
-const CUSTOMER_RESCHEDULE_HOURS = 24;     // khách tự đổi lịch trước giờ khám ít nhất 24 giờ
+const NO_SHOW_GRACE_MINUTES = TIMING.noShowGraceMinutes;   // quá giờ hẹn bao lâu mới được ghi khách không đến (mặc định 15 phút)
+const RESCHEDULE_MIN_MINUTES = TIMING.rescheduleMinMinutes; // khách tự đổi lịch trước giờ khám ít nhất (mặc định 24 giờ)
 const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE'];
 const STAFF_CANCELLABLE = [...CUSTOMER_CANCELLABLE, 'CHECK_IN', 'WAITING'];
 
@@ -734,7 +761,7 @@ const markNoShow = async (req, res) => {
     if (!apt) throw new CancelError('Không tìm thấy lịch hẹn', 404);
     if (!['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status)) throw new CancelError('Chỉ ghi khách không đến cho lịch đang chờ khách');
     const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
-    if (dayjs().isBefore(start.add(NO_SHOW_GRACE_MINUTES, 'minute'))) throw new CancelError(`Chỉ ghi khách không đến sau giờ hẹn ${NO_SHOW_GRACE_MINUTES} phút`);
+    if (dayjs().isBefore(start.add(NO_SHOW_GRACE_MINUTES, 'minute'))) throw new CancelError(`Chỉ ghi khách không đến sau giờ hẹn ${durationLabel(NO_SHOW_GRACE_MINUTES)}`);
     const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, transaction: t, lock: t.LOCK.UPDATE });
     const depositPaid = getDepositPaid(invoice);
     await AppointmentCancellation.create({
@@ -763,7 +790,7 @@ const customerRescheduleAppointment = async (req, res) => {
     if (!['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status)) return res.status(400).json({ message: 'Chỉ đổi được lịch đã đặt và chưa diễn ra' });
     if (apt.customer_reschedule_count) return res.status(400).json({ message: 'Mỗi lịch khám chỉ được đổi 1 lần' });
     const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
-    if (dayjs().isAfter(start.subtract(CUSTOMER_RESCHEDULE_HOURS, 'hour'))) return res.status(400).json({ message: `Chỉ đổi được lịch trước giờ khám ít nhất ${CUSTOMER_RESCHEDULE_HOURS} giờ` });
+    if (dayjs().isAfter(start.subtract(RESCHEDULE_MIN_MINUTES, 'minute'))) return res.status(400).json({ message: `Chỉ đổi được lịch trước giờ khám ít nhất ${durationLabel(RESCHEDULE_MIN_MINUTES)}` });
     if (!appointment_date || !appointment_time) return res.status(400).json({ message: 'Chọn ngày và giờ mới' });
     if (appointment_date === apt.appointment_date && String(appointment_time).slice(0, 5) === String(apt.appointment_time).slice(0, 5)) {
       return res.status(400).json({ message: 'Giờ mới trùng với giờ đang đặt' });
@@ -899,10 +926,10 @@ const getPendingDepositRefunds = async (req, res) => {
 // [STAFF] Ghi nhận đã chuyển khoản hoàn cọc: lưu mã giao dịch, hóa đơn chuyển REFUNDED và ghi giao dịch hoàn tiền
 const confirmDepositRefund = async (req, res) => {
   const refund_ref = String(req.body.refund_ref || '').trim();
-  if (refund_ref.length < 4 || refund_ref.length > 50) {
-    return res.status(400).json({ message: 'Nhập mã giao dịch chuyển khoản hoàn cọc (4 - 50 ký tự)' });
-  }
+  const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });
+  if (invalid) return res.status(400).json({ message: invalid });
   const t = await sequelize.transaction();
+  let claim = null;
   try {
     const cancellation = await AppointmentCancellation.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
     if (!cancellation || cancellation.deposit_outcome !== 'REFUND_PENDING') throw new CancelError('Lịch này không có khoản cọc chờ hoàn');
@@ -923,8 +950,11 @@ const confirmDepositRefund = async (req, res) => {
       refunded_by: req.user.id, refunded_at: new Date()
     });
     await cancellation.save({ transaction: t });
+    const apt = await Appointment.findByPk(req.params.id, { attributes: ['customer_id'], transaction: t });
+    claim = { source: 'APPOINTMENT', source_id: req.params.id, customer_id: apt?.customer_id, amount: Number(cancellation.deposit_paid), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id };
     await t.commit();
-    res.status(200).json({ message: 'Đã ghi nhận hoàn cọc cho khách' });
+    await recordClaim(claim).catch((e) => console.error('❌ Không ghi được khoản hoàn để đối chiếu:', e.message));
+    res.status(200).json({ message: 'Đã ghi nhận hoàn cọc. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) {
     await t.rollback();
     if (error instanceof CancelError) return res.status(error.status).json({ message: error.message });
@@ -955,7 +985,9 @@ const getAvailableSlots = async (req, res) => {
       where: { appointment_date: date, doctor_id: doctorId, ...occupiesSlot }, raw: true
     });
     const takenTimes = takenAppointments.map(a => String(a.appointment_time).slice(0, 5));
-    const availableSlots = allSlots.filter(slot => !takenTimes.includes(slot));
+    // Giờ đã qua (hôm nay) ẩn đi giống giờ đã có người đặt
+    const now = dayjs();
+    const availableSlots = allSlots.filter(slot => !takenTimes.includes(slot) && dayjs(`${date} ${slot}`).isAfter(now));
     res.status(200).json({ data: availableSlots });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
@@ -1090,6 +1122,8 @@ const inviteWalkIn = async (req, res) => {
       const apt = await Appointment.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
       if (!apt || apt.source !== WALK_IN) throw new WalkInError('Không tìm thấy khách trong danh sách chờ', 404);
       if (apt.status !== 'CHECK_IN') throw new WalkInError('Khách này đã được mời hoặc đã rời đi', 409);
+      const { isScreenedForVisit, SCREENING_REQUIRED } = require('./safety.controller');
+      if (!(await isScreenedForVisit(apt.patient_profile_id, t))) throw new WalkInError(SCREENING_REQUIRED, 409, { code: 'NOT_SCREENED' });
       // Khóa theo bác sĩ: 2 CSKH mời cùng lúc thì người sau thấy cảnh báo đã có khách chờ
       await lockDoctor(doctor_id, today, t);
       const doctor = (await doctorBoard(req, today, t)).find((d) => d.doctor_id === doctor_id);
@@ -1149,7 +1183,11 @@ const checkoutAppointment = async (req, res) => {
           code: voucher_code,
           customer_id: apt.customer_id,
           order_value: bill.gross,
-          scope_values: bill.scope_values
+          scope_values: bill.scope_values,
+          // Ảnh xác thực CSKH tải lên khi áp mã (VD lịch sử tư vấn chuyên gia của khách)
+          proof_url: req.body.voucher_proof_url,
+          channel: 'CLINIC',
+          reference_id: apt.id
         }, { headers: { 'Authorization': req.headers.authorization } });
         discountAmount = Number(redeemRes.data.data.discount_amount) || 0;
       } catch (err) {

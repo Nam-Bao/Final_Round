@@ -40,18 +40,24 @@ import ConsultationBookingPage from './pages/ConsultationBookingPage';
 import ContactButtons from './components/ContactButtons';
 
 // ====== CHATBOT AI ======
-// Gemini chạy ở service-ai-analysis, frontend không giữ API key; bắt buộc đăng nhập
+// Gemini chạy ở service-ai-analysis, frontend không giữ API key. Chưa đăng nhập vẫn chat với AI được
+// (chat với CSKH mới bắt buộc đăng nhập)
 async function streamConsultReply(messages, token, onText) {
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ messages }),
   });
-  if (res.status === 401) {
+  if (token && (res.status === 401 || res.status === 403)) {
     useAuthStore.getState().logout();
     throw new Error('Phiên đăng nhập đã hết hạn');
   }
-  if (!res.ok || !res.body) throw new Error(`Chatbot lỗi ${res.status}`);
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.message || `Chatbot lỗi ${res.status}`);
+    err.serverMessage = body.message;
+    throw err;
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -123,7 +129,10 @@ function App() {
 
   const handleSwitchToHuman = () => {
     setIsLoading(false); 
-    if (!token) return; // khung chat sẽ hiện nút đăng nhập
+    if (!token) { // chat với CSKH bắt buộc đăng nhập; chat AI vẫn dùng được
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', isSystem: true, text: 'Vui lòng đăng nhập để chat với nhân viên CSKH. Bạn vẫn có thể hỏi AI ngay tại đây.' }]);
+      return;
+    }
 
     if (!isWorkingHour()) {
       setOutOfOffice(true);
@@ -209,7 +218,7 @@ function App() {
         setMessages((prev) => [...prev, {
           id: Date.now() + 2, sender: 'cs', isError: true,
           // 429 = vượt giới hạn lượt gọi của server, hiển thị đúng thông báo server trả về
-          text: error.response?.data?.message || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
+          text: error.serverMessage || error.response?.data?.message || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
         }]);
       } finally {
         setIsLoading(false);
@@ -227,7 +236,7 @@ function App() {
           <ReminderBanner />
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/sang-loc-da" element={<ProtectedRoute><AiTriagePage /></ProtectedRoute>} />
+            <Route path="/sang-loc-da" element={<AiTriagePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/booking" element={<ProtectedRoute><DoctorBookingPage /></ProtectedRoute>} />
@@ -305,16 +314,13 @@ function App() {
                 <div ref={chatEndRef} />
               </div>
 
-              {!user ? (
-                <div className="p-3 bg-base-100 border-t text-center space-y-2">
-                  <p className="text-xs text-base-content/70">Vui lòng đăng nhập để chat với AI hoặc nhân viên CSKH.</p>
-                  <Link to="/login?next=/" onClick={() => setIsChatOpen(false)} className="btn btn-primary btn-sm gap-1">
-                    <LogIn className="w-4 h-4" /> Đăng nhập
-                  </Link>
-                </div>
-              ) : (
               <div className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:pb-2 bg-base-100 border-t flex flex-col gap-2 shrink-0">
-                {chatMode === 'AI' && !outOfOffice && (
+                {!user && (
+                  <Link to="/login?next=/" onClick={() => setIsChatOpen(false)} className="btn btn-xs btn-outline btn-primary self-start gap-1">
+                    <LogIn className="w-3 h-3" /> Đăng nhập để chat với CSKH
+                  </Link>
+                )}
+                {user && chatMode === 'AI' && !outOfOffice && (
                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
                     <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
                   </button>
@@ -338,7 +344,6 @@ function App() {
                   </button>
                 </div>
               </div>
-              )}
             </div>
           )}
 

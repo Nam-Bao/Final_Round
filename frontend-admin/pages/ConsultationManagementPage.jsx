@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Tabs, Table, Tag, Button, Select, DatePicker, Checkbox, Modal, Input, Radio, message, Space, Typography, Popconfirm, Statistic } from 'antd';
 import { PlusOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import RefundTransferNote from '../components/RefundTransferNote';
 import dayjs from 'dayjs';
 import { CONSULT_FIELD_OPTIONS } from '../components/hr/ProfessionalFields';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Text, Paragraph } = Typography;
 const API = 'http://localhost:4000/api';
@@ -41,6 +43,7 @@ function ConsultationList() {
   const [cancelForm, setCancelForm] = useState({ initiator: 'CLINIC', reason: '' });
   const [refundItem, setRefundItem] = useState(null);
   const [refundRef, setRefundRef] = useState('');
+  const [refundAccount, setRefundAccount] = useState('');
   const [payItem, setPayItem] = useState(null);
   const [payForm, setPayForm] = useState({ payment_method: 'VIETQR', payment_ref: '' });
   const [resultItem, setResultItem] = useState(null);
@@ -57,6 +60,7 @@ function ConsultationList() {
   }, [month, status, refundOnly]);
 
   useEffect(() => { fetchList(); }, [fetchList]);
+  useLiveRefresh(['consultations'], fetchList);
 
   const submitCancel = async () => {
     try {
@@ -69,7 +73,7 @@ function ConsultationList() {
 
   const submitRefund = async () => {
     try {
-      const res = await axios.put(`${API}/booking/consultations/${refundItem.id}/refund`, { refund_ref: refundRef }, { headers: headers() });
+      const res = await axios.put(`${API}/booking/consultations/${refundItem.id}/refund`, { refund_ref: refundRef, account: refundAccount }, { headers: headers() });
       message.success(res.data.message);
       setRefundItem(null);
       fetchList();
@@ -120,7 +124,7 @@ function ConsultationList() {
           {c.result && <Button size="small" onClick={() => setResultItem(c)}>Xem kết quả</Button>}
           {isManager && c.rating && <Button size="small" onClick={() => toggleReview(c)}>{c.review_hidden ? 'Hiện đánh giá' : 'Ẩn đánh giá'}</Button>}
           {c.status === 'CONFIRMED' && <Button danger size="small" onClick={() => { setCancelItem(c); setCancelForm({ initiator: 'CLINIC', reason: '' }); }}>Hủy lịch</Button>}
-          {c.deposit_outcome === 'REFUND_PENDING' && <Button type="primary" size="small" onClick={() => { setRefundItem(c); setRefundRef(''); }}>Đã hoàn cọc</Button>}
+          {c.deposit_outcome === 'REFUND_PENDING' && <Button type="primary" size="small" onClick={() => { setRefundItem(c); setRefundRef(''); setRefundAccount(''); }}>Đã hoàn cọc</Button>}
         </Space>
       ),
     },
@@ -137,7 +141,7 @@ function ConsultationList() {
       <Table rowKey="id" loading={loading} columns={columns} dataSource={list} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />
 
       <Modal title="Hủy lịch tư vấn" open={!!cancelItem} onCancel={() => setCancelItem(null)} onOk={submitCancel} okText="Xác nhận hủy" okButtonProps={{ danger: true }} cancelText="Đóng">
-        <p className="mb-2">Bên yêu cầu hủy quyết định tiền cọc {money(50000)}:</p>
+        <p className="mb-2">Bên yêu cầu hủy quyết định phí tư vấn {money(cancelItem?.deposit_amount)}:</p>
         <Radio.Group value={cancelForm.initiator} onChange={(e) => setCancelForm({ ...cancelForm, initiator: e.target.value })}>
           <Radio value="CLINIC">Phòng khám / chuyên gia bận → <b>hoàn cọc</b></Radio>
           <Radio value="CUSTOMER">Khách yêu cầu → <b>mất cọc</b></Radio>
@@ -146,8 +150,10 @@ function ConsultationList() {
       </Modal>
 
       <Modal title="Ghi nhận đã hoàn cọc" open={!!refundItem} onCancel={() => setRefundItem(null)} onOk={submitRefund} okText="Xác nhận" cancelText="Đóng">
-        <p className="mb-2">Chuyển khoản trả {money(refundItem?.deposit_amount)} cho khách <b>{refundItem?.customer_name}</b>, rồi nhập mã giao dịch ngân hàng:</p>
-        <Input maxLength={50} placeholder="VD: FT26110212345" value={refundRef} onChange={(e) => setRefundRef(e.target.value)} />
+        <p className="mb-2">Hoàn cọc cho khách <b>{refundItem?.customer_name}</b></p>
+        <RefundTransferNote sourceId={refundItem?.id} amount={refundItem?.deposit_amount} />
+        <Input className="mb-2" maxLength={200} placeholder="Tài khoản nhận hoàn: ngân hàng - số tài khoản - chủ tài khoản" value={refundAccount} onChange={(e) => setRefundAccount(e.target.value)} />
+        <Input maxLength={50} placeholder="Mã giao dịch ngân hàng (VD: FT26110212345)" value={refundRef} onChange={(e) => setRefundRef(e.target.value)} />
       </Modal>
 
       <Modal title="Xác nhận cọc thủ công" open={!!payItem} onCancel={() => setPayItem(null)} onOk={submitPayment} okText="Xác nhận" cancelText="Đóng" destroyOnHidden>

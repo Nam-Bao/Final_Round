@@ -1,6 +1,7 @@
 // Quy tắc chấm công theo ca. Giờ tính theo giờ Việt Nam (UTC+7), không phụ thuộc múi giờ của máy chạy server.
 
 // EVENING chỉ còn để hiển thị ca tối cũ trong lịch sử; ca đang dùng xem ACTIVE_SHIFTS
+const { TIMING } = require('./timing');
 const SHIFT_HOURS = {
   MORNING: { label: 'Ca Sáng', start: '08:00', end: '12:00' },
   AFTERNOON: { label: 'Ca Chiều', start: '13:00', end: '17:00' },
@@ -13,9 +14,9 @@ const RULES = {
   OPEN_BEFORE_MIN: 20,        // mở QR vào ca trước giờ vào ca
   CLOSE_AFTER_MIN: 10,        // đóng QR vào ca sau giờ vào ca (trễ trong 10' không bị tính là vi phạm nghiêm trọng)
   CHECKOUT_AFTER_MIN: 30,     // mở QR ra ca từ giờ kết thúc ca tới 30' sau
-  QR_TTL_SEC: 20,             // mỗi mã QR chỉ sống 20 giây, dùng 1 lần
+  QR_TTL_SEC: TIMING.attendanceQrTtlSeconds, // mỗi mã QR chỉ sống 20 giây (mặc định), dùng 1 lần
   TICKET_TTL_SEC: 120,        // sau khi quét có 2 phút để chụp ảnh xác nhận
-  EXPLAIN_DEADLINE_HOURS: 24, // hạn giải trình: 24 giờ sau khi hết ca
+  EXPLAIN_DEADLINE_MINUTES: TIMING.attendanceExplainMinutes, // hạn giải trình sau khi hết ca (mặc định 24 giờ)
   ATTENDANCE_BONUS: 500000,   // thưởng chuyên cần / tháng
   MAX_VIOLATIONS_FOR_BONUS: 3, // tổng vi phạm 0 - 3 lần mới có thưởng
 };
@@ -61,7 +62,7 @@ const shiftTimes = (date, shiftType) => {
     closeAt: addMin(start, RULES.CLOSE_AFTER_MIN),
     checkoutOpenAt: end,
     checkoutCloseAt: addMin(end, RULES.CHECKOUT_AFTER_MIN),
-    explainUntil: new Date(end.getTime() + RULES.EXPLAIN_DEADLINE_HOURS * 3600000),
+    explainUntil: new Date(end.getTime() + RULES.EXPLAIN_DEADLINE_MINUTES * 60000),
   };
 };
 

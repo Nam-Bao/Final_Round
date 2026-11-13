@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, message, Radio } from 'antd';
 import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, DollarOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import RefundTransferNote from '../components/RefundTransferNote';
 import dayjs from 'dayjs';
 import { useLocation, useNavigate } from 'react-router-dom'; 
+import { useTiming } from '../utils/timing';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Title, Text } = Typography;
 
@@ -31,8 +34,10 @@ export default function AppointmentManagementPage() {
   const [refundTarget, setRefundTarget] = useState(null);
   const [refundRef, setRefundRef] = useState('');
   const [refundNote, setRefundNote] = useState('');
+  const [refundAccount, setRefundAccount] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
+  const timingCfg = useTiming();
 
   const fetchData = async () => {
     try {
@@ -54,6 +59,7 @@ export default function AppointmentManagementPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+  useLiveRefresh(['appointments'], fetchData);
   
   useEffect(() => {
       if (location.state?.autoFillCustomerId) {
@@ -195,9 +201,9 @@ export default function AppointmentManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, appointments]);
 
-  const NO_SHOW_GRACE_MINUTES = 15; // khớp server
+  // Quá giờ hẹn bao lâu mới ghi khách không đến: lấy từ server (mặc định 15 phút)
   const canMarkNoShow = (apt) => apt && ['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status)
-    && !dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).add(NO_SHOW_GRACE_MINUTES, 'minute'));
+    && !dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).add(timingCfg.noShowGraceMinutes, 'minute'));
   const handleNoShow = () => Modal.confirm({
     title: 'Ghi nhận khách không đến?',
     content: 'Khách mất tiền cọc như khi tự hủy. Cọc tư vấn đã trừ vào lịch này (nếu có) được trả lại cho khách.',
@@ -233,11 +239,12 @@ export default function AppointmentManagementPage() {
 
   const handleConfirmRefund = async () => {
     if (refundRef.trim().length < 4) return message.warning('Nhập mã giao dịch chuyển khoản (ít nhất 4 ký tự)');
+    if (refundAccount.trim().length < 8) return message.warning('Nhập tài khoản nhận hoàn: ngân hàng - số tài khoản - chủ tài khoản');
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
       const res = await axios.put(`http://localhost:4000/api/booking/appointments/${refundTarget.appointment_id}/refund-deposit`,
-        { refund_ref: refundRef.trim(), note: refundNote.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
+        { refund_ref: refundRef.trim(), account: refundAccount.trim(), note: refundNote.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success(res.data.message);
       setRefundTarget(null);
       fetchData();
@@ -321,7 +328,7 @@ export default function AppointmentManagementPage() {
                       </div>
                       <Text type="secondary" className="text-xs block"><PhoneOutlined/> {patient.phone || 'Chưa có SĐT'} · Lịch {dayjs(item.Appointment?.appointment_date).format('DD/MM')}</Text>
                       <Text className="text-xs block text-gray-500">Lý do hủy: {item.reason}</Text>
-                      <Button size="small" type="primary" className="mt-1" onClick={() => { setRefundTarget(item); setRefundRef(''); setRefundNote(''); }}>Đã chuyển khoản hoàn cọc</Button>
+                      <Button size="small" type="primary" className="mt-1" onClick={() => { setRefundTarget(item); setRefundRef(''); setRefundNote(''); setRefundAccount(''); }}>Đã chuyển khoản hoàn cọc</Button>
                     </div>
                   </List.Item>
                 );
@@ -479,9 +486,10 @@ export default function AppointmentManagementPage() {
         okText="Xác nhận đã hoàn" okButtonProps={{ loading }} destroyOnHidden>
         {refundTarget && (
           <div className="space-y-3">
-            <p className="text-sm">Chuyển khoản <b>{Number(refundTarget.deposit_paid).toLocaleString('vi-VN')}đ</b> cho khách theo tài khoản khách cung cấp, sau đó nhập mã giao dịch làm bằng chứng.</p>
-            <Input placeholder="Mã giao dịch chuyển khoản" maxLength={50} value={refundRef} onChange={e => setRefundRef(e.target.value)} />
-            <Input.TextArea rows={2} maxLength={500} placeholder="Ghi chú (ngân hàng, số tài khoản khách...)" value={refundNote} onChange={e => setRefundNote(e.target.value)} />
+            <RefundTransferNote sourceId={refundTarget.appointment_id} amount={refundTarget.deposit_paid} />
+            <Input placeholder="Tài khoản nhận hoàn: ngân hàng - số tài khoản - chủ tài khoản" maxLength={200} value={refundAccount} onChange={e => setRefundAccount(e.target.value)} />
+            <Input placeholder="Mã giao dịch ngân hàng (VD: FT26110212345)" maxLength={50} value={refundRef} onChange={e => setRefundRef(e.target.value)} />
+            <Input.TextArea rows={2} maxLength={500} placeholder="Ghi chú (nếu có)" value={refundNote} onChange={e => setRefundNote(e.target.value)} />
           </div>
         )}
       </Modal>

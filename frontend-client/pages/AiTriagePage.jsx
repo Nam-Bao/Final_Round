@@ -1,11 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle, CalendarCheck } from 'lucide-react';
+import { Camera, Scan, Loader2, ImagePlus, Trash2, AlertTriangle, CalendarCheck, ChevronRight, Droplets, Moon, Salad } from 'lucide-react';
+import { getImages, vnd } from '../components/ProductCard';
 import axios from 'axios';
 import PhotoConsentModal from '../components/PhotoConsentModal';
 
 // Gọi cùng địa chỉ với website, Vite chuyển /api về gateway (xem vite.config.js)
 const API_URL = '';
+
+// Nhóm lời khuyên AI trả về (category)
+const TIP_GROUPS = [
+  { key: 'skincare', label: 'Chăm sóc da', Icon: Droplets },
+  { key: 'lifestyle', label: 'Thói quen sinh hoạt', Icon: Moon },
+  { key: 'diet', label: 'Chế độ ăn uống', Icon: Salad },
+];
 
 export default function AiTriagePage() {
   const [images, setImages] = useState([]); // [{ url, result, consent }]
@@ -13,7 +21,7 @@ export default function AiTriagePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
-  // Hạn mức do server quản lý: vãng lai 1 lần, đăng nhập 5 lần/ngày => { isGuest, limit, used, remaining }
+  // Hạn mức do server quản lý: vãng lai 1 lần, đăng nhập 3 lần/ngày => { isGuest, limit, used, remaining }
   const [quota, setQuota] = useState(null);
 
   const canvasRef = useRef(null);
@@ -36,8 +44,8 @@ export default function AiTriagePage() {
 
   const quotaMessage = () =>
     quota?.isGuest
-      ? 'Khách vãng lai chỉ được phân tích 1 lần. Vui lòng đăng nhập/đăng ký để được phân tích 5 lần mỗi ngày.'
-      : `Bạn đã dùng hết ${quota?.limit ?? 5} lượt phân tích hôm nay, vui lòng quay lại vào ngày mai.`;
+      ? 'Khách vãng lai chỉ được phân tích 1 lần. Vui lòng đăng nhập/đăng ký để được phân tích 3 lần mỗi ngày.'
+      : `Bạn đã dùng hết ${quota?.limit ?? 3} lượt phân tích hôm nay, vui lòng quay lại vào ngày mai.`;
 
   /* ------------------------------ Đồng ý chính sách ------------------------------ */
   const openConsent = () => {
@@ -74,18 +82,18 @@ export default function AiTriagePage() {
         const formData = new FormData();
         formData.append('image', file);
 
-        const uploadRes = await fetch(`${API_URL}/api/media/upload`, {
+        const uploadRes = await fetch(`${API_URL}/api/media/upload/skin`, {
           method: 'POST',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData,
         });
-        if (!uploadRes.ok) throw new Error('Tải ảnh thất bại!');
+        if (!uploadRes.ok) throw new Error((await uploadRes.json().catch(() => ({}))).message || 'Tải ảnh thất bại!');
 
         const uploadData = await uploadRes.json();
         uploaded.push({ url: uploadData.url, result: null, consent });
       } catch (err) {
         console.error(err);
-        alert(`Lỗi khi tải ảnh ${file.name}`);
+        alert(`Lỗi khi tải ảnh ${file.name}: ${err.message}`);
       }
     }
     setIsUploading(false);
@@ -110,7 +118,7 @@ export default function AiTriagePage() {
         // customer_id không gửi nữa: server lấy từ token (đăng nhập) hoặc ghi là khách vãng lai
         image_url: target.url,
         consent: target.consent,
-      }, { headers: { Authorization: 'Bearer ' + sessionStorage.getItem('token') } });
+      }); // token (nếu đã đăng nhập) do interceptor ở main.jsx tự gắn
       if (res.data.debug) console.log('[AI debug]', res.data.debug);
 
       const metrics = res.data.data.parsed_metrics;
@@ -222,8 +230,8 @@ export default function AiTriagePage() {
           </span>
           {quota.isGuest && (
             <span>
-              <Link to="/login" className="underline font-medium">Đăng nhập</Link> hoặc{' '}
-              <Link to="/register" className="underline font-medium">đăng ký</Link> để được phân tích 5 lần mỗi ngày.
+              <Link to="/login?next=/sang-loc-da" className="underline font-medium">Đăng nhập</Link> hoặc{' '}
+              <Link to="/register" className="underline font-medium">đăng ký</Link> để được phân tích 3 lần mỗi ngày.
             </span>
           )}
         </div>
@@ -403,7 +411,7 @@ export default function AiTriagePage() {
                   </p>
                 )}
 
-                {/* Nhận xét bổ sung từ model thị giác (chỉ có khi detection không chắc và đã bật ANTHROPIC_API_KEY) */}
+                {/* Nhận xét + lời khuyên + sản phẩm gợi ý do Gemini viết cho khách */}
                 {aiSummary && (
                   <div className="mt-4 border-t border-blue-100 pt-4 text-sm">
                     <h4 className="font-semibold text-slate-700 mb-2">Nhận xét tham khảo</h4>
@@ -422,7 +430,44 @@ export default function AiTriagePage() {
                         </li>
                       ))}
                     </ul>
-                    {aiSummary.staff_note && <p className="text-slate-600 mt-2">{aiSummary.staff_note}</p>}
+                    {aiSummary.customer_summary && <p className="text-slate-700 mt-3">{aiSummary.customer_summary}</p>}
+
+                    {aiSummary.care_tips?.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-semibold text-slate-700 mb-2">Bạn nên lưu ý</h4>
+                        {TIP_GROUPS.map(({ key, label, Icon }) => {
+                          const tips = aiSummary.care_tips.filter((t) => t.category === key);
+                          if (!tips.length) return null;
+                          return (
+                            <div key={key} className="mb-2">
+                              <p className="flex items-center gap-1.5 font-medium text-slate-700"><Icon className="w-4 h-4 text-primary" /> {label}</p>
+                              <ul className="list-disc pl-6 text-slate-600 space-y-0.5 mt-1">
+                                {tips.map((t, i) => <li key={i}>{t.tip}</li>)}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {aiSummary.products?.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-semibold text-slate-700 mb-2">Sản phẩm phù hợp tại GlowSkin</h4>
+                        <div className="space-y-2">
+                          {aiSummary.products.map((p) => (
+                            <Link key={p.id} to={`/shops/${p.slug}`} className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-2 hover:border-primary/50">
+                              <img src={getImages(p.image)[0]} alt={p.name} className="w-14 h-14 rounded object-cover bg-slate-100 flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-slate-800 line-clamp-2">{p.name}</p>
+                                <p className="text-xs text-slate-500 line-clamp-2">{p.reason}</p>
+                                <p className="text-primary font-semibold text-sm">{vnd(p.price)}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {aiSummary.needs_professional_review && (
                       <p className="mt-2 font-medium text-red-700">
                         Nên đặt lịch để chuyên viên hoặc bác sĩ da liễu kiểm tra trực tiếp.

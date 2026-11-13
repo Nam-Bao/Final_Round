@@ -3,6 +3,7 @@ import { Row, Col, Card, List, Tag, Tabs, Form, Input, Button, Space, Avatar, Ty
 import { UserOutlined, PlayCircleOutlined, CheckCircleOutlined, HistoryOutlined, FileTextOutlined, CameraOutlined } from '@ant-design/icons';
 import axios from 'axios'; 
 import SessionMaterialsForm from '../components/SessionMaterialsForm';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Title, Text } = Typography;
 
@@ -38,6 +39,7 @@ export default function TechnicianWorkspacePage() {
   useEffect(() => {
     fetchQueues();
   }, []);
+  useLiveRefresh(['sessions'], fetchQueues);
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer);

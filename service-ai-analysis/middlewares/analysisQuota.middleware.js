@@ -6,7 +6,7 @@ const { AiAnalysis } = require('../models');
 // Đếm từ MongoDB (chỉ lượt thành công) => khởi động lại service không bị reset, phân tích lỗi không mất lượt.
 const GUEST_LIMIT = Number(process.env.AI_GUEST_LIMIT || 1);
 const GUEST_WINDOW_HOURS = Number(process.env.AI_GUEST_WINDOW_HOURS || 24);
-const USER_LIMIT = Number(process.env.AI_USER_DAILY_LIMIT || 5);
+const USER_LIMIT = Number(process.env.AI_USER_DAILY_LIMIT || 3);
 
 const isMember = (req) => req.user?.role === 'CUSTOMER';
 
@@ -37,7 +37,7 @@ const analysisQuota = async (req, res, next) => {
         success: false,
         code: quota.isGuest ? 'GUEST_QUOTA_EXCEEDED' : 'DAILY_QUOTA_EXCEEDED',
         message: quota.isGuest
-          ? 'Khách vãng lai chỉ được phân tích 1 lần. Vui lòng đăng nhập/đăng ký để phân tích thêm (5 lần mỗi ngày).'
+          ? `Khách vãng lai chỉ được phân tích 1 lần. Vui lòng đăng nhập/đăng ký để phân tích thêm (${USER_LIMIT} lần mỗi ngày).`
           : `Bạn đã dùng hết ${quota.limit} lượt phân tích hôm nay, vui lòng quay lại vào ngày mai.`,
         quota
       });

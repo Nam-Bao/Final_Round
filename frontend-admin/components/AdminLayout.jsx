@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid } from 'antd';
+import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid, Badge } from 'antd';
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PhoneOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
-  SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined
+  SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined,
+  SafetyOutlined, AuditOutlined
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { TaskProvider, NotificationBell, useTasks } from './Notifications';
 
 const { Header, Sider, Content } = Layout;
 
+// Bọc bộ đếm việc đang chờ (thông báo real-time) cho toàn bộ trang quản trị
 export default function AdminLayout() {
+  return <TaskProvider><AdminLayoutInner /></TaskProvider>;
+}
+
+function AdminLayoutInner() {
+  const { countFor } = useTasks();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const screens = Grid.useBreakpoint();
@@ -188,7 +196,7 @@ export default function AdminLayout() {
     ADMIN: [
       ['Báo cáo', <LineChartOutlined />, [
         { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
-        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát tiền vào' },
+        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát & hoàn tiền' },
       ]],
       ['Hệ thống', <SettingOutlined />, [
         { key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' },
@@ -204,7 +212,7 @@ export default function AdminLayout() {
     GEN_MANAGER: [
       ['Báo cáo', <LineChartOutlined />, [
         { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
-        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát tiền vào' },
+        { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát & hoàn tiền' },
       ]],
       ['Nhân sự', <TeamOutlined />, [
         { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch làm việc' },
@@ -219,6 +227,7 @@ export default function AdminLayout() {
         { key: '/spa-services', icon: <TagsOutlined />, label: 'Dịch vụ spa lẻ' },
         { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói lộ trình' },
         { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
+        { key: '/safety-rules', icon: <SafetyOutlined />, label: 'Quy tắc an toàn' },
       ]],
       ['Kho hàng', <InboxOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
@@ -233,6 +242,7 @@ export default function AdminLayout() {
       ['Chuyên môn', <MedicineBoxOutlined />, [
         { key: '/workspace', icon: <TeamOutlined />, label: 'Không gian khám bệnh' },
         { key: '/my-articles', icon: <FileTextOutlined />, label: 'Bài viết của tôi' },
+        { key: '/safety-rule-reviews', icon: <AuditOutlined />, label: 'Quy tắc an toàn' },
       ]],
       ['Cá nhân', <IdcardOutlined />, personal],
     ],
@@ -244,7 +254,7 @@ export default function AdminLayout() {
         { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn chuyên gia' },
         { key: '/customer-profiles', icon: <TeamOutlined />, label: 'Hồ sơ khách hàng' },
         { key: '/consultant-checkout', icon: <DollarOutlined />, label: 'Thu tiền khách' },
-        { key: '/bank-transactions', icon: <AccountBookOutlined />, label: 'Đối soát tiền vào' },
+        { key: '/bank-transactions', icon: <AccountBookOutlined />, label: 'Đối soát & hoàn tiền' },
       ]],
       ['Cá nhân', <IdcardOutlined />, personal],
     ],
@@ -262,11 +272,18 @@ export default function AdminLayout() {
   };
   // Nhóm thả xuống (bấm để mở / đóng); nhóm chỉ có 1 mục thì hiện thẳng mục đó cho gọn
   const groups = isExpert ? [] : (MENU_GROUPS[role] || []);
+  // Số việc đang chờ hiện cạnh từng mục menu (và tổng ở nhóm), tự cập nhật theo thông báo real-time
+  const badgeLabel = (label, count) => (count > 0
+    ? <span className="flex items-center justify-between gap-2"><span className="truncate">{label}</span><Badge count={count} size="small" overflowCount={99} /></span>
+    : label);
+  const withBadge = (item) => ({ ...item, label: badgeLabel(item.label, countFor(item.key)) });
   const menuItems = isExpert ? [
-    { key: '/expert-workspace', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn của tôi' },
+    withBadge({ key: '/expert-workspace', icon: <VideoCameraOutlined />, label: 'Lịch tư vấn của tôi' }),
   ] : [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    ...groups.map(([title, icon, children]) => (children.length === 1 ? children[0] : { key: `group-${title}`, icon, label: title, children })),
+    ...groups.map(([title, icon, children]) => (children.length === 1 ? withBadge(children[0]) : {
+      key: `group-${title}`, icon, label: badgeLabel(title, children.reduce((s, c) => s + countFor(c.key), 0)), children: children.map(withBadge),
+    })),
   ];
   // Mở sẵn nhóm chứa trang đang xem
   const activeGroup = groups.find(([, , children]) => children.length > 1 && children.some((c) => c.key === location.pathname));
@@ -310,6 +327,8 @@ export default function AdminLayout() {
               className={`${isMobile ? '!w-14 !h-14' : 'w-16 h-16'} text-lg`} />
             {isMobile && <span className="font-bold text-blue-600 text-lg">O2O ADMIN</span>}
           </div>
+          <div className="flex items-center gap-1">
+          <NotificationBell />
           <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
             <Space className={`cursor-pointer hover:bg-gray-50 rounded-lg transition-colors ${isMobile ? 'px-2' : 'px-4 py-2'}`}>
               <Avatar src={avatarUrl} icon={!avatarUrl && <UserOutlined />} className="bg-blue-500" />
@@ -317,6 +336,7 @@ export default function AdminLayout() {
               <DownOutlined className="text-xs text-gray-400" />
             </Space>
           </Dropdown>
+          </div>
         </Header>
         <Content className={`min-h-[280px] min-w-0 ${isMobile ? 'm-2 p-3' : 'm-6 p-6'}`} style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}>
           <Outlet />

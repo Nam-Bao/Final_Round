@@ -168,4 +168,8 @@ const syncSchema = async () => {
   return added;
 };
 
+// Thông báo real-time cho trang quản trị
+const { watch } = require('../utils/notify');
+watch(ArticleSubmission, 'articles');
+
 module.exports = { sequelize, Article, ArticleSubmission, ArticleReview, Banner, Popup, ClinicInfo, syncSchema };

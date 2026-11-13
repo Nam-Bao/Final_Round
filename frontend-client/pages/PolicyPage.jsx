@@ -5,11 +5,12 @@ import {
   CalendarCheck, CalendarX, Video, MessagesSquare, Receipt, Layers, Truck, PackageX, Undo2, TicketPercent, Star, ShieldCheck, Headphones, ScrollText,
 } from 'lucide-react';
 import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS, CONSULT_HOURS } from '../utils/contact';
+import { consultFee } from '../utils/consult';
+import { timing, durationLabel } from '../utils/timing';
 
 // Các con số dưới đây phải khớp với hằng số trong code server. Sửa ở server thì sửa cả ở đây:
 const EXAM_FEE = 100000;           // service-booking appointment.controller EXAM_FEE
 const OFFLINE_DEPOSIT = 50000;     // service-booking appointment.controller OFFLINE_DEPOSIT
-const PAYMENT_HOLD_MINUTES = 15;   // service-booking PAYMENT_HOLD_MINUTES (mặc định)
 const BOOK_AHEAD_DAYS = 30;        // service-booking customerPackage.controller BOOK_AHEAD_DAYS
 const VIDEO_CLOSE_AFTER_HOURS = 2; // service-booking video.controller CLOSE_AFTER_MINUTES = 120
 const AI_DAILY_LIMIT = 5;          // service-ai-analysis AI_USER_DAILY_LIMIT (mặc định)
@@ -120,7 +121,7 @@ export default function PolicyPage() {
               <><b>Khám tại phòng khám:</b> đặt cọc <b>{vnd(OFFLINE_DEPOSIT)}</b>. Tiền cọc được trừ vào phí khám khi thanh toán hóa đơn sau buổi khám.</>,
               <><b>Khám trực tuyến:</b> thanh toán trước toàn bộ phí khám <b>{vnd(EXAM_FEE)}</b>.</>,
               <><b>Hồ sơ đã từng khám</b> (đã có lịch khám được thanh toán / phục vụ) được <b>miễn tiền cọc và miễn phí khám</b>. Ưu đãi xét theo từng hồ sơ người khám: người thân khám lần đầu vẫn phải đặt cọc. Lịch đã hủy hoặc chưa thanh toán không được tính.</>,
-              <>Sau khi bấm đặt lịch, khung giờ được <b>giữ trong {PAYMENT_HOLD_MINUTES} phút</b> để bạn chuyển khoản. Quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch bị hủy và khung giờ được trả lại cho người khác.</>,
+              <>Sau khi bấm đặt lịch, khung giờ được <b>giữ trong {durationLabel(timing().paymentHoldMinutes)}</b> để bạn chuyển khoản. Quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch bị hủy và khung giờ được trả lại cho người khác.</>,
               <>Nếu chuyển thừa, lịch hoặc đơn vẫn được xác nhận và CSKH sẽ hoàn phần dư. Nếu chuyển thiếu, lịch chưa được xác nhận, vui lòng liên hệ CSKH.</>,
               <>Thanh toán bằng chuyển khoản VietQR, hệ thống tự xác nhận khi nhận được tiền. Nếu nộp tiền mặt tại quầy, nhân viên xác nhận cho bạn.</>,
               <>Chỉ đặt được giờ trong tương lai, đúng ca làm việc của bác sĩ (sáng 08:00 - 11:30, chiều 13:00 - 16:30; mỗi lượt khám 30 phút) và chưa có người khác đặt. Tư vấn chuyên gia qua video có giờ riêng: {CONSULT_HOURS}, tùy lịch của từng chuyên gia.</>,
@@ -133,8 +134,8 @@ export default function PolicyPage() {
               <>Lịch đã đặt cọc mà bị hủy trước khi khám thì <b>mất 100% tiền cọc</b>, dù bạn tự hủy trên website hay nhờ CSKH hủy hộ. Với lịch khám trực tuyến, khoản mất là toàn bộ phí khám {vnd(EXAM_FEE)} đã trả trước. Hệ thống yêu cầu bạn xác nhận số tiền cọc bị mất trước khi hủy.</>,
               <>Trường hợp <b>phòng khám chủ động hủy lịch</b> (bác sĩ vắng, sự cố...), bạn được <b>hoàn lại 100% tiền cọc</b>. Lý do hủy và số tiền được hoàn hiển thị trong Sổ lịch khám; vui lòng liên hệ CSKH để cung cấp tài khoản nhận tiền. Khi chuyển khoản xong, mã giao dịch hoàn tiền được cập nhật vào lịch của bạn.</>,
               <>Lịch đã check-in, đang khám hoặc đã khám xong <b>không thể hủy</b>.</>,
-              <>Nếu bận, bạn nên đổi lịch thay vì hủy: trước giờ khám <b>ít nhất 24 giờ</b>, bạn được tự đổi ngày giờ <b>1 lần, không mất cọc</b> trong Sổ lịch khám.</>,
-              <>Sau giờ hẹn 15 phút mà bạn không đến, phòng khám ghi nhận <b>khách không đến</b> và bạn mất tiền cọc như khi tự hủy. Cọc tư vấn đã trừ vào lịch này được trả lại để dùng cho lần sau nếu còn hạn.</>,
+              <>Nếu bận, bạn nên đổi lịch thay vì hủy: trước giờ khám <b>ít nhất {durationLabel(timing().rescheduleMinMinutes)}</b>, bạn được tự đổi ngày giờ <b>1 lần, không mất cọc</b> trong Sổ lịch khám.</>,
+              <>Sau giờ hẹn 15 phút mà bạn không đến, phòng khám ghi nhận <b>khách không đến</b> và bạn mất tiền cọc như khi tự hủy.</>,
               <>Các trường hợp đổi lịch khác hoặc đổi bác sĩ do nhân viên CSKH thực hiện; khung giờ mới cũng phải đúng ca làm và chưa có người đặt.</>,
             ]} />
           </Section>
@@ -225,10 +226,11 @@ export default function PolicyPage() {
           <Section id="tu-van">
             <Rules section="tu-van" items={[
               <>Mỗi buổi tư vấn online kéo dài <b>45 phút</b>. Phòng tư vấn đóng khi hết thời gian này.</>,
-              <>Buổi tư vấn được tính <b>hoàn thành</b> khi cả bạn và chuyên gia đã vào phòng và chuyên gia đã gửi kết quả. Kết quả hiển thị trong Sổ lịch khám, chậm nhất 24 giờ sau khi phòng đóng.</>,
-              <>Buổi hoàn thành thì tiền cọc được trừ vào phí khám của lần đặt khám tiếp theo trong 30 ngày.</>,
-              <>Bạn không vào phòng thì <b>mất cọc</b>. Chuyên gia vắng hoặc không gửi kết quả đúng hạn thì bạn được <b>hoàn cọc</b>.</>,
-              <>Trước giờ hẹn ít nhất 24 giờ, bạn được tự đổi lịch <b>1 lần, không mất cọc</b>. Tự hủy lịch thì mất cọc.</>,
+              <>Buổi tư vấn được tính <b>hoàn thành</b> khi cả bạn và chuyên gia đã vào phòng và chuyên gia đã gửi kết quả. Kết quả hiển thị trong Sổ lịch khám, chậm nhất {durationLabel(timing().consultResultDeadlineMinutes)} sau khi phòng đóng.</>,
+              <>Phí mỗi buổi tư vấn là <b>{consultFee().toLocaleString('vi-VN')}đ</b>, thanh toán trước khi xác nhận lịch và <b>không trừ vào phí khám</b>.</>,
+              <>Muốn đi khám sau buổi tư vấn: đến quầy và cho nhân viên xem lịch sử tư vấn. Nhân viên kiểm tra và áp <b>voucher ưu đãi</b> trên tổng hóa đơn sau khám (phí khám, dịch vụ, gói liệu trình, mỹ phẩm).</>,
+              <>Bạn không vào phòng thì <b>không được hoàn phí</b>. Chuyên gia vắng hoặc không gửi kết quả đúng hạn thì bạn được <b>hoàn phí 100%</b>.</>,
+              <>Trước giờ hẹn ít nhất {durationLabel(timing().rescheduleMinMinutes)}, bạn được tự đổi lịch <b>1 lần, miễn phí</b>. Tự hủy lịch thì không được hoàn phí.</>,
               <>Mỗi tài khoản không đặt được 2 lịch trùng giờ, kể cả với chuyên gia khác hoặc lịch khám của bạn.</>,
               <>Sản phẩm chuyên gia gợi ý chỉ mang tính tham khảo, không phải đơn thuốc. Chuyên gia không kê thuốc.</>,
               <>Đánh giá vi phạm quy định (xúc phạm, quảng cáo, thông tin sai) có thể bị quản lý ẩn.</>,

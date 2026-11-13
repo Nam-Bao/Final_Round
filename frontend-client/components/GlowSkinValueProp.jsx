@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { SERVICE_GROUPS } from '../utils/serviceGroups';
-import { CONSULT_DEPOSIT } from '../utils/consult';
+import { consultFee } from '../utils/consult';
 
 // Phí khám bác sĩ (khớp EXAM_FEE ở service-booking)
 const ONLINE_EXAM_FEE = 100000;
@@ -49,7 +49,7 @@ const TREATMENT_TIERS = [
     image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&auto=format&fit=crop&q=80',
     features: [
       `Khám online qua video call với bác sĩ da liễu – ${formatVnd(ONLINE_EXAM_FEE)}đ/lượt`,
-      `Tư vấn chuyên gia da liễu, dinh dưỡng, mỹ phẩm – cọc ${formatVnd(CONSULT_DEPOSIT)}đ, được trừ vào phí khám`,
+      `Tư vấn chuyên gia da liễu, dinh dưỡng, mỹ phẩm – phí ${formatVnd(consultFee())}đ/buổi, khám sau tư vấn được ưu đãi tại quầy`,
       'Sàng lọc da bằng AI miễn phí trước khi quyết định đặt lịch',
     ],
     target: 'Người bận rộn, ở xa, hoặc muốn hỏi ý kiến trước khi đến phòng khám',
@@ -313,7 +313,7 @@ export default function GlowSkinValueProp() {
                       <td className="p-3 md:p-4 text-center border-r border-slate-200">
                         <strong className="text-slate-900">{formatVnd(ONLINE_EXAM_FEE)}</strong> <br />
                         <span className="text-[11px] text-slate-500">VNĐ/lượt khám</span> <br />
-                        <span className="text-[11px] text-slate-500">Tư vấn chuyên gia: cọc {formatVnd(CONSULT_DEPOSIT)}đ</span>
+                        <span className="text-[11px] text-slate-500">Tư vấn chuyên gia: {formatVnd(consultFee())}đ/buổi</span>
                       </td>
                       <td className="p-3 md:p-4 text-center border-r border-slate-200">{renderRange('tai-phong-kham', true)}</td>
                       <td className="p-3 md:p-4 text-center">{renderRange('cong-nghe-cao')}</td>

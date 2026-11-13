@@ -34,6 +34,8 @@ import MyPayslipPage from './pages/MyPayslipPage';
 import StaffRecordsPage from './pages/StaffRecordsPage';
 import VideoCallPage from './pages/VideoCallPage';
 import BankTransactionsPage from './pages/BankTransactionsPage';
+import SafetyRulesPage from './pages/SafetyRulesPage';
+import SafetyRuleReviewsPage from './pages/SafetyRuleReviewsPage';
 
 function App() {
   return (
@@ -78,6 +80,8 @@ function App() {
           <Route path="/my-payslip" element={<MyPayslipPage />} />
           <Route path="/staff-records" element={<StaffRecordsPage />} />
           <Route path="/bank-transactions" element={<BankTransactionsPage />} />
+          <Route path="/safety-rules" element={<SafetyRulesPage />} />
+          <Route path="/safety-rule-reviews" element={<SafetyRuleReviewsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

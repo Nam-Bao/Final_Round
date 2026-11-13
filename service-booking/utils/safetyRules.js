@@ -1,26 +1,14 @@
-// CẢNH BÁO CHỐNG CHỈ ĐỊNH KHI KÊ ĐƠN
-// Mỗi quy tắc đều có nguồn đã đọc trực tiếp. Không thêm quy tắc nếu chưa có nguồn: đây là dữ liệu y khoa.
+// CẢNH BÁO CHỐNG CHỈ ĐỊNH KHI KÊ ĐƠN / BÁN TẠI QUẦY
+// Quy tắc lưu trong database (SafetyRules), chỉ quy tắc ĐANG ÁP DỤNG mới được dùng. Mỗi quy tắc phải có nguồn.
+// Thêm / sửa quy tắc qua trang "Quy tắc an toàn": quản lý soạn -> bác sĩ xem xét -> quản lý duyệt (controllers/safetyRule.controller.js).
+// Lần đầu chạy: nạp các quy tắc đã đọc nguồn trong utils/safetyRules.seed.js.
 // Hệ thống chỉ nhắc, không thay bác sĩ quyết định: bác sĩ vẫn kê được nhưng phải ghi lý do (lưu ở SafetyOverride).
+const { SafetySource, SafetyTarget, SafetyRule, SafetyRuleEvent } = require('../models');
+const SEED = require('./safetyRules.seed');
 
 const SEVERITY = { CONTRAINDICATED: 'Chống chỉ định', CAUTION: 'Thận trọng', INFO: 'Lưu ý' };
 
-const SOURCES = {
-  EMA_RETINOID: { label: 'EMA: Retinoid-containing medicinal products (2018)', url: 'https://www.ema.europa.eu/en/medicines/human/referrals/retinoid-containing-medicinal-products' },
-  LY_2022: { label: 'Ly S. et al. Treatment of Acne Vulgaris During Pregnancy and Lactation. Dermatol Ther 2022', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9823189/' },
-  MOTHERTOBABY: { label: 'MotherToBaby: Topical Tretinoin (2024)', url: 'https://mothertobaby.org/fact-sheets/tretinoin-retin-a-pregnancy/' },
-  DAILYMED_ADAPALENE: { label: 'DailyMed: Adapalene gel 0.3% (nhãn thuốc 6/2024)', url: 'https://dailymed.nlm.nih.gov/dailymed/fda/fdaDrugXsl.cfm?setid=a3b6f3c3-d615-4b00-a76f-134b75e30a50&type=display' },
-  TRIVEDI_2017: { label: 'A review of the safety of cosmetic procedures during pregnancy and lactation. Int J Womens Dermatol 2017', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5418954/' },
-  CASTILLO_2018: { label: 'Castillo DE, Keri JE. Chemical peels in the treatment of acne. Clin Cosmet Investig Dermatol 2018', url: 'https://www.dovepress.com/chemical-peels-in-the-treatment-of-acne-patient-selection-and-perspect-peer-reviewed-fulltext-article-CCID' },
-  SPRING_2017: { label: 'Spring LK et al. Isotretinoin and Timing of Procedural Interventions. JAMA Dermatol 2017', url: 'https://pubmed.ncbi.nlm.nih.gov/28658462/' },
-  STATPEARLS_MICRONEEDLING: { label: 'StatPearls: Microneedling (2022)', url: 'https://www.ncbi.nlm.nih.gov/sites/books/NBK459344/' },
-  MICRONEEDLING_REVIEW: { label: 'Microneedling in Dermatology: A Comprehensive Review (PMC11499218)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11499218/' },
-  MESO_CONSENSUS: { label: 'International Consensus Guidelines on Mesotherapy. J Clin Med 2025', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12250733/' },
-  THERMAGE: { label: 'Thermage CPT/FLX: thông tin an toàn của nhà sản xuất', url: 'https://www.thermage.com/hcp/' },
-  IONTO_TRIAL: { label: 'Tap Water Iontophoresis, thử nghiệm lâm sàng. Ann Dermatol 2017 (tiêu chí loại trừ)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5705354/' },
-  CLINIC: { label: 'Quy định dịch vụ của phòng khám (mục "Không phù hợp với")', url: null },
-};
-
-// Câu hỏi sàng lọc. Tình trạng thay đổi được (thai kỳ, thuốc...) nên phải xác nhận lại mỗi lần khám
+// Câu hỏi sàng lọc (cố định). Tình trạng thay đổi được (thai kỳ, thuốc...) nên phải xác nhận lại mỗi lần khám
 const FLAGS = {
   PREGNANT: 'Đang mang thai',
   PLANNING_PREGNANCY: 'Đang có kế hoạch mang thai',
@@ -37,94 +25,105 @@ const FLAGS = {
   METAL_IMPLANT_FACE: 'Có cấy ghép kim loại vùng mặt',
 };
 
-// Thủ thuật nhận theo tên dịch vụ; gói thì xét cả mô tả vì tên gói không nêu thủ thuật
-const PROCEDURES = {
-  PEEL: { label: 'Peel da', re: /peel/ },
-  LASER: { label: 'Laser', re: /laser/ },
-  MICRONEEDLING: { label: 'Vi kim', re: /vi kim/ },
-  MESO: { label: 'Meso', re: /\bmeso\b/ },
-  RF: { label: 'Sóng RF', re: /song rf|\brf\b/ },
-  IONTOPHORESIS: { label: 'Điện di', re: /dien di/ },
-};
-
-// Hoạt chất tìm trong bảng thành phần sản phẩm. Bỏ qua dẫn xuất khác hoạt chất (Capryloyl Salicylic Acid, Ethylhexyl Salicylate)
-const INGREDIENTS = {
-  RETINOID_DRUG: { label: 'Retinoid dạng thuốc (adapalene, tretinoin)', re: /adapalene|tretinoin/ },
-  RETINOL: { label: 'Retinol', re: /\bretinol\b|\bretinal\b|\bretinyl\b/ },
-  SALICYLIC_ACID: { label: 'Salicylic acid', re: /(?<!capryloyl )salicylic acid/ },
-};
-
-const rule = (flag, target, severity, message, ...sources) => ({ flag, target, severity, message, sources });
-
-const RULES = [
-  // Mang thai
-  rule('PREGNANT', 'RETINOID_DRUG', 'CONTRAINDICATED', 'Retinoid bôi chống chỉ định khi mang thai.', 'EMA_RETINOID', 'LY_2022'),
-  rule('PREGNANT', 'RETINOL', 'CAUTION', 'Phần lớn chuyên gia khuyên tránh mọi retinoid bôi trong thai kỳ.', 'LY_2022', 'MOTHERTOBABY'),
-  rule('PREGNANT', 'SALICYLIC_ACID', 'CAUTION', 'Tránh bôi salicylic acid trên diện rộng, kéo dài khi mang thai.', 'LY_2022'),
-  rule('PREGNANT', 'PEEL', 'CONTRAINDICATED', 'Dịch vụ peel của phòng khám không áp dụng cho phụ nữ mang thai; an toàn của peel trong thai kỳ chưa đủ bằng chứng.', 'CLINIC', 'CASTILLO_2018'),
-  rule('PREGNANT', 'LASER', 'CONTRAINDICATED', 'Laser thẩm mỹ không được chỉ định khi mang thai do thiếu dữ liệu an toàn.', 'TRIVEDI_2017'),
-  rule('PREGNANT', 'MICRONEEDLING', 'CAUTION', 'An toàn của vi kim khi mang thai chưa được xác lập, nên hoãn tới sau sinh.', 'MICRONEEDLING_REVIEW'),
-  rule('PREGNANT', 'MESO', 'CONTRAINDICATED', 'Dịch vụ meso của phòng khám không áp dụng cho phụ nữ mang thai.', 'CLINIC'),
-  rule('PREGNANT', 'RF', 'CONTRAINDICATED', 'Dịch vụ RF của phòng khám không áp dụng cho phụ nữ mang thai; nhà sản xuất thiết bị RF chưa nghiên cứu trên nhóm này.', 'CLINIC', 'THERMAGE'),
-  rule('PREGNANT', 'IONTOPHORESIS', 'CAUTION', 'Thiếu dữ liệu an toàn: thử nghiệm điện di loại trừ phụ nữ mang thai.', 'IONTO_TRIAL'),
-  // Có kế hoạch mang thai
-  rule('PLANNING_PREGNANCY', 'RETINOID_DRUG', 'CONTRAINDICATED', 'Retinoid bôi chống chỉ định ở phụ nữ có kế hoạch mang thai.', 'EMA_RETINOID'),
-  rule('PLANNING_PREGNANCY', 'RETINOL', 'CAUTION', 'Dữ liệu với tretinoin: có thể được khuyên ngưng 1 tháng trước khi có thai. Cân nhắc tương tự với retinol.', 'MOTHERTOBABY'),
-  // Cho con bú
-  rule('BREASTFEEDING', 'RETINOID_DRUG', 'INFO', 'Dùng trên diện nhỏ, thời gian ngắn nhất; không bôi vùng ngực.', 'DAILYMED_ADAPALENE', 'LY_2022'),
-  rule('BREASTFEEDING', 'RETINOL', 'INFO', 'Không bôi vùng ngực.', 'LY_2022'),
-  rule('BREASTFEEDING', 'MESO', 'CONTRAINDICATED', 'Dịch vụ meso của phòng khám không áp dụng khi đang cho con bú.', 'CLINIC'),
-  rule('BREASTFEEDING', 'RF', 'CAUTION', 'Nhà sản xuất thiết bị RF chưa nghiên cứu trên người đang cho con bú.', 'THERMAGE'),
-  rule('BREASTFEEDING', 'IONTOPHORESIS', 'CAUTION', 'Thiếu dữ liệu an toàn: thử nghiệm điện di loại trừ phụ nữ cho con bú.', 'IONTO_TRIAL'),
-  // Isotretinoin uống
-  rule('ISOTRETINOIN', 'PEEL', 'CAUTION', 'Quy định phòng khám chưa peel khi đang dùng thuốc trị mụn đường uống. Tổng quan 2017 chưa đủ bằng chứng buộc hoãn peel nông, bác sĩ cân nhắc từng ca.', 'CLINIC', 'SPRING_2017'),
-  rule('ISOTRETINOIN', 'LASER', 'INFO', 'Tổng quan 2017: chưa đủ bằng chứng buộc hoãn laser không bóc tách; laser bóc tách toàn phần thì không khuyến cáo.', 'SPRING_2017'),
-  rule('ISOTRETINOIN', 'MESO', 'CAUTION', 'Thuốc làm thay đổi quá trình lành da là chống chỉ định của meso theo đồng thuận quốc tế; bác sĩ đánh giá isotretinoin có thuộc nhóm này với khách không.', 'MESO_CONSENSUS'),
-  // Đông máu
-  rule('ANTICOAGULANT', 'MICRONEEDLING', 'CONTRAINDICATED', 'Người có rối loạn đông máu hoặc dùng thuốc chống đông nên tránh vi kim.', 'MICRONEEDLING_REVIEW'),
-  rule('ANTICOAGULANT', 'MESO', 'CAUTION', 'Có thể chảy máu kéo dài và tụ máu tại vị trí tiêm.', 'MESO_CONSENSUS'),
-  // Sẹo lồi
-  rule('KELOID', 'MICRONEEDLING', 'CONTRAINDICATED', 'Không phù hợp với cơ địa sẹo lồi.', 'CLINIC', 'STATPEARLS_MICRONEEDLING'),
-  rule('KELOID', 'MESO', 'CONTRAINDICATED', 'Cơ địa sẹo lồi, sẹo phì đại là chống chỉ định của meso.', 'MESO_CONSENSUS'),
-  // Nhiễm trùng, mụn viêm
-  rule('ACTIVE_INFECTION', 'PEEL', 'CONTRAINDICATED', 'Đang nhiễm khuẩn, nấm hoặc virus là chống chỉ định của peel.', 'CASTILLO_2018'),
-  rule('ACTIVE_INFECTION', 'MICRONEEDLING', 'CONTRAINDICATED', 'Nhiễm trùng khu trú, herpes đang hoạt động ở vùng điều trị là chống chỉ định.', 'STATPEARLS_MICRONEEDLING'),
-  rule('ACTIVE_INFECTION', 'MESO', 'CONTRAINDICATED', 'Herpes đang hoạt động là chống chỉ định; dịch vụ không áp dụng cho da đang viêm nhiễm.', 'MESO_CONSENSUS', 'CLINIC'),
-  rule('ACTIVE_INFECTION', 'RF', 'CAUTION', 'Nhà sản xuất thiết bị RF chưa nghiên cứu trên người có herpes.', 'THERMAGE'),
-  rule('ACTIVE_ACNE', 'MICRONEEDLING', 'CONTRAINDICATED', 'Mụn đang hoạt động, nhất là mụn viêm, là chống chỉ định của vi kim.', 'STATPEARLS_MICRONEEDLING', 'CLINIC'),
-  // Bệnh nền
-  rule('IMMUNOSUPPRESSED', 'MICRONEEDLING', 'CONTRAINDICATED', 'Suy giảm miễn dịch, kể cả đang hoá trị, là chống chỉ định của vi kim.', 'STATPEARLS_MICRONEEDLING'),
-  rule('CHRONIC_SKIN', 'MICRONEEDLING', 'CONTRAINDICATED', 'Bệnh da mạn tính mức vừa đến nặng như chàm, vảy nến là chống chỉ định của vi kim.', 'STATPEARLS_MICRONEEDLING'),
-  rule('AUTOIMMUNE', 'MESO', 'CONTRAINDICATED', 'Bệnh tự miễn là chống chỉ định của meso.', 'MESO_CONSENSUS'),
-  rule('AUTOIMMUNE', 'RF', 'CAUTION', 'Nhà sản xuất thiết bị RF chưa nghiên cứu trên người có bệnh tự miễn.', 'THERMAGE'),
-  // Thiết bị cấy ghép
-  rule('ELECTRONIC_IMPLANT', 'RF', 'CONTRAINDICATED', 'Sóng RF có thể ảnh hưởng máy tạo nhịp, máy khử rung hoặc thiết bị điện cấy ghép.', 'THERMAGE', 'CLINIC'),
-  rule('ELECTRONIC_IMPLANT', 'IONTOPHORESIS', 'CAUTION', 'Thử nghiệm điện di loại trừ người có máy tạo nhịp.', 'IONTO_TRIAL'),
-  rule('METAL_IMPLANT_FACE', 'RF', 'CONTRAINDICATED', 'Dịch vụ RF của phòng khám không áp dụng khi có cấy ghép kim loại vùng mặt.', 'CLINIC'),
-  rule('METAL_IMPLANT_FACE', 'IONTOPHORESIS', 'CAUTION', 'Thử nghiệm điện di loại trừ người có cấy ghép kim loại.', 'IONTO_TRIAL'),
-];
-
 // Bỏ dấu, chữ thường để so tên dịch vụ và thành phần
 const normalize = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd').toLowerCase();
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const proceduresOf = (text) => Object.keys(PROCEDURES).filter((k) => PROCEDURES[k].re.test(normalize(text)));
-const ingredientsOf = (text) => Object.keys(INGREDIENTS).filter((k) => INGREDIENTS[k].re.test(normalize(text)));
+// Từ khóa so theo nguyên từ; "*" ở cuối = khớp cả từ dài hơn (peel* khớp peeling)
+const keywordRe = (kw) => {
+  const n = normalize(kw).trim().replace(/\s+/g, ' ');
+  const prefix = n.endsWith('*');
+  const body = escapeRe(prefix ? n.slice(0, -1).trim() : n);
+  return new RegExp(`(^|[^a-z0-9])${body}${prefix ? '' : '($|[^a-z0-9])'}`);
+};
+const cleanList = (list) => [...new Set((Array.isArray(list) ? list : []).map((x) => String(x || '').trim()).filter((x) => x.replace('*', '').length >= 2))];
+// Hàm so 1 đối tượng với văn bản (bảng thành phần / tên dịch vụ)
+const compileTarget = (t) => {
+  const keywords = cleanList(t.keywords).map(keywordRe);
+  const excludes = cleanList(t.excludes).map((e) => normalize(e).replace(/\s+/g, ' '));
+  return (text) => {
+    let s = normalize(text).replace(/\s+/g, ' ');
+    excludes.forEach((e) => { s = s.split(e).join(' '); });
+    const hits = keywords.map((re) => re.test(s));
+    return hits.length > 0 && (t.all_of ? hits.every(Boolean) : hits.some(Boolean));
+  };
+};
+
+// Bộ quy tắc đang dùng (nạp từ DB, giữ trong bộ nhớ, nạp lại khi có quy tắc được duyệt)
+const buildStore = ({ sources = [], targets = [], rules = [] }) => ({
+  sources: new Map(sources.map((s) => [s.id, { label: s.label, url: s.url || null }])),
+  targets: new Map(targets.map((t) => [t.code, { code: t.code, id: t.id, kind: t.kind, label: t.label, match: compileTarget(t) }])),
+  rules: rules.map((r) => ({ flag: r.flag, target: r.target_code, severity: r.severity, message: r.message, source_ids: r.source_ids || [], id: r.id })),
+});
+let store = buildStore({});
+
+const reload = async () => {
+  const rules = await SafetyRule.findAll({ where: { status: 'ACTIVE' }, raw: true });
+  const targetIds = [...new Set(rules.map((r) => r.target_id))];
+  const targets = await SafetyTarget.findAll({ where: { id: targetIds }, raw: true });
+  // Thủ thuật / hoạt chất đang dùng nhưng chưa có quy tắc nào vẫn được nhận diện (để hiện tên thủ thuật cho AI)
+  const extra = await SafetyTarget.findAll({ where: { status: 'ACTIVE' }, raw: true });
+  const allTargets = [...new Map([...extra, ...targets].map((t) => [t.id, t])).values()];
+  const codeOf = new Map(allTargets.map((t) => [t.id, t.code]));
+  const sources = await SafetySource.findAll({ raw: true });
+  store = buildStore({ sources, targets: allTargets, rules: rules.filter((r) => codeOf.has(r.target_id)).map((r) => ({ ...r, target_code: codeOf.get(r.target_id) })) });
+  return store.rules.length;
+};
+
+// Lần đầu: nạp quy tắc khởi tạo (đã đọc nguồn trực tiếp) với trạng thái đang áp dụng
+const seedIfEmpty = async () => {
+  if (await SafetyRule.count()) return 0;
+  const sourceId = {};
+  for (const [code, s] of Object.entries(SEED.SOURCES)) {
+    const [row] = await SafetySource.findOrCreate({ where: { code }, defaults: { code, kind: s.url ? 'LINK' : 'CLINIC', label: s.label, url: s.url } });
+    sourceId[code] = row.id;
+  }
+  const targetId = {};
+  for (const t of SEED.TARGETS) {
+    const [row] = await SafetyTarget.findOrCreate({ where: { code: t.code }, defaults: { ...t, excludes: t.excludes || [], all_of: !!t.all_of, status: 'ACTIVE' } });
+    targetId[t.code] = row.id;
+  }
+  const now = new Date();
+  for (const r of SEED.RULES) {
+    const rule = await SafetyRule.create({
+      flag: r.flag, target_id: targetId[r.target], severity: r.severity, message: r.message,
+      source_ids: r.sources.map((c) => sourceId[c]), status: 'ACTIVE', origin: 'SYSTEM', decided_at: now,
+      decision_note: 'Quy tắc khởi tạo của hệ thống (đã đọc nguồn trực tiếp)',
+    });
+    await SafetyRuleEvent.create({ rule_id: rule.id, action: 'SEEDED', note: 'Nạp từ bộ quy tắc khởi tạo' });
+  }
+  return SEED.RULES.length;
+};
+
+const init = async () => {
+  const seeded = await seedIfEmpty();
+  if (seeded) console.log(`🛡️  Đã nạp ${seeded} quy tắc chống chỉ định khởi tạo`);
+  const n = await reload();
+  console.log(`🛡️  Đang áp dụng ${n} quy tắc chống chỉ định`);
+};
+
+const targetsOf = (kind, text, s = store) => [...s.targets.values()].filter((t) => t.kind === kind && t.match(text)).map((t) => t.code);
+const proceduresOf = (text, s) => targetsOf('PROCEDURE', text, s);
+const ingredientsOf = (text, s) => targetsOf('INGREDIENT', text, s);
+const targetLabel = (code, s = store) => s.targets.get(code)?.label || code;
+
 // Bỏ các cách ghi "không có dị ứng", và so theo nguyên từ để "mat" không khớp vào "kem mat"
 const NO_ALLERGY = /^(khong|ko|chua|none|n\/a)\b/;
 const allergyTerms = (text) => String(text || '').split(/[,;\n]/).map((t) => normalize(t).trim()).filter((t) => t.length >= 3 && !NO_ALLERGY.test(t));
-const hasTerm = (haystack, term) => new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(haystack);
+const hasTerm = (haystack, term) => new RegExp(`(^|[^a-z0-9])${escapeRe(term)}($|[^a-z0-9])`).test(haystack);
 
-const toWarning = (r, itemName) => ({
+const toWarning = (r, itemName, s) => ({
   code: `${r.flag}:${r.target}`, severity: r.severity, severity_label: SEVERITY[r.severity],
-  condition: FLAGS[r.flag], item: itemName, message: r.message, sources: r.sources.map((s) => SOURCES[s]),
+  condition: FLAGS[r.flag], item: itemName, message: r.message,
+  sources: r.source_ids.map((id) => s.sources.get(id)).filter(Boolean),
 });
 
 // items: [{ name, targets: ['PEEL', ...], text: 'bảng thành phần' }]
-const evaluate = ({ flags = [], allergies = '', items = [] }) => {
+const evaluate = ({ flags = [], allergies = '', items = [] }, s = store) => {
   const warnings = [];
   const terms = allergyTerms(allergies);
   for (const item of items) {
-    RULES.filter((r) => flags.includes(r.flag) && item.targets.includes(r.target)).forEach((r) => warnings.push(toWarning(r, item.name)));
+    s.rules.filter((r) => flags.includes(r.flag) && item.targets.includes(r.target)).forEach((r) => warnings.push(toWarning(r, item.name, s)));
     const haystack = normalize(item.text);
     terms.filter((t) => hasTerm(haystack, t)).forEach((t) => warnings.push({
       code: `ALLERGY:${t}`, severity: 'CONTRAINDICATED', severity_label: SEVERITY.CONTRAINDICATED, condition: 'Dị ứng đã ghi trong hồ sơ', item: item.name,
@@ -135,4 +134,25 @@ const evaluate = ({ flags = [], allergies = '', items = [] }) => {
   return warnings.sort((a, b) => rank[a.severity] - rank[b.severity]);
 };
 
-module.exports = { SEVERITY, FLAGS, RULES, SOURCES, PROCEDURES, INGREDIENTS, proceduresOf, ingredientsOf, evaluate };
+// Câu hỏi khi NVBH bán mỹ phẩm tại quầy: các tình trạng có quy tắc với HOẠT CHẤT (thủ thuật không bán tại quầy)
+const counterFlags = (s = store) => [...new Set(s.rules.filter((r) => s.targets.get(r.target)?.kind === 'INGREDIENT').map((r) => r.flag))]
+  .sort((a, b) => Object.keys(FLAGS).indexOf(a) - Object.keys(FLAGS).indexOf(b));
+const hasCounterRule = (targets, s = store) => {
+  const flags = counterFlags(s);
+  return s.rules.some((r) => flags.includes(r.flag) && targets.includes(r.target));
+};
+
+// Bộ quy tắc thử (nút "Thử quy tắc"): bộ đang dùng + 1 quy tắc nháp.
+// Bản sửa: bỏ bản cũ ra, thay bằng bản nháp. Đề xuất ngưng: chỉ bỏ bản cũ.
+const storeWith = (draft, { removeRuleId = null, deactivate = false } = {}) => {
+  const next = { sources: store.sources, targets: new Map(store.targets), rules: store.rules.filter((r) => r.id !== removeRuleId) };
+  if (draft?.target) next.targets.set(draft.target.code, { ...draft.target, match: compileTarget(draft.target) });
+  if (draft?.rule && !deactivate) next.rules.push(draft.rule);
+  return next;
+};
+
+module.exports = {
+  SEVERITY, FLAGS, init, reload, normalize, compileTarget, cleanList,
+  proceduresOf, ingredientsOf, targetLabel, evaluate, counterFlags, hasCounterRule, storeWith,
+  getStore: () => store,
+};

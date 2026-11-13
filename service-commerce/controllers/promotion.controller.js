@@ -1,5 +1,9 @@
 const { sequelize, Promotion, SavedPromotion, PromotionUsage } = require('../models');
-const { evaluatePromotion, redeemPromotion, PromotionError } = require('../utils/promotionRules');
+const axios = require('axios');
+const { evaluatePromotion, redeemPromotion, requireProof, PromotionError } = require('../utils/promotionRules');
+const VISIBILITY = ['PUBLIC', 'INTERNAL'];
+const STAFF_CHANNELS = ['CLINIC', 'COUNTER'];
+const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const { Op } = require('sequelize');
 
 // [PUBLIC] Lấy danh sách mã khuyến mãi đang hoạt động cho trang Khách hàng (/promotions)
@@ -7,8 +11,10 @@ exports.getActivePromotions = async (req, res) => {
   try {
     // Truy vấn tất cả mã có trạng thái ACTIVE
     const promos = await Promotion.findAll({
+      // Mã nội bộ không hiện trên website khách
       where: {
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        visibility: 'PUBLIC'
       },
       order: [['createdAt', 'DESC']]
     });
@@ -62,6 +68,7 @@ exports.getAllPromotionsForAdmin = async (req, res) => {
 exports.createPromotion = async (req, res) => {
   try {
     if (req.body.code) req.body.code = req.body.code.toUpperCase();
+    if (req.body.visibility !== undefined && !VISIBILITY.includes(req.body.visibility)) return res.status(400).json({ message: 'Trạng thái hiển thị không hợp lệ' });
 
     const newPromo = await Promotion.create(req.body);
     return res.status(201).json({ message: 'Tạo mã khuyến mãi thành công', data: newPromo });
@@ -78,6 +85,7 @@ exports.updatePromotion = async (req, res) => {
   try {
     const { id } = req.params;
     if (req.body.code) req.body.code = req.body.code.toUpperCase();
+    if (req.body.visibility !== undefined && !VISIBILITY.includes(req.body.visibility)) return res.status(400).json({ message: 'Trạng thái hiển thị không hợp lệ' });
 
     const promo = await Promotion.findByPk(id);
     if (!promo) return res.status(404).json({ message: 'Không tìm thấy mã' });
@@ -112,7 +120,7 @@ exports.applyPromotion = async (req, res) => {
     // Khách chỉ áp mã cho chính mình; nhân viên áp hộ thì truyền customer_id của khách
     const customer_id = req.user.role === 'CUSTOMER' ? req.user.id : req.body.customer_id;
 
-    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id });
+    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id, staff: req.user.role !== 'CUSTOMER' });
     return res.status(200).json({
       message: 'Áp dụng mã thành công',
       data: {
@@ -129,14 +137,23 @@ exports.applyPromotion = async (req, res) => {
 };
 
 // [STAFF / service-booking] Kiểm tra lại mã và ghi nhận lượt dùng khi chốt hóa đơn tại quầy
+// Body thêm: proof_url (ảnh xác thực, bắt buộc), channel (CLINIC), reference_id (lịch khám)
 exports.redeemPromotion = async (req, res) => {
   const { code, customer_id, order_value, scope_values } = req.body;
   if (!customer_id) return res.status(400).json({ message: 'Thiếu customer_id của khách' });
 
   const t = await sequelize.transaction();
   try {
-    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id, transaction: t });
-    await redeemPromotion({ promo, customer_id, transaction: t });
+    const proof_url = requireProof(req.body.proof_url);
+    const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id, transaction: t, staff: true });
+    await redeemPromotion({
+      promo, customer_id, transaction: t,
+      usage: {
+        proof_url, applied_by: req.user.id, applied_role: req.user.role, discount_amount: discount,
+        channel: STAFF_CHANNELS.includes(req.body.channel) ? req.body.channel : 'CLINIC',
+        reference_id: isUuid(req.body.reference_id) ? req.body.reference_id : null,
+      },
+    });
     await t.commit();
     return res.status(200).json({ data: { promotion_id: promo.id, code: promo.code, discount_amount: discount } });
   } catch (error) {
@@ -152,6 +169,9 @@ exports.savePromotion = async (req, res) => {
     const customer_id = req.user.id;
     const { promotion_id } = req.body;
     if (!promotion_id) return res.status(400).json({ message: 'Thiếu thông tin lưu mã' });
+
+    const promo = await Promotion.findByPk(promotion_id);
+    if (!promo || promo.visibility === 'INTERNAL' || promo.status !== 'ACTIVE') return res.status(404).json({ message: 'Mã không tồn tại hoặc đã bị khóa' });
 
     // Kiểm tra xem đã lưu chưa
     const existing = await SavedPromotion.findOne({ where: { customer_id, promotion_id } });
@@ -190,5 +210,29 @@ exports.getUsedPromotions = async (req, res) => {
     return res.status(200).json({ success: true, data: used.map(u => u.promotion_id) });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+// [ADMIN / GEN_MANAGER] GET /promotions/admin/usages?promotion_id= — lịch sử áp mã: khách, người áp, ảnh xác thực
+exports.getPromotionUsages = async (req, res) => {
+  try {
+    const where = isUuid(req.query.promotion_id) ? { promotion_id: req.query.promotion_id } : {};
+    const rows = await PromotionUsage.findAll({ where, order: [['createdAt', 'DESC']], limit: 300, raw: true });
+    const promos = await Promotion.findAll({ where: { id: [...new Set(rows.map((r) => r.promotion_id))] }, attributes: ['id', 'code', 'visibility'], raw: true });
+    const get = (path) => axios.get(`http://localhost:4000/api/identity/users/${path}`, { headers: { Authorization: req.headers.authorization } })
+      .then((r) => r.data.data || []).catch(() => []);
+    const [customers, employees] = await Promise.all([get('customers'), get('employees')]);
+    const people = {};
+    [...customers, ...employees].forEach((u) => { people[u.id] = { name: u.Profile?.full_name || u.email, phone: u.Profile?.phone || '' }; });
+    return res.status(200).json({
+      data: rows.map((r) => {
+        const promo = promos.find((p) => p.id === r.promotion_id);
+        return {
+          ...r, code: promo?.code, visibility: promo?.visibility, customer: people[r.customer_id] || null,
+          applied_by_name: r.applied_by ? people[r.applied_by]?.name || null : null, channel: r.channel || (r.applied_by ? null : 'ONLINE'),
+        };
+      }),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };

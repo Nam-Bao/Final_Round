@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Select, DatePicker, Tabs, Badge, List, Typography } from 'antd';
 import { CalendarOutlined, PlusOutlined, SolutionOutlined, CheckOutlined, CloseOutlined, AlertOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -30,6 +31,7 @@ export default function WorkSchedulePage() {
     fetchShifts();
     fetchRequests();
   }, [startOfWeek]); 
+  useLiveRefresh(['shift-requests'], () => { fetchShifts(); fetchRequests(); });
 
   const fetchEmployees = async () => {
     try {

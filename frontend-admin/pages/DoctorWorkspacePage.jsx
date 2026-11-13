@@ -5,6 +5,8 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { openVideoCall } from '../utils/videoCall';
 import PatientSafetyPanel, { SafetyWarnings } from '../components/PatientSafetyPanel';
+import AiSafetyReview from '../components/AiSafetyReview';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Title, Text } = Typography;
 
@@ -46,6 +48,24 @@ export default function DoctorWorkspacePage() {
   const watchedPackage = Form.useWatch('treatment_package', form);
   const watchedPrescriptions = Form.useWatch('prescriptions', form);
 
+  // Tạm tính số tiền khách trả để bác sĩ tư vấn: cùng cách tính với hoá đơn CSKH chốt (gói lấy giá khuyến mãi nếu có).
+  // Chưa gồm voucher: CSKH áp tại quầy khi thu tiền.
+  const estimate = (() => {
+    const services = (watchedServices || []).map((id) => spaServices.find((x) => x.id === id)).filter(Boolean);
+    const pkg = packages.find((x) => x.id === watchedPackage);
+    const pkgPrice = pkg ? Number(Number(pkg.promotional_price) > 0 ? pkg.promotional_price : pkg.price) : 0;
+    const lines = (watchedPrescriptions || []).filter((p) => p?.product_id).map((p) => {
+      const prod = products.find((x) => x.id === p.product_id);
+      return prod ? { name: prod.name, quantity: p.quantity || 1, amount: Number(prod.price) * (p.quantity || 1) } : null;
+    }).filter(Boolean);
+    const examFee = Number(selectedPatient?.exam_fee || 0);
+    const servicesTotal = services.reduce((sum, x) => sum + Number(x.price), 0);
+    const productsTotal = lines.reduce((sum, x) => sum + x.amount, 0);
+    const total = examFee + servicesTotal + pkgPrice + productsTotal;
+    const deposit = Math.min(Number(selectedPatient?.deposit_paid || 0), total);
+    return { examFee, services, pkg, pkgPrice, lines, servicesTotal, productsTotal, total, deposit, due: total - deposit };
+  })();
+
   // Kiểm tra ngay khi bác sĩ chọn dịch vụ / gói / sản phẩm
   useEffect(() => {
     const prescriptions = (watchedPrescriptions || []).filter((p) => p?.product_id);
@@ -68,7 +88,8 @@ export default function DoctorWorkspacePage() {
           id: apt.id, customer_id: apt.customer_id, patient_profile_id: apt.patient_profile_id, 
           name: apt.customer_name, dob: apt.dob, gender: apt.gender, time: String(apt.appointment_time).slice(0,5),
           status: apt.status, phone: apt.customer_phone, history: apt.symptoms || '',
-          pre_notes: apt.pre_notes, pre_exam_images: apt.pre_exam_images || []
+          pre_notes: apt.pre_notes, pre_exam_images: apt.pre_exam_images || [],
+          exam_fee: Number(apt.exam_fee || 0), deposit_paid: Number(apt.deposit_paid || 0), type: apt.type
         })));
       }
     } catch (error) {}
@@ -83,6 +104,7 @@ export default function DoctorWorkspacePage() {
     const timer = setInterval(fetchTodayAppointments, 30000);
     return () => clearInterval(timer);
   }, []);
+  useLiveRefresh(['appointments'], fetchTodayAppointments); // CSKH chuyển khách vào hàng chờ: hiện ngay
 
   const fetchPatientHistory = async (patientProfileId) => {
     setLoadingHistory(true);
@@ -195,6 +217,24 @@ export default function DoctorWorkspacePage() {
               </>
             )}
           </Form.List>
+
+          <div className="mt-4">
+            <AiSafetyReview key={selectedPatient?.id} patientProfileId={selectedPatient?.patient_profile_id} appointmentId={selectedPatient?.id} form={form} products={products} />
+          </div>
+
+          <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50">
+            <Text strong className="block mb-2 text-blue-800">Tạm tính chi phí của khách</Text>
+            <div className="text-sm space-y-1">
+              <div className="flex justify-between"><span>Phí khám</span><span>{estimate.examFee ? vnd(estimate.examFee) : 'Miễn phí (khách cũ / tái khám)'}</span></div>
+              {estimate.services.map((x) => <div key={x.id} className="flex justify-between"><span>{x.name}</span><span>{vnd(x.price)}</span></div>)}
+              {estimate.pkg && <div className="flex justify-between"><span>Gói {estimate.pkg.name}</span><span>{vnd(estimate.pkgPrice)}</span></div>}
+              {estimate.lines.map((x, i) => <div key={i} className="flex justify-between"><span>{x.name} × {x.quantity}</span><span>{vnd(x.amount)}</span></div>)}
+              <div className="flex justify-between border-t border-blue-200 pt-1 font-semibold"><span>Tổng</span><span>{vnd(estimate.total)}</span></div>
+              {estimate.deposit > 0 && <div className="flex justify-between text-green-700"><span>Đã cọc khi đặt lịch</span><span>- {vnd(estimate.deposit)}</span></div>}
+              <div className="flex justify-between text-base font-bold text-blue-800"><span>Khách cần trả thêm tại quầy</span><span>{vnd(estimate.due)}</span></div>
+            </div>
+            <Text type="secondary" className="block text-xs mt-2">Chưa gồm voucher ưu đãi (CSKH áp khi thu tiền). Gói liệu trình tính theo giá khuyến mãi nếu đang có.</Text>
+          </div>
         </div>
       )
     }
@@ -331,7 +371,7 @@ export default function DoctorWorkspacePage() {
           )}
         </Spin>
       </Drawer>
-      <Modal title="Đơn kê có cảnh báo an toàn" open={!!safetyPending} width={640} okText="Vẫn kê, lưu lý do" cancelText="Sửa lại đơn"
+      <Modal title={safetyPending?.warnings?.some((w) => w.source === 'AI') ? 'Đơn kê có cảnh báo an toàn (gồm cảnh báo của AI rà soát)' : 'Đơn kê có cảnh báo an toàn'} open={!!safetyPending} width={640} okText="Vẫn kê, lưu lý do" cancelText="Sửa lại đơn"
         okButtonProps={{ danger: true, disabled: safetyReason.trim().length < 10 }} onCancel={() => setSafetyPending(null)}
         onOk={() => handleSubmitRecord(safetyPending.values, safetyReason)}>
         <SafetyWarnings warnings={safetyPending?.warnings} />

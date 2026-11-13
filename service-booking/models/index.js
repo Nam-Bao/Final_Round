@@ -296,7 +296,94 @@ const PatientSafety = sequelize.define('PatientSafety', {
     allergies: { type: DataTypes.TEXT },
     screened_at: { type: DataTypes.DATE },
     screened_by: { type: DataTypes.UUID },
+    // Câu trả lời khách khai khi mua tại quầy (NVBH hỏi). KHÔNG tính là sàng lọc của lần khám (không đổi flags / screened_at):
+    // CSKH thấy ở khung "Sàng lọc an toàn", bấm điền vào form rồi tự xác nhận lại với khách
+    counter_flags: { type: DataTypes.JSONB },
+    counter_allergies: { type: DataTypes.TEXT },
+    counter_reported_at: { type: DataTypes.DATE },
+    counter_reported_by: { type: DataTypes.UUID },
+    counter_order_id: { type: DataTypes.UUID },
 });
+
+// ===== QUY TẮC CHỐNG CHỈ ĐỊNH (quản lý soạn -> bác sĩ xem xét -> quản lý duyệt), xem utils/safetyRules.js
+// Nguồn của quy tắc: link tài liệu, tài liệu tải lên (tờ hướng dẫn thuốc...) hoặc quy định phòng khám
+const SafetySource = sequelize.define('SafetySource', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    code: { type: DataTypes.STRING(60), unique: true },           // mã của nguồn khởi tạo (EMA_RETINOID...)
+    kind: { type: DataTypes.STRING(20), allowNull: false },       // LINK | DOCUMENT | CLINIC
+    label: { type: DataTypes.STRING(500), allowNull: false },
+    url: { type: DataTypes.STRING(1000) },                        // link tài liệu hoặc file tải lên
+    created_by: { type: DataTypes.UUID },
+});
+// Đối tượng của quy tắc: hoạt chất (tìm trong bảng thành phần) hoặc thủ thuật (tìm trong tên dịch vụ / gói)
+const SafetyTarget = sequelize.define('SafetyTarget', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    code: { type: DataTypes.STRING(60), allowNull: false, unique: true },
+    kind: { type: DataTypes.STRING(20), allowNull: false },       // INGREDIENT | PROCEDURE
+    label: { type: DataTypes.STRING(200), allowNull: false },
+    keywords: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    excludes: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    all_of: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // ACTIVE: đang dùng | DRAFT: hoạt chất mới trong 1 đề xuất, chỉ dùng khi quy tắc đó được duyệt
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'ACTIVE' },
+    created_by: { type: DataTypes.UUID },
+});
+const SafetyRule = sequelize.define('SafetyRule', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    flag: { type: DataTypes.STRING(40), allowNull: false },       // câu sàng lọc (FLAGS)
+    target_id: { type: DataTypes.UUID, allowNull: false },
+    severity: { type: DataTypes.STRING(20), allowNull: false },   // CONTRAINDICATED | CAUTION | INFO
+    message: { type: DataTypes.TEXT, allowNull: false },
+    source_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Quản lý soạn: DRAFT -> IN_REVIEW (bác sĩ xem xét) -> REVIEWED -> ACTIVE (quản lý chung duyệt) | REJECTED
+    // Bác sĩ đề xuất: DRAFT -> PROPOSED -> (CHANGES_REQUESTED -> PROPOSED) -> ACTIVE | REJECTED (có thể qua IN_REVIEW nếu quản lý gửi thêm bác sĩ)
+    // Bản cũ khi bản sửa được duyệt: SUPERSEDED; khi đề xuất ngưng được duyệt: INACTIVE (đề xuất ngưng: APPLIED)
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'DRAFT' },
+    change_type: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'NEW' }, // NEW | EDIT | DEACTIVATE
+    replaces_rule_id: { type: DataTypes.UUID },                   // bản sửa / đề xuất ngưng của quy tắc đang áp dụng nào
+    change_reason: { type: DataTypes.TEXT },                      // lý do sửa / ngưng
+    version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    origin: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'MANAGER' }, // SYSTEM | MANAGER | DOCTOR
+    created_by: { type: DataTypes.UUID },
+    review_round: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    submitted_at: { type: DataTypes.DATE },
+    decided_by: { type: DataTypes.UUID },                         // quản lý duyệt / từ chối
+    decided_at: { type: DataTypes.DATE },
+    decision_note: { type: DataTypes.TEXT },
+});
+// Ý kiến của bác sĩ được chọn xem xét, theo từng vòng gửi (sửa quy tắc => vòng mới, ý kiến cũ hết hiệu lực)
+const SafetyRuleReview = sequelize.define('SafetyRuleReview', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    rule_id: { type: DataTypes.UUID, allowNull: false },
+    round: { type: DataTypes.INTEGER, allowNull: false },
+    reviewer_id: { type: DataTypes.UUID, allowNull: false },
+    verdict: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'PENDING' }, // PENDING | AGREE | CHANGES | DISAGREE
+    comment: { type: DataTypes.TEXT },
+    responded_at: { type: DataTypes.DATE },
+    replaced: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // quản lý đã đổi sang bác sĩ khác
+});
+// Nhật ký mọi thao tác trên quy tắc (kèm nội dung lúc đó)
+const SafetyRuleEvent = sequelize.define('SafetyRuleEvent', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    rule_id: { type: DataTypes.UUID, allowNull: false },
+    actor_id: { type: DataTypes.UUID },
+    actor_role: { type: DataTypes.STRING(20) },
+    action: { type: DataTypes.STRING(30), allowNull: false },
+    note: { type: DataTypes.TEXT },
+    snapshot: { type: DataTypes.JSONB },
+});
+
+// Kết quả AI rà soát đơn của 1 lịch khám (lần mới nhất được dùng khi hoàn tất khám):
+// cảnh báo AI mức Thận trọng / Chống chỉ định về mục còn trong đơn => bác sĩ phải xác nhận + ghi lý do như cảnh báo của bảng quy tắc
+const AiReviewLog = sequelize.define('AiReviewLog', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    appointment_id: { type: DataTypes.UUID, allowNull: false },
+    patient_profile_id: { type: DataTypes.UUID },
+    doctor_id: { type: DataTypes.UUID },
+    item_names: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }, // các mục trong đơn lúc rà soát
+    warnings: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    model: { type: DataTypes.STRING(80) },
+}, { indexes: [{ fields: ['appointment_id'] }] });
 
 // Bác sĩ vẫn kê dù có cảnh báo: lưu lại cảnh báo đã thấy và lý do
 const SafetyOverride = sequelize.define('SafetyOverride', {
@@ -324,6 +411,30 @@ const BankTransaction = sequelize.define('BankTransaction', {
     resolved_note: { type: DataTypes.STRING(500) },
     resolved_by: { type: DataTypes.UUID },
     resolved_at: { type: DataTypes.DATE },
+    customer_id: { type: DataTypes.UUID },                       // khách của lịch / đơn theo mã (để CSKH liên hệ)
+    reference_code: { type: DataTypes.STRING(50) },              // mã tham chiếu ngân hàng (đối chiếu sao kê)
+});
+
+// Mỗi lần nhân viên ghi "đã chuyển khoản hoàn tiền" (5 nơi: đối soát tiền vào, hoàn cọc khám, hoàn cọc tư vấn, đơn mỹ phẩm hủy,
+// hoàn trả hàng). Nhân viên tự nhập mã giao dịch nên chưa đủ tin: khoản hoàn chỉ "đã xác minh" khi ngân hàng báo có tiền ra
+// với nội dung "HOAN <mã>" đúng số tiền (SePay, tự động), hoặc quản lý đã đối chiếu sao kê.
+const RefundClaim = sequelize.define('RefundClaim', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    source: { type: DataTypes.STRING(20), allowNull: false },     // BANK_TX | APPOINTMENT | CONSULTATION | ORDER | RETURN
+    source_id: { type: DataTypes.UUID, allowNull: false },
+    transfer_code: { type: DataTypes.STRING(10), allowNull: false }, // 6 ký tự đầu mã nguồn; nội dung chuyển khoản "HOAN <mã>"
+    customer_id: { type: DataTypes.UUID },
+    amount: { type: DataTypes.BIGINT, allowNull: false },
+    bank_ref: { type: DataTypes.STRING(50) },                     // mã giao dịch nhân viên nhập
+    account: { type: DataTypes.STRING(200) },                     // tài khoản nhận hoàn: ngân hàng - số TK - chủ TK
+    claimed_by: { type: DataTypes.UUID },
+    claimed_at: { type: DataTypes.DATE },
+    status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'WAITING' }, // WAITING | VERIFIED | DISPUTED
+    verified_method: { type: DataTypes.STRING(10) },              // BANK | MANAGER
+    verified_by: { type: DataTypes.UUID },
+    verified_at: { type: DataTypes.DATE },
+    bank_tx_id: { type: DataTypes.UUID },                         // giao dịch tiền ra đã khớp
+    manager_note: { type: DataTypes.STRING(500) },
 });
 
 TreatmentPackage.hasMany(Appointment, { foreignKey: 'package_id' });
@@ -524,7 +635,7 @@ Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCAD
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
     const added = [];
-    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog]) {
+    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog, BankTransaction, PatientSafety, SafetyRule, SafetyTarget, SafetySource, SafetyRuleReview]) {
         const table = model.getTableName();
         const existing = await qi.describeTable(table);
         for (const [name, attr] of Object.entries(model.getAttributes())) {
@@ -539,8 +650,23 @@ const addMissingColumns = async () => {
 
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi thêm ở đây với lỗi gõ {after:true})
 
+// Thông báo real-time: dữ liệu đổi => trang quản trị tự cập nhật số việc đang chờ và dữ liệu trang đang mở
+const { watch } = require('../utils/notify');
+watch(Appointment, 'appointments');
+watch(AppointmentCancellation, 'appointments');
+watch(Consultation, 'consultations');
+watch(ShiftRequest, 'shift-requests');
+watch(AttendanceCheckoutRequest, 'attendance');
+watch(AttendanceExplanation, 'attendance');
+watch(RefundClaim, 'bank');
+watch(BankTransaction, 'bank');
+watch(TreatmentSession, 'sessions');
+watch(ServiceSession, 'sessions');
+for (const m of [SafetyRule, SafetyRuleReview, SafetySource, SafetyTarget]) watch(m, 'safety-rules');
+
 module.exports = {
     sequelize,
+    SafetySource, SafetyTarget, SafetyRule, SafetyRuleReview, SafetyRuleEvent, AiReviewLog,
     TreatmentPackage,
     WorkShift,
     AttendanceKiosk,
@@ -550,6 +676,7 @@ module.exports = {
     AttendanceCheckoutRequest,
     ExpertPayout,
     BankTransaction,
+    RefundClaim,
     PatientSafety,
     SafetyOverride,
     SalaryRate,

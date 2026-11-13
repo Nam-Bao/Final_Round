@@ -45,6 +45,7 @@ const ProductDetail = sequelize.define('ProductDetail', {
   origin: { type: DataTypes.STRING },                                     // xuất xứ
   capacity: { type: DataTypes.STRING },                                   // dung tích / khối lượng tịnh, vd "40ml"
   skin_types: { type: DataTypes.JSONB, defaultValue: [] },                // loại da phù hợp
+  concerns: { type: DataTypes.JSONB, defaultValue: [] },                  // vấn đề da xử lý được (utils/concerns.js) - dùng để gợi ý sản phẩm
   short_description: { type: DataTypes.STRING(300) },
   description: { type: DataTypes.TEXT },
   benefits: { type: DataTypes.TEXT },                                     // công dụng
@@ -85,6 +86,8 @@ const Order = sequelize.define('Order', {
   customer_id: { type: DataTypes.UUID, allowNull: false }, 
   appointment_id: { type: DataTypes.UUID, allowNull: true }, 
   consultant_id: { type: DataTypes.UUID }, 
+  // Đơn NVBH bán tại quầy có hoạt chất cần lưu ý: câu trả lời sàng lọc của khách + cảnh báo + xác nhận đã tư vấn
+  safety_screening: { type: DataTypes.JSONB },
   recipient_name: { type: DataTypes.STRING, allowNull: false }, 
   shipping_phone: { type: DataTypes.STRING(20), allowNull: false }, 
   shipping_address: { type: DataTypes.TEXT, allowNull: false }, 
@@ -216,7 +219,9 @@ const Promotion = sequelize.define('Promotion', {
   end_date: { type: DataTypes.DATE, allowNull: false },
   image_url: { type: DataTypes.STRING }, 
   applicable_scope: { type: DataTypes.ENUM('ALL', 'SPA_SERVICE', 'PRODUCT', 'TREATMENT_PACKAGE'), defaultValue: 'ALL', allowNull: false },
-  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' }
+  status: { type: DataTypes.ENUM('ACTIVE', 'HIDDEN'), defaultValue: 'ACTIVE' },
+  // PUBLIC: hiện trên website, khách tự lưu / tự áp. INTERNAL: lưu hành nội bộ, chỉ nhân viên áp hộ khách (kèm ảnh xác thực)
+  visibility: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'PUBLIC' }
 });
 
 const UserAddress = sequelize.define('UserAddress', {
@@ -240,7 +245,14 @@ const SavedPromotion = sequelize.define('SavedPromotion', {
 const PromotionUsage = sequelize.define('PromotionUsage', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customer_id: { type: DataTypes.UUID, allowNull: false },
-  promotion_id: { type: DataTypes.UUID, allowNull: false }
+  promotion_id: { type: DataTypes.UUID, allowNull: false },
+  // Nhân viên áp mã hộ khách: ảnh xác thực (VD lịch sử tư vấn trên điện thoại khách), ai áp, ở đâu, giảm bao nhiêu
+  proof_url: { type: DataTypes.TEXT },
+  applied_by: { type: DataTypes.UUID },
+  applied_role: { type: DataTypes.STRING(20) },
+  channel: { type: DataTypes.STRING(20) },        // ONLINE | CLINIC (hoá đơn sau khám) | COUNTER (NVBH bán tại quầy / đặt hộ)
+  reference_id: { type: DataTypes.UUID },          // lịch khám hoặc đơn hàng
+  discount_amount: { type: DataTypes.DECIMAL(12, 2) }
 });
 
 // Yêu cầu hoàn/trả hàng của khách sau khi đã nhận đơn giao GHN (NVBH xử lý).
@@ -309,5 +321,11 @@ Product.hasMany(MaterialLot, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 MaterialLot.belongsTo(Product, { foreignKey: 'product_id' });
 Product.hasMany(MaterialNorm, { foreignKey: 'product_id', onDelete: 'CASCADE' });
 MaterialNorm.belongsTo(Product, { foreignKey: 'product_id' });
+
+// Thông báo real-time cho trang quản trị
+const { watch } = require('../utils/notify');
+watch(Order, 'orders');
+watch(OrderReturn, 'returns');
+watch(InventoryRequest, 'purchase-requests');
 
 module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };

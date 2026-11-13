@@ -17,6 +17,7 @@ Mở và chỉnh sửa bằng https://demo.bpmn.io (kéo thả file vào trang) 
 | 08 | Chấm công nhân viên |
 | 09 | Tính lương hàng tháng |
 | 10 | Xuất vật tư và nhập kho |
+| 11 | Quản lý quy tắc an toàn (chống chỉ định): quản lý soạn hoặc bác sĩ đề xuất, bác sĩ xem xét, quản lý chung duyệt; sửa / ngưng theo phiên bản |
 
 ## Vai trò
 
@@ -24,7 +25,7 @@ Mở và chỉnh sửa bằng https://demo.bpmn.io (kéo thả file vào trang) 
 |---|---|
 | Khách hàng | Đặt lịch, thanh toán, mua hàng, xem kết quả |
 | CSKH | Tiếp nhận khách, quản lý lịch hẹn, thu tiền, đối soát tiền vào |
-| Bác sĩ | Khám, chẩn đoán, kê đơn |
+| Bác sĩ | Khám, chẩn đoán, kê đơn; xem xét và đề xuất quy tắc an toàn |
 | Chuyên gia | Tư vấn online, gợi ý sản phẩm. Không khám, không kê thuốc |
 | Kỹ thuật viên | Làm dịch vụ, ghi vật tư đã dùng |
 | Nhân viên bán hàng | Duyệt, đóng gói, hủy đơn mỹ phẩm, xử lý hoàn trả |

@@ -93,11 +93,17 @@ Hiện chỉ BS. Hiếu và BS. Khang có ca đến 07/11; BS. Thịnh, CSKH, KT
 ### 3.1. Xem & tìm kiếm
 - [ ] Trang chủ: 3 mục **Đang giảm giá / Mới lên kệ / Bán chạy**; nhãn **MỚI** (10 sản phẩm mới nhất), **GIẢM X%**.
 - [ ] Ô **tìm kiếm** trên thanh menu: gõ không dấu "chong nang", "tham nam", "thinh" → gợi ý theo nhóm; Enter → trang `/tim-kiem`.
-- [ ] **Mỹ phẩm**: các tab Tất cả / Mới / Bán chạy / Đang giảm giá; mở 1 sản phẩm → tab **Thành phần** (hoạt chất + nồng độ, bảng INCI). Thuốc kê đơn **Klenzit không hiện trên web** (kể cả mở bằng link trực tiếp), chỉ bác sĩ kê trong buổi khám.
+- [ ] **Mỹ phẩm**: các tab Tất cả / Mới / Bán chạy / Đang giảm giá; mở 1 sản phẩm → tab **Thành phần** (hoạt chất + nồng độ, bảng INCI). Thuốc kê đơn (Klenzit C) **vẫn hiện trên web để khách tra cứu** nhưng không có nút thêm giỏ / mua ngay: chỉ có nút **Tư vấn ngay** dẫn tới đặt lịch khám; bác sĩ kê trong buổi khám.
 - [ ] **Đội ngũ bác sĩ** → **Hồ sơ**. Chân trang: **bản đồ** + nút **Chỉ đường**.
 
 ### 3.2. Sàng lọc da AI
 - [ ] **Sàng lọc AI**: đồng ý chính sách ảnh, tải ảnh khuôn mặt → AI khoanh vùng mụn / thâm; chatbot tư vấn (Gemini).
+- [ ] **Chưa đăng nhập** (cửa sổ ẩn danh): vào **Sàng lọc AI** được, quét **1 lần** (theo IP, 24 giờ); lần 2 báo phải đăng nhập. Đăng nhập thì được **3 lượt / ngày**.
+- [ ] **Chưa đăng nhập** vẫn chat với **chatbot AI**; bấm chat CSKH thì được nhắc đăng nhập. Đăng nhập rồi mới có nút **Gặp bộ phận CSKH**.
+- [ ] Dưới kết quả có **Nhận xét tham khảo** do Gemini viết cho khách: mô tả theo vùng da, mục **Bạn nên lưu ý** (chăm sóc da / thói quen sinh hoạt / ăn uống) và **Sản phẩm phù hợp tại GlowSkin**. Bấm sản phẩm → mở đúng trang sản phẩm.
+  - Sản phẩm được **lọc theo quy tắc** trước: vấn đề da AI phát hiện (mụn viêm, mụn đầu đen/trắng, thâm, nám) khớp với nhãn **Vấn đề da xử lý được** của sản phẩm (đang bán trên web, còn hàng), thêm bước làm sạch / chống nắng. Gemini chỉ chọn tối đa 3 trong danh sách đó.
+  - Gemini lỗi / hết lượt: vẫn có lời khuyên mẫu và sản phẩm theo quy tắc.
+  - Quản lý gắn nhãn ở **Kho & Sản phẩm → Thông tin bán web → Vấn đề da xử lý được**; sản phẩm cũ được hệ thống gắn nhãn ban đầu khi khởi động service-commerce.
 
 ### 3.3. Mua mỹ phẩm online
 - [ ] Thêm 2 sản phẩm (1 đang giảm giá, 1 giá thường) vào giỏ → giỏ hiện giá đã giảm + giá gốc gạch ngang.

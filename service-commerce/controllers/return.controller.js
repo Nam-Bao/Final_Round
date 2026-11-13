@@ -1,6 +1,7 @@
 const { sequelize, Product, Order, OrderDetail, OrderReturn } = require('../models');
 const axios = require('axios');
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
+const { sendRefundClaim } = require('../utils/refundClaim');
 
 // ==========================================
 // QUY ĐỊNH HOÀN / TRẢ HÀNG (đồng bộ với nội dung hiển thị cho khách ở frontend-client)
@@ -262,6 +263,11 @@ exports.refundReturn = (req, res) => {
   }
   const restock = req.body.restock === true;
   return withReturn(req, res, ['RECEIVED'], async (ret, t) => {
+    // Tài khoản nhận hoàn là tài khoản khách khai khi gửi yêu cầu; ghi khoản hoàn để quản lý đối chiếu tiền ra
+    t.afterCommit(() => sendRefundClaim({
+      source: 'RETURN', source_id: ret.id, customer_id: ret.customer_id, amount: Number(ret.refund_amount), bank_ref: refund_ref,
+      account: `${ret.bank_name} - ${ret.bank_account} - ${ret.bank_holder}`, claimed_by: req.user.id,
+    }));
     if (restock) {
       for (const item of ret.items) {
         await Product.increment('stock_quantity', { by: item.quantity, where: { id: item.product_id }, transaction: t });

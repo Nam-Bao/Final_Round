@@ -13,7 +13,7 @@ const API = '/api/booking/consultations';
 const EXPERTS_API = '/api/identity/users/experts/public';
 
 const STATUS_UI = {
-  CONFIRMED: <span className="badge badge-info gap-1 text-white"><Clock className="w-3 h-3" /> Đã đặt cọc</span>,
+  CONFIRMED: <span className="badge badge-info gap-1 text-white"><Clock className="w-3 h-3" /> Đã thanh toán</span>,
   COMPLETED: <span className="badge badge-success gap-1 text-white"><CheckCircle className="w-3 h-3" /> Đã tư vấn</span>,
   NO_SHOW: <span className="badge badge-warning gap-1"><UserX className="w-3 h-3" /> Bạn vắng mặt</span>,
   EXPERT_ABSENT: <span className="badge badge-error gap-1 text-white"><XCircle className="w-3 h-3" /> Chuyên gia vắng</span>,
@@ -110,7 +110,7 @@ export default function MyConsultations() {
 
   // Khách tự hủy => mất cọc (cùng quy định với lịch khám)
   const handleCancel = async (c) => {
-    if (!window.confirm(`Hủy lịch tư vấn này bạn sẽ MẤT ${formatVnd(c.deposit_amount)} tiền cọc, tiền cọc không được hoàn lại.\n\nBạn vẫn muốn hủy?`)) return;
+    if (!window.confirm(`Hủy lịch tư vấn này bạn sẽ MẤT ${formatVnd(c.deposit_amount)} phí tư vấn đã trả, khoản này không được hoàn lại.\n\nBạn vẫn muốn hủy?`)) return;
     try {
       const res = await axios.put(`${API}/${c.id}/cancel`, { accept_forfeit: true }, { headers });
       alert(res.data.message);
@@ -172,16 +172,16 @@ export default function MyConsultations() {
                   <span className="font-bold flex items-center gap-1"><Calendar className="w-4 h-4 text-primary" /> {c.appointment_time} - {dayjs(c.appointment_date).format('DD/MM/YYYY')}</span>
                 </p>
                 <p className="flex items-center justify-between gap-2 mt-1">
-                  <span className="text-slate-500">Đã cọc:</span><span className="font-bold">{formatVnd(c.deposit_amount)}</span>
+                  <span className="text-slate-500">Phí tư vấn:</span><span className="font-bold">{formatVnd(c.deposit_amount)}</span>
                 </p>
               </div>
             </div>
 
             {(c.result || c.expert_note) && <ConsultResult c={c} />}
             {c.awaiting_result && <p className="text-sm text-slate-600">Chuyên gia đang hoàn tất kết quả, bạn sẽ xem được tại đây chậm nhất 24 giờ sau buổi tư vấn.</p>}
-            {c.credit_available && (
-              <p className="text-sm text-success flex items-center gap-1">
-                <Gift className="w-4 h-4" /> {formatVnd(c.deposit_amount)} tiền cọc sẽ được trừ vào phí khám nếu bạn đặt lịch khám trước {dayjs(c.credit_expires_at).format('DD/MM/YYYY')}.
+            {c.status === 'COMPLETED' && !c.credit_used && (
+              <p className="text-sm text-emerald-700 bg-emerald-50 rounded-lg p-2 flex items-center gap-1.5">
+                <Gift className="w-4 h-4 shrink-0" /> Muốn đi khám sau buổi tư vấn? Đến quầy và cho nhân viên xem lịch sử tư vấn này để được ưu đãi trên hóa đơn sau khám.
               </p>
             )}
             {c.credit_used && <p className="text-sm text-slate-500">Tiền cọc buổi tư vấn đã được trừ vào phí khám.</p>}

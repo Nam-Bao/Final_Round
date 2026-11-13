@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Table, Tag, Drawer, Descriptions, Image, Button, Space, Modal, Input, Checkbox, Segmented, Steps, Popconfirm, message } from 'antd';
 import { Undo2 } from 'lucide-react';
 import axios from 'axios';
+import RefundTransferNote from '../components/RefundTransferNote';
+import { useLiveRefresh } from '../components/Notifications';
 
 const API = 'http://localhost:4000/api/commerce/returns';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
@@ -56,6 +58,7 @@ export default function ReturnManagementPage() {
   };
 
   useEffect(() => { fetchReturns(); }, []);
+  useLiveRefresh(['returns', 'orders'], fetchReturns);
 
   const selected = returns.find((r) => r.id === selectedId);
   const shown = returns.filter((r) => filter === 'ALL' || (filter === 'TODO') === TODO_STATUSES.includes(r.status));
@@ -194,7 +197,8 @@ export default function ReturnManagementPage() {
         onOk={async () => { if (await act('refund', { refund_ref: refundRef, restock })) setRefundOpen(false); }}>
         {selected && (
           <div className="space-y-3">
-            <p className="text-sm">Chuyển <b>{vnd(selected.refund_amount)}</b> đến {selected.bank_name} · {selected.bank_account} · {selected.bank_holder}</p>
+            <RefundTransferNote sourceId={selected.id} amount={selected.refund_amount} />
+            <p className="text-sm">Tài khoản khách: <b>{selected.bank_name} · {selected.bank_account} · {selected.bank_holder}</b></p>
             <Input placeholder="Mã giao dịch chuyển khoản" maxLength={50} value={refundRef} onChange={(e) => setRefundRef(e.target.value)} />
             <Checkbox checked={restock} onChange={(e) => setRestock(e.target.checked)}>
               Nhập lại kho (chỉ chọn khi sản phẩm còn nguyên vẹn, bán lại được)
