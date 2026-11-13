@@ -5,6 +5,7 @@ if (missingGhn.length) console.warn(`⚠️  Thiếu cấu hình GHN trong .env:
 const express = require('express');
 const cors = require('cors'); // Nhớ npm i cors nếu chưa cài
 const { sequelize } = require('./models');
+const { inferConcerns } = require('./utils/concerns');
 
 const categoryRoute = require('./routes/category.route.js');
 const productRoute = require('./routes/product.route.js');
@@ -34,6 +35,7 @@ app.use('/api/commerce/reviews', reviewRoute);
 app.use('/api/commerce/returns', returnRoute);
 app.use('/api/commerce/materials', materialRoute);
 app.use('/api/commerce/reports', reportRoute);
+app.use('/api/commerce/tasks', require('./routes/task.route.js')); // việc đang chờ (chuông thông báo)
 
 // 2. Mount dự phòng đường dẫn ngắn (Direct Service Calls)
 app.use('/categories', categoryRoute);
@@ -45,6 +47,7 @@ app.use('/reviews', reviewRoute);
 app.use('/returns', returnRoute);
 app.use('/materials', materialRoute);
 app.use('/reports', reportRoute);
+app.use('/tasks', require('./routes/task.route.js'));
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Commerce Service] đang chạy tại port ${PORT}`);
@@ -57,6 +60,16 @@ app.listen(PORT, async() => {
         await sequelize.sync({ alter });
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
+        await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "concerns" JSONB');
+        await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "safety_screening" JSONB');
+        // Sản phẩm cũ chưa có nhãn "Vấn đề da": gắn nhãn ban đầu theo tên / công dụng / thành phần (quản lý sửa lại được)
+        const [untagged] = await sequelize.query('SELECT d.id, p.name, d.short_description, d.benefits, d.ingredients, d.skin_types FROM "ProductDetails" d JOIN "Products" p ON p.id = d.product_id WHERE d.concerns IS NULL');
+        for (const row of untagged) {
+            await sequelize.query('UPDATE "ProductDetails" SET concerns = :c WHERE id = :id', { replacements: { c: JSON.stringify(inferConcerns(row.name, row)), id: row.id } });
+        }
+        if (untagged.length) console.log(`🏷️  Đã gắn nhãn "Vấn đề da" ban đầu cho ${untagged.length} sản phẩm`);
+        await sequelize.query(`ALTER TABLE "Promotions" ADD COLUMN IF NOT EXISTS "visibility" VARCHAR(20) NOT NULL DEFAULT 'PUBLIC'`);
+        await sequelize.query('ALTER TABLE "PromotionUsages" ADD COLUMN IF NOT EXISTS "proof_url" TEXT, ADD COLUMN IF NOT EXISTS "applied_by" UUID, ADD COLUMN IF NOT EXISTS "applied_role" VARCHAR(20), ADD COLUMN IF NOT EXISTS "channel" VARCHAR(20), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "discount_amount" DECIMAL(12,2)');
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "sale_percent" INTEGER, ADD COLUMN IF NOT EXISTS "sale_start" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "sale_end" TIMESTAMPTZ');
         await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "reference_type" VARCHAR(30), ADD COLUMN IF NOT EXISTS "reference_id" UUID, ADD COLUMN IF NOT EXISTS "decision_note" TEXT, ADD COLUMN IF NOT EXISTS "decided_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "received_by" UUID, ADD COLUMN IF NOT EXISTS "receive_note" TEXT, ADD COLUMN IF NOT EXISTS "ordered_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "ordered_by" UUID, ADD COLUMN IF NOT EXISTS "supplier" VARCHAR(200), ADD COLUMN IF NOT EXISTS "expected_date" DATE');
         await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "promotion_id" UUID, ADD COLUMN IF NOT EXISTS "cancel_initiator" VARCHAR(20), ADD COLUMN IF NOT EXISTS "cancel_reason" VARCHAR(500), ADD COLUMN IF NOT EXISTS "cancelled_by" UUID, ADD COLUMN IF NOT EXISTS "cancelled_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "cancel_review" VARCHAR(20), ADD COLUMN IF NOT EXISTS "refund_status" VARCHAR(20), ADD COLUMN IF NOT EXISTS "refund_amount" DECIMAL(12,2), ADD COLUMN IF NOT EXISTS "refund_ref" VARCHAR(50), ADD COLUMN IF NOT EXISTS "refunded_at" TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS "refunded_by" UUID');

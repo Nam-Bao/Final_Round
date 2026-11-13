@@ -8,6 +8,7 @@ import {
   ATT_API, authConfig, errorText, shiftStatus, checkoutStatus, fmtTime, fmtDateTime, money, SHIFT_LABEL, ROLE_LABEL, EXPLANATION_STATUS,
 } from '../components/attendance/attendanceApi';
 import CheckoutRequestTab from '../components/attendance/CheckoutRequestTab';
+import { useLiveRefresh } from '../components/Notifications';
 
 const MANAGER_ROLES = ['ADMIN', 'GEN_MANAGER'];
 const METHOD = { QR: 'Quét QR', EXPLANATION: 'Giải trình', REQUEST: 'Theo đơn', AUTO: 'Hệ thống' };
@@ -122,6 +123,7 @@ function ExplanationTab({ people, onPending }) {
     }
   };
   useEffect(() => { load(); }, [status]);
+  useLiveRefresh(['attendance'], load);
 
   const review = async (decision) => {
     if (decision !== 'APPROVE' && note.trim().length < 10) return message.error('Từ chối / xác định vắng phải ghi rõ lý do (ít nhất 10 ký tự)');

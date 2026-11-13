@@ -2,24 +2,27 @@ const dayjs = require('dayjs');
 const axios = require('axios');
 const { Op } = require('sequelize');
 const { sequelize, Consultation, ExpertShift, ExpertPayout, Appointment } = require('../models');
+const { recordClaim, validateClaimInput } = require('../utils/refunds');
 const { CONSULT_SLOTS, CONSULT_SLOT_MINUTES, EXAM_SLOT_MINUTES } = require('../utils/shiftSlots');
 const { generateRoomToken } = require('../utils/zegoToken');
 const { maskName } = require('./review.controller');
 
 // ===== QUY ĐỊNH TƯ VẤN CHUYÊN GIA =====
-// Cọc 50k giữ chỗ. Buổi tư vấn hoàn thành => 50k được trừ vào phí khám của lần đặt khám tiếp theo (trong 30 ngày).
+// Phí tư vấn 300k trả trước khi đặt (đổi được qua CONSULT_FEE trong .env). Phí tư vấn KHÔNG trừ vào phí khám: khách muốn khám
+// sau buổi tư vấn thì đến quầy cho xem lịch sử tư vấn, CSKH kiểm tra và áp voucher ưu đãi (nội bộ) vào hoá đơn sau khám.
+// Lịch tư vấn cũ (trước quy định này) đã gắn trừ vào lịch khám vẫn được tính đúng khi chốt bill.
 // HOÀN THÀNH = cả 2 bên đã vào phòng, đủ thời lượng tối thiểu VÀ chuyên gia đã gửi kết quả tư vấn (không chỉ là mở phòng).
 // Khách không vào phòng => mất cọc. Chuyên gia không vào / không gửi kết quả trong hạn / phòng khám hủy => hoàn cọc.
 // Khách tự hủy => mất cọc (giống lịch khám); trước giờ hẹn từ 24 giờ được đổi lịch 1 lần miễn phí.
-const CONSULT_DEPOSIT = 50000;
+const { CONSULT_FEE: CONSULT_DEPOSIT } = require('../utils/timing');
 const CONSULT_FIELDS = { DERMATOLOGY: 'Da liễu', NUTRITION: 'Dinh dưỡng', COSMETICS: 'Mỹ phẩm' };
-const PAYMENT_HOLD_MINUTES = Number(process.env.PAYMENT_HOLD_MINUTES || 15);
-const EXPERT_OPEN_BEFORE_MINUTES = 15; // chuyên gia vào phòng sớm để chuẩn bị; khách vào đúng giờ hẹn
-const ROOM_CLOSE_AFTER_MINUTES = CONSULT_SLOT_MINUTES;
-const CREDIT_VALID_DAYS = 30;
-const MIN_SESSION_MINUTES = 5;     // từ lúc cả 2 bên có mặt tới lúc gửi kết quả
-const RESULT_DEADLINE_HOURS = 24;  // hạn gửi kết quả sau khi phòng đóng
-const RESCHEDULE_MIN_HOURS = 24;   // khách tự đổi lịch trước giờ hẹn ít nhất 24 giờ
+const { TIMING, durationLabel } = require('../utils/timing');
+const PAYMENT_HOLD_MINUTES = TIMING.paymentHoldMinutes;
+const EXPERT_OPEN_BEFORE_MINUTES = TIMING.expertOpenBeforeMinutes; // chuyên gia vào phòng sớm để chuẩn bị; khách vào đúng giờ hẹn
+const ROOM_CLOSE_AFTER_MINUTES = TIMING.consultRoomCloseMinutes; // mặc định bằng độ dài 1 buổi tư vấn
+const MIN_SESSION_MINUTES = TIMING.consultMinSessionMinutes;     // từ lúc cả 2 bên có mặt tới lúc gửi kết quả
+const RESULT_DEADLINE_MINUTES = TIMING.consultResultDeadlineMinutes;  // hạn gửi kết quả sau khi phòng đóng
+const RESCHEDULE_MIN_MINUTES = TIMING.rescheduleMinMinutes;   // khách tự đổi lịch trước giờ hẹn ít nhất 24 giờ
 const MAX_RESULT_PRODUCTS = 10;
 const STAFF_ROLES = ['ADMIN', 'GEN_MANAGER', 'CONSULTANT'];
 const IDENTITY = 'http://localhost:4000/api/identity';
@@ -67,9 +70,9 @@ const settleFinishedConsultations = async () => {
     } else if (!c.customer_joined_at) {
       // Chuyên gia có mặt, khách không vào => mất cọc
       await c.update({ status: 'NO_SHOW', deposit_outcome: 'FORFEITED' });
-    } else if (!now.isBefore(closedAt.add(RESULT_DEADLINE_HOURS, 'hour'))) {
+    } else if (!now.isBefore(closedAt.add(RESULT_DEADLINE_MINUTES, 'minute'))) {
       // Hai bên đã vào phòng nhưng quá hạn vẫn không có kết quả => khách không nhận được dịch vụ, hoàn cọc, không tính thù lao
-      await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING', cancel_reason: `Chuyên gia không gửi kết quả trong ${RESULT_DEADLINE_HOURS} giờ` });
+      await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING', cancel_reason: `Chuyên gia không gửi kết quả trong ${durationLabel(RESULT_DEADLINE_MINUTES)}` });
     }
   }
 };
@@ -201,15 +204,12 @@ const toCustomerView = (c) => {
     recommend_exam: c.recommend_exam,
     result: c.result || null,
     awaiting_result: c.status === 'CONFIRMED' && !!c.expert_joined_at && !!c.customer_joined_at,
-    can_reschedule: c.status === 'CONFIRMED' && !c.reschedule_count && !dayjs().isAfter(start.subtract(RESCHEDULE_MIN_HOURS, 'hour')),
+    can_reschedule: c.status === 'CONFIRMED' && !c.reschedule_count && !dayjs().isAfter(start.subtract(RESCHEDULE_MIN_MINUTES, 'minute')),
     rating: c.rating,
     review_comment: c.review_comment,
     room_opens_at: start.toISOString(),
     room_closes_at: start.add(ROOM_CLOSE_AFTER_MINUTES, 'minute').toISOString(),
-    credit_used: !!c.credit_appointment_id,
-    credit_available: c.status === 'COMPLETED' && !c.credit_appointment_id && c.deposit_outcome === 'NONE'
-      && dayjs(c.completed_at).add(CREDIT_VALID_DAYS, 'day').isAfter(dayjs()),
-    credit_expires_at: c.completed_at ? dayjs(c.completed_at).add(CREDIT_VALID_DAYS, 'day').toISOString() : null,
+    credit_used: !!c.credit_appointment_id, // chỉ còn ở lịch tư vấn cũ
   };
 };
 
@@ -355,7 +355,7 @@ const getConsultVideoToken = async (req, res) => {
     if (now.isBefore(opensAt)) {
       throw new ConsultError(
         isExpert
-          ? `Phòng tư vấn mở trước giờ hẹn ${EXPERT_OPEN_BEFORE_MINUTES} phút (lúc ${opensAt.format('HH:mm DD/MM/YYYY')}).`
+          ? `Phòng tư vấn mở trước giờ hẹn ${durationLabel(EXPERT_OPEN_BEFORE_MINUTES)} (lúc ${opensAt.format('HH:mm DD/MM/YYYY')}).`
           : `Chưa đến giờ hẹn. Buổi tư vấn bắt đầu lúc ${start.format('HH:mm')} ngày ${start.format('DD/MM/YYYY')}, bạn vui lòng quay lại đúng giờ.`,
         400, { code: 'NOT_STARTED', opens_at: opensAt.toISOString() }
       );
@@ -381,7 +381,7 @@ const toExpertView = (c) => ({
   customer_joined: !!c.customer_joined_at,
   expert_joined: !!c.expert_joined_at,
   // Hạn gửi kết quả; chỉ gửi được khi cả 2 bên đã vào phòng
-  result_deadline: startOf(c).add(ROOM_CLOSE_AFTER_MINUTES, 'minute').add(RESULT_DEADLINE_HOURS, 'hour').toISOString(),
+  result_deadline: startOf(c).add(ROOM_CLOSE_AFTER_MINUTES, 'minute').add(RESULT_DEADLINE_MINUTES, 'minute').toISOString(),
 });
 
 const monthRange = (month) => {
@@ -441,9 +441,9 @@ const saveConsultResult = async (req, res) => {
       if (!['CONFIRMED', 'COMPLETED'].includes(c.status)) throw new ConsultError('Lịch tư vấn này không nhận kết quả');
       if (!c.expert_joined_at || !c.customer_joined_at) throw new ConsultError('Chỉ gửi được kết quả khi cả chuyên gia và khách đã vào phòng');
       const bothIn = dayjs(c.expert_joined_at).isAfter(c.customer_joined_at) ? c.expert_joined_at : c.customer_joined_at;
-      if (dayjs().diff(bothIn, 'minute') < MIN_SESSION_MINUTES) throw new ConsultError(`Buổi tư vấn cần diễn ra ít nhất ${MIN_SESSION_MINUTES} phút mới gửi được kết quả`);
-      const deadline = startOf(c).add(ROOM_CLOSE_AFTER_MINUTES, 'minute').add(RESULT_DEADLINE_HOURS, 'hour');
-      if (dayjs().isAfter(deadline)) throw new ConsultError(`Đã quá hạn gửi kết quả (${RESULT_DEADLINE_HOURS} giờ sau khi phòng đóng)`);
+      if (dayjs().diff(bothIn, 'minute') < MIN_SESSION_MINUTES) throw new ConsultError(`Buổi tư vấn cần diễn ra ít nhất ${durationLabel(MIN_SESSION_MINUTES)} mới gửi được kết quả`);
+      const deadline = startOf(c).add(ROOM_CLOSE_AFTER_MINUTES, 'minute').add(RESULT_DEADLINE_MINUTES, 'minute');
+      if (dayjs().isAfter(deadline)) throw new ConsultError(`Đã quá hạn gửi kết quả (${durationLabel(RESULT_DEADLINE_MINUTES)} sau khi phòng đóng)`);
       await c.update({
         status: 'COMPLETED', completed_at: c.completed_at || new Date(),
         result: { assessment, advice, lifestyle, follow_up, products },
@@ -497,6 +497,8 @@ const getAllConsultations = async (req, res) => {
     const where = { appointment_date: { [Op.between]: [from, to] }, status: { [Op.ne]: 'PENDING_PAYMENT' } };
     if (['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'EXPERT_ABSENT', 'CANCELLED'].includes(req.query.status)) where.status = req.query.status;
     if (req.query.refund === 'pending') { delete where.appointment_date; where.deposit_outcome = 'REFUND_PENDING'; }
+    // Lịch sử tư vấn của 1 khách (CSKH kiểm tra trước khi áp voucher ưu đãi khám sau tư vấn)
+    if (isUuid(req.query.customer_id)) { delete where.appointment_date; where.customer_id = req.query.customer_id; }
     const list = await Consultation.findAll({ where, order: [['appointment_date', 'DESC'], ['appointment_time', 'DESC']] });
     res.status(200).json({
       data: list.map((c) => ({ ...toExpertView(c), customer_id: c.customer_id, paid_at: c.paid_at, refund_ref: c.refund_ref, refunded_at: c.refunded_at, payment_ref: c.payment_ref, review_hidden: c.review_hidden, hold_expires_at: c.status === 'PENDING_PAYMENT' ? holdExpiresAt(c) : null }))
@@ -532,7 +534,7 @@ const rescheduleConsultation = async (req, res) => {
       if (!c || c.customer_id !== req.user.id) throw new ConsultError('Không tìm thấy lịch tư vấn', 404);
       if (c.status !== 'CONFIRMED') throw new ConsultError('Chỉ đổi được lịch đã đặt cọc và chưa diễn ra');
       if (c.reschedule_count) throw new ConsultError('Mỗi lịch tư vấn chỉ được đổi 1 lần');
-      if (dayjs().isAfter(startOf(c).subtract(RESCHEDULE_MIN_HOURS, 'hour'))) throw new ConsultError(`Chỉ đổi được lịch trước giờ hẹn ít nhất ${RESCHEDULE_MIN_HOURS} giờ`);
+      if (dayjs().isAfter(startOf(c).subtract(RESCHEDULE_MIN_MINUTES, 'minute'))) throw new ConsultError(`Chỉ đổi được lịch trước giờ hẹn ít nhất ${durationLabel(RESCHEDULE_MIN_MINUTES)}`);
       const shifts = await ExpertShift.findAll({ where: { expert_id: c.expert_id, date: appointment_date }, transaction: t, lock: t.LOCK.UPDATE });
       if (!shifts.some((s) => (CONSULT_SLOTS[s.shift_type] || []).includes(time))) throw new ConsultError('Chuyên gia không nhận tư vấn vào giờ này');
       const taken = await Consultation.count({
@@ -560,13 +562,17 @@ const setReviewVisibility = async (req, res) => {
 const confirmConsultRefund = async (req, res) => {
   try {
     const refund_ref = String(req.body.refund_ref || '').trim();
-    if (refund_ref.length < 4 || refund_ref.length > 50) throw new ConsultError('Nhập mã giao dịch chuyển khoản hoàn cọc (4 - 50 ký tự)');
-    await sequelize.transaction(async (t) => {
-      const c = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
-      if (!c || c.deposit_outcome !== 'REFUND_PENDING') throw new ConsultError('Lịch này không có khoản cọc chờ hoàn');
-      await c.update({ deposit_outcome: 'REFUNDED', refund_ref, refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
+    const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });
+    if (invalid) throw new ConsultError(invalid);
+    const c = await sequelize.transaction(async (t) => {
+      const row = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!row || row.deposit_outcome !== 'REFUND_PENDING') throw new ConsultError('Lịch này không có khoản cọc chờ hoàn');
+      await row.update({ deposit_outcome: 'REFUNDED', refund_ref, refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
+      return row;
     });
-    res.status(200).json({ message: 'Đã ghi nhận hoàn cọc cho khách' });
+    await recordClaim({ source: 'CONSULTATION', source_id: c.id, customer_id: c.customer_id, amount: Number(c.deposit_amount), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id })
+      .catch((e) => console.error('❌ Không ghi được khoản hoàn để đối chiếu:', e.message));
+    res.status(200).json({ message: 'Đã ghi nhận hoàn cọc. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) { sendError(res, error); }
 };
 
@@ -708,16 +714,10 @@ const getPublicConsultReviews = async (req, res) => {
   } catch (error) { sendError(res, error); }
 };
 
-// ===== TRỪ CỌC TƯ VẤN VÀO PHÍ KHÁM (service lịch khám gọi) =====
-// Buổi tư vấn đã hoàn thành, cọc chưa hoàn, chưa trừ lần nào, còn trong hạn 30 ngày
-const findAvailableCredit = (customer_id, transaction) => Consultation.findOne({
-  where: {
-    customer_id, status: 'COMPLETED', deposit_outcome: 'NONE', credit_appointment_id: null, paid_at: { [Op.ne]: null },
-    completed_at: { [Op.gte]: dayjs().subtract(CREDIT_VALID_DAYS, 'day').toDate() }
-  },
-  order: [['completed_at', 'ASC']],
-  transaction, lock: transaction ? transaction.LOCK.UPDATE : undefined
-});
+// ===== TRỪ CỌC TƯ VẤN VÀO PHÍ KHÁM: ĐÃ BỎ =====
+// Phí tư vấn không còn trừ vào phí khám nên không gắn thêm khoản nào vào lịch khám mới.
+// Giữ hàm (trả null) để các chỗ đặt lịch khám không phải đổi; getCreditForAppointment / releaseCredit vẫn xử lý lịch cũ đã gắn.
+const findAvailableCredit = async () => null;
 
 // Tổng tiền cọc tư vấn đã gắn vào 1 lịch khám
 const getCreditForAppointment = async (appointment_id) =>

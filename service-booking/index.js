@@ -22,6 +22,7 @@ app.use('/sessions', sessionRoute);
 app.use('/spa-services', spaServiceRoute);
 app.use('/reviews', reviewRoutes);
 app.use('/stats', require('./routes/stats.route'));
+app.use('/config', require('./routes/config.route')); // mốc thời gian chờ (đổi được qua .env khi demo)
 app.use('/reports', require('./routes/report.route')); // Báo cáo doanh thu cho quản lý
 app.use('/consultations', require('./routes/consultation.route')); // Tư vấn chuyên gia (thỉnh giảng)
 app.use('/attendance', require('./routes/attendance.route')); // chấm công
@@ -29,6 +30,8 @@ app.use('/payroll', require('./routes/payroll.route')); // lương
 app.use('/bank-transactions', require('./routes/bankTransaction.route')); // đối soát tiền vào
 app.use('/follow-ups', require('./routes/followUp.route')); // CSKH gọi chăm sóc khách
 app.use('/safety', require('./routes/safety.route')); // sàng lọc an toàn, cảnh báo chống chỉ định
+app.use('/safety-rules', require('./routes/safetyRule.route')); // quản lý quy tắc: quản lý soạn -> bác sĩ xem xét -> quản lý duyệt
+app.use('/tasks', require('./routes/task.route')); // việc đang chờ (chuông thông báo)
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);
@@ -50,6 +53,7 @@ app.listen(PORT, async() => {
         const added = await require('./models').addMissingColumns();
         if (added.length) console.log(`➕ Đã thêm cột mới: ${added.join(', ')}`);
         console.log('✅ Đã kết nối DB và tạo xong bảng phân hệ Booking!');
+        await require('./utils/safetyRules').init(); // nạp quy tắc chống chỉ định (lần đầu: nạp bộ khởi tạo)
         // Mỗi phút dọn lịch giữ chỗ quá hạn chưa thanh toán (khách đóng tab, không quay lại)
         const { releaseExpiredHolds } = require('./controllers/appointment.controller.js');
         releaseExpiredHolds();

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, Zap, Plus, Store, Globe } from 'lucide-react';
 import axios from 'axios';
 import CreateOrderModal from '../components/CreateOrderModal';
+import { refundCode } from '../components/RefundTransferNote';
+import { useLiveRefresh } from '../components/Notifications';
 
 // Đơn tại quầy: CSKH chốt sau buổi khám (có lịch khám) hoặc NVBH bán tại quầy (địa chỉ nhận tại quầy)
 const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin';
@@ -48,6 +50,7 @@ export default function SaleOrderManagement() {
   const [channel, setChannel] = useState('ALL');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [cancelling, setCancelling] = useState(null); // { id, initiator, reason }
+  const [refunding, setRefunding] = useState(null); // { order, account, ref }
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
@@ -73,6 +76,7 @@ export default function SaleOrderManagement() {
   };
 
   useEffect(() => { fetchOrders(); }, []);
+  useLiveRefresh(['orders'], fetchOrders); // đơn mới / đổi trạng thái ở nơi khác: tự cập nhật, không cần tải lại trang
 
   const handleUpdateStatus = async (orderId, newStatus, confirmText) => {
     if (!window.confirm(confirmText || `Bạn muốn chuyển đơn hàng sang trạng thái: ${STATUS_MAP[newStatus].label}?`)) return;
@@ -97,12 +101,12 @@ export default function SaleOrderManagement() {
     }
   };
 
-  const handleConfirmRefund = async (order) => {
-    const refund_ref = window.prompt(`Chuyển trả ${Number(order.refund_amount).toLocaleString('vi-VN')} ₫ cho khách rồi nhập mã giao dịch:`);
-    if (refund_ref === null) return;
+  const handleConfirmRefund = async () => {
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/refund`, { refund_ref }, authConfig());
+      const { order, account, ref } = refunding;
+      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/refund`, { refund_ref: ref.trim(), account: account.trim() }, authConfig());
       alert(res.data?.message);
+      setRefunding(null);
       setSelectedOrder(null);
       fetchOrders();
     } catch (error) {
@@ -333,6 +337,22 @@ export default function SaleOrderManagement() {
                 )}
               </div>
 
+              {/* Sàng lọc an toàn khi bán tại quầy (đơn có hoạt chất cần lưu ý) */}
+              {selectedOrder.safety_screening && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Sàng lọc an toàn tại quầy</h4>
+                  <div className={`rounded-lg border p-3 text-sm space-y-1 ${selectedOrder.safety_screening.acknowledged ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <p>Khách trả lời: <b>{selectedOrder.safety_screening.flags?.length ? selectedOrder.safety_screening.flags.map((f) => ({ PREGNANT: 'Đang mang thai', PLANNING_PREGNANCY: 'Có kế hoạch mang thai', BREASTFEEDING: 'Đang cho con bú' }[f] || f)).join(', ') : 'Không mang thai / cho con bú'}</b></p>
+                    <p>Dị ứng: <b>{selectedOrder.safety_screening.allergies || 'Không'}</b></p>
+                    {selectedOrder.safety_screening.warnings?.map((w, i) => (
+                      <p key={i} className={w.severity === 'CONTRAINDICATED' ? 'text-red-700' : 'text-amber-800'}>• {w.severity_label}: {w.item} – {w.message}</p>
+                    ))}
+                    {selectedOrder.safety_screening.acknowledged && <p className="font-semibold text-red-700">NVBH xác nhận đã tư vấn chống chỉ định, khách vẫn mua</p>}
+                    <p className="text-xs text-slate-500">Hỏi lúc {new Date(selectedOrder.safety_screening.screened_at).toLocaleString('vi-VN')}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Sản phẩm */}
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sản phẩm ({selectedOrder.OrderDetails?.length || 0})</h4>
@@ -399,7 +419,7 @@ export default function SaleOrderManagement() {
                 </div>
               )}
               {selectedOrder.refund_status === 'PENDING' && (
-                <button onClick={() => handleConfirmRefund(selectedOrder)} className="w-full py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700">
+                <button onClick={() => setRefunding({ order: selectedOrder, account: '', ref: '' })} className="w-full py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700">
                   Đã hoàn {Number(selectedOrder.refund_amount).toLocaleString('vi-VN')} ₫ cho khách
                 </button>
               )}
@@ -470,6 +490,22 @@ export default function SaleOrderManagement() {
             <div className="flex justify-end gap-2">
               <button onClick={() => setCancelling(null)} className="px-4 py-2 rounded-lg border font-semibold">Đóng</button>
               <button onClick={handleCancelOrder} disabled={!cancelling.initiator || cancelling.reason.trim().length < 10} className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold disabled:opacity-50">Xác nhận hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {refunding && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-3">
+            <h3 className="text-lg font-bold text-slate-800">Ghi nhận hoàn tiền</h3>
+            <p className="text-sm">Chuyển khoản <b>{Number(refunding.order.refund_amount).toLocaleString('vi-VN')} ₫</b> với nội dung <b className="font-mono bg-slate-100 px-1 rounded">{refundCode(refunding.order.id)}</b></p>
+            <p className="text-xs text-slate-500">Ghi đúng nội dung và số tiền để hệ thống tự đối chiếu khi ngân hàng báo tiền ra. Khoản chưa khớp sẽ chờ quản lý kiểm tra sao kê.</p>
+            <input maxLength={200} className="w-full border rounded-lg p-2 text-sm" placeholder="Tài khoản nhận hoàn: ngân hàng - số tài khoản - chủ tài khoản" value={refunding.account} onChange={(e) => setRefunding({ ...refunding, account: e.target.value })} />
+            <input maxLength={50} className="w-full border rounded-lg p-2 text-sm" placeholder="Mã giao dịch ngân hàng (VD: FT26110212345)" value={refunding.ref} onChange={(e) => setRefunding({ ...refunding, ref: e.target.value })} />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRefunding(null)} className="px-4 py-2 rounded-lg border font-semibold">Đóng</button>
+              <button onClick={handleConfirmRefund} disabled={refunding.account.trim().length < 8 || refunding.ref.trim().length < 4} className="px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold disabled:opacity-50">Xác nhận đã hoàn</button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 const express = require('express');
-const { getProductSafetyInfo, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts } = require('../controllers/product.controller.js');
+const { getAdviceCatalog, getProductSafetyInfo, getSafetyCatalog, getProducts, getShopProducts, getShopProduct, getProductDetailAdmin, upsertProductDetail, getProductsForAdmin, createProduct, updateProduct, deleteProduct, deductInventory, getAllProducts } = require('../controllers/product.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
 const router = express.Router();
@@ -11,8 +11,11 @@ router.get('/', getProducts);
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getProductsForAdmin);
 // Cửa hàng web: chỉ sản phẩm đã bật "Bán trên web"; chi tiết tra theo slug trên URL
 // Thành phần để kiểm tra chống chỉ định khi kê đơn (gồm cả thuốc kê đơn không hiện trên web)
-router.get('/safety-info', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getProductSafetyInfo);
+router.get('/safety-info', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'SALES', 'GEN_MANAGER', 'ADMIN'), getProductSafetyInfo);
+router.get('/safety-catalog', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getSafetyCatalog);
 router.get('/shop', getShopProducts);
+// Sản phẩm để AI soi da gợi ý cho khách (service-ai-analysis gọi)
+router.get('/advice-catalog', getAdviceCatalog);
 router.get('/shop/:slug', getShopProduct);
 // Thông tin bán web (mô tả, thành phần, cách dùng...) do Quản lý / Admin nhập
 router.get('/:id/detail', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getProductDetailAdmin);

@@ -24,7 +24,19 @@ Tài khoản mới đều có mật khẩu `Demo@123`, email đuôi `@glowskin.d
 - Nhân viên mới: `bacsi3@glowskin.demo` (bác sĩ), `ktv2@glowskin.demo` (kỹ thuật viên), `chuyengia2@glowskin.demo` (chuyên gia mỹ phẩm)
 - Khách hàng: xem danh sách trong `output/plan-real.json` (`plan.identity.Users`)
 
-## Chạy
+## Làm mới trước buổi demo
+
+Dữ liệu tính mốc theo ngày tạo. Trước buổi demo (backend đang chạy), ở thư mục gốc dự án:
+
+```bash
+node devops/seed-demo/lam-moi.js
+```
+
+Lệnh tự sao lưu 4 database vào `output/backup/`, xóa dữ liệu demo cũ (kể cả dữ liệu phát sinh từ nó trong lúc demo: đơn, lịch, giao dịch của khách demo, chấm công của ca demo), tạo lại dữ liệu tính tới hôm nay và lập bảng lương. Dữ liệu không thuộc demo giữ nguyên.
+
+Rút ngắn thời gian chờ khi demo: xem mục 0.5 trong `docs/KICH-BAN-TEST-THEO-BPMN.md`.
+
+## Chạy từng bước
 
 Cần Docker đang chạy. Các bước 1 - 3 chạy được với service đang tắt; bước 4 cần backend đang chạy.
 

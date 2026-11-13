@@ -4,6 +4,7 @@ import axios from 'axios'
 import App from './App'
 import { useAuthStore } from './store/authStore'
 import { loadClinicInfo } from './utils/contact'
+import { loadTiming } from './utils/timing'
 import './styles/index.css'
 
 // Server báo phiên đăng nhập không còn hợp lệ (hết hạn / đổi khóa) -> đăng xuất và về trang đăng nhập.
@@ -42,7 +43,7 @@ window.addEventListener('error', (event) => {
   }
 }, true);
 
-loadClinicInfo().finally(() => {
+Promise.all([loadClinicInfo(), loadTiming()]).finally(() => {
   ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
       <App />

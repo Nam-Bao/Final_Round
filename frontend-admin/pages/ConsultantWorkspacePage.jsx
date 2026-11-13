@@ -5,6 +5,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import WalkInModal from '../components/WalkInModal';
 import PatientSafetyPanel from '../components/PatientSafetyPanel';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Title, Text } = Typography;
 const { Search } = Input; // THÊM COMPONENT SEARCH
@@ -23,6 +24,7 @@ export default function ConsultantWorkspacePage() {
   const [form] = Form.useForm();
   
   const [uploadedImages, setUploadedImages] = useState([]);
+  const [screened, setScreened] = useState(false); // đã xác nhận sàng lọc an toàn hôm nay
   const [queues, setQueues] = useState({ checkIn: [], walkIn: [], reschedule: [] });
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [doctorBoard, setDoctorBoard] = useState([]); // tình trạng bác sĩ còn ca hôm nay
@@ -46,6 +48,7 @@ export default function ConsultantWorkspacePage() {
   };
 
   useEffect(() => { fetchQueues(); }, []);
+  useLiveRefresh(['appointments'], fetchQueues);
 
   const fetchDoctorBoard = () => axios.get('http://localhost:4000/api/booking/appointments/walk-in/doctor-board', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } })
     .then((res) => setDoctorBoard(res.data.data || []))
@@ -72,6 +75,7 @@ export default function ConsultantWorkspacePage() {
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer);
+    setScreened(false);
     form.resetFields();
     setUploadedImages([]); 
     
@@ -169,6 +173,7 @@ export default function ConsultantWorkspacePage() {
     );
   };
 
+  const needsScreening = !!selectedCustomer?.patient_profile_id && !screened;
   const RenderPreDoctorForm = () => (
     <Form form={form} layout="vertical" onFinish={handleSubmitForm}>
       <div className="bg-blue-50 p-4 rounded-lg mb-4 border border-blue-100">
@@ -223,7 +228,8 @@ export default function ConsultantWorkspacePage() {
       <Form.Item name="pre_notes" label="Ghi chú nội bộ cho Bác sĩ"><Input.TextArea rows={2} className="w-full" /></Form.Item>
       
       <div className="text-right">
-        <Button type="primary" htmlType="submit" loading={loading} icon={<CheckCircleOutlined />}>{activeTab === 'walkIn' ? 'Mời Khách Vào Phòng' : 'Lưu Hồ Sơ & Chuyển Phòng Khám'}</Button>
+        {needsScreening && <div className="text-xs text-orange-600 mb-2">Bấm "Xác nhận đã hỏi khách" ở khung Sàng lọc an toàn trước khi chuyển hồ sơ.</div>}
+        <Button type="primary" htmlType="submit" loading={loading} disabled={needsScreening} icon={<CheckCircleOutlined />}>{activeTab === 'walkIn' ? 'Mời Khách Vào Phòng' : 'Lưu Hồ Sơ & Chuyển Phòng Khám'}</Button>
       </div>
     </Form>
   );
@@ -305,7 +311,7 @@ export default function ConsultantWorkspacePage() {
               </div>
               <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden">
                 {activeTab === 'reschedule' && <RenderRescheduleForm />}
-                {(activeTab === 'checkIn' || activeTab === 'walkIn') && <PatientSafetyPanel key={selectedCustomer.id} patientProfileId={selectedCustomer.patient_profile_id} />}
+                {(activeTab === 'checkIn' || activeTab === 'walkIn') && <PatientSafetyPanel key={selectedCustomer.id} patientProfileId={selectedCustomer.patient_profile_id} onStatus={setScreened} />}
                 {(activeTab === 'checkIn' || activeTab === 'walkIn') && <RenderPreDoctorForm />}
               </div>
             </div>

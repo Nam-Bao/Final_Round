@@ -12,11 +12,12 @@ class PromotionError extends Error {}
 // Kiểm tra 1 mã và tính số tiền giảm.
 // order_value: tổng toàn bộ đơn; scope_values: tiền theo từng nhóm { SPA_SERVICE, PRODUCT, TREATMENT_PACKAGE }
 // Mã có phạm vi riêng chỉ được tính trên phần tiền thuộc phạm vi đó.
-const evaluatePromotion = async ({ code, order_value, scope_values = {}, customer_id, transaction }) => {
+// staff = true: nhân viên áp hộ khách, được dùng cả mã nội bộ. Khách tự áp thì mã nội bộ coi như không tồn tại.
+const evaluatePromotion = async ({ code, order_value, scope_values = {}, customer_id, transaction, staff = false }) => {
   if (!code) throw new PromotionError('Thiếu mã giảm giá');
 
   const promo = await Promotion.findOne({ where: { code: String(code).toUpperCase(), status: 'ACTIVE' }, transaction });
-  if (!promo) throw new PromotionError('Mã không tồn tại hoặc đã bị khóa.');
+  if (!promo || (!staff && promo.visibility === 'INTERNAL')) throw new PromotionError('Mã không tồn tại hoặc đã bị khóa.');
 
   if (customer_id) {
     const isUsed = await PromotionUsage.findOne({ where: { customer_id, promotion_id: promo.id }, transaction });
@@ -54,7 +55,8 @@ const evaluatePromotion = async ({ code, order_value, scope_values = {}, custome
 
 // Ghi nhận khách đã dùng mã (gọi trong transaction tạo đơn / chốt hóa đơn).
 // Tăng used_count có điều kiện để 2 đơn đồng thời không vượt usage_limit.
-const redeemPromotion = async ({ promo, customer_id, transaction }) => {
+// usage: thông tin lần áp (ảnh xác thực, người áp, kênh, lịch / đơn, số tiền giảm) để quản lý kiểm tra lại
+const redeemPromotion = async ({ promo, customer_id, transaction, usage = {} }) => {
   const [affected] = await Promotion.update(
     { used_count: literal('used_count + 1') },
     {
@@ -68,9 +70,16 @@ const redeemPromotion = async ({ promo, customer_id, transaction }) => {
   if (affected === 0) throw new PromotionError('Mã này đã hết lượt sử dụng.');
 
   if (customer_id) {
-    await PromotionUsage.create({ customer_id, promotion_id: promo.id }, { transaction });
+    await PromotionUsage.create({ customer_id, promotion_id: promo.id, ...usage }, { transaction });
     await SavedPromotion.destroy({ where: { customer_id, promotion_id: promo.id }, transaction });
   }
 };
 
-module.exports = { evaluatePromotion, redeemPromotion, PromotionError };
+// Nhân viên áp mã cho khách phải kèm ảnh xác thực đã tải lên (link ảnh http/https)
+const requireProof = (url) => {
+  const value = String(url || '').trim();
+  if (!/^https?:\/\/\S+$/i.test(value) || value.length > 500) throw new PromotionError('Nhân viên áp mã cho khách phải tải ảnh xác thực');
+  return value;
+};
+
+module.exports = { evaluatePromotion, redeemPromotion, requireProof, PromotionError };

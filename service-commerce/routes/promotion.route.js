@@ -9,7 +9,8 @@ const {
     getActivePromotions,
     savePromotion,
     getSavedPromotions,
-    getUsedPromotions
+    getUsedPromotions,
+    getPromotionUsages
 } = require('../controllers/promotion.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
@@ -27,6 +28,7 @@ router.get('/saved', verifyToken, authorizeRoles('CUSTOMER'), getSavedPromotions
 router.get('/used', verifyToken, authorizeRoles('CUSTOMER'), getUsedPromotions);
 // Các API quản lý dành cho Admin
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getAllPromotionsForAdmin);
+router.get('/admin/usages', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getPromotionUsages);
 router.post('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), createPromotion);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), updatePromotion);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), deletePromotion);

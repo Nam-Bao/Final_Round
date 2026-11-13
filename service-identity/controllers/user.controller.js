@@ -277,6 +277,21 @@ const getTechnicianIds = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+// [NHÂN VIÊN] GET /users/staff-names?ids=a,b — tên + vai trò của nhân viên (hiện "người gửi / người duyệt" ở các màn quy trình).
+// Chỉ trả nhân viên (không trả khách), chỉ tên và vai trò.
+const STAFF_ROLE_LABELS = { ADMIN: 'Quản trị hệ thống', GEN_MANAGER: 'Quản lý chung', DOCTOR: 'Bác sĩ', CONSULTANT: 'Nhân viên CSKH', TECHNICIAN: 'Kỹ thuật viên', SALES: 'Nhân viên bán hàng', EXPERT: 'Chuyên gia' };
+const getStaffNames = async (req, res) => {
+  try {
+    const ids = [...new Set(String(req.query.ids || '').split(',').filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 200);
+    if (!ids.length) return res.status(200).json({ data: [] });
+    const users = await User.findAll({
+      where: { id: { [Op.in]: ids }, role: { [Op.in]: Object.keys(STAFF_ROLE_LABELS) } },
+      attributes: ['id', 'role', 'email'], include: [{ model: Profile, attributes: ['full_name'] }],
+    });
+    res.status(200).json({ data: users.map((u) => ({ id: u.id, role: u.role, role_label: STAFF_ROLE_LABELS[u.role], name: u.Profile?.full_name || u.email })) });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
 const getDoctors = async (req, res) => {
   try {
     const doctors = await User.findAll({
@@ -346,6 +361,7 @@ const getEmployees = async (req, res) => {
 };
 
 module.exports = {
+  getStaffNames,
   lookupCustomerByPhone,
   createWalkInCustomer,
   renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };

@@ -42,10 +42,18 @@ node devops/gia-lap-chuyen-khoan.js "<nội dung dưới mã QR>" <số tiền>
 | Thanh toán | Nội dung | Ví dụ |
 |---|---|---|
 | Cọc lịch khám | `O2O xxxxxx` | `node devops/gia-lap-chuyen-khoan.js "O2O 1a2b3c" 50000` |
-| Cọc tư vấn | `TV xxxxxx` | `node devops/gia-lap-chuyen-khoan.js "TV 1a2b3c" 50000` |
+| Phí tư vấn | `TV xxxxxx` | `node devops/gia-lap-chuyen-khoan.js "TV 1a2b3c" 300000` |
 | Đơn mỹ phẩm | `SP xxxxxx` | `node devops/gia-lap-chuyen-khoan.js "SP 1a2b3c" 472000` |
 
 Muốn test chuyển thừa hoặc thiếu thì nhập số tiền lớn hơn hoặc nhỏ hơn số trên trang.
+
+**Giả lập tiền ra (phòng khám chuyển hoàn cho khách).** Mọi nơi ghi "đã hoàn tiền" đều hiện nội dung chuyển khoản `HOAN xxxxxx`. Thêm chữ `ra` ở cuối lệnh để ngân hàng báo tiền ra:
+
+```
+node devops/gia-lap-chuyen-khoan.js "HOAN 1A2B3C" 50000 ra
+```
+
+Khoản hoàn chỉ chuyển sang **Đã xác minh** khi tiền ra có đúng mã `HOAN` và đúng số tiền (xem mục 11).
 
 ### 0.4. Giả lập GHN báo trạng thái
 
@@ -100,13 +108,13 @@ Lệnh sao lưu database, xóa dữ liệu demo cũ cùng những gì phát sinh
 
 ## 1. Đặt lịch khám online và thanh toán cọc (sơ đồ 01)
 
-Người test: khách (trang 3001, menu **Đặt lịch**), CSKH (trang 3000, **Đối soát tiền vào**).
+Người test: khách (trang 3001, menu **Đặt lịch**), CSKH (trang 3000, **Đối soát & hoàn tiền**).
 
 | Ca | Nhánh trong sơ đồ | Thực hiện | Kết quả đúng |
 |---|---|---|---|
 | 1.1 | Khung giờ còn trống? → Không | Khách chọn bác sĩ, ngày, rồi chọn giờ đã có người đặt | Giờ đó bị khóa (xám), không bấm được; muốn đặt phải chọn giờ khác |
 | 1.2 | Hồ sơ đã từng khám? → Rồi | Đăng nhập `phuc.lh3@glowskin.demo`, đặt lịch cho hồ sơ "Bản thân" | Không có bước thanh toán, phí khám 0đ, lịch hiện ngay ở **Sổ lịch khám** trạng thái đã xác nhận |
-| 1.3 | Lần đầu → Chuyển khoản → Số tiền đủ | Khách mới đặt lịch khám trực tiếp, trang hiện QR 50.000đ. Chạy giả lập đúng nội dung, đúng 50.000 | Vài giây sau trang báo đã thanh toán; Sổ lịch khám: đã xác nhận; **Đối soát tiền vào**: giao dịch đã khớp tự động |
+| 1.3 | Lần đầu → Chuyển khoản → Số tiền đủ | Khách mới đặt lịch khám trực tiếp, trang hiện QR 50.000đ. Chạy giả lập đúng nội dung, đúng 50.000 | Vài giây sau trang báo đã thanh toán; Sổ lịch khám: đã xác nhận; **Đối soát & hoàn tiền**: giao dịch đã khớp tự động |
 | 1.4 | Lần đầu, khám online | Như 1.3 nhưng chọn **Khám online** | Số tiền là 100.000đ (trả trước toàn bộ phí khám) |
 | 1.5 | Số tiền → Thừa | Như 1.3 nhưng giả lập 80.000 | Lịch vẫn được xác nhận; Đối soát có dòng **chuyển thừa** chờ CSKH hoàn phần dư. CSKH bấm **Xử lý**, nhập mã giao dịch hoàn tiền → dòng chuyển sang đã xử lý |
 | 1.6 | Số tiền → Thiếu | Như 1.3 nhưng giả lập 20.000 | Lịch vẫn chờ thanh toán; Đối soát có dòng **chuyển thiếu** để CSKH liên hệ khách |
@@ -131,7 +139,8 @@ Cần một lịch hẹn **hôm nay**: CSKH tạo ở **Quản lý lịch hẹn 
 
 | Ca | Nhánh trong sơ đồ | Thực hiện | Kết quả đúng |
 |---|---|---|---|
-| 3.1 | Đã đặt lịch hôm nay → Rồi | CSKH vào **Không gian tư vấn**, tab **Khách đặt hôm nay** → chọn khách → sàng lọc an toàn, nhập lý do khám, thói quen chăm sóc da → lưu | Khách rời danh sách, vào hàng chờ của bác sĩ đã đặt |
+| 3.1 | Đã đặt lịch hôm nay → Rồi | CSKH vào **Không gian tư vấn**, tab **Khách đặt hôm nay** → chọn khách → hỏi khách các mục **Sàng lọc an toàn** → bấm **Xác nhận đã hỏi khách** → nhập lý do khám, thói quen chăm sóc da → lưu | Khách rời danh sách, vào hàng chờ của bác sĩ đã đặt |
+| 3.1b | Chưa xác nhận sàng lọc | Như 3.1 nhưng không bấm **Xác nhận đã hỏi khách** (hoặc bấm rồi sửa lại một mục) | Nút **Lưu Hồ Sơ & Chuyển Phòng Khám** / **Mời Khách Vào Phòng** bị khóa, có dòng nhắc; gọi thẳng API cũng bị từ chối |
 | 3.2 | Chưa đặt → Tìm hoặc tạo hồ sơ | **Tiếp nhận khách tại quầy** → nhập SĐT chưa có trong hệ thống → tạo hồ sơ mới | Khách vào tab **Danh sách chờ**, không thu cọc; hóa đơn ghi sẵn phí khám 100.000đ chưa thu |
 | 3.3 | Khách cũ đến thẳng | Như 3.2 nhưng nhập SĐT của khách đã từng khám | Khách vào Danh sách chờ, phí khám 0đ |
 | 3.4 | Khách còn chờ? → Không | Ở Danh sách chờ, chọn khách → báo khách đã rời đi | Khách rời danh sách, không phát sinh phí |
@@ -140,7 +149,11 @@ Cần một lịch hẹn **hôm nay**: CSKH tạo ở **Quản lý lịch hẹn 
 | 3.7 | Có cảnh báo chống chỉ định? → Không | Nhập chẩn đoán, ghi chú, hẹn tái khám, kê dịch vụ, gói, sản phẩm → **Hoàn tất khám** | Khách chuyển sang chờ thu tiền; bệnh án hiện trong **Tra cứu Sổ y bạ** |
 | 3.8 | Có cảnh báo chống chỉ định? → Có | Khám hồ sơ đã khai **có kế hoạch mang thai** (`thao.vtp20@glowskin.demo`), kê **Gel trị mụn Klenzit C (Adapalene)** | Hiện cảnh báo **chống chỉ định**; muốn giữ phải ghi lý do, hoặc sửa đơn bỏ sản phẩm đó |
 | 3.8b | Cảnh báo mức thấp | Khám hồ sơ **đang cho con bú** (`tam.htt8@glowskin.demo`), kê Klenzit C hoặc **Điện di Ion Vitamin C** | Chỉ hiện lưu ý / thận trọng, vẫn hoàn tất khám được mà không cần ghi lý do |
-| 3.9 | Chốt hóa đơn | CSKH vào **Thu tiền khách** → chọn khách → kiểm tra dịch vụ, gói, sản phẩm → nhập voucher (ví dụ `GLOWSKIN10` cho mỹ phẩm) → **Áp dụng** → thu tiền | Hóa đơn trừ đúng tiền cọc và cọc tư vấn (nếu có); số phải thu = tổng - cọc - giảm giá |
+| 3.9 | Chốt hóa đơn | CSKH vào **Thu tiền khách** → chọn khách → kiểm tra dịch vụ, gói, sản phẩm → nhập voucher (ví dụ `GLOWSKIN10` cho mỹ phẩm) → **Áp dụng** → **tải ảnh xác thực** → thu tiền | Hóa đơn trừ đúng tiền cọc; số phải thu = tổng - cọc - giảm giá. Chưa tải ảnh xác thực thì nút thu tiền bị khóa |
+| 3.9b | Khám sau buổi tư vấn chuyên gia | Khách đã tư vấn xong (khung **Lịch sử tư vấn chuyên gia** ở trang Thu tiền có dòng tư vấn) → CSKH nhập mã nội bộ `SAUTUVAN` → **Áp dụng** → chụp / tải ảnh lịch sử tư vấn khách cho xem → thu tiền | Giảm 10% (tối đa 200.000đ) trên tổng phí khám + dịch vụ + gói + mỹ phẩm. Quản lý thấy lần áp kèm ảnh ở **Khuyến mãi → Lịch sử áp mã** |
+| 3.10 | Tạm tính cho bác sĩ tư vấn | Bác sĩ chọn dịch vụ / gói / sản phẩm ở tab **Lộ trình & Kê đơn** | Khung **Tạm tính chi phí của khách** cập nhật ngay: phí khám, từng mục, tổng, đã cọc, số khách cần trả thêm |
+| 3.11 | AI rà soát đơn (tham khảo) | Kê sản phẩm cho hồ sơ có kế hoạch mang thai (như 3.8) → bấm **Rà soát bằng AI** | AI nêu thêm điểm cần lưu ý (nhãn **AI**) và câu nên hỏi khách. **Sản phẩm thay thế do hệ thống chọn theo quy tắc**: cùng "vấn đề da xử lý được", không vướng cảnh báo với khách, xếp theo số lần bác sĩ đã kê cho chẩn đoán tương tự (VD: Klenzit → Kem Azelaic Acid). Bấm **Dùng** để thay vào đơn. AI lỗi vẫn có sản phẩm thay thế. Cảnh báo của bảng quy tắc vẫn bắt buộc như 3.8. AI dùng Gemini qua `GEMINI_API_KEY`, mất khoảng 30 - 60 giây |
+| 3.11b | Cảnh báo AI khi hoàn tất khám | Sau 3.11, giữ sản phẩm AI cảnh báo mức **Thận trọng / Chống chỉ định** (kể cả khi bảng quy tắc không cảnh báo) → **Hoàn tất khám** | Hiện hộp xác nhận "gồm cảnh báo của AI rà soát", phải ghi lý do mới lưu được (lưu cùng cảnh báo bảng quy tắc). Bỏ sản phẩm đó khỏi đơn thì không bị hỏi |
 | 3.10 | Có dịch vụ hoặc gói? → Có | Thu tiền cho khách có gói liệu trình | Kỹ thuật viên thấy khách ở **Không gian kỹ thuật viên** (buổi 1); khách thấy gói ở **Gói liệu trình** |
 | 3.11 | Có dịch vụ hoặc gói? → Không | Thu tiền cho khách chỉ khám và mua sản phẩm | Hoàn tất; đơn mỹ phẩm tại quầy hiện ở tab **Đơn tại quầy** của nhân viên bán hàng |
 
@@ -150,10 +163,10 @@ Cần một lịch hẹn **hôm nay**: CSKH tạo ở **Quản lý lịch hẹn 
 |---|---|---|---|
 | 4.1 | Mở ca tư vấn | Quản lý vào **Tư vấn chuyên gia → Ca tư vấn** → chọn chuyên gia, ngày, ca → **Mở ca** | Khách thấy giờ trống của chuyên gia ở trang **Tư vấn chuyên gia** |
 | 4.2 | Hợp lệ? → Không | Khách chọn giờ trùng với lịch khám hoặc lịch tư vấn khác của chính mình | Bị chặn, phải chọn giờ khác |
-| 4.3 | Hợp lệ → Đủ cọc | Khách chọn lĩnh vực, chuyên gia, giờ, nhập câu hỏi → thanh toán → giả lập `TV xxxxxx` 50.000 | Lịch tư vấn đã xác nhận; chuyên gia thấy ở **Không gian chuyên gia** |
+| 4.3 | Hợp lệ → Đã thanh toán | Khách chọn lĩnh vực, chuyên gia, giờ, nhập câu hỏi → thanh toán phí tư vấn → giả lập `TV xxxxxx` 300.000 | Lịch tư vấn đã xác nhận; chuyên gia thấy ở **Không gian chuyên gia** |
 | 4.4 | Đủ cọc? → Thiếu | Như 4.3 nhưng giả lập số tiền nhỏ hơn | Lịch chưa xác nhận; Đối soát có dòng chuyển thiếu |
 | 4.5 | Hết giờ giữ chỗ | Đặt nhưng không thanh toán, đợi hết giờ giữ chỗ | Lịch tư vấn bị hủy, giờ trống lại |
-| 4.6 | Ai đã vào phòng? → Cả hai | Đến giờ hẹn: khách vào phòng từ Sổ lịch khám, chuyên gia bấm **Vào phòng tư vấn**. Sau ít nhất 5 phút chuyên gia nhập nhận định, lời khuyên, gợi ý sản phẩm → **Gửi cho khách** | Lịch hoàn thành; khách xem kết quả trong Sổ lịch khám. Nếu chuyên gia khuyên đi khám, lần khám sau hóa đơn trừ 50.000đ cọc tư vấn (thấy ở ca 3.9) |
+| 4.6 | Ai đã vào phòng? → Cả hai | Đến giờ hẹn: khách vào phòng từ Sổ lịch khám, chuyên gia bấm **Vào phòng tư vấn**. Sau ít nhất 5 phút chuyên gia nhập nhận định, lời khuyên, gợi ý sản phẩm → **Gửi cho khách** | Lịch hoàn thành; khách xem kết quả trong Sổ lịch khám. Phí tư vấn không trừ vào phí khám; khách đi khám sau đó được CSKH áp voucher nội bộ (ca 3.9b) |
 | 4.7 | Ai đã vào phòng? → Khách vắng | Chỉ chuyên gia vào phòng; đợi phòng đóng (45 phút sau giờ hẹn) | Lịch "Khách vắng", khách mất cọc |
 | 4.8 | Chuyên gia vắng / quá 24 giờ chưa gửi kết quả | Khách vào phòng, chuyên gia không vào (hoặc không gửi kết quả trong 24 giờ) | Lịch chuyển chờ hoàn cọc; quản lý / CSKH bấm **Đã hoàn cọc** và nhập mã giao dịch |
 
@@ -245,6 +258,83 @@ Có sẵn: một đề xuất nhập vật tư chờ duyệt (vật tư sắp ch
 | 10.6 | Duyệt? → Có → Đặt hàng → Nhận hàng | **Duyệt** → ghi nhà cung cấp, ngày dự kiến → **Đã đặt hàng** → khi hàng về **Nhận hàng**, nhập số lô, hạn dùng, giá nhập | Tồn kho tăng, có lô mới trong **Lô & Kiểm kê**; lô đã hết hạn không cho nhập |
 
 ---
+
+## 11. Kiểm soát hoàn tiền
+
+Người test: CSKH (`tuvan1@gmail.com`), nhân viên bán hàng (`banhang1@gmail.com`), quản lý (`quanly@gmail.com`). Trang **Đối soát & hoàn tiền**.
+
+Áp dụng cho 5 nơi hoàn tiền: tiền vào không khớp (1.5, 1.8), hoàn cọc khám (2.5), hoàn cọc tư vấn (4.8), đơn mỹ phẩm hủy (6.1 - 6.5), hoàn trả hàng (7.7, 7.8).
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 11.1 | Liên hệ khách | Làm ca 1.8 (tiền về sau khi hết giữ chỗ), mở tab **Tiền vào chưa xử lý** | Cột **Khách hàng** hiện tên, SĐT, email của chủ lịch theo mã `O2O`. Giao dịch không có mã: hiện hướng dẫn tra tên người chuyển / mã tham chiếu |
+| 11.2 | Thiếu thông tin | Bấm **Xử lý** → **Đã hoàn tiền**, bỏ trống tài khoản nhận hoặc nhập số tiền hoàn lớn hơn số tiền vào | Bị từ chối |
+| 11.3 | Nhân viên ghi "đã hoàn" | Nhập tài khoản nhận, mã giao dịch bất kỳ, nội dung → **Lưu** | Giao dịch sang **Đã xử lý** kèm nhãn **Chờ ngân hàng báo tiền ra**; tab **Hoàn tiền chờ xác minh** có khoản này, ghi rõ người ghi nhận |
+| 11.4 | Ngân hàng báo tiền ra → khớp | Chạy `node devops/gia-lap-chuyen-khoan.js "HOAN <mã>" <số tiền hoàn> ra` (mã và số tiền như trong hộp hoàn tiền) | Khoản chuyển sang **Hoàn tiền đã xác minh**, hiện giao dịch ngân hàng đã khớp |
+| 11.5 | Sai số tiền | Giả lập tiền ra đúng mã nhưng khác số tiền | Khoản vẫn chờ xác minh |
+| 11.6 | Nhân viên nhập mã bừa, không chuyển | Làm 11.3 nhưng không chạy giả lập tiền ra | Khoản nằm mãi ở **Hoàn tiền chờ xác minh**; sau 24 giờ có nhãn **Quá 24 giờ** |
+| 11.7 | Quản lý đối chiếu → Không thấy tiền | Quản lý bấm **Đối chiếu** → **Không thấy tiền ra**, ghi chú ≥ 10 ký tự | Nhãn **Sai lệch**. Khi nhân viên chuyển thật (chạy 11.4) khoản tự xác minh |
+| 11.8 | Quản lý đối chiếu → Có trên sao kê | Khoản chờ (VD chuyển sai nội dung) → **Đối chiếu** → **Sao kê có khoản tiền ra này**, ghi chú | Xác minh bởi quản lý, lưu tên và ghi chú |
+| 11.9 | Không tự duyệt | CSKH gọi API đối chiếu, hoặc quản lý đối chiếu khoản do chính mình ghi nhận | Bị từ chối |
+| 11.10 | Đơn hàng / hoàn trả | Bán hàng ghi hoàn tiền đơn hủy (phải nhập tài khoản nhận) hoặc hoàn trả hàng (dùng tài khoản khách khai) | Khoản hiện ở trang đối soát của CSKH / quản lý, xác minh như 11.4 |
+
+Dữ liệu demo có sẵn các khoản hoàn cũ đã xác minh và 1 khoản gần nhất **chờ xác minh** để demo 11.7, 11.8.
+
+## 12. Voucher nội bộ
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 12.1 | Tạo mã nội bộ | Quản lý **Khuyến mãi → Tạo Mã Code**, chọn **Hiển thị: Lưu hành nội bộ** | Bảng có nhãn **Nội bộ**; mã không hiện ở trang Khuyến mãi của khách |
+| 12.2 | Khách tự nhập mã nội bộ | Khách nhập mã đó khi mua mỹ phẩm online | Báo mã không tồn tại |
+| 12.3 | Nhân viên áp mã | CSKH (Thu tiền khách) hoặc NVBH (Tạo đơn tại quầy) nhập mã → không tải ảnh | Không lưu được, yêu cầu ảnh xác thực |
+| 12.4 | Kiểm soát | Quản lý bấm **Lịch sử áp** ở dòng mã | Thấy khách, kênh (hoá đơn sau khám / bán tại quầy / online), người áp, số tiền giảm, ảnh xác thực |
+
+## 13. Bán mỹ phẩm tại quầy: sàng lọc an toàn
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 13.1 | Thuốc kê đơn | NVBH **Quản lý đơn hàng → Tạo đơn**, mở danh sách sản phẩm | Không có Klenzit C (thuốc kê đơn chỉ bán theo đơn bác sĩ) |
+| 13.2 | Không có hoạt chất cần lưu ý | Chọn kem chống nắng Anessa, kem B5 | Không hiện khung sàng lọc, tạo đơn bình thường |
+| 13.3 | Có hoạt chất cần lưu ý | Chọn Effaclar Duo+M (salicylic acid) | Hiện khung **Sàng lọc an toàn**: 3 câu (mang thai, kế hoạch mang thai, cho con bú) + dị ứng; chưa tick **Đã hỏi khách** thì không tạo được |
+| 13.4 | Thận trọng | Tick **Đang mang thai** | Cảnh báo **Thận trọng** kèm nguồn; tạo đơn được |
+| 13.5 | Chống chỉ định | Ghi dị ứng **Niacinamide** | Cảnh báo **Chống chỉ định**; phải tick **Đã tư vấn, khách vẫn muốn mua** (hoặc bỏ sản phẩm) mới tạo được |
+| 13.6 | Lưu theo đơn | Mở đơn vừa tạo | Khung **Sàng lọc an toàn tại quầy**: câu trả lời, cảnh báo, người hỏi, giờ hỏi (viền đỏ nếu khách vẫn mua dù chống chỉ định) |
+| 13.7 | Điền sẵn lần sau | Tạo đơn khác cho cùng khách, chọn lại Duo+M | Câu trả lời điền sẵn theo "Khai khi mua tại quầy" |
+| 13.8 | Kéo lên hồ sơ | Khách đến khám, CSKH mở **Không gian tư vấn** | Khung sàng lọc hiện "Khách khai khi mua tại quầy ngày …" + nút **Điền vào form**; vẫn phải bấm **Xác nhận đã hỏi khách** |
+
+## 14. Quy tắc an toàn (sơ đồ 11)
+
+Chỉ **quản lý chung** duyệt (admin không tham gia). Cần 1 quản lý chung và 2 - 3 bác sĩ, mở mỗi người ở 1 cửa sổ ẩn danh để thấy thông báo real-time.
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 14.1 | Bộ quy tắc khởi tạo | Quản lý **Dịch vụ → Quy tắc an toàn**, tab **Đang áp dụng** | 37 quy tắc, mỗi quy tắc có nguồn; bấm 1 dòng xem chi tiết + nhật ký |
+| 14.2 | Quản lý soạn | **Soạn quy tắc**: Đang mang thai + **Thêm hoạt chất mới** "Hydroquinone" (từ khóa hydroquinone) + Chống chỉ định + lời nhắc + nguồn | Ô xem trước báo khớp sản phẩm nào; lưu → tab **Nháp**; không có nút Duyệt |
+| 14.3 | Thiếu nguồn / trùng | Lưu khi chưa có nguồn; hoặc chọn Mang thai + Retinoid dạng thuốc | Báo phải có nguồn / đã có quy tắc đang áp dụng (dùng "Sửa" ở quy tắc đó) |
+| 14.4 | Gửi bác sĩ | **Gửi bác sĩ xem xét**, chọn 2 bác sĩ | Chuông và menu **Quy tắc an toàn** của 2 bác sĩ hiện số 1 ngay; bác sĩ thấy "Gửi bởi **Quản lý chung** <tên>" |
+| 14.5 | Bác sĩ trả lời | Bác sĩ 1 **Đồng ý**; bác sĩ 2 **Cần sửa** (phải ghi lý do) | Trang quản lý tự cập nhật; quy tắc sang tab **Chờ quản lý xử lý**; nút Duyệt bị khóa vì có "Cần sửa" |
+| 14.6 | Sửa và gửi lại | Quản lý **Sửa** → quy tắc về Nháp → gửi lại | Ý kiến vòng trước vẫn xem được ở "Ý kiến các vòng trước" |
+| 14.7 | Đổi bác sĩ | Khi đang chờ, **Đổi bác sĩ xem xét** | Bác sĩ cũ hết thông báo, bác sĩ mới có thông báo |
+| 14.8 | Duyệt | Các bác sĩ đều Đồng ý → quản lý chung **Duyệt** | Quy tắc sang **Đang áp dụng**, có hiệu lực ngay ở màn kê đơn, thu tiền, bán tại quầy; nhật ký ghi vai trò từng người |
+| 14.9 | Thử quy tắc | Trong chi tiết, khung **Thử quy tắc**: chọn tình trạng + sản phẩm / dịch vụ → **Chạy thử** | Hiện cảnh báo, đánh dấu cảnh báo do quy tắc đang soạn |
+| 14.10 | Từ chối | Quản lý **Từ chối** (ghi lý do) một quy tắc đang chờ | Bác sĩ đang chờ trả lời hết thông báo |
+| 14.11 | Bác sĩ đề xuất | Bác sĩ **Quy tắc an toàn → Đề xuất quy tắc mới** → **Lưu và gửi quản lý** | Quản lý có thông báo; tab **Chờ quản lý xử lý** có đề xuất, ghi "Đề xuất bởi Bác sĩ <tên>" |
+| 14.12 | Yêu cầu sửa | Quản lý **Yêu cầu bác sĩ sửa** (ghi nội dung) | Bác sĩ có thông báo "Đề xuất của bạn cần sửa"; quản lý không có nút Sửa nội dung đề xuất |
+| 14.13 | Bác sĩ sửa, gửi lại | Bác sĩ **Sửa đề xuất** → **Gửi quản lý** | Đề xuất quay lại tab Chờ quản lý xử lý |
+| 14.14 | Gửi thêm bác sĩ | Quản lý **Gửi thêm bác sĩ xem xét** (không chọn được chính bác sĩ đề xuất) | Đi tiếp như 14.5 - 14.8 |
+| 14.15 | Duyệt thẳng đề xuất | Quản lý **Duyệt** đề xuất đang chờ | Áp dụng ngay |
+| 14.16 | Sửa quy tắc đang áp dụng | Mở quy tắc đang áp dụng → **Sửa** (ghi lý do) → sửa nội dung bản mới → gửi bác sĩ → duyệt | Bản mới **phiên bản 2**; trong lúc chờ bản cũ vẫn áp dụng; chi tiết bản mới hiện cả nội dung bản cũ để so sánh; duyệt xong bản cũ sang **Lịch sử** ("Đã thay bằng bản mới") |
+| 14.17 | Ngưng quy tắc | Bác sĩ mở quy tắc đang áp dụng → **Đề xuất ngưng** (ghi lý do) → **Gửi quản lý** → quản lý duyệt | Quy tắc gốc "Đã ngưng áp dụng", không còn cảnh báo ở kê đơn / bán tại quầy |
+| 14.18 | Không tạo 2 bản cùng lúc | Khi quy tắc đang có bản sửa chưa xong, thử tạo thêm bản sửa / đề xuất ngưng | Báo đang có bản chưa xử lý xong |
+
+## 15. Thông báo real-time
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 15.1 | Chuông | Đăng nhập từng vai trò, bấm chuông góc trên | Danh sách **Việc cần xử lý** theo vai trò (VD NVBH: đơn chờ duyệt, trả hàng; CSKH: khách chờ thu tiền, hoàn cọc; quản lý: hoàn tiền chờ đối chiếu, duyệt ca, bài viết, quy tắc) + số ở menu |
+| 15.2 | Cập nhật không tải lại | Khách đặt đơn online / CSKH chuyển khách cho bác sĩ | Trang NVBH / bác sĩ đang mở tự hiện đơn / khách mới, số trên chuông tăng |
+| 15.3 | Tải lại không mất | Bấm F5 | Số việc vẫn còn |
+| 15.4 | Tự hết khi xử lý xong | Xử lý xong việc (duyệt đơn, thu tiền...) | Số việc giảm / mất, ở mọi máy đang mở |
 
 ## Ghi lại kết quả
 

@@ -1,7 +1,8 @@
+const { validateClaimInput, sendRefundClaim } = require('../utils/refundClaim');
 const { sequelize, Cart, CartItem, Product, ProductDetail, Order, OrderDetail, UserAddress, Promotion, SavedPromotion, PromotionUsage, OrderReturn } = require('../models');
 const { handleReturnWebhook } = require('./return.controller');
 const { Op } = require('sequelize');
-const { evaluatePromotion, redeemPromotion } = require('../utils/promotionRules');
+const { evaluatePromotion, redeemPromotion, requireProof } = require('../utils/promotionRules');
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricing');
 const axios = require('axios');
@@ -165,7 +166,7 @@ exports.checkout = async (req, res) => {
       // Kiểm tra mã đầy đủ như API /promotions/apply (trước đây checkout bỏ qua hạn dùng, giới hạn lượt, phạm vi áp dụng)
       const promo = await Promotion.findOne({ where: { code: String(promotion_code).toUpperCase(), status: 'ACTIVE' }, transaction: t, lock: t.LOCK.UPDATE });
       const now = new Date();
-      if (!promo) throw new Error('Mã giảm giá không tồn tại hoặc đã bị khóa');
+      if (!promo || promo.visibility === 'INTERNAL') throw new Error('Mã giảm giá không tồn tại hoặc đã bị khóa'); // mã nội bộ chỉ nhân viên áp
       if (promo.start_date && now < new Date(promo.start_date)) throw new Error('Mã này chưa đến thời gian áp dụng');
       if (promo.end_date && now > new Date(promo.end_date)) throw new Error('Mã này đã hết hạn');
       if (promo.usage_limit != null && Number(promo.used_count || 0) >= Number(promo.usage_limit)) throw new Error('Mã này đã hết lượt sử dụng');
@@ -183,7 +184,7 @@ exports.checkout = async (req, res) => {
 
       await Promotion.increment('used_count', { by: 1, where: { id: promo.id }, transaction: t });
       await SavedPromotion.destroy({ where: { customer_id, promotion_id: promo.id }, transaction: t });
-      await PromotionUsage.create({ customer_id, promotion_id: promo.id }, { transaction: t });
+      await PromotionUsage.create({ customer_id, promotion_id: promo.id, channel: 'ONLINE', discount_amount }, { transaction: t });
       promotion_id = promo.id;
     }
 
@@ -319,7 +320,8 @@ exports.updateOrderStatus = async (req, res) => {
       }));
 
       // Bổ sung các thông số để truyền vào Payload GHN
-      const totalWeight = items.reduce((sum, item) => sum + (item.weight * item.quantity), 0);
+      // Cùng cách tính với lúc báo phí cho khách (có cả bao bì) để phí GHN thu shop khớp phí khách đã trả
+      const totalWeight = items.reduce((sum, item) => sum + (item.weight * item.quantity), PACKAGING_WEIGHT);
       let codAmount = 0;
       // Chỉ thu hộ nếu phương thức thanh toán là COD (Tiền mặt)
       if (order.payment_method === 'COD') {
@@ -331,7 +333,9 @@ exports.updateOrderStatus = async (req, res) => {
         from_address: warehouse.address,
         from_ward_code: warehouse.ward_code,
         from_district_id: warehouse.district_id,
-        payment_type_id: 2,
+        // 1 = shop trả phí GHN. Khách đã trả phí ship cho phòng khám (chuyển khoản, hoặc gộp trong tiền thu hộ COD),
+        // để 2 (người nhận trả) thì shipper thu phí ship của khách lần nữa
+        payment_type_id: 1,
         note: order.note || "Giao hàng trong giờ hành chính",
         required_note: "CHOXEMHANGKHONGTHU",
         to_name: order.recipient_name,
@@ -580,13 +584,16 @@ exports.setReturnCause = async (req, res) => {
 exports.confirmOrderRefund = async (req, res) => {
   try {
     const refund_ref = String(req.body.refund_ref || '').trim();
-    if (refund_ref.length < 4 || refund_ref.length > 50) return res.status(400).json({ success: false, message: 'Nhập mã giao dịch hoàn tiền (4 - 50 ký tự)' });
+    const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+    const order = await Order.findByPk(req.params.id);
     const [count] = await Order.update(
       { refund_status: 'REFUNDED', refund_ref, refunded_at: new Date(), refunded_by: req.user.id },
       { where: { id: req.params.id, refund_status: 'PENDING' } }
     );
-    if (!count) return res.status(409).json({ success: false, message: 'Đơn này không có khoản chờ hoàn tiền' });
-    return res.status(200).json({ success: true, message: 'Đã ghi nhận hoàn tiền' });
+    if (!count || !order) return res.status(409).json({ success: false, message: 'Đơn này không có khoản chờ hoàn tiền' });
+    await sendRefundClaim({ source: 'ORDER', source_id: order.id, customer_id: order.customer_id, amount: Number(order.refund_amount), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id });
+    return res.status(200).json({ success: true, message: 'Đã ghi nhận hoàn tiền. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -594,7 +601,7 @@ exports.confirmOrderRefund = async (req, res) => {
 
 // Ghi kết quả đối soát vào sổ giao dịch chung bên service-booking; lỗi ghi sổ không được làm hỏng việc nhận tiền
 const logBankTransaction = (body, entry) => axios.post('http://localhost:4000/api/booking/bank-transactions/order-log', {
-  externalId: body.id, amount: Number(body.transferAmount), content: body.content, receivedAt: body.transactionDate, ...entry,
+  externalId: body.id, amount: Number(body.transferAmount), content: body.content, receivedAt: body.transactionDate, referenceCode: body.referenceCode, ...entry,
 }, { headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY } })
   .catch((e) => console.error('❌ [SEPAY WEBHOOK] Không ghi được sổ giao dịch:', body.id, e.message));
 
@@ -613,8 +620,11 @@ exports.sepayOrderWebhook = async (req, res) => {
         if (candidates.length > 1) console.warn(`⚠️ [SEPAY WEBHOOK] Mã SP ${shortId} khớp ${candidates.length} đơn, cần đối soát tay`);
         const order = candidates.length === 1 ? candidates[0] : null;
         if (!order) {
+          // Đơn đã hết hạn / đã hủy: vẫn tìm khách theo mã để CSKH liên hệ hoàn tiền (trùng mã giữa 2 khách thì không đoán)
+          const owners = [...new Set((await Order.findAll({ where: { payment_method: 'VIETQR_SEPAY' }, attributes: ['id', 'customer_id'], raw: true }))
+            .filter((o) => o.id.toLowerCase().startsWith(shortId)).map((o) => o.customer_id))];
           await logBankTransaction(req.body, {
-            code: shortId, status: 'UNMATCHED',
+            code: shortId, status: 'UNMATCHED', customer_id: owners.length === 1 ? owners[0] : null,
             reason: candidates.length ? 'Mã trùng nhiều đơn hàng' : 'Không còn đơn chờ thanh toán (đã hủy hoặc đã trả)',
           });
         }
@@ -630,10 +640,10 @@ exports.sepayOrderWebhook = async (req, res) => {
                console.log(`✅ [SEPAY WEBHOOK] Đã nhận thanh toán ${transferAmount} cho đơn hàng mua Mỹ phẩm ${order.id}`);
                const excess = Number(transferAmount) - amountToPay;
                await logBankTransaction(req.body, excess > 0
-                 ? { code: shortId, status: 'OVERPAID', matched_id: order.id, reason: `Chuyển thừa ${excess.toLocaleString('vi-VN')}đ, cần hoàn phần dư` }
-                 : { code: shortId, status: 'MATCHED', matched_id: order.id });
+                 ? { code: shortId, status: 'OVERPAID', matched_id: order.id, customer_id: order.customer_id, reason: `Chuyển thừa ${excess.toLocaleString('vi-VN')}đ, cần hoàn phần dư` }
+                 : { code: shortId, status: 'MATCHED', matched_id: order.id, customer_id: order.customer_id });
            } else {
-               await logBankTransaction(req.body, { code: shortId, status: 'PARTIAL', matched_id: order.id, reason: `Chuyển thiếu: cần ${amountToPay.toLocaleString('vi-VN')}đ` });
+               await logBankTransaction(req.body, { code: shortId, status: 'PARTIAL', matched_id: order.id, customer_id: order.customer_id, reason: `Chuyển thiếu: cần ${amountToPay.toLocaleString('vi-VN')}đ` });
            }
         }
       }
@@ -754,12 +764,37 @@ exports.createStaffOrder = async (req, res) => {
 
     let products;
     let shipping_fee = 0;
+    let safetyScreening = null;
     try {
         products = await Product.findAll({ where: { id: productIds, type: 'PRODUCT' }, include: [{ model: ProductDetail, attributes: ['is_prescription'] }] });
         if (products.length !== productIds.length) return res.status(400).json({ success: false, message: 'Có sản phẩm không tồn tại hoặc không bán' });
         // Thuốc kê đơn chỉ bán theo đơn bác sĩ trong lịch khám (đơn tại quầy), NVBH không tự bán
         const rx = products.find((p) => p.ProductDetail?.is_prescription);
         if (rx) return res.status(400).json({ success: false, message: `${rx.name} là thuốc kê đơn, chỉ bán theo đơn của bác sĩ` });
+
+        // Sàng lọc an toàn tại quầy: booking quyết định đơn có cần hỏi không và tính cảnh báo theo câu trả lời.
+        // Không kiểm tra được thì không bán (an toàn trước), NVBH thử lại.
+        const answers = req.body.safety_screening;
+        try {
+            const check = (await axios.post('http://localhost:4000/api/booking/safety/counter-check',
+                { customer_id, product_ids: productIds, ...(answers ? { answers } : {}) },
+                { headers: { Authorization: req.headers.authorization }, timeout: 15000 })).data.data;
+            if (check.needs_screening) {
+                if (!answers) return res.status(400).json({ success: false, code: 'SCREENING_REQUIRED', message: 'Đơn có sản phẩm cần hỏi khách trước khi bán (mang thai, cho con bú, dị ứng)' });
+                if (check.has_contraindication && answers.acknowledged !== true) {
+                    return res.status(400).json({ success: false, code: 'SAFETY_ACK_REQUIRED', message: 'Có cảnh báo chống chỉ định: tư vấn cho khách rồi xác nhận "Đã tư vấn, khách vẫn muốn mua", hoặc bỏ sản phẩm khỏi đơn' });
+                }
+                safetyScreening = {
+                    flags: check.answers.flags, allergies: check.answers.allergies,
+                    warnings: check.warnings.map((w) => ({ severity: w.severity, severity_label: w.severity_label, item: w.item, condition: w.condition, message: w.message, sources: (w.sources || []).map((s) => s.label) })),
+                    acknowledged: check.has_contraindication ? true : null,
+                    patient_profile_id: check.profile_id, screened_by: req.user.id, screened_at: new Date().toISOString(),
+                };
+            }
+        } catch (error) {
+            console.error('Lỗi sàng lọc tại quầy:', error.response?.data || error.message);
+            return res.status(503).json({ success: false, message: 'Không kiểm tra được an toàn sản phẩm, vui lòng thử lại' });
+        }
 
         // Phí ship do server tự hỏi GHN (ngoài transaction, không giữ khóa DB khi chờ API bên ngoài)
         if (isDelivery) {
@@ -791,10 +826,12 @@ exports.createStaffOrder = async (req, res) => {
         let discount_amount = 0;
         let promotion_id = null;
         if (promotion_code) {
+            // Nhân viên áp mã hộ khách phải kèm ảnh xác thực; được dùng cả mã nội bộ
+            const proof_url = requireProof(req.body.voucher_proof_url);
             const { promo, discount } = await evaluatePromotion({
-                code: promotion_code, order_value: total_amount, scope_values: { PRODUCT: total_amount }, customer_id, transaction: t
+                code: promotion_code, order_value: total_amount, scope_values: { PRODUCT: total_amount }, customer_id, transaction: t, staff: true
             });
-            await redeemPromotion({ promo, customer_id, transaction: t });
+            await redeemPromotion({ promo, customer_id, transaction: t, usage: { proof_url, applied_by: req.user.id, applied_role: req.user.role, channel: 'COUNTER', discount_amount: discount } });
             promotion_id = promo.id;
             discount_amount = discount;
         }
@@ -813,7 +850,8 @@ exports.createStaffOrder = async (req, res) => {
             promotion_id, discount_amount,
             // Tại quầy: khách trả tiền và nhận hàng ngay. Giao hàng: chờ duyệt / chờ chuyển khoản như đơn online
             status: isDelivery ? 'UNPAID' : 'COMPLETED',
-            payment_method
+            payment_method,
+            safety_screening: safetyScreening,
         }, { transaction: t });
 
         await OrderDetail.bulkCreate(products.map((product) => ({
@@ -825,6 +863,14 @@ exports.createStaffOrder = async (req, res) => {
         })), { transaction: t });
 
         await t.commit();
+        // Ghi câu trả lời vào hồ sơ "Bản thân" của khách: lần mua sau điền sẵn, CSKH thấy khi khách đến khám
+        if (safetyScreening?.patient_profile_id) {
+            axios.post('http://localhost:4000/api/booking/safety/counter-report', {
+                patient_profile_id: safetyScreening.patient_profile_id, flags: safetyScreening.flags, allergies: safetyScreening.allergies,
+                order_id: order.id, reported_by: req.user.id,
+            }, { headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY } })
+                .catch((e) => console.error('❌ Không ghi được câu trả lời sàng lọc vào hồ sơ khách:', order.id, e.message));
+        }
         return res.status(201).json({ success: true, data: order });
     } catch (error) {
         await t.rollback();

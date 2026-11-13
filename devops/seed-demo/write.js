@@ -14,7 +14,7 @@ const ORDER = {
   identity: ['Users', 'Profiles', 'PatientProfiles', 'DoctorProfiles', 'EmployeeRecords', 'MedicalRecords'],
   booking: ['SpaServices', 'TreatmentPackages', 'AttendanceKiosks', 'WorkShifts', 'ShiftRequests', 'AttendanceExplanations', 'AttendanceRecords', 'AttendanceCheckoutRequests',
     'SalaryRates', 'PatientSafeties', 'ExpertShifts', 'Appointments', 'Invoices', 'Transactions', 'AppointmentCancellations', 'AppointmentReviews', 'CustomerPackages',
-    'TreatmentSessions', 'ServiceSessions', 'ServiceReviews', 'Consultations', 'ExpertPayouts', 'BankTransactions', 'FollowUpLogs'],
+    'TreatmentSessions', 'ServiceSessions', 'ServiceReviews', 'Consultations', 'ExpertPayouts', 'BankTransactions', 'RefundClaims', 'FollowUpLogs'],
   commerce: ['Promotions', 'Products', 'ProductDetails', 'MaterialSpecs', 'MaterialNorms', 'InventoryRequests', 'MaterialLots', 'UserAddresses', 'Orders', 'OrderDetails', 'PromotionUsages', 'Reviews', 'OrderReturns'],
   media: ['Articles', 'ArticleSubmissions'],
 };

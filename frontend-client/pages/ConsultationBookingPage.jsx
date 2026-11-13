@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import { MessagesSquare, Star, Briefcase, Clock, Calendar, Info, Video, IdCard } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import DoctorProfileModal from '../components/DoctorProfileModal';
-import { CONSULT_FIELDS, CONSULT_DEPOSIT, CREDIT_VALID_DAYS, formatVnd } from '../utils/consult';
+import { CONSULT_FIELDS, consultFee, formatVnd } from '../utils/consult';
 import { CONSULT_HOURS } from '../utils/contact';
 
 const API = '/api';
@@ -208,17 +208,18 @@ export default function ConsultationBookingPage() {
               <p className="flex items-center gap-1"><Video className="w-4 h-4 text-info" /> Hình thức: <b>Video call trên website</b></p>
             </div>
             <div className="border-t pt-3 flex justify-between font-bold text-lg">
-              <span>Đặt cọc:</span><span className="text-primary">{formatVnd(CONSULT_DEPOSIT)}</span>
+              <span>Phí tư vấn:</span><span className="text-primary">{formatVnd(consultFee())}</span>
             </div>
             <div className="bg-info/10 border border-info/30 rounded-lg p-3 text-xs space-y-1">
-              <p className="font-semibold flex items-center gap-1"><Info className="w-4 h-4" /> Quy định tiền cọc</p>
-              <p>• Được trừ vào phí khám nếu bạn đặt lịch khám trong {CREDIT_VALID_DAYS} ngày sau buổi tư vấn.</p>
-              <p>• Không vào phòng đúng giờ hoặc tự hủy lịch: mất cọc.</p>
-              <p>• Chuyên gia vắng mặt hoặc phòng khám hủy lịch: hoàn cọc 100%.</p>
+              <p className="font-semibold flex items-center gap-1"><Info className="w-4 h-4" /> Quy định phí tư vấn</p>
+              <p>• Thanh toán trước khi xác nhận lịch, không trừ vào phí khám.</p>
+              <p>• Muốn đi khám sau buổi tư vấn: đến quầy và cho nhân viên xem lịch sử tư vấn để được ưu đãi trên hóa đơn sau khám.</p>
+              <p>• Không vào phòng đúng giờ hoặc tự hủy lịch: không hoàn phí.</p>
+              <p>• Chuyên gia vắng mặt hoặc phòng khám hủy lịch: hoàn phí 100%.</p>
             </div>
             {error && <p className="text-sm text-error">{error}</p>}
             <button type="button" onClick={handleSubmit} disabled={!expert || !time || submitting} className="btn btn-primary w-full">
-              {submitting ? <span className="loading loading-spinner"></span> : 'Đặt cọc & xác nhận'}
+              {submitting ? <span className="loading loading-spinner"></span> : 'Thanh toán & xác nhận'}
             </button>
           </div>
         </div>

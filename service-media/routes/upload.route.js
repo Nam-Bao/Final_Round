@@ -3,7 +3,7 @@ const multer = require('multer');
 require('dotenv').config();
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
+const { verifyToken, optionalAuth, authorizeRoles } = require('../middlewares/auth.middleware.js');
 const { rateLimit } = require('../middlewares/rateLimit.middleware.js');
 
 const router = express.Router();
@@ -33,8 +33,8 @@ const uploadLimiter = rateLimit({
   message: 'Bạn đã tải lên quá nhiều ảnh, vui lòng thử lại sau ít phút'
 });
 
-// API Nhận file — bắt buộc đăng nhập (khách và nhân viên) để tránh người lạ dùng Cloudinary
-router.post('/', verifyToken, uploadLimiter, (req, res) => {
+// Nhận 1 ảnh (field "image"), trả { url }
+const handleImageUpload = (req, res) => {
   // Bọc hàm upload lại để bắt lỗi chi tiết từ Multer & Cloudinary
   const uploadImage = upload.single('image');
 
@@ -57,7 +57,7 @@ router.post('/', verifyToken, uploadLimiter, (req, res) => {
     // Thành công
     res.status(200).json({ url: req.file.path }); 
   });
-});
+};
 
 // Video cho bài viết / banner: chỉ quản lý và bác sĩ, tối đa 50MB (video dài nên đăng YouTube rồi dán link)
 const videoStorage = new CloudinaryStorage({
@@ -81,5 +81,15 @@ router.post('/video', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTO
     res.status(200).json({ url: req.file.path });
   });
 });
+
+// API Nhận file — bắt buộc đăng nhập (khách và nhân viên) để tránh người lạ dùng Cloudinary
+router.post('/', verifyToken, uploadLimiter, handleImageUpload);
+
+// Ảnh cho trang quét da: khách chưa đăng nhập cũng được tải (được quét 1 lần) nhưng giới hạn chặt theo IP
+const skinUploadLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, guestMax: 5, userMax: 30,
+  message: 'Bạn đã tải lên quá nhiều ảnh hôm nay, vui lòng thử lại vào ngày mai'
+});
+router.post('/skin', optionalAuth, skinUploadLimiter, handleImageUpload);
 
 module.exports = router;

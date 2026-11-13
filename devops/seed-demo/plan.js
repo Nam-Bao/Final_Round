@@ -41,7 +41,7 @@ const existingExpertShifts = q('booking', `select expert_id, date, shift_type fr
 const existingConsults = q('booking', `select expert_id, appointment_date, appointment_time from "Consultations" where status not in ('CANCELLED')`);
 const oldRates = q('booking', `select employee_id, rate_per_shift from "SalaryRates"`);
 
-const productKey = { CETAPHIL: 'Cetaphil', MEGADUO: 'Megaduo', B5: 'Phục Hồi B5', VICHY: 'Vichy', ANESSA: 'Anessa', LRP: 'La Roche-Posay 400ml' };
+const productKey = { CETAPHIL: 'Cetaphil', MEGADUO: 'Megaduo', B5: 'Cicaplast Baume B5', VICHY: 'Vichy', ANESSA: 'Anessa', LRP: 'Effaclar Purifying Foaming Gel' };
 const PROD = {};
 for (const [k, needle] of Object.entries(productKey)) {
   const p = oldProducts.find((x) => x.type === 'PRODUCT' && x.name.includes(needle));
@@ -96,7 +96,7 @@ for (const p of D.NEW_PRODUCTS) {
   add('commerce', 'Products', stamp({ id, name: p.name, type: 'PRODUCT', price: p.price, weight: p.weight, stock_quantity: p.stock, category_id: catId(p.category), start_date: iso(catalogAt), end_date: iso('2030-12-31T00:00:00+07:00'), image_url: [] }, catalogAt));
   add('commerce', 'ProductDetails', stamp({
     id: L.uuid(), product_id: id, slug: p.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80),
-    is_published: true, is_prescription: !!p.prescription, published_at: iso(catalogAt), brand: p.brand, origin: p.origin, capacity: p.capacity, skin_types: p.skin_types,
+    is_published: true, is_prescription: !!p.prescription, published_at: iso(catalogAt), brand: p.brand, origin: p.origin, capacity: p.capacity, skin_types: p.skin_types, concerns: p.concerns || [],
     short_description: p.short, description: p.short, ingredients: p.ingredients, usage: p.usage, storage: 'Bảo quản nơi khô ráo, tránh ánh nắng trực tiếp.', warnings: p.warnings, updated_by: S.MG.id,
   }, catalogAt));
 }
@@ -253,6 +253,24 @@ const ktvOn = (date) => {
 const nextWorkDay = (date, keys) => { for (let d = date, i = 0; i < 10; d = L.addDays(d, 1), i += 1) if (onShift(d, keys).length) return d; return null; };
 const bankId = () => String(L.int(40000000, 99999999));
 const bank = (row, at) => add('booking', 'BankTransactions', stamp({ id: L.uuid(), external_id: bankId(), received_at: iso(at), ...row }, at));
+// Nhân viên chuyển hoàn tiền với nội dung "HOAN <mã>" rồi ghi nhận; ngân hàng báo tiền ra => khoản hoàn đã xác minh.
+// Cuối kế hoạch: khoản hoàn gần nhất để "chưa thấy tiền ra" cho demo quản lý đối chiếu sao kê. Trả về mã GD ghi vào bảng gốc
+const BANKS = ['Vietcombank', 'Techcombank', 'MB Bank', 'ACB', 'VPBank', 'BIDV'];
+const unaccent = (s) => s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D');
+const accountOf = (name) => `${L.pick(BANKS)} - ${L.int(1000000000, 9999999999)} - ${unaccent(name)}`;
+const refundPaid = ({ source, sourceId, customerId, amount, at, staffId, account }) => {
+  const ref = `FT${L.int(10000000, 99999999)}`;
+  const code = sourceId.replace(/-/g, '').slice(0, 6).toUpperCase();
+  const claimId = L.uuid();
+  const outAt = L.addMin(at, -L.int(2, 15));
+  const outId = L.uuid();
+  add('booking', 'BankTransactions', stamp({ id: outId, external_id: bankId(), received_at: iso(outAt), amount, content: `GLOWSKIN HOAN ${code}`, code_type: 'REFUND_OUT', code, matched_id: claimId, status: 'MATCHED', reference_code: ref }, outAt));
+  add('booking', 'RefundClaims', stamp({
+    id: claimId, source, source_id: sourceId, transfer_code: code, customer_id: customerId, amount, bank_ref: ref, account, claimed_by: staffId, claimed_at: iso(past(at)),
+    status: 'VERIFIED', verified_method: 'BANK', verified_at: iso(past(at)), bank_tx_id: outId,
+  }, at));
+  return ref;
+};
 
 // ===================== Khách hàng =====================
 const usedPhones = new Set();
@@ -360,8 +378,9 @@ const exam = (c, profile, date, cond, opt = {}) => {
     tx.push({ id: L.uuid(), invoice_id: invoice.id, amount: deposit, transaction_type: 'INCOME', note: `Khách thanh toán cọc VietQR cho đơn ${L.code6(id)}`, createdAt: iso(paidAt), updatedAt: iso(paidAt) });
     bank({ amount: deposit, content: `${c.name.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D')} chuyen tien O2O ${id.slice(0, 6)}`, code_type: 'APPOINTMENT', code: id.slice(0, 6), matched_id: id, status: 'MATCHED' }, paidAt);
   }
-  const credit = !old && !online && !isWalkIn ? consultCredits.find((cr) => cr.customer === c && !cr.used && cr.at < bookedAt) : null;
-  if (credit) { credit.used = true; credit.consult.credit_appointment_id = id; }
+  // Khách đi khám sau buổi tư vấn chuyên gia khuyên khám: CSKH xem lịch sử tư vấn, áp voucher nội bộ SAUTUVAN (kèm ảnh xác thực)
+  const afterConsult = !old && !online && !isWalkIn ? consultCredits.find((cr) => cr.customer === c && !cr.used && cr.at < bookedAt) : null;
+  if (afterConsult) afterConsult.used = true;
   let updated = paidAt;
 
   const finish = () => {
@@ -379,21 +398,29 @@ const exam = (c, profile, date, cond, opt = {}) => {
     const buysPackage = !online && opt.type !== 'FOLLOW_UP' && L.chance(opt.packageChance ?? 0.6);
     const pkg = buysPackage ? PKG[condData.pkg] : null;
     const service = !online && !pkg && L.chance(0.45) ? SVC[L.pick(condData.services)] : null;
-    let meds = condData.products.filter((k) => PROD[k] && !(avoidRetinoid && k === 'KLENZIT'));
+    let meds = condData.products.filter((k) => PROD[k] && !(avoidRetinoid && ['KLENZIT', 'MEGADUO'].includes(k)));
     meds = L.shuffle(meds).slice(0, L.int(online ? 1 : 0, 2)).map((k) => ({ product_id: PROD[k].id, quantity: 1, key: k }));
     const exam_fee = invoice.total_amount === 0 ? 0 : 100000;
     const svcValue = service ? service.price : 0;
     const pkgValue = pkg ? pkg.promotional_price : 0;
     const prodValue = online ? 0 : meds.reduce((s, m) => s + PROD[m.key].price * m.quantity, 0);
-    const total = exam_fee + svcValue + pkgValue + prodValue;
-    const creditAmt = credit ? Number(credit.consult.deposit_amount) : 0;
-    const due = Math.max(0, total - deposit - creditAmt);
+    const gross = exam_fee + svcValue + pkgValue + prodValue;
+    const discount = afterConsult ? Math.min(Math.round(gross * AFTER_CONSULT.discount_value / 100), AFTER_CONSULT.max_discount) : 0;
+    const total = gross - discount;
+    const due = Math.max(0, total - deposit);
+    if (afterConsult) {
+      AFTER_CONSULT.used_count += 1;
+      add('commerce', 'PromotionUsages', stamp({
+        id: L.uuid(), customer_id: c.id, promotion_id: AFTER_CONSULT.id, proof_url: proofImage(afterConsult.consult), applied_by: C.id, applied_role: 'CONSULTANT',
+        channel: 'CLINIC', reference_id: id, discount_amount: discount,
+      }, checkout));
+    }
     Object.assign(apt, { status: 'COMPLETED', prescribed_services: service ? [service.id] : [], prescribed_packages: pkg ? [pkg.id] : [], prescribed_medicines: meds.map(({ product_id, quantity }) => ({ product_id, quantity })) });
     Object.assign(invoice, {
       total_amount: total, payment_status: 'PAID', payment_method: 'CASH',
-      breakdown: { exam_fee, services: svcValue, packages: pkgValue, products: prodValue, discount: 0, consult_credit: creditAmt, total, service_items: service ? [{ id: service.id, name: service.name, price: service.price }] : [], package_items: pkg ? [{ id: pkg.id, name: pkg.name, price: pkg.promotional_price }] : [], checked_out_at: iso(checkout) },
+      breakdown: { exam_fee, services: svcValue, packages: pkgValue, products: prodValue, discount, consult_credit: 0, total, service_items: service ? [{ id: service.id, name: service.name, price: service.price }] : [], package_items: pkg ? [{ id: pkg.id, name: pkg.name, price: pkg.promotional_price }] : [], checked_out_at: iso(checkout) },
     });
-    if (due > 0) tx.push({ id: L.uuid(), invoice_id: invoice.id, amount: due, transaction_type: 'INCOME', note: `Thu phần còn lại. Phí khám: ${exam_fee}, Dịch vụ/SP: ${svcValue + pkgValue + prodValue}, Giảm giá: 0, Đã cọc: ${deposit}, Cọc tư vấn: ${creditAmt}`, createdAt: iso(checkout), updatedAt: iso(checkout) });
+    if (due > 0) tx.push({ id: L.uuid(), invoice_id: invoice.id, amount: due, transaction_type: 'INCOME', note: `Thu phần còn lại. Phí khám: ${exam_fee}, Dịch vụ/SP: ${svcValue + pkgValue + prodValue}, Giảm giá: ${discount}, Đã cọc: ${deposit}, Cọc tư vấn: 0`, createdAt: iso(checkout), updatedAt: iso(checkout) });
     updated = checkout;
     served.add(profile.id);
     // Đơn mỹ phẩm mua tại quầy
@@ -439,7 +466,7 @@ const exam = (c, profile, date, cond, opt = {}) => {
     const cancelAt = clinic ? L.at(L.addDays(date, -1), '16:30') : L.addMin(paidAt, 60 * L.int(20, 70));
     apt.status = 'CANCELLED';
     const refunded = clinic && date < L.addDays(TODAY, -2);
-    add('booking', 'AppointmentCancellations', stamp({ id: L.uuid(), appointment_id: id, cancelled_by: clinic ? C.id : c.id, cancelled_by_role: clinic ? 'CONSULTANT' : 'CUSTOMER', initiator: clinic ? 'CLINIC' : 'CUSTOMER', reason: clinic ? 'Bác sĩ có lịch hội chẩn đột xuất, phòng khám xin hủy và hoàn cọc' : L.pick(['Bận việc đột xuất không sắp xếp được', 'Đi công tác xa']), previous_status: 'CONFIRMED', deposit_paid: deposit, deposit_outcome: deposit === 0 ? 'NONE' : clinic ? (refunded ? 'REFUNDED' : 'REFUND_PENDING') : 'FORFEITED', forfeit_acknowledged: !clinic && deposit > 0, refund_ref: refunded ? `FT${L.int(10000000, 99999999)}` : null, refund_note: refunded ? 'Đã chuyển khoản hoàn cọc qua Vietcombank' : null, refunded_by: refunded ? C.id : null, refunded_at: refunded ? iso(L.addMin(cancelAt, 120)) : null }, cancelAt, refunded ? L.addMin(cancelAt, 120) : cancelAt));
+    add('booking', 'AppointmentCancellations', stamp({ id: L.uuid(), appointment_id: id, cancelled_by: clinic ? C.id : c.id, cancelled_by_role: clinic ? 'CONSULTANT' : 'CUSTOMER', initiator: clinic ? 'CLINIC' : 'CUSTOMER', reason: clinic ? 'Bác sĩ có lịch hội chẩn đột xuất, phòng khám xin hủy và hoàn cọc' : L.pick(['Bận việc đột xuất không sắp xếp được', 'Đi công tác xa']), previous_status: 'CONFIRMED', deposit_paid: deposit, deposit_outcome: deposit === 0 ? 'NONE' : clinic ? (refunded ? 'REFUNDED' : 'REFUND_PENDING') : 'FORFEITED', forfeit_acknowledged: !clinic && deposit > 0, refund_ref: refunded ? refundPaid({ source: 'APPOINTMENT', sourceId: id, customerId: c.id, amount: deposit, at: L.addMin(cancelAt, 120), staffId: C.id, account: accountOf(c.name) }) : null, refund_note: refunded ? 'Đã chuyển khoản hoàn cọc' : null, refunded_by: refunded ? C.id : null, refunded_at: refunded ? iso(L.addMin(cancelAt, 120)) : null }, cancelAt, refunded ? L.addMin(cancelAt, 120) : cancelAt));
     if (refunded) { invoice.payment_status = 'REFUNDED'; tx.push({ id: L.uuid(), invoice_id: invoice.id, amount: deposit, transaction_type: 'REFUND', note: `Phòng khám hủy lịch - Hoàn cọc ${L.code6(id)} - GD ${L.int(100000, 999999)}`, createdAt: iso(L.addMin(cancelAt, 120)), updatedAt: iso(L.addMin(cancelAt, 120)) }); }
     updated = cancelAt;
   } else if (outcome === 'NO_SHOW') {
@@ -469,6 +496,11 @@ const exam = (c, profile, date, cond, opt = {}) => {
 };
 
 // ===================== Tư vấn chuyên gia =====================
+const CONSULT_FEE = 300000; // khớp CONSULT_FEE mặc định của service-booking
+// Voucher nội bộ cho khách khám sau buổi tư vấn (không hiện trên website, chỉ CSKH áp kèm ảnh xác thực)
+const AFTER_CONSULT = { id: L.uuid(), code: 'SAUTUVAN', discount_value: 10, max_discount: 200000, used_count: 0 };
+// Ảnh xác thực demo: ảnh SVG ghi rõ là dữ liệu demo (dữ liệu thật là ảnh CSKH chụp lịch sử tư vấn trên điện thoại khách)
+const proofImage = (consult) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#f5f3ff"/><text x="16" y="40" font-family="Arial" font-size="16" fill="#5b21b6">ẢNH XÁC THỰC (DỮ LIỆU DEMO)</text><text x="16" y="80" font-family="Arial" font-size="14" fill="#333">Lịch sử tư vấn: ${consult.consult_field}</text><text x="16" y="110" font-family="Arial" font-size="14" fill="#333">Ngày ${consult.appointment_date}</text><text x="16" y="140" font-family="Arial" font-size="14" fill="#333">${consult.expert_name}</text></svg>`)}`;
 const EXPERT_PLAN = { E1: { MORNING: [6], EVENING: [2, 4] }, E2: { AFTERNOON: [0], EVENING: [1, 3, 5] } };
 const oldExpertShift = new Set(existingExpertShifts.map((s) => `${s.expert_id}|${s.date}|${s.shift_type}`));
 const expertSlots = [];
@@ -490,8 +522,8 @@ const consult = (c, from, field, outcome) => {
   let bookedAt = L.at(L.addDays(slot.date, -L.int(1, 4)), `${L.int(8, 21)}:15`.padStart(5, '0'));
   if (bookedAt > NOW) bookedAt = L.addMin(NOW, -L.int(30, 60 * 30));
   const paidAt = L.addMin(bookedAt, L.int(2, 8));
-  const row = { id, customer_id: c.id, customer_name: c.name, expert_id: S[k].id, expert_name: S[k].name, consult_field: field, appointment_date: slot.date, appointment_time: `${slot.time}:00`, question: L.pick(D.CONSULT_QUESTIONS[field]), status: 'CONFIRMED', deposit_amount: 50000, payment_method: 'VIETQR', paid_at: iso(paidAt), deposit_outcome: 'NONE', reschedule_count: 0, review_hidden: false, recommend_exam: false };
-  bank({ amount: 50000, content: `${c.name.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D')} TV ${id.slice(0, 6)}`, code_type: 'CONSULTATION', code: id.slice(0, 6), matched_id: id, status: 'MATCHED' }, paidAt);
+  const row = { id, customer_id: c.id, customer_name: c.name, expert_id: S[k].id, expert_name: S[k].name, consult_field: field, appointment_date: slot.date, appointment_time: `${slot.time}:00`, question: L.pick(D.CONSULT_QUESTIONS[field]), status: 'CONFIRMED', deposit_amount: CONSULT_FEE, payment_method: 'VIETQR', paid_at: iso(paidAt), deposit_outcome: 'NONE', reschedule_count: 0, review_hidden: false, recommend_exam: false };
+  bank({ amount: CONSULT_FEE, content: `${c.name.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D')} TV ${id.slice(0, 6)}`, code_type: 'CONSULTATION', code: id.slice(0, 6), matched_id: id, status: 'MATCHED' }, paidAt);
   let updated = paidAt;
   if (outcome === 'COMPLETED') {
     const expertIn = L.addMin(start, -L.int(1, 4)); const customerIn = L.addMin(start, L.int(0, 3)); const doneAt = L.addMin(start, L.int(30, 42));
@@ -510,13 +542,13 @@ const consult = (c, from, field, outcome) => {
     const month = (consultsByMonth[slot.date.slice(0, 7)] ||= {});
     (month[k] ||= { completed: 0, no_show: 0 }).no_show += 1;
   } else if (outcome === 'EXPERT_ABSENT') {
-    Object.assign(row, { status: 'EXPERT_ABSENT', customer_joined_at: iso(start), deposit_outcome: 'REFUNDED', refund_ref: `FT${L.int(10000000, 99999999)}`, refunded_by: S.C1.id, refunded_at: iso(L.addMin(start, 60 * 26)) });
+    Object.assign(row, { status: 'EXPERT_ABSENT', customer_joined_at: iso(start), deposit_outcome: 'REFUNDED', refund_ref: refundPaid({ source: 'CONSULTATION', sourceId: id, customerId: c.id, amount: CONSULT_FEE, at: L.addMin(start, 60 * 26), staffId: S.C1.id, account: accountOf(c.name) }), refunded_by: S.C1.id, refunded_at: iso(L.addMin(start, 60 * 26)) });
     updated = L.addMin(start, 60 * 26);
   }
   const recommend = row.recommendCredit;
   delete row.recommendCredit;
   const saved = add('booking', 'Consultations', stamp(row, bookedAt, updated));
-  // Chuyên gia khuyên đi khám: cọc tư vấn được trừ vào lần khám tiếp theo (ghi credit_appointment_id lên chính bản ghi sẽ lưu)
+  // Chuyên gia khuyên đi khám: lần khám sau khách được áp voucher nội bộ ưu đãi sau tư vấn
   if (recommend) consultCredits.push({ customer: c, consult: saved, at: new Date(updated), used: false });
   return { row: saved, date: slot.date, start };
 };
@@ -552,13 +584,13 @@ const onlineOrder = (c, date, opt = {}) => {
   let updated = created;
   if (vietqr && status !== 'UNPAID') {
     const paidAt = L.addMin(created, L.int(1, 8));
-    bank({ amount: subtotal - discount + shipping, content: `${c.name.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D')} SP ${id.slice(0, 6)}`, code_type: 'ORDER', code: id.slice(0, 6), matched_id: id, status: 'MATCHED' }, paidAt);
+    bank({ amount: subtotal - discount + shipping, content: `${c.name.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Đ/g, 'D')} SP ${id.slice(0, 6)}`, code_type: 'ORDER', code: id.slice(0, 6), matched_id: id, customer_id: c.id, status: 'MATCHED' }, paidAt);
     updated = paidAt;
   }
   if (opt.cancel) {
     const at = L.addMin(created, 60 * L.int(2, 20));
     Object.assign(row, { status: 'CANCELLED', tracking_code: null, cancel_initiator: opt.cancel, cancel_reason: opt.cancel === 'CLINIC' ? 'Sản phẩm tạm hết hàng tại kho, phòng khám xin hủy đơn và hoàn tiền' : 'Đặt nhầm sản phẩm, muốn đặt lại đơn khác', cancelled_by: opt.cancel === 'CLINIC' ? S.S1.id : c.id, cancelled_at: iso(at) });
-    if (opt.cancel === 'CLINIC' && vietqr) Object.assign(row, { refund_status: 'REFUNDED', refund_amount: subtotal - discount + shipping, refund_ref: `FT${L.int(10000000, 99999999)}`, refunded_at: iso(L.addMin(at, 180)), refunded_by: S.S1.id });
+    if (opt.cancel === 'CLINIC' && vietqr) Object.assign(row, { refund_status: 'REFUNDED', refund_amount: subtotal - discount + shipping, refund_ref: refundPaid({ source: 'ORDER', sourceId: id, customerId: c.id, amount: subtotal - discount + shipping, at: L.addMin(at, 180), staffId: S.S1.id, account: accountOf(c.name) }), refunded_at: iso(L.addMin(at, 180)), refunded_by: S.S1.id });
     updated = at;
   } else if (status === 'COMPLETED') updated = L.addMin(created, 60 * 24 * L.int(2, 4));
   if (usePromo && row.status !== 'CANCELLED') { promoUsed += 1; add('commerce', 'PromotionUsages', stamp({ id: L.uuid(), customer_id: c.id, promotion_id: promoId }, created)); }
@@ -582,7 +614,7 @@ const returnFor = (o, status, c) => {
   let updated = reqAt;
   if (status === 'REFUNDED') {
     const approved = L.addMin(reqAt, 180); const received = L.addMin(reqAt, 60 * 24 * 3); const refunded = L.addMin(received, 120);
-    Object.assign(row, { tracking_code: ghnCode(), ghn_status: 'delivered', approved_at: iso(approved), received_at: iso(received), refunded_at: iso(refunded), refund_ref: `FT${L.int(10000000, 99999999)}`, restocked: false });
+    Object.assign(row, { tracking_code: ghnCode(), ghn_status: 'delivered', approved_at: iso(approved), received_at: iso(received), refunded_at: iso(refunded), refund_ref: refundPaid({ source: 'RETURN', sourceId: row.id, customerId: c.id, amount: row.refund_amount, at: refunded, staffId: S.S1.id, account: `${row.bank_name} - ${row.bank_account} - ${row.bank_holder}` }), restocked: false });
     updated = refunded;
   } else if (status === 'REJECTED') { row.reject_reason = 'Sản phẩm đã qua sử dụng, không thuộc trường hợp lỗi do nhà sản xuất hoặc vận chuyển theo chính sách đổi trả.'; updated = L.addMin(reqAt, 240); }
   add('commerce', 'OrderReturns', stamp(row, reqAt, updated));
@@ -690,6 +722,7 @@ const tanBinh = customers.find((c) => c.street[1].includes('Tân Bình'));
 if (tanBinh) onlineOrder(tanBinh, L.addDays(TODAY, -1), { status: 'CONFIRMED' });
 
 // Khuyến mãi mới
+add('commerce', 'Promotions', stamp({ id: AFTER_CONSULT.id, code: AFTER_CONSULT.code, discount_type: 'PERCENTAGE', discount_value: AFTER_CONSULT.discount_value, max_discount: AFTER_CONSULT.max_discount, min_order_value: 0, usage_limit: null, used_count: AFTER_CONSULT.used_count, start_date: iso(`${START}T00:00:00+07:00`), end_date: iso(`${L.addDays(TODAY, 180)}T23:59:59+07:00`), image_url: null, applicable_scope: 'ALL', status: 'ACTIVE', visibility: 'INTERNAL' }, new Date(`${L.addDays(START, -1)}T09:00:00+07:00`)));
 add('commerce', 'Promotions', stamp({ id: promoId, code: 'GLOWSKIN10', discount_type: 'PERCENTAGE', discount_value: 10, max_discount: 50000, min_order_value: 300000, usage_limit: 500, used_count: promoUsed, start_date: iso(`${START}T00:00:00+07:00`), end_date: iso(`${L.addDays(TODAY, 60)}T23:59:59+07:00`), image_url: null, applicable_scope: 'PRODUCT', status: 'ACTIVE' }, new Date(`${L.addDays(START, -1)}T09:00:00+07:00`)));
 
 // ===================== Thù lao chuyên gia các tháng đã qua =====================
@@ -777,6 +810,15 @@ if (problems.length) { console.error('KẾ HOẠCH CÓ LỖI:'); problems.slice(
 for (const c of P.booking.Consultations || []) delete c.slotDate;
 const out = path.join(__dirname, 'output', `plan-${TARGET}.json`);
 fs.mkdirSync(path.dirname(out), { recursive: true });
+// Khoản hoàn gần nhất: nhân viên đã ghi "đã hoàn" nhưng ngân hàng chưa báo tiền ra => quản lý cần đối chiếu
+{
+  const claims = P.booking.RefundClaims || [];
+  const last = claims.reduce((a, b) => (!a || b.claimed_at > a.claimed_at ? b : a), null);
+  if (last) {
+    P.booking.BankTransactions = P.booking.BankTransactions.filter((t) => t.id !== last.bank_tx_id);
+    Object.assign(last, { status: 'WAITING', verified_method: null, verified_at: null, bank_tx_id: null });
+  }
+}
 fs.writeFileSync(out, JSON.stringify({ target: TARGET, today: TODAY, start: START, password: D.PASSWORD, plan: P }, null, 0));
 const summary = Object.fromEntries(Object.entries(P).map(([svc, tables]) => [svc, Object.fromEntries(Object.entries(tables).map(([t, rows]) => [t, rows.length]))]));
 console.log(JSON.stringify({ today: TODAY, start: START, summary }, null, 1));

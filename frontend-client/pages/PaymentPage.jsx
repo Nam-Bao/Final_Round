@@ -157,9 +157,9 @@ export default function PaymentPage({ kind = 'appointment' }) {
           <div>
             <h2 className="font-bold border-b pb-2 mb-4">Chi tiết thanh toán</h2>
             <div className="space-y-3 text-sm">
-               <p className="flex justify-between text-slate-600"><span>{kind === 'consultation' ? 'Tiền cọc tư vấn:' : 'Tổng phí dịch vụ:'}</span> <span>{totalFee.toLocaleString()} đ</span></p>
+               <p className="flex justify-between text-slate-600"><span>{kind === 'consultation' ? 'Phí tư vấn:' : 'Tổng phí dịch vụ:'}</span> <span>{totalFee.toLocaleString()} đ</span></p>
                {kind === 'consultation' && (
-                 <p className="text-xs text-slate-500">Sau buổi tư vấn, khoản cọc này được trừ vào phí khám nếu bạn đặt lịch khám trong 30 ngày. Không vào phòng đúng giờ sẽ mất cọc.</p>
+                 <p className="text-xs text-slate-500">Phí tư vấn không trừ vào phí khám. Muốn đi khám sau buổi tư vấn, cho nhân viên quầy xem lịch sử tư vấn để được ưu đãi trên hóa đơn. Không vào phòng đúng giờ sẽ không được hoàn phí.</p>
                )}
                {!isOnline && totalFee > 0 && (
                  <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning-content flex gap-2">

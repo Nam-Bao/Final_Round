@@ -290,7 +290,9 @@ export default function ProductDetailPage() {
                   Theo quy định, thuốc kê đơn chỉ được bán khi có chỉ định của bác sĩ. Bác sĩ GlowSkin sẽ thăm khám và kê đơn nếu phù hợp,
                   bạn nhận thuốc tại quầy của phòng khám ngay sau buổi khám.
                 </p>
-                <Link to="/booking" className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white border-none">Đặt lịch khám với bác sĩ</Link>
+                <Link to="/booking" className="w-full sm:w-auto px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold inline-flex items-center justify-center gap-2">
+                  <Stethoscope className="w-5 h-5" /> Tư vấn ngay
+                </Link>
               </div>
             ) : (
             <div className="flex flex-col sm:flex-row gap-3 mt-2">

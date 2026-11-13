@@ -15,6 +15,7 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [skinOptions, setSkinOptions] = useState([]);
+  const [concernOptions, setConcernOptions] = useState([]);
   const isPublished = Form.useWatch('is_published', form);
   const slug = Form.useWatch('slug', form);
   const salePercent = Form.useWatch('sale_percent', form);
@@ -26,9 +27,10 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
     axios.get(`${API}/${product.id}/detail`, authConfig())
       .then((res) => {
         setSkinOptions(res.data.skin_type_options || []);
+        setConcernOptions(res.data.concern_options || []);
         const { sale_percent, sale_start, sale_end, ...d } = res.data.data;
         form.setFieldsValue({
-          ...d, skin_types: d.skin_types || [],
+          ...d, skin_types: d.skin_types || [], concerns: d.concerns || [],
           sale_percent: sale_percent || null,
           sale_range: sale_percent && sale_end ? [dayjs(sale_start || undefined), dayjs(sale_end)] : null,
         });
@@ -120,6 +122,10 @@ export default function ProductWebInfoModal({ product, onClose, onSaved }) {
                   </Row>
                   <Form.Item name="skin_types" label="Loại da phù hợp">
                     <Select mode="multiple" allowClear options={skinOptions.map((s) => ({ value: s, label: s }))} placeholder="Chọn loại da" />
+                  </Form.Item>
+                  <Form.Item name="concerns" label="Vấn đề da xử lý được"
+                    extra="Dùng để gợi ý sản phẩm: trang soi da AI của khách và sản phẩm thay thế khi bác sĩ kê đơn">
+                    <Select mode="multiple" allowClear options={concernOptions.map((s) => ({ value: s, label: s }))} placeholder="VD: Mụn viêm, Thâm sau mụn" />
                   </Form.Item>
                   <Form.Item name="slug" label="Đường dẫn trên web" extra={slug ? `${SHOP_URL}${slug}` : 'Để trống sẽ tạo từ tên sản phẩm'}>
                     <Input maxLength={80} placeholder="sua-rua-mat-cetaphil" />

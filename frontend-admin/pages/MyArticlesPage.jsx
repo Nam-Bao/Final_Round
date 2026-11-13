@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import ArticleFields, { toFormValues, fromFormValues } from '../components/content/ArticleFields';
 import { ArticlePreview, ReviewHistory } from '../components/content/SubmissionView';
 import { MEDIA_API, CLIENT_URL, authConfig, errorText, validateForm, SUBMISSION_STATUS, ARTICLE_TYPES } from '../components/content/contentApi';
+import { useLiveRefresh } from '../components/Notifications';
 
 const API = `${MEDIA_API}/news/submissions`;
 const EDITABLE = ['DRAFT', 'CHANGES_REQUESTED', 'APPROVED'];
@@ -36,6 +37,7 @@ export default function MyArticlesPage() {
     }
   };
   useEffect(() => { if (role === 'DOCTOR') load(); }, [role]);
+  useLiveRefresh(['articles'], () => { if (role === 'DOCTOR') load(); });
 
   const fetchDetail = async (id) => (await axios.get(`${API}/${id}`, authConfig())).data.data;
 

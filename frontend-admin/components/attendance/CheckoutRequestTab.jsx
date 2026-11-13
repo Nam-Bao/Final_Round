@@ -3,6 +3,7 @@ import { Table, Tag, Segmented, Button, Drawer, Descriptions, Image, Input, Popc
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { ATT_API, authConfig, errorText, fmtTime, fmtDateTime, SHIFT_LABEL, ROLE_LABEL, EXPLANATION_STATUS, REQUEST_KIND } from './attendanceApi';
+import { useLiveRefresh } from '../Notifications';
 
 // Quản lý duyệt đơn ra ca: xin về sớm / quên chấm ra ca
 // Duyệt: không ảnh hưởng lương (về sớm tính 1 vi phạm thường). Từ chối: 1 vi phạm nghiêm trọng (mất thưởng chuyên cần).
@@ -29,6 +30,7 @@ export default function CheckoutRequestTab({ people, onPending }) {
     }
   };
   useEffect(() => { load(); }, [status]);
+  useLiveRefresh(['attendance'], load);
 
   const review = async (decision) => {
     if (decision === 'REJECT' && note.trim().length < 10) return message.error('Từ chối phải ghi rõ lý do (ít nhất 10 ký tự)');

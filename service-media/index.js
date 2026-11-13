@@ -16,6 +16,7 @@ const pageRoutes = require('./routes/page.route.js');
 app.use('/upload', uploadRoutes);
 app.use('/news', newsRoutes);
 app.use('/pages', pageRoutes); // banner, popup
+app.use('/tasks', require('./routes/task.route.js')); // việc đang chờ (chuông thông báo)
 
 const PORT = Number(process.env.PORT) || 4005;
 app.listen(PORT, async () => {

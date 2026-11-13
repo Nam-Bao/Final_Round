@@ -3,6 +3,7 @@ import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, Fi
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { timing } from '../utils/timing';
 import VideoCallModal from '../components/VideoCallModal';
 import ReviewModal from '../components/ReviewModal';
 import MyConsultations from '../components/MyConsultations';
@@ -17,10 +18,9 @@ const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_
 const canCustomerCancel = (apt, isOnline) => CUSTOMER_CANCELLABLE.includes(apt.status)
   || (apt.status === 'WAITING' && isOnline && dayjs().isBefore(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`)));
 const formatVnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
-// Khớp điều kiện khách tự đổi lịch ở service-booking: 1 lần, trước giờ khám ít nhất 24 giờ
-const RESCHEDULE_MIN_HOURS = 24;
+// Khớp điều kiện khách tự đổi lịch ở service-booking: 1 lần, trước giờ khám ít nhất 24 giờ (mốc lấy từ server)
 const canCustomerReschedule = (apt) => ['PENDING', 'CONFIRMED', 'WAITING'].includes(apt.status) && apt.doctor_id && !apt.customer_reschedule_count
-  && !dayjs().isAfter(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).subtract(RESCHEDULE_MIN_HOURS, 'hour'));
+  && !dayjs().isAfter(dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`).subtract(timing().rescheduleMinMinutes, 'minute'));
 
 // Thông báo tiền cọc của lịch đã hủy (dữ liệu từ bảng AppointmentCancellations)
 function CancellationNotice({ cancellation }) {

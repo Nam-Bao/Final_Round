@@ -25,6 +25,8 @@ require('./chat.socket.js')(io);
 
 // Gắn Route vào ứng dụng
 app.use(express.json());
+// Thông báo real-time cho trang quản trị (namespace /notify + POST /notify/emit cho các service)
+require('./notify.socket.js')(io, app);
 app.use('/auth', authRoute);
 app.use('/profile', profileRoute);
 app.use('/users', userRoute);

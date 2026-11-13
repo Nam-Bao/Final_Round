@@ -1,5 +1,5 @@
 const express = require('express');
-const { lookupCustomerByPhone, createWalkInCustomer, renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
+const { getStaffNames, lookupCustomerByPhone, createWalkInCustomer, renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile } = require('../controllers/user.controller.js');
 const { getPublicDoctorDetail, getPublicExperts, getExpertsForAdmin, getMyProfessionalProfile } = require('../controllers/doctorProfile.controller.js');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.js');
 
@@ -23,6 +23,7 @@ router.get('/experts/public', getPublicExperts);
 router.get('/experts', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getExpertsForAdmin);
 router.get('/me/professional-profile', verifyToken, authorizeRoles('DOCTOR', 'EXPERT'), getMyProfessionalProfile);
 router.get('/doctors', verifyToken, getDoctors);
+router.get('/staff-names', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES', 'EXPERT'), getStaffNames); // tên + vai trò người gửi / người duyệt
 // Mã KTV đang làm việc (service-booking dùng khi khách đặt buổi liệu trình)
 router.get('/technician-ids', verifyToken, getTechnicianIds);
 router.post('/quick-customer', verifyToken, authorizeRoles('ADMIN', 'CONSULTANT', 'SALES'), createQuickCustomer);

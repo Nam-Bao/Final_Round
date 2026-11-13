@@ -9,6 +9,7 @@ const {
   SHIFT_HOURS, ACTIVE_SHIFTS, RULES, MANAGER_ROLES, EXPLANATION_REASONS, EARLY_LEAVE_REASONS,
   vnToday, shiftTimes, kioskWindow, nextWindow, minutesLate, minutesEarly,
 } = require('../utils/attendanceRules');
+const { durationLabel } = require('../utils/timing');
 const { violationsOf, unsettledReason, summarizeViolations } = require('../utils/attendanceViolations');
 
 // Luồng chấm công:
@@ -308,7 +309,7 @@ const createExplanation = async (req, res) => {
     if (shift.AttendanceExplanation) return res.status(400).json({ message: 'Mỗi ca chỉ được gửi giải trình 1 lần' });
     const t = shiftTimes(shift.date, shift.shift_type);
     if (now <= t.closeAt) return res.status(400).json({ message: 'Vẫn còn trong giờ quét QR, hãy chấm công tại máy ở quầy' });
-    if (now > t.explainUntil) return res.status(400).json({ message: `Đã quá hạn giải trình (${RULES.EXPLAIN_DEADLINE_HOURS} giờ sau khi hết ca)` });
+    if (now > t.explainUntil) return res.status(400).json({ message: `Đã quá hạn giải trình (${durationLabel(RULES.EXPLAIN_DEADLINE_MINUTES)} sau khi hết ca)` });
 
     const reasonType = text(req.body.reason_type);
     const reason = EXPLANATION_REASONS[reasonType];
@@ -371,7 +372,7 @@ const createCheckoutRequest = async (req, res) => {
       checkDescription(description, 50, 10);
     } else {
       if (now <= t.checkoutCloseAt) return res.status(400).json({ message: 'Vẫn còn trong giờ quét QR ra ca, hãy chấm ra ca tại máy ở quầy' });
-      if (now > t.explainUntil) return res.status(400).json({ message: `Đã quá hạn giải trình (${RULES.EXPLAIN_DEADLINE_HOURS} giờ sau khi hết ca)` });
+      if (now > t.explainUntil) return res.status(400).json({ message: `Đã quá hạn giải trình (${durationLabel(RULES.EXPLAIN_DEADLINE_MINUTES)} sau khi hết ca)` });
       reasonType = 'FORGOT';
       if (leave <= new Date(record.check_in_at) || leave > t.checkoutCloseAt) return res.status(400).json({ message: `Giờ về phải sau giờ vào ca và không muộn hơn ${fmtTime(t.checkoutCloseAt)}` });
       if (witness.length < 2) return res.status(400).json({ message: 'Quên chấm ra ca bắt buộc ghi người xác nhận' });

@@ -10,7 +10,7 @@ const aiRoutes = require('./routes/aiAnalysis.route');
 const app = express();
 app.set('trust proxy', 'loopback'); // tin X-Forwarded-For từ gateway chạy cùng máy => req.ip là IP thật của khách
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // AI rà soát đơn nhận kèm danh mục sản phẩm
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/', aiRoutes);

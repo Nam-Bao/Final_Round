@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, DatePicker, Radio, Upload } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, DatePicker, Radio, Upload, Image } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, HistoryOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+
+const VISIBILITY = {
+  PUBLIC: { color: 'blue', text: 'Website khách' },
+  INTERNAL: { color: 'purple', text: 'Nội bộ' },
+};
+const CHANNEL = { ONLINE: 'Khách tự áp (online)', CLINIC: 'Hoá đơn sau khám', COUNTER: 'Bán tại quầy / đặt hộ' };
 
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState([]);
@@ -15,6 +21,26 @@ export default function PromotionsPage() {
   const [fileList, setFileList] = useState([]);
 
   const discountType = Form.useWatch('discount_type', form); 
+  // Lịch sử áp mã (null = đóng; { promo } = 1 mã; { promo: null } = tất cả)
+  const [usageView, setUsageView] = useState(null);
+  const [usages, setUsages] = useState([]);
+  const [usageLoading, setUsageLoading] = useState(false);
+
+  const openUsages = async (promo = null) => {
+    setUsageView({ promo });
+    setUsageLoading(true);
+    try {
+      const token = sessionStorage.getItem('admin_token');
+      const res = await fetch(`http://localhost:4000/api/commerce/promotions/admin/usages${promo ? `?promotion_id=${promo.id}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message);
+      setUsages(result.data || []);
+    } catch (error) {
+      message.error('Không tải được lịch sử áp mã');
+    } finally {
+      setUsageLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchPromotions();
@@ -157,10 +183,15 @@ export default function PromotionsPage() {
       render: (status) => <Tag color={status === 'ACTIVE' ? 'success' : 'error'}>{status}</Tag>
     },
     {
+      title: 'Hiển thị', dataIndex: 'visibility', key: 'visibility',
+      render: (v) => <Tag color={VISIBILITY[v || 'PUBLIC'].color}>{VISIBILITY[v || 'PUBLIC'].text}</Tag>
+    },
+    {
       title: 'Hành động', key: 'action',
       render: (_, record) => (
         <Space>
           <Button type="primary" ghost icon={<EditOutlined />} size="small" onClick={() => openModal(record)}>Sửa</Button>
+          <Button icon={<HistoryOutlined />} size="small" onClick={() => openUsages(record)}>Lịch sử áp</Button>
           <Popconfirm title="Khóa mã này lại?" onConfirm={() => handleDelete(record.id)} okButtonProps={{ danger: true }}>
             <Button danger icon={<DeleteOutlined />} size="small" disabled={record.status === 'HIDDEN'}>Khóa</Button>
           </Popconfirm>
@@ -173,7 +204,7 @@ export default function PromotionsPage() {
     <>
       <Card 
         title="Quản lý Khuyến mãi (Voucher)" 
-        extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Tạo Mã Code</Button>}
+        extra={<Space><Button icon={<HistoryOutlined />} onClick={() => openUsages()}>Lịch sử áp mã</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Tạo Mã Code</Button></Space>}
       >
         <Table columns={columns} dataSource={promotions} rowKey="id" loading={loading} />
       </Card>
@@ -278,12 +309,25 @@ export default function PromotionsPage() {
             </Col>
           </Row>
 
-          <Form.Item label="Trạng thái mã" name="status" initialValue="ACTIVE">
-            <Select size="large">
-              <Select.Option value="ACTIVE">Kích hoạt</Select.Option>
-              <Select.Option value="HIDDEN">Khóa tạm thời</Select.Option>
-            </Select>
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Trạng thái mã" name="status" initialValue="ACTIVE">
+                <Select size="large">
+                  <Select.Option value="ACTIVE">Kích hoạt</Select.Option>
+                  <Select.Option value="HIDDEN">Khóa tạm thời</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Hiển thị" name="visibility" initialValue="PUBLIC"
+                extra="Nội bộ: không hiện trên website, khách không tự nhập được; chỉ nhân viên áp hộ khách và phải tải ảnh xác thực.">
+                <Select size="large">
+                  <Select.Option value="PUBLIC">Hiển thị trên giao diện khách</Select.Option>
+                  <Select.Option value="INTERNAL">Lưu hành nội bộ</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item className="text-right mb-0 mt-4">
             <Space>
@@ -294,6 +338,21 @@ export default function PromotionsPage() {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title={usageView?.promo ? `Lịch sử áp mã ${usageView.promo.code}` : 'Lịch sử áp mã'} open={!!usageView} onCancel={() => setUsageView(null)} footer={null} width={1000}>
+        <Table
+          rowKey="id" size="small" loading={usageLoading} dataSource={usages} pagination={{ pageSize: 10 }} scroll={{ x: 900 }}
+          columns={[
+            { title: 'Thời gian', dataIndex: 'createdAt', width: 130, render: (v) => dayjs(v).format('HH:mm DD/MM/YYYY') },
+            ...(usageView?.promo ? [] : [{ title: 'Mã', dataIndex: 'code', width: 110, render: (v, r) => <><Tag color="blue">{v}</Tag>{r.visibility === 'INTERNAL' && <Tag color="purple">Nội bộ</Tag>}</> }]),
+            { title: 'Khách', key: 'c', width: 170, render: (_, r) => <><div>{r.customer?.name || 'Khách hàng'}</div><div className="text-xs text-gray-500">{r.customer?.phone}</div></> },
+            { title: 'Kênh', dataIndex: 'channel', width: 150, render: (v) => CHANNEL[v] || 'Không rõ (dữ liệu cũ)' },
+            { title: 'Giảm', dataIndex: 'discount_amount', width: 110, align: 'right', render: (v) => (v == null ? '' : `${Number(v).toLocaleString('vi-VN')} đ`) },
+            { title: 'Người áp', dataIndex: 'applied_by_name', width: 150, render: (v, r) => v || (r.applied_by ? 'Nhân viên' : 'Khách tự áp') },
+            { title: 'Ảnh xác thực', dataIndex: 'proof_url', width: 110, render: (v, r) => (v ? <Image src={v} width={64} height={64} className="object-cover rounded" /> : r.applied_by ? <Tag color="red">Thiếu ảnh</Tag> : '') },
+          ]}
+        />
       </Modal>
     </>
   );

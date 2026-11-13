@@ -5,11 +5,12 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import ConsultResultDrawer from '../components/ConsultResultDrawer';
 import { openVideoCall } from '../utils/videoCall';
+import { useTiming } from '../utils/timing';
+import { useLiveRefresh } from '../components/Notifications';
 
 const { Text, Paragraph } = Typography;
 const API = 'http://localhost:4000/api';
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
-const EXPERT_OPEN_BEFORE_MINUTES = 15; // khớp server
 
 const STATUS = {
   CONFIRMED: { color: 'blue', text: 'Sắp diễn ra' },
@@ -23,6 +24,7 @@ const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 
 // Trang làm việc của chuyên gia tư vấn thỉnh giảng: lịch tư vấn, vào phòng video (tab riêng), nhập kết quả cho khách, thống kê tháng
 export default function ExpertWorkspacePage() {
+  const timingCfg = useTiming();
   const [list, setList] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ export default function ExpertWorkspacePage() {
     const timer = setInterval(refresh, 30000);
     return () => { window.removeEventListener('focus', refresh); clearInterval(timer); };
   }, []);
+  useLiveRefresh(['consultations'], () => fetchList(true));
 
   useEffect(() => {
     axios.get(`${API}/booking/consultations/expert/stats`, { headers: headers(), params: { month: month.format('YYYY-MM') } })
@@ -68,7 +71,7 @@ export default function ExpertWorkspacePage() {
     const start = dayjs(`${c.appointment_date} ${c.appointment_time}`);
     const now = dayjs();
     return ['CONFIRMED', 'COMPLETED'].includes(c.status)
-      && !now.isBefore(start.subtract(EXPERT_OPEN_BEFORE_MINUTES, 'minute')) && now.isBefore(dayjs(c.room_closes_at));
+      && !now.isBefore(start.subtract(timingCfg.expertOpenBeforeMinutes, 'minute')) && now.isBefore(dayjs(c.room_closes_at));
   };
 
   // Cả 2 bên đã vào phòng và còn hạn gửi kết quả

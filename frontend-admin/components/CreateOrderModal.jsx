@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, Form, Input, InputNumber, Select, Radio, Button, Row, Col, message } from 'antd';
+import { Modal, Form, Input, InputNumber, Select, Radio, Button, Row, Col, Checkbox, Tag, message } from 'antd';
+import dayjs from 'dayjs';
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import VoucherProofUpload from './VoucherProofUpload';
+import { SafetyWarnings } from './PatientSafetyPanel';
 
 const API = 'http://localhost:4000/api';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
@@ -27,6 +30,13 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   const [voucher, setVoucher] = useState(null); // { code, discount } sau khi kiểm tra hợp lệ
   const [voucherError, setVoucherError] = useState('');
   const [checkingVoucher, setCheckingVoucher] = useState(false);
+  const [voucherProof, setVoucherProof] = useState(null); // ảnh xác thực bắt buộc khi áp mã cho khách
+  // Sàng lọc an toàn tại quầy: chỉ hiện khi đơn có hoạt chất cần lưu ý (server quyết định)
+  const [screening, setScreening] = useState(null); // kết quả /safety/counter-check
+  const [answers, setAnswers] = useState({ flags: [], allergies: '' });
+  const [answersTouched, setAnswersTouched] = useState(false); // NVBH đã sửa câu trả lời => kiểm tra lại cảnh báo
+  const [asked, setAsked] = useState(false); // NVBH xác nhận đã hỏi khách
+  const [acknowledged, setAcknowledged] = useState(false); // có chống chỉ định: đã tư vấn, khách vẫn mua
 
   const deliveryMethod = Form.useWatch('delivery_method', form);
   const items = Form.useWatch('items', form);
@@ -45,9 +55,12 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
     setWards([]);
     setVoucherInput('');
     setVoucher(null);
+    setVoucherProof(null);
     setVoucherError('');
+    setScreening(null); setAnswers({ flags: [], allergies: '' }); setAnswersTouched(false); setAsked(false); setAcknowledged(false);
     fetchCustomers();
-    axios.get(`${API}/commerce/products`).then(res => setProducts(res.data.data || [])).catch(() => setProducts([]));
+    // Thuốc kê đơn chỉ bán theo đơn bác sĩ: không hiện trong danh sách của NVBH (server cũng chặn)
+    axios.get(`${API}/commerce/products`).then(res => setProducts((res.data.data || []).filter(p => !p.is_prescription))).catch(() => setProducts([]));
   }, [open]);
 
   // Danh mục tỉnh GHN chỉ tải khi chọn giao hàng
@@ -79,6 +92,32 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (voucher) { setVoucher(null); setVoucherError('Giỏ hàng hoặc khách đã thay đổi, vui lòng kiểm tra lại mã'); }
   }, [subtotal, customerId, customerType]);
+
+  // Đơn hoặc khách đổi => hỏi lại server: có cần sàng lọc không, câu trả lời điền sẵn từ hồ sơ khách
+  const productKey = validItems.map(i => i.product_id).sort().join(',');
+  const screeningCustomer = customerType === 'EXISTING' ? customerId : undefined;
+  useEffect(() => {
+    setAsked(false); setAcknowledged(false); setAnswersTouched(false);
+    if (!productKey) { setScreening(null); return; }
+    let cancelled = false;
+    axios.post(`${API}/booking/safety/counter-check`, { customer_id: screeningCustomer, product_ids: productKey.split(',') }, authConfig())
+      .then(res => { if (cancelled) return; setScreening(res.data.data); setAnswers(res.data.data.answers || { flags: [], allergies: '' }); })
+      .catch(() => { if (!cancelled) setScreening({ error: true }); });
+    return () => { cancelled = true; };
+  }, [productKey, screeningCustomer]);
+
+  // NVBH sửa câu trả lời => tính lại cảnh báo
+  useEffect(() => {
+    if (!answersTouched || !productKey) return;
+    setAcknowledged(false);
+    const timer = setTimeout(() => {
+      axios.post(`${API}/booking/safety/counter-check`, { customer_id: screeningCustomer, product_ids: productKey.split(','), answers }, authConfig())
+        .then(res => setScreening(res.data.data)).catch(() => setScreening({ error: true }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [answers, answersTouched]);
+
+  const changeAnswers = (patch) => { setAnswers(a => ({ ...a, ...patch })); setAnswersTouched(true); setAsked(false); };
 
   const handleCheckVoucher = async () => {
     const code = voucherInput.trim().toUpperCase();
@@ -126,6 +165,10 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   };
 
   const handleSubmit = async (values) => {
+    if (voucher && !voucherProof) return message.warning('Áp mã cho khách phải tải ảnh xác thực');
+    if (screening?.error) return message.warning('Chưa kiểm tra được an toàn sản phẩm, hãy chọn lại sản phẩm để thử lại');
+    if (screening?.needs_screening && !asked) return message.warning('Đơn có sản phẩm cần lưu ý: hỏi khách các câu sàng lọc rồi tick "Đã hỏi khách"');
+    if (screening?.has_contraindication && !acknowledged) return message.warning('Có cảnh báo chống chỉ định: tư vấn cho khách rồi xác nhận, hoặc bỏ sản phẩm khỏi đơn');
     setSubmitting(true);
     try {
       let customerId = values.customer_id;
@@ -156,6 +199,8 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
         payment_method: values.payment_method,
         note: values.note,
         promotion_code: voucher?.code,
+        voucher_proof_url: voucher ? voucherProof : undefined,
+        safety_screening: screening?.needs_screening ? { ...answers, acknowledged } : undefined,
         items: validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
         shipping_address: address,
         shipping_district_id: isDelivery ? values.district_id : undefined,
@@ -310,6 +355,37 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
           )}
         </Form.List>
 
+        {screening?.error && <div className="mt-3 text-sm text-red-600">Không kiểm tra được an toàn sản phẩm. Chọn lại sản phẩm để thử lại.</div>}
+        {screening?.needs_screening && (
+          <div className="mt-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
+            <div className="flex items-center justify-between mb-1">
+              <b className="text-sm">Sàng lọc an toàn</b>
+              <Tag color="orange">Bắt buộc với đơn này</Tag>
+            </div>
+            <div className="text-xs text-slate-600 mb-2">Đơn có sản phẩm chứa hoạt chất cần lưu ý. Hỏi khách từng câu (không có thì để trống).</div>
+            {screening.prefill && !answersTouched && (
+              <div className="text-xs text-blue-700 mb-2">Đã điền sẵn theo "{screening.prefill.source}" ngày {dayjs(screening.prefill.at).format('DD/MM/YYYY')}. Hỏi lại khách để xác nhận.</div>
+            )}
+            <Checkbox.Group className="flex flex-col gap-1 mb-2" options={screening.questions} value={answers.flags}
+              onChange={(v) => changeAnswers({ flags: v })} />
+            <Input size="small" maxLength={500} value={answers.allergies} onChange={(e) => changeAnswers({ allergies: e.target.value })}
+              placeholder="Thành phần khách đã dị ứng (cách nhau bằng dấu phẩy), không có thì để trống" className="mb-2" />
+            <SafetyWarnings warnings={screening.warnings} />
+            {screening.missing_ingredients?.length > 0 && (
+              <div className="text-xs text-slate-500 mb-2">Chưa có bảng thành phần, chưa kiểm tra được: {screening.missing_ingredients.join(', ')}</div>
+            )}
+            <Checkbox checked={asked} onChange={(e) => setAsked(e.target.checked)}>Đã hỏi khách các câu trên</Checkbox>
+            {screening.has_contraindication && (
+              <div className="mt-1">
+                <Checkbox checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)}>
+                  <span className="text-red-600">Đã tư vấn chống chỉ định, khách vẫn muốn mua</span>
+                </Checkbox>
+                <div className="text-xs text-slate-500 ml-6">Hoặc bỏ sản phẩm đó khỏi đơn và gợi ý khách đặt lịch khám.</div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-3">
           <div className="font-semibold text-slate-700 text-sm mb-1.5">Voucher</div>
           <div className="flex gap-2">
@@ -320,6 +396,7 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
             {voucher && <Button danger onClick={() => { setVoucher(null); setVoucherInput(''); }}>Bỏ mã</Button>}
           </div>
           {voucher && <div className="text-green-600 text-sm mt-1">Mã {voucher.code} hợp lệ: giảm {vnd(voucher.discount)}</div>}
+          {voucher && <div className="mt-2"><VoucherProofUpload value={voucherProof} onChange={setVoucherProof} /></div>}
           {voucherError && <div className="text-red-500 text-sm mt-1">{voucherError}</div>}
         </div>
 

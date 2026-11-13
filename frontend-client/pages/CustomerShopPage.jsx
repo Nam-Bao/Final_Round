@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, CheckCircle, Percent, QrCode, Loader2, AlertCircle } from 'lucide-react';
+import { ShoppingBag, Star, Plus, Minus, Trash2, ArrowLeft, CreditCard, CheckCircle, Percent, QrCode, Loader2, AlertCircle, Stethoscope } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import ShopFilters, { applyShopFilters, EMPTY_FILTERS, FLAG_FILTERS } from '../components/ShopFilters';
@@ -466,8 +466,9 @@ export default function CustomerShopPage() {
                 </div>
                 {p.ProductDetail?.is_prescription ? (
                   // Thuốc kê đơn: không bán online, chỉ bác sĩ kê sau khi khám (server cũng chặn thêm vào giỏ)
-                  <Link to="/booking" className="w-full py-2 px-1 border border-rose-200 bg-rose-50 text-rose-700 font-medium rounded-xl flex items-center justify-center text-center gap-2 mt-2 md:mt-4 text-xs md:text-sm">
-                    Kê đơn tại phòng khám – Đặt lịch khám
+                  <Link to="/booking" title="Thuốc kê đơn: bác sĩ khám và kê đơn tại phòng khám"
+                    className="w-full min-h-10 py-2 px-1 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl flex items-center justify-center text-center gap-1.5 mt-2 md:mt-4 text-sm">
+                    <Stethoscope className="w-4 h-4" /> Tư vấn ngay
                   </Link>
                 ) : (
                 <button onClick={() => handleAddToCart(p.id)} disabled={outOfStock}

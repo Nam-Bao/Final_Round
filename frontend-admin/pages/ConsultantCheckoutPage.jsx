@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert, Radio } from 'antd';
 import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import dayjs from 'dayjs';
+import VoucherProofUpload from '../components/VoucherProofUpload';
+import { useLiveRefresh } from '../components/Notifications';
+
+const FIELD = { DERMATOLOGY: 'Da liễu', NUTRITION: 'Dinh dưỡng', COSMETICS: 'Mỹ phẩm' };
 
 const { Title, Text } = Typography;
 
@@ -23,6 +28,8 @@ export default function ConsultantCheckoutPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [appliedVoucher, setAppliedVoucher] = useState(null); // Trạng thái lưu mã đã áp dụng thành công
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [voucherProof, setVoucherProof] = useState(null); // ảnh xác thực khi áp mã cho khách (bắt buộc)
+  const [consultHistory, setConsultHistory] = useState([]); // buổi tư vấn chuyên gia khách đã hoàn thành
 
   const fetchData = async () => {
     try {
@@ -37,6 +44,7 @@ export default function ConsultantCheckoutPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+  useLiveRefresh(['appointments'], fetchData);
 
   // Hủy mã nếu giỏ hàng thay đổi
   useEffect(() => {
@@ -54,7 +62,13 @@ export default function ConsultantCheckoutPage() {
     setDiscountAmount(0); 
     setVoucherCode('');
     setAppliedVoucher(null);
+    setVoucherProof(null);
     setPaymentMethod('CASH');
+    setConsultHistory([]);
+    // Lịch sử tư vấn chuyên gia: CSKH đối chiếu với lịch sử khách cho xem để áp voucher ưu đãi khám sau tư vấn
+    axios.get('http://localhost:4000/api/booking/consultations', { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, params: { customer_id: customer.customer_id } })
+      .then((res) => setConsultHistory((res.data.data || []).filter((c) => c.status === 'COMPLETED')))
+      .catch(() => {});
     setSelectedItems({
       services: customer.prescribed_services || [],
       packages: customer.prescribed_packages || [],
@@ -103,6 +117,7 @@ export default function ConsultantCheckoutPage() {
   };
 
   const handleSubmitCheckout = async () => {
+    if (appliedVoucher && !voucherProof) return message.warning('Áp mã cho khách phải tải ảnh xác thực');
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
@@ -112,6 +127,7 @@ export default function ConsultantCheckoutPage() {
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,
         voucher_code: appliedVoucher ? appliedVoucher.code : null, // Gửi đúng mã đã được xác nhận
+        voucher_proof_url: appliedVoucher ? voucherProof : null,
         payment_method: paymentMethod
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
@@ -259,6 +275,19 @@ export default function ConsultantCheckoutPage() {
                        <Text strong>{subtotal.toLocaleString('vi-VN')} ₫</Text>
                     </div>
 
+                    <div className="mb-3 p-2 rounded border border-purple-200 bg-purple-50">
+                       <Text strong className="block mb-1">Lịch sử tư vấn chuyên gia</Text>
+                       {consultHistory.length === 0 ? (
+                          <Text type="secondary" className="text-xs">Khách chưa có buổi tư vấn chuyên gia hoàn thành.</Text>
+                       ) : consultHistory.map((c) => (
+                          <div key={c.id} className="text-xs leading-5">
+                             {dayjs(c.appointment_date).format('DD/MM/YYYY')} · {FIELD[c.consult_field] || c.consult_field} · {c.expert_name}
+                             {c.recommend_exam && <Tag color="purple" className="ml-1">Chuyên gia khuyên đi khám</Tag>}
+                          </div>
+                       ))}
+                       {consultHistory.length > 0 && <Text type="secondary" className="block text-xs mt-1">Đối chiếu với lịch sử khách cho xem trên điện thoại, rồi áp mã ưu đãi nội bộ và chụp ảnh làm xác thực.</Text>}
+                    </div>
+
                     <div className="mb-4">
                        <Text className="block mb-1"><PercentageOutlined/> Mã giảm giá:</Text>
                        <Space.Compact className="w-full">
@@ -289,6 +318,7 @@ export default function ConsultantCheckoutPage() {
                             className="mt-3 py-1 px-3" 
                           />
                        )}
+                       {appliedVoucher && <div className="mt-2"><VoucherProofUpload value={voucherProof} onChange={setVoucherProof} /></div>}
                     </div>
 
                     <Divider className="my-2"/>
@@ -323,7 +353,7 @@ export default function ConsultantCheckoutPage() {
                        </Radio.Group>
                     </div>
 
-                    <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} onClick={handleSubmitCheckout}>
+                    <Button type="primary" size="large" block className="mt-auto bg-green-600 hover:bg-green-500" loading={loading} disabled={!!appliedVoucher && !voucherProof} onClick={handleSubmitCheckout}>
                        XÁC NHẬN & THANH TOÁN
                     </Button>
                  </div>
