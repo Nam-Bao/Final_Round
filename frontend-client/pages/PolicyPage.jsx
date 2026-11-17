@@ -15,7 +15,7 @@ const BOOK_AHEAD_DAYS = 30;        // service-booking customerPackage.controller
 const VIDEO_CLOSE_AFTER_HOURS = 2; // service-booking video.controller CLOSE_AFTER_MINUTES = 120
 const AI_DAILY_LIMIT = 5;          // service-ai-analysis AI_USER_DAILY_LIMIT (mặc định)
 const PRIVACY_EMAIL = 'privacy@glowskin.vn';
-const IMAGE_RETENTION = '30 ngày kể từ ngày tải lên'; // khớp PhotoConsentModal
+const IMAGE_RETENTION = '2 năm kể từ ngày tải lên (bạn có thể tự xóa sớm hơn ở trang Lịch sử soi da)'; // khớp PhotoConsentModal + SCAN_RETENTION_DAYS
 
 const vnd = (n) => `${Number(n).toLocaleString('vi-VN')}đ`;
 
@@ -250,7 +250,7 @@ export default function PolicyPage() {
               <><b>Dữ liệu thu thập:</b> thông tin tài khoản (email, họ tên, số điện thoại), hồ sơ người khám, lịch sử khám và ghi chú của bác sĩ, địa chỉ giao hàng, ảnh da bạn tải lên.</>,
               <><b>Mục đích:</b> đặt lịch, khám và điều trị, giao hàng, thanh toán, chăm sóc sau điều trị. GlowSkin không bán hoặc dùng dữ liệu của bạn cho mục đích quảng cáo của bên thứ ba.</>,
               <><b>Bên xử lý được chia sẻ dữ liệu cần thiết:</b> Cloudinary (lưu ảnh), Roboflow (phân tích ảnh da), Giao Hàng Nhanh (họ tên, số điện thoại, địa chỉ nhận hàng), SePay (đối soát chuyển khoản).</>,
-              <><b>Ảnh da cho sàng lọc AI:</b> chỉ phân tích khi bạn đồng ý chính sách sử dụng hình ảnh; hệ thống lưu phiên bản chính sách và thời điểm bạn đồng ý. Việc cho phép dùng ảnh để cải thiện mô hình là lựa chọn riêng, mặc định không cho phép. Ảnh và kết quả được lưu trong {IMAGE_RETENTION}.</>,
+              <><b>Ảnh da cho sàng lọc AI:</b> chỉ phân tích khi bạn đồng ý chính sách sử dụng hình ảnh; hệ thống lưu phiên bản chính sách và thời điểm bạn đồng ý. Việc cho phép dùng ảnh để cải thiện mô hình là lựa chọn riêng, mặc định không cho phép; ảnh dùng cho việc này được làm mờ vùng mắt và bỏ thông tin định danh, và được gỡ khi bạn rút lại đồng ý hoặc xóa lượt soi. Ảnh và kết quả được lưu trong {IMAGE_RETENTION}, sau đó tự động xóa.</>,
               <>Kết quả sàng lọc AI <b>chỉ mang tính tham khảo</b>, không thay thế chẩn đoán của bác sĩ da liễu. Mỗi tài khoản được phân tích tối đa {AI_DAILY_LIMIT} lượt / ngày.</>,
               <>Hồ sơ khám và ảnh của bạn chỉ nhân sự được phân quyền (bác sĩ, tư vấn viên, kỹ thuật viên phụ trách) mới xem được.</>,
               <>Bạn có quyền yêu cầu xem, chỉnh sửa hoặc xóa dữ liệu cá nhân và rút lại sự đồng ý sử dụng ảnh qua email <a href={`mailto:${PRIVACY_EMAIL}`} className="text-teal-600 underline">{PRIVACY_EMAIL}</a>.</>,

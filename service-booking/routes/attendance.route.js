@@ -32,5 +32,10 @@ router.post('/explanations/:id/review', ...manager, wrap(c.reviewExplanation));
 router.get('/checkout-requests', ...manager, wrap(c.listCheckoutRequests));
 router.post('/checkout-requests/:id/review', ...manager, wrap(c.reviewCheckoutRequest));
 router.get('/report', ...manager, wrap(c.monthlyReport));
+// Giờ ca điều chỉnh theo ngày + quản lý xác nhận ảnh chấm công bị gắn cờ (không khớp ảnh gốc)
+router.get('/shift-hours', ...manager, wrap(c.listShiftHours));
+router.put('/shift-hours', ...manager, wrap(c.saveShiftHours));
+router.delete('/shift-hours/:id', ...manager, wrap(c.deleteShiftHours));
+router.post('/records/:id/face-review', ...manager, wrap(c.reviewFace));
 
 module.exports = router;

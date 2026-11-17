@@ -11,9 +11,9 @@ const ACTIVE_SHIFTS = ['MORNING', 'AFTERNOON'];
 const SHIFT_MINUTES = 240;
 
 const RULES = {
-  OPEN_BEFORE_MIN: 20,        // mở QR vào ca trước giờ vào ca
-  CLOSE_AFTER_MIN: 10,        // đóng QR vào ca sau giờ vào ca (trễ trong 10' không bị tính là vi phạm nghiêm trọng)
-  CHECKOUT_AFTER_MIN: 30,     // mở QR ra ca từ giờ kết thúc ca tới 30' sau
+  OPEN_BEFORE_MIN: TIMING.attendanceOpenBeforeMinutes,  // mở QR vào ca trước giờ vào ca (mặc định 20', đổi trong .env)
+  CLOSE_AFTER_MIN: TIMING.attendanceCloseAfterMinutes,  // đóng QR vào ca sau giờ vào ca (mặc định 10')
+  CHECKOUT_AFTER_MIN: TIMING.attendanceCheckoutMinutes, // mở QR ra ca từ giờ kết thúc ca tới 30' sau (mặc định)
   QR_TTL_SEC: TIMING.attendanceQrTtlSeconds, // mỗi mã QR chỉ sống 20 giây (mặc định), dùng 1 lần
   TICKET_TTL_SEC: 120,        // sau khi quét có 2 phút để chụp ảnh xác nhận
   EXPLAIN_DEADLINE_MINUTES: TIMING.attendanceExplainMinutes, // hạn giải trình sau khi hết ca (mặc định 24 giờ)
@@ -51,8 +51,20 @@ const addMin = (d, m) => new Date(d.getTime() + m * 60000);
 // Ngày hôm nay theo giờ Việt Nam (YYYY-MM-DD)
 const vnToday = (now = new Date()) => new Date(now.getTime() + 7 * 3600000).toISOString().slice(0, 10);
 
-const shiftTimes = (date, shiftType) => {
+// Giờ ca điều chỉnh theo ngày (quản lý đổi giờ ca 1 ngày: sự kiện, tăng ca, demo). Nạp từ bảng ShiftHourOverrides vào bộ nhớ
+// (lúc khởi động, sau mỗi lần sửa và mỗi phút) để mọi chỗ tính giờ ca vẫn gọi đồng bộ như cũ.
+let overrides = new Map(); // `${date}|${shift_type}` -> { start: 'HH:mm', end: 'HH:mm', reason }
+const setOverrides = (rows) => { overrides = new Map(rows.map((r) => [`${r.date}|${r.shift_type}`, { start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5), reason: r.reason }])); };
+const overrideOf = (date, shiftType) => overrides.get(`${date}|${shiftType}`) || null;
+// Giờ ca thực tế của 1 ngày: { start, end, adjusted, reason }
+const hoursOf = (date, shiftType) => {
+  const o = overrideOf(date, shiftType);
   const h = SHIFT_HOURS[shiftType];
+  return o ? { start: o.start, end: o.end, adjusted: true, reason: o.reason } : { start: h.start, end: h.end, adjusted: false };
+};
+
+const shiftTimes = (date, shiftType) => {
+  const h = hoursOf(date, shiftType);
   const start = at(date, h.start);
   const end = at(date, h.end);
   return {
@@ -63,6 +75,7 @@ const shiftTimes = (date, shiftType) => {
     checkoutOpenAt: end,
     checkoutCloseAt: addMin(end, RULES.CHECKOUT_AFTER_MIN),
     explainUntil: new Date(end.getTime() + RULES.EXPLAIN_DEADLINE_MINUTES * 60000),
+    adjusted: h.adjusted,
   };
 };
 
@@ -78,13 +91,15 @@ const kioskWindow = (now = new Date()) => {
   return null;
 };
 
-// Khung mở QR tiếp theo (hôm nay hoặc sáng mai)
+// Khung mở QR tiếp theo (hôm nay hoặc ngày mai). Sắp theo giờ thực tế: giờ ca điều chỉnh có thể làm ca chiều diễn ra trước ca sáng
 const nextWindow = (now = new Date()) => {
-  const today = vnToday(now);
-  for (const type of ACTIVE_SHIFTS) {
-    const t = shiftTimes(today, type);
-    if (t.openAt > now) return { date: today, shift_type: type, kind: 'IN', ...t };
-    if (t.checkoutOpenAt > now) return { date: today, shift_type: type, kind: 'OUT', ...t, openAt: t.checkoutOpenAt };
+  for (const offset of [0, 1]) {
+    const date = vnToday(new Date(now.getTime() + offset * 24 * 3600000));
+    const candidates = ACTIVE_SHIFTS.flatMap((type) => {
+      const t = shiftTimes(date, type);
+      return [{ date, shift_type: type, kind: 'IN', ...t }, { date, shift_type: type, kind: 'OUT', ...t, openAt: t.checkoutOpenAt }];
+    }).filter((w) => w.openAt > now).sort((a, b) => a.openAt - b.openAt);
+    if (candidates.length) return candidates[0];
   }
   const tomorrow = vnToday(new Date(now.getTime() + 24 * 3600000));
   return { date: tomorrow, shift_type: ACTIVE_SHIFTS[0], kind: 'IN', ...shiftTimes(tomorrow, ACTIVE_SHIFTS[0]) };
@@ -96,5 +111,5 @@ const minutesEarly = (end, checkOut) => Math.max(0, Math.ceil((end - checkOut) /
 
 module.exports = {
   SHIFT_HOURS, ACTIVE_SHIFTS, SHIFT_MINUTES, RULES, STAFF_ROLES, MANAGER_ROLES, EXPLANATION_REASONS, EARLY_LEAVE_REASONS,
-  vnToday, shiftTimes, kioskWindow, nextWindow, minutesLate, minutesEarly,
+  vnToday, shiftTimes, kioskWindow, nextWindow, minutesLate, minutesEarly, hoursOf, setOverrides, at, addMin,
 };

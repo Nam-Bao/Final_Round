@@ -7,6 +7,7 @@ import QrScanner from '../components/attendance/QrScanner';
 import FaceCapture from '../components/attendance/FaceCapture';
 import ExplanationModal from '../components/attendance/ExplanationModal';
 import CheckoutRequestModal from '../components/attendance/CheckoutRequestModal';
+import FaceEnrollCard from '../components/attendance/FaceEnrollCard';
 import {
   ATT_API, authConfig, errorText, uploadPhoto, shiftStatus, checkoutStatus, fmtTime, fmtDateTime, money,
   SHIFT_LABEL, EXPLANATION_STATUS, STAFF_ROLES,
@@ -252,6 +253,8 @@ export default function MyAttendancePage() {
         <Button shape="circle" icon={<ReloadOutlined />} onClick={refresh} loading={loading} aria-label="Tải lại" />
       </div>
 
+      <FaceEnrollCard />
+
       {loading && !today.length ? <div className="rounded-2xl bg-gray-100 h-36 animate-pulse" /> : hero}
 
       {/* Các ca hôm nay */}
@@ -312,7 +315,7 @@ export default function MyAttendancePage() {
                     <div className="text-[11px] text-gray-500">{['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.day()]}</div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-700">{SHIFT_LABEL[s.shift_type]}</div>
+                    <div className="text-sm font-medium text-slate-700">{s.label || SHIFT_LABEL[s.shift_type]}</div>
                     <div className="text-xs text-gray-500">
                       {s.record?.check_in_at ? `Vào ${fmtTime(s.record.check_in_at)}` : 'Không chấm vào'}
                       {s.record?.check_out_at && ` · ra ${fmtTime(s.record.check_out_at)}`}

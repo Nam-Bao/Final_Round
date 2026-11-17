@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert, Radio } from 'antd';
-import { UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Row, Col, Card, List, Tag, Select, Button, Space, Avatar, Typography, message, Divider, Input, InputNumber, Alert, Radio, Modal } from 'antd';
+import { PrinterOutlined, UserOutlined, DollarOutlined, SolutionOutlined, MedicineBoxOutlined, PercentageOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import VoucherProofUpload from '../components/VoucherProofUpload';
 import { useLiveRefresh } from '../components/Notifications';
+import { openPrint } from '../utils/print';
 
 const FIELD = { DERMATOLOGY: 'Da liễu', NUTRITION: 'Dinh dưỡng', COSMETICS: 'Mỹ phẩm' };
 
@@ -132,6 +133,12 @@ export default function ConsultantCheckoutPage() {
       }, { headers: { 'Authorization': `Bearer ${token}` } });
 
       message.success(`Chốt Sale thành công! Đã thu: ${Number(res.data.bill?.amount_due_now || 0).toLocaleString('vi-VN')} ₫`);
+      const aptId = selectedCustomer.id;
+      Modal.confirm({
+        title: 'Đã chốt bill', icon: <PrinterOutlined />, okText: 'In phiếu thanh toán', cancelText: 'Đóng',
+        content: <div>In phiếu thanh toán đưa khách. Cần đơn thuốc thì <Button type="link" className="p-0" onClick={() => openPrint('prescription', aptId)}>in đơn thuốc</Button>.</div>,
+        onOk: () => openPrint('invoice', aptId),
+      });
       setSelectedCustomer(null);
       fetchData();
     } catch (error) { message.error(error.response?.data?.message || 'Lỗi khi chốt hóa đơn!'); }
@@ -185,7 +192,10 @@ export default function ConsultantCheckoutPage() {
                     </div>
                   </div>
                 </Space>
-                <Tag color="purple" className="text-sm px-3 py-1"><SolutionOutlined/> Trạng thái: Chốt Hóa Đơn</Tag>
+                <Space direction="vertical" align="end">
+                  <Tag color="purple" className="text-sm px-3 py-1"><SolutionOutlined/> Trạng thái: Chốt Hóa Đơn</Tag>
+                  <Button size="small" icon={<PrinterOutlined />} onClick={() => openPrint('prescription', selectedCustomer.id)}>In đơn thuốc của bác sĩ</Button>
+                </Space>
               </div>
 
               <div className="flex-1 p-6 overflow-y-auto flex gap-6">

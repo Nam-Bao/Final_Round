@@ -2,6 +2,8 @@ const axios = require('axios');
 const { AiAnalysis } = require('../models');
 const pp = require('../services/postprocess'); // dùng chung với scripts/evaluate.js
 const { concernsOf, pickCandidates, ruleAdvice } = require('../services/productMatch');
+const imageQuality = require('../services/imageQuality');
+const { profileBelongs } = require('./analysisReview.controller');
 const cfg = pp.config;                         // config/aiConfig.json: class, nhóm, ngưỡng
 
 /* ------------------------------------------------------------------ */
@@ -49,140 +51,200 @@ const getAdviceCatalog = async () => {
 // => trả null, controller dùng kết quả theo quy tắc (productMatch.ruleAdvice).
 let visionCalls = 0;
 let visionDay = new Date().toDateString();
-const tryDescribeSkin = async (imageUrl, findings, candidates) => {
+const tryDescribeSkin = async (images, findings, candidates) => {
   if (!process.env.GEMINI_API_KEY) return null;
   if (visionDay !== new Date().toDateString()) { visionDay = new Date().toDateString(); visionCalls = 0; }
   if (visionCalls >= VISION_DAILY_CAP) return null;
   visionCalls++;
   try {
     const { describeSkin } = require('../services/skinVision');
-    return await describeSkin(imageUrl, findings, candidates);
+    return await describeSkin(images, findings, candidates);
   } catch (e) {
     console.error('[Vision fallback]', e.message);
     return null;
   }
 };
 
-const lesionGroups = new Set(Object.entries(cfg.groups).filter(([, g]) => g.countsForScore).map(([k]) => k));
+
+/* ------------------------------------------------------------------ */
+/* Phân tích 1 lượt soi (1 - 3 ảnh)                                    */
+/* ------------------------------------------------------------------ */
+const ANGLES = { front: 'Chính diện', left: 'Má trái', right: 'Má phải' };
+const MAX_IMAGES = 3;
+
+// Gọi model khoanh vùng cho 1 ảnh => khung đã xử lý theo luồng app (dùng chung với scripts/evaluate.js)
+const detectImage = async (sentUrl, imageIndex) => {
+  const { ROBOFLOW_PROJECT, ROBOFLOW_VERSION, ROBOFLOW_API_KEY } = process.env;
+  const response = await axios.post(`${RF_BASE}/${ROBOFLOW_PROJECT}/${ROBOFLOW_VERSION}`, null, {
+    params: { api_key: ROBOFLOW_API_KEY, image: sentUrl, confidence: FETCH_CONF, overlap: 30 },
+    timeout: 30000,
+  });
+  const { predictions = [], image: imgSize } = response.data;
+  console.log(`[Roboflow] ảnh ${imageIndex + 1}:`, predictions.map((p) => `${p.class}:${Math.round(p.confidence * 100)}%`).join(', ') || '(không có)');
+
+  // Bỏ class không dùng, bỏ box quá lớn, gộp theo nhóm, khử trùng lặp
+  const dropped = [];
+  const items = pp.postprocess(predictions.map(pp.fromRoboflow), imgSize?.width || 1, imgSize?.height || 1, 'g2', {
+    minConf: FETCH_CONF, useMaxArea: true, dropDisabled: true, dropped,
+  });
+  // Khung hiển thị theo ngưỡng "show" của từng nhóm; "confirm" quyết định nét liền / nét đứt
+  const issues = items
+    .filter((i) => cfg.groups[i.cls] && i.conf >= cfg.groups[i.cls].show)
+    .map((i) => ({
+      image_index: imageIndex,
+      raw_class: i.raw,
+      group: i.cls,
+      issue_name: cfg.classes[i.raw]?.vi || i.raw,
+      weight: cfg.classes[i.raw]?.weight ?? 1,
+      confidence: i.conf,
+      certainty: i.conf >= cfg.groups[i.cls].confirm ? 'confirmed' : 'possible',
+      bounding_box: i.box,
+      // Nhóm khung hay sai chỗ (thâm sau mụn, mụn đầu đen/trắng: F1 mức khung ~5-13%) thì không vẽ, chỉ kết luận có / không
+      draw: cfg.groups[i.cls].drawBoxes !== false,
+    }));
+  const maxConf = Object.fromEntries(Object.keys(cfg.groups).map((g) => [g, items.filter((i) => i.cls === g).reduce((m, i) => Math.max(m, i.conf), 0)]));
+  return { imgSize, raw: predictions, dropped, issues, maxConf };
+};
+
+// Thang Hayashi đếm mụn viêm trên NỬA mặt: ảnh má trái / má phải ~ nửa mặt => lấy số đếm lớn nhất giữa các ảnh
+// (không cộng dồn: 1 nốt có thể xuất hiện ở nhiều góc chụp)
+const severityOf = (level, count) => {
+  const [mildMax, moderateMax] = cfg.severity.inflammatoryCount;
+  return level === 'none' ? 'Chưa xác định'
+    : count === 0 ? cfg.severity.noLesionLabel
+    : count <= mildMax ? 'Nhẹ'
+    : count <= moderateMax ? 'Trung bình'
+    : 'Nặng';
+};
+const qualityOf = (q) => (q ? { ...q.metrics, problems: q.problems, ignored: !q.ok } : null);
+
+// Đo chất lượng từng ảnh (tối / mờ / cháy sáng); không đo được thì null
+const measureQualities = (sent) => Promise.all(sent.map(async (u) => {
+  try {
+    const img = await axios.get(u, { responseType: 'arraybuffer', timeout: 20000, maxContentLength: 15 * 1024 * 1024 });
+    return await imageQuality.check(Buffer.from(img.data), cfg.imageQuality);
+  } catch (e) {
+    console.error('[Chất lượng ảnh] không đo được:', e.message);
+    return null;
+  }
+}));
+
+// Khoanh vùng cả lượt soi (song song từng ảnh) => kết luận nhóm, mức độ (thang Hayashi, ảnh nhiều mụn viêm nhất), 3 trạng thái
+const detectSession = async (sent) => {
+  const results = await Promise.all(sent.map((u, i) => detectImage(u, i)));
+  const issues = results.flatMap((r) => r.issues);
+  // Kết luận theo nhóm cho cả lượt: có ở bất kỳ ảnh nào => có
+  const groups = Object.entries(cfg.groups).map(([g, gc]) => {
+    const maxConf = Math.max(...results.map((r) => r.maxConf[g]));
+    const shown = issues.filter((i) => i.group === g);
+    return {
+      group: g,
+      name: gc.vi,
+      present: maxConf >= gc.presence,
+      boxes: gc.drawBoxes !== false, // false: app không khoanh vùng nhóm này, chỉ kết luận có / không
+      max_confidence: Math.round(maxConf * 10) / 10,
+      confirmed: shown.filter((i) => i.certainty === 'confirmed').length,
+      possible: shown.filter((i) => i.certainty === 'possible').length,
+    };
+  });
+  // "Không phát hiện" KHÔNG có nghĩa là "da khỏe"
+  const perImageCount = results.map((r) => r.issues.filter((i) => i.group === 'inflammatory').length);
+  const inflammatoryCount = Math.max(...perImageCount);
+  const hasConfirmed = issues.some((i) => i.certainty === 'confirmed');
+  const level = hasConfirmed ? 'detected' : issues.length || groups.some((g) => g.present) ? 'uncertain' : 'none';
+  const summary = issues.filter((i) => i.draw).reduce((acc, i) => { acc[i.issue_name] = (acc[i.issue_name] || 0) + 1; return acc; }, {});
+  return { results, issues, groups, perImageCount, inflammatoryCount, level, severity: severityOf(level, inflammatoryCount), summary };
+};
+
+// Bản ghi images + parsed_metrics của 1 lượt soi
+const sessionRecord = (images, det, qualities, ai_summary) => ({
+  image_url: images[0].url, // ảnh đại diện (danh sách, bản ghi cũ chỉ có 1 ảnh)
+  images: images.map((im, i) => ({
+    url: im.url, angle: im.angle, image_size: det.results[i].imgSize, inflammatory_count: det.perImageCount[i], quality: qualityOf(qualities[i]),
+  })),
+  parsed_metrics: {
+    skin_age: null,
+    skin_type: 'Phân tích qua hình ảnh',
+    overall_score: null,
+    severity: det.severity,
+    severity_scale: cfg.severity.scale,
+    image_quality: qualityOf(qualities[0]),
+    inflammatory_count: det.inflammatoryCount,
+    level: det.level,
+    summary: det.summary,
+    groups: det.groups,
+    image_size: det.results[0].imgSize,
+    raw_count: det.results.reduce((n, r) => n + r.raw.length, 0),
+    issues: det.issues,
+    ai_summary,
+  },
+});
+exports.ANGLES = ANGLES;
+exports.isAllowedUrl = isAllowedUrl;
+exports.optimizeUrl = optimizeUrl;
+exports.measureQualities = measureQualities;
+exports.detectSession = detectSession;
+exports.sessionRecord = sessionRecord;
 
 /* ------------------------------------------------------------------ */
 /* Controller                                                          */
 /* ------------------------------------------------------------------ */
+// POST /analyze { images: [{ url, angle }] (1 - 3 ảnh của CÙNG 1 lượt soi) | image_url (cách cũ), consent, patient_profile_id, ignore_quality }
+// 1 lượt soi = 1 lượt hạn mức = 1 bản ghi; kết quả gộp các ảnh, Gemini xem tất cả ảnh trong 1 lần gọi.
 exports.analyzeFace = async (req, res) => {
-  console.log('[analyzeFace] HIT', new Date().toISOString()); // không thấy dòng này => request không vào controller này
+  console.log('[analyzeFace] HIT', new Date().toISOString());
 
-  const { image_url, consent } = req.body;
+  const { consent } = req.body;
   // Khách hàng: luôn lấy từ token; nhân viên phân tích hộ khách thì được truyền customer_id
   // Chưa đăng nhập: ghi là khách vãng lai, đếm lượt theo IP (analysisQuota)
   const customer_id = !req.user ? 'GUEST_ANALYSIS'
     : req.user.role === 'CUSTOMER' ? req.user.id : (req.body.customer_id || req.user.id);
 
-  if (!image_url) {
-    return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });
+  const input = Array.isArray(req.body.images) ? req.body.images
+    : req.body.image_url ? [{ url: req.body.image_url, angle: 'front' }] : [];
+  if (!input.length) return res.status(400).json({ success: false, message: 'Thiếu thông tin hình ảnh' });
+  if (input.length > MAX_IMAGES) return res.status(400).json({ success: false, message: `Mỗi lượt soi tối đa ${MAX_IMAGES} ảnh` });
+  const images = input.map((im) => ({ url: String(im?.url || ''), angle: ANGLES[im?.angle] ? im.angle : 'front' }));
+  if (new Set(images.map((im) => im.url)).size !== images.length) {
+    return res.status(400).json({ success: false, message: 'Có ảnh bị trùng trong lượt soi' });
   }
   // Bắt buộc có xác nhận chính sách sử dụng hình ảnh (modal ở frontend)
   if (!consent?.version || !consent?.accepted_at) {
     return res.status(400).json({ success: false, message: 'Thiếu xác nhận chính sách sử dụng hình ảnh' });
   }
-  if (!isAllowedUrl(image_url)) {
+  if (images.some((im) => !isAllowedUrl(im.url))) {
     return res.status(400).json({ success: false, message: 'URL ảnh không hợp lệ' });
+  }
+  // Hồ sơ người khám được soi (Bản thân / người thân): phải thuộc đúng tài khoản khách
+  const patient_profile_id = req.user && req.body.patient_profile_id ? String(req.body.patient_profile_id) : null;
+  if (patient_profile_id && !(await profileBelongs(patient_profile_id, customer_id, req.headers.authorization, req.user.role === 'CUSTOMER'))) {
+    return res.status(400).json({ success: false, message: 'Hồ sơ người được soi không thuộc tài khoản này' });
   }
 
   try {
-    const { ROBOFLOW_PROJECT, ROBOFLOW_VERSION, ROBOFLOW_API_KEY } = process.env;
-    const sentUrl = optimizeUrl(image_url);
+    const sent = images.map((im) => optimizeUrl(im.url));
 
-    const response = await axios.post(
-      `${RF_BASE}/${ROBOFLOW_PROJECT}/${ROBOFLOW_VERSION}`,
-      null,
-      {
-        params: { api_key: ROBOFLOW_API_KEY, image: sentUrl, confidence: FETCH_CONF, overlap: 30 },
-        timeout: 30000,
-      }
-    );
+    // 0) Ảnh tối / mờ / cháy sáng: báo khách chụp lại trước khi gọi model (không trừ lượt). Khách vẫn có thể chọn "vẫn phân tích".
+    const qualities = await measureQualities(sent);
+    const bad = qualities.map((q, i) => (q && !q.ok ? { index: i, angle: images[i].angle, problems: q.problems } : null)).filter(Boolean);
+    if (bad.length && req.body.ignore_quality !== true) {
+      const describe = (b) => `${images.length > 1 ? `Ảnh ${ANGLES[b.angle].toLowerCase()}: ` : ''}${b.problems.map((p) => imageQuality.MESSAGES[p]).join(', ')}`;
+      return res.status(422).json({
+        success: false, code: 'IMAGE_QUALITY', images: bad, problems: [...new Set(bad.flatMap((b) => b.problems))],
+        message: `${bad.map(describe).join('. ')}. Hãy chụp lại nơi đủ sáng, giữ máy chắc tay và lấy nét vào da mặt.`,
+      });
+    }
 
-    const { predictions = [], image: imgSize } = response.data;
-    console.log(
-      '[Roboflow] raw:',
-      predictions.map((p) => `${p.class}:${Math.round(p.confidence * 100)}%`).join(', ') || '(không có)',
-      JSON.stringify(imgSize)
-    );
+    // 1) Khoanh vùng cả lượt soi, kết luận nhóm, mức độ
+    const det = await detectSession(sent);
+    const { results, groups, level } = det;
 
-    const imgW = imgSize?.width || 1;
-    const imgH = imgSize?.height || 1;
-    const imgArea = imgW * imgH;
-
-    // 1) Xử lý chung với evaluate.js: bỏ class không dùng, bỏ box quá lớn, gộp theo nhóm, khử trùng lặp
-    const dropped = [];
-    const items = pp.postprocess(predictions.map(pp.fromRoboflow), imgW, imgH, 'g2', {
-      minConf: FETCH_CONF,
-      useMaxArea: true,
-      dropDisabled: true,
-      dropped,
-    });
-    if (dropped.length) console.log('[Roboflow] bỏ:', dropped.join('; '));
-
-    // 2) Khung để hiển thị: theo ngưỡng "show" của từng nhóm; "confirm" quyết định nét liền hay nét đứt
-    const issues = items
-      .filter((i) => cfg.groups[i.cls] && i.conf >= cfg.groups[i.cls].show)
-      .map((i) => ({
-        raw_class: i.raw,
-        group: i.cls,
-        issue_name: cfg.classes[i.raw]?.vi || i.raw,
-        weight: cfg.classes[i.raw]?.weight ?? 1,
-        confidence: i.conf,
-        certainty: i.conf >= cfg.groups[i.cls].confirm ? 'confirmed' : 'possible',
-        bounding_box: i.box,
-      }));
-
-    // 3) Kết luận theo nhóm cho cả ảnh ("có/không có"), kể cả khi không vẽ khung (ngưỡng "presence")
-    const groups = Object.entries(cfg.groups).map(([g, gc]) => {
-      const maxConf = items.filter((i) => i.cls === g).reduce((m, i) => Math.max(m, i.conf), 0);
-      const shown = issues.filter((i) => i.group === g);
-      return {
-        group: g,
-        name: gc.vi,
-        present: maxConf >= gc.presence,
-        max_confidence: Math.round(maxConf * 10) / 10,
-        confirmed: shown.filter((i) => i.certainty === 'confirmed').length,
-        possible: shown.filter((i) => i.certainty === 'possible').length,
-      };
-    });
-
-    // 4) Điểm và mức độ: chỉ tính các nhóm dạng nốt (mụn viêm, mụn đầu đen/trắng, thâm); nám/tàn nhang chỉ hiển thị
-    const lesionIssues = issues.filter((i) => lesionGroups.has(i.group));
-    const lesionConfirmed = lesionIssues.filter((i) => i.certainty === 'confirmed').length;
-    const penalty = lesionIssues.reduce((sum, i) => {
-      const b = i.bounding_box;
-      const areaFactor = 1 + Math.min(3, ((b.width * b.height) / imgArea) * 20);
-      const certaintyFactor = i.certainty === 'confirmed' ? 1 : 0.5;
-      return sum + i.weight * (i.confidence / 100) * 3 * areaFactor * certaintyFactor;
-    }, 0);
-
-    // 5) 3 trạng thái - "không phát hiện" KHÔNG có nghĩa là "da khỏe"
-    const hasConfirmed = issues.some((i) => i.certainty === 'confirmed');
-    const anyPresent = groups.some((g) => g.present);
-    const level = hasConfirmed ? 'detected' : issues.length || anyPresent ? 'uncertain' : 'none';
-    const overall_score = level === 'detected' && lesionConfirmed > 0 ? Math.round(Math.max(0, 100 - penalty)) : null;
-    const severity =
-      level === 'none' ? 'Chưa xác định'
-      : level === 'uncertain' ? 'Cần xác nhận'
-      : lesionConfirmed === 0 ? cfg.severity.noLesionLabel
-      : penalty >= cfg.severity.highFrom ? 'Nghiêm trọng'
-      : penalty >= cfg.severity.mediumFrom ? 'Trung bình'
-      : 'Nhẹ';
-
-    const summary = issues.reduce((acc, i) => {
-      acc[i.issue_name] = (acc[i.issue_name] || 0) + 1;
-      return acc;
-    }, {});
-
-    // 6) Quy tắc lọc sản phẩm ứng viên theo vấn đề da phát hiện được; Gemini xem ảnh, viết lời khuyên và chọn trong
-    //    danh sách ứng viên. Gemini không chạy được thì dùng lời khuyên mẫu + sản phẩm theo quy tắc.
+    // 4) Quy tắc lọc sản phẩm ứng viên; Gemini xem TẤT CẢ ảnh trong 1 lần gọi, viết lời khuyên, chọn trong ứng viên.
+    //    Gemini không chạy được thì dùng lời khuyên mẫu + sản phẩm theo quy tắc.
     const presentGroups = groups.filter((g) => g.present);
     const concerns = concernsOf(presentGroups);
     const candidates = pickCandidates(await getAdviceCatalog(), concerns);
-    const ai_summary = (await tryDescribeSkin(sentUrl, {
+    const ai_summary = (await tryDescribeSkin(sent.map((u, i) => ({ url: u, angle: ANGLES[images[i].angle] })), {
       level,
       concerns,
       groups: presentGroups.map((g) => ({ name: g.name, confirmed: g.confirmed, possible: g.possible })),
@@ -190,8 +252,10 @@ exports.analyzeFace = async (req, res) => {
 
     const record = await AiAnalysis.create({
       customer_id,
+      patient_profile_id,
       client_ip: req.ip,
-      image_url,
+      source: 'web',
+      ...sessionRecord(images, det, qualities, ai_summary),
       provider: 'Roboflow',
       status: 'success',
       consent: {
@@ -199,50 +263,29 @@ exports.analyzeFace = async (req, res) => {
         accepted_at: new Date(consent.accepted_at),
         allow_training: consent.allow_training === true,
       },
-      parsed_metrics: {
-        skin_age: null,
-        skin_type: 'Phân tích qua hình ảnh',
-        overall_score,
-        severity,
-        level,
-        summary,
-        groups,
-        image_size: imgSize,
-        raw_count: predictions.length,
-        issues,
-        ai_summary,
-      },
     });
 
     return res.status(200).json({
       success: true,
       data: record,
       ...(req.query.debug === '1' && process.env.NODE_ENV !== 'production' && {
-        debug: {
-          sent_url: sentUrl,
-          image_size: imgSize,
-          raw: predictions.map((p) => ({ class: p.class, confidence: Math.round(p.confidence * 1000) / 10 })),
-          dropped,
-        },
+        debug: results.map((r, i) => ({
+          sent_url: sent[i], image_size: r.imgSize, dropped: r.dropped,
+          raw: r.raw.map((p) => ({ class: p.class, confidence: Math.round(p.confidence * 1000) / 10 })),
+        })),
       }),
     });
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message;
     console.error('[Roboflow Error]', errorMessage);
-
     try {
       await AiAnalysis.create({
-        customer_id,
-        client_ip: req.ip,
-        image_url,
-        provider: 'Roboflow',
-        status: 'failed',
-        error_message: errorMessage,
+        customer_id, client_ip: req.ip, image_url: images[0].url, images: images.map((im) => ({ url: im.url, angle: im.angle })),
+        provider: 'Roboflow', status: 'failed', error_message: errorMessage,
       });
     } catch (dbErr) {
       console.error('[DB Error]', dbErr.message);
     }
-
     return res.status(500).json({ success: false, message: 'Lỗi phân tích AI', error: errorMessage });
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, DatePicker, Alert, Upload, Modal, Radio } from 'antd';
+import { Row, Col, Card, List, Tag, Tabs, Form, Input, Select, Button, Space, Avatar, Typography, message, DatePicker, Alert, Upload, Modal, Radio, Checkbox } from 'antd';
 import { UserOutlined, PhoneOutlined, SolutionOutlined, CheckCircleOutlined, ReloadOutlined, CameraOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -9,6 +9,9 @@ import { useLiveRefresh } from '../components/Notifications';
 
 const { Title, Text } = Typography;
 const { Search } = Input; // THÊM COMPONENT SEARCH
+// Ảnh da chụp tại quầy: 3 góc để AI quét (giống lượt soi trên web) + ảnh khác cho bác sĩ xem
+const ANGLE_SLOTS = [['front', 'Chính diện'], ['left', 'Má trái'], ['right', 'Má phải']];
+const MAX_COUNTER_IMAGES = 10;
 const DOCTOR_STATE = {
   FREE: { color: 'success', text: 'Đang rảnh' },
   BUSY: { color: 'processing', text: 'Đang khám' },
@@ -73,11 +76,20 @@ export default function ConsultantWorkspacePage() {
     }
   };
 
+  const [webScan, setWebScan] = useState(null);
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer);
     setScreened(false);
     form.resetFields();
-    setUploadedImages([]); 
+    setUploadedImages([]);
+    setWebScan(null);
+    if (customer.patient_profile_id) {
+      // Khách đã tự soi da trên web trong 14 ngày: nhắc CSKH vẫn chụp tại quầy (ảnh chuẩn hơn, đúng buổi khám)
+      axios.get(`http://localhost:4000/api/ai/analyses/profile/${customer.patient_profile_id}`, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } })
+        .then((res) => setWebScan((res.data.data || []).find((x) => x.source !== 'clinic' && dayjs().diff(dayjs(x.created_at), 'day') <= 14) || null))
+        .catch(() => setWebScan(null));
+    }
+     
     
     if (activeTab === 'walkIn') {
       form.setFieldsValue({ reason: customer.symptoms });
@@ -104,12 +116,12 @@ export default function ConsultantWorkspacePage() {
         message.success('Đã dời lịch & chốt Bác sĩ mới thành công!');
       }
       else if (activeTab === 'checkIn') {
-        const payload = { ...values, pre_exam_images: uploadedImages };
+        const payload = { ...values, ai_consent: values.ai_consent === true, pre_exam_images: uploadedImages };
         await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/pre-check`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
         message.success('Đã chuyển hồ sơ cho bác sĩ. Khách chờ tới lượt trong hàng chờ của bác sĩ.');
       } 
       else if (activeTab === 'walkIn') {
-        await inviteWalkIn({ ...values, pre_exam_images: uploadedImages });
+        await inviteWalkIn({ ...values, ai_consent: values.ai_consent === true, pre_exam_images: uploadedImages });
         return;
       }
       
@@ -132,8 +144,9 @@ export default function ConsultantWorkspacePage() {
     },
   });
 
-  const handleCustomUpload = async ({ file, onSuccess, onError }) => {
+  const handleCustomUpload = (angle = null) => async ({ file, onSuccess, onError }) => {
     try {
+      if (!angle && uploadedImages.length >= MAX_COUNTER_IMAGES) throw new Error(`Tối đa ${MAX_COUNTER_IMAGES} ảnh`);
       const token = sessionStorage.getItem('admin_token');
       const formData = new FormData();
       formData.append('image', file);
@@ -144,16 +157,14 @@ export default function ConsultantWorkspacePage() {
       const uploadData = await uploadRes.json();
       if (!uploadRes.ok) throw new Error(uploadData.message || 'Tải ảnh thất bại!');
       
-      setUploadedImages(prev => [...prev, uploadData.url]);
+      // Mỗi góc 1 ảnh (chụp lại thì thay ảnh cũ), ảnh khác thì thêm vào
+      setUploadedImages(prev => [...(angle ? prev.filter((x) => x.angle !== angle) : prev), { url: uploadData.url, angle }]);
       onSuccess("ok");
       message.success('Tải ảnh lên máy chủ thành công!');
     } catch (err) { onError(err); message.error(err.message); }
   };
 
-  const handleRemoveImage = (indexToRemove) => {
-    setUploadedImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
+  
   const RenderRescheduleForm = () => {
     const oldDoctorName = doctors.find(d => d.id === selectedCustomer?.doctor_id)?.Profile?.full_name || 'Bác sĩ không xác định';
     return (
@@ -181,20 +192,47 @@ export default function ConsultantWorkspacePage() {
         <Text type="secondary">Chụp ảnh da mặt thực tế và khai thác nhu cầu của khách tại quầy.</Text>
       </div>
       
-      <Form.Item label={<b className="text-gray-700">Ảnh tình trạng da (Tối đa 5 ảnh)</b>}>
-         <Upload listType="picture-card" customRequest={handleCustomUpload} showUploadList={false} accept="image/*">
-           <div><CameraOutlined /><div style={{ marginTop: 8 }}>Chụp / Tải lên</div></div>
-         </Upload>
-         {uploadedImages.length > 0 && (
-           <div className="flex flex-wrap gap-3 mt-3">
-              {uploadedImages.map((url, i) => (
-                <div key={i} className="relative group">
-                  <img src={url} alt={`Da ${i}`} className="w-20 h-20 rounded-lg object-cover border border-gray-300 shadow-sm" />
-                  <button type="button" onClick={() => handleRemoveImage(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer">✕</button>
-                </div>
-              ))}
-           </div>
-         )}
+      {webScan && (
+        <Alert className="mb-3" type="info" showIcon
+          message={`Khách đã tự soi da trên web ngày ${dayjs(webScan.created_at).format('DD/MM/YYYY')} (mức ${webScan.ai?.severity || '—'})`}
+          description="Vẫn nên chụp lại tại quầy: ảnh đúng buổi khám, đủ sáng. Lượt soi trên web vẫn lưu trong lịch sử của khách." />
+      )}
+      <Form.Item label={<b className="text-gray-700">Ảnh tình trạng da (3 góc để AI quét + ảnh khác, tối đa {MAX_COUNTER_IMAGES} ảnh)</b>}>
+        <div className="flex flex-wrap gap-3">
+          {ANGLE_SLOTS.map(([angle, label]) => {
+            const img = uploadedImages.find((x) => x.angle === angle);
+            return (
+              <div key={angle} className="text-center">
+                <Upload listType="picture-card" customRequest={handleCustomUpload(angle)} showUploadList={false} accept="image/*">
+                  {img ? <img src={img.url} alt={label} className="w-full h-full object-cover rounded" /> : <div><CameraOutlined /><div style={{ marginTop: 4 }}>{label}</div></div>}
+                </Upload>
+                <div className="text-xs text-gray-500">{label}{img && <> · <a onClick={() => setUploadedImages((prev) => prev.filter((x) => x !== img))}>xoá</a></>}</div>
+              </div>
+            );
+          })}
+          <div className="text-center">
+            <Upload listType="picture-card" customRequest={handleCustomUpload(null)} showUploadList={false} accept="image/*" multiple>
+              <div><CameraOutlined /><div style={{ marginTop: 4 }}>Ảnh khác</div></div>
+            </Upload>
+            <div className="text-xs text-gray-500">cận vùng da, góc khác</div>
+          </div>
+        </div>
+        {uploadedImages.some((x) => !x.angle) && (
+          <div className="flex flex-wrap gap-3 mt-3">
+            {uploadedImages.filter((x) => !x.angle).map((x) => (
+              <div key={x.url} className="relative group">
+                <img src={x.url} alt="Ảnh da" className="w-20 h-20 rounded-lg object-cover border border-gray-300 shadow-sm" />
+                <button type="button" onClick={() => setUploadedImages((prev) => prev.filter((y) => y !== x))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Form.Item>
+      <Form.Item name="ai_consent" valuePropName="checked" className="-mt-2">
+        <Checkbox>
+          Khách đồng ý cho <b>phân tích ảnh da bằng AI</b> (ảnh được gửi tới đơn vị phân tích Roboflow; kết quả để bác sĩ tham khảo, không thay chẩn đoán).
+          <div className="text-xs text-gray-500">Có đồng ý + có ảnh 3 góc: hệ thống quét sẵn để bác sĩ xem trong tab "Soi da AI". Không đồng ý: ảnh vẫn lưu vào hồ sơ khám cho bác sĩ xem.</div>
+        </Checkbox>
       </Form.Item>
       
       {activeTab === 'walkIn' && (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export default function LoginPage() {
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const next = searchParams.get('next') || '';
   const redirectTo = next.startsWith('/') && !next.startsWith('//') ? next : '/';
   const expired = searchParams.get('expired') === '1';
+  const notice = useLocation().state?.notice; // VD: vừa đặt lại mật khẩu
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,6 +59,7 @@ export default function LoginPage() {
           {!expired && next && !error && (
             <div className="alert alert-info py-2 text-sm">Vui lòng đăng nhập để sử dụng dịch vụ.</div>
           )}
+          {notice && !error && <div className="alert alert-success py-2 text-sm">{notice}</div>}
           {error && <div className="alert alert-error py-2 text-sm">{error}</div>}
           
           <form onSubmit={handleSubmit}>
@@ -68,8 +70,11 @@ export default function LoginPage() {
             </div>
             <div className="form-control mb-4">
               <label className="label"><span className="label-text">Mật khẩu</span></label>
-              <input type="password" className="input input-bordered" required 
+              <input type="password" className="input input-bordered" required
                 onChange={e => setPassword(e.target.value)} />
+              <div className="text-right mt-2">
+                <Link to="/quen-mat-khau" className="text-sm text-primary hover:underline">Quên mật khẩu?</Link>
+              </div>
             </div>
             <button type="submit" className="btn btn-primary w-full">Đăng Nhập</button>
           </form>

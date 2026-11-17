@@ -170,16 +170,19 @@ const withReturn = async (req, res, allowedFrom, action, successMessage) => {
 };
 
 // [SALES] Duyệt yêu cầu (sau khi xem ảnh/mô tả hợp lệ)
-exports.approveReturn = (req, res) => withReturn(req, res, ['PENDING'], async (ret) => {
+const { returnUpdate } = require('../utils/orderMail');
+exports.approveReturn = (req, res) => withReturn(req, res, ['PENDING'], async (ret, t) => {
   Object.assign(ret, { status: 'APPROVED', handled_by: req.user.id, approved_at: new Date() });
+  t.afterCommit(() => returnUpdate(ret, { status: 'APPROVED' }));
 }, 'Đã duyệt yêu cầu, hãy tạo đơn GHN lấy hàng');
 
 // [SALES] Từ chối: khi duyệt hồ sơ, hoặc khi kiểm tra hàng nhận về không đạt
 exports.rejectReturn = (req, res) => {
   const reason = String(req.body.reason || '').trim();
   if (reason.length < 10) return res.status(400).json({ success: false, message: 'Nhập lý do từ chối (ít nhất 10 ký tự) để thông báo cho khách' });
-  return withReturn(req, res, ['PENDING', 'APPROVED', 'RECEIVED'], async (ret) => {
+  return withReturn(req, res, ['PENDING', 'APPROVED', 'RECEIVED'], async (ret, t) => {
     Object.assign(ret, { status: 'REJECTED', reject_reason: reason, handled_by: req.user.id });
+    t.afterCommit(() => returnUpdate(ret, { status: 'REJECTED', reason }));
   }, 'Đã từ chối yêu cầu hoàn trả');
 };
 
@@ -274,6 +277,7 @@ exports.refundReturn = (req, res) => {
       }
     }
     Object.assign(ret, { status: 'REFUNDED', refund_ref, restocked: restock, refunded_at: new Date(), handled_by: req.user.id });
+    t.afterCommit(() => returnUpdate(ret, { status: 'REFUNDED', amount: Number(ret.refund_amount), ref: refund_ref }));
   }, 'Đã hoàn tất hoàn tiền cho khách');
 };
 

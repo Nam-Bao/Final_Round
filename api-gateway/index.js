@@ -52,6 +52,9 @@ const rateLimit = ({ windowMs, max, message, onlyFailures = false }) => {
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 // Chống dò mật khẩu
 app.post('/api/identity/auth/login', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, onlyFailures: true, message: 'Đăng nhập sai quá nhiều lần, vui lòng thử lại sau 15 phút' }));
+// Quên mật khẩu: chặn spam gửi mã và dò mã OTP theo IP
+app.post('/api/identity/auth/forgot-password', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 5, message: 'Bạn yêu cầu mã quá nhiều lần, vui lòng thử lại sau 15 phút' }));
+app.post('/api/identity/auth/reset-password', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 15, message: 'Bạn thử quá nhiều lần, vui lòng thử lại sau 15 phút' }));
 app.post('/api/identity/auth/register', rateLimit({ windowMs: FIFTEEN_MINUTES, max: 10, message: 'Bạn đăng ký quá nhiều lần, vui lòng thử lại sau' }));
 // Upload ảnh và phân tích AI mở cho khách vãng lai (trang chủ) nên giới hạn để tránh lạm dụng Cloudinary / Roboflow
 app.post(/^\/api\/media\/pages\/(banners|popups)\/[^/]+\/click$/, rateLimit({ windowMs: FIFTEEN_MINUTES, max: 60, message: 'Thao tác quá nhanh' }));

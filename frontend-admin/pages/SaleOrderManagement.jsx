@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, Zap, Plus, Store, Globe } from 'lucide-react';
+import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, Zap, Plus, Store, Globe, Printer } from 'lucide-react';
 import axios from 'axios';
 import CreateOrderModal from '../components/CreateOrderModal';
 import { refundCode } from '../components/RefundTransferNote';
 import { useLiveRefresh } from '../components/Notifications';
+import { openPrint } from '../utils/print';
 
 // Đơn tại quầy: CSKH chốt sau buổi khám (có lịch khám) hoặc NVBH bán tại quầy (địa chỉ nhận tại quầy)
 const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin';
 const isCounterOrder = (order) => !!order.appointment_id || order.shipping_address === PICKUP_ADDRESS;
+// Hóa đơn bán lẻ: đơn NVBH bán tại quầy đã hoàn thành (đơn mua sau khám in chung phiếu thanh toán của lịch khám)
+const PRINTABLE = ['COMPLETED', 'RETURN_REQUESTED', 'RETURN_COMPLETED', 'RETURN_REJECTED', 'REFUND_PENDING'];
+const canPrintReceipt = (order) => !order.appointment_id && order.shipping_address === PICKUP_ADDRESS && PRINTABLE.includes(order.status);
 const CHANNELS = [
   { key: 'ALL', label: 'Tất cả kênh' },
   { key: 'ONLINE', label: 'Đơn online', icon: Globe },
@@ -266,6 +270,12 @@ export default function SaleOrderManagement() {
               <div>
                 <h3 className="font-bold text-lg text-slate-800">Chi tiết đơn hàng</h3>
                 <p className="text-xs font-mono text-slate-500 mt-1">#{selectedOrder.id}</p>
+                {canPrintReceipt(selectedOrder) && (
+                  <button onClick={() => openPrint('order', selectedOrder.id)} className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-white hover:bg-blue-50">
+                    <Printer className="w-3.5 h-3.5" /> In hóa đơn bán lẻ
+                  </button>
+                )}
+                {selectedOrder.appointment_id && <p className="mt-2 text-xs text-slate-500">Đơn mua sau khám: in trong phiếu thanh toán của lịch khám (Quản lý lịch hẹn).</p>}
               </div>
               <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusInfo(selectedOrder).color}`}>
                 {getStatusInfo(selectedOrder).label}

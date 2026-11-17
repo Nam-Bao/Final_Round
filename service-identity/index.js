@@ -32,6 +32,8 @@ app.use('/profile', profileRoute);
 app.use('/users', userRoute);
 app.use('/hr', require('./routes/hr.route.js')); // hồ sơ nhân sự
 app.use('/medical-records', medicalRecordRoutes);
+app.use('/internal', require('./routes/internal.route.js')); // service khác nhờ gửi email (token hệ thống)
+app.use('/emails', require('./routes/email.route.js'));       // quản lý xem lịch sử email, gửi lại
 
 server.listen(PORT, async () => {
   console.log(`🚀 [Identity & Socket] đang chạy tại port ${PORT}`);
@@ -48,5 +50,11 @@ server.listen(PORT, async () => {
     const alter = process.env.DB_SYNC_ALTER === 'true';
     if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
     await sequelize.sync({ alter });
+    // sync thường không thêm cột vào bảng đã có => tự thêm cột tệp đính kèm cho chat
+    await sequelize.query('ALTER TABLE "ChatMessages" ADD COLUMN IF NOT EXISTS "attachments" JSONB');
+    await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "reset_password_attempts" INTEGER DEFAULT 0');
+    await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "email_reminders" BOOLEAN DEFAULT true');
+    require('./services/email').startJobs(); // gửi lại email lỗi, dọn mã OTP hết hạn
+    require('./utils/chatFiles').startRetentionJob(require('./models').ChatMessage); // xoá tệp chat quá hạn lưu 2 năm
   } catch (error) { console.error(error); }
 });

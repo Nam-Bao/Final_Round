@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
 
 // Đổi version mỗi khi nội dung chính sách thay đổi, để biết khách đã đồng ý bản nào
-export const CONSENT_VERSION = '2026-10-v1';
+export const CONSENT_VERSION = '2026-11-v3'; // v3: lưu 2 năm, khách tự xoá được; ảnh cải thiện AI được làm mờ vùng mắt
 
 // TODO: chỉnh theo chính sách thực tế của GlowSkin và cho bộ phận pháp lý rà soát trước khi chạy thật
 const POLICY = {
-  retention: '30 ngày kể từ ngày tải lên',
+  retention: '2 năm kể từ ngày tải lên', // khớp SCAN_RETENTION_DAYS (service-ai-analysis)
   contactEmail: 'privacy@glowskin.vn',
   policyUrl: '/chinh-sach-bao-mat',
   processors: 'Cloudinary (lưu trữ ảnh) và Roboflow (phân tích hình ảnh)',
@@ -89,7 +89,7 @@ export default function PhotoConsentModal({ open, onAccept, onClose }) {
               <li>Chỉ dùng ảnh của bạn để phân tích tình trạng da bằng AI và giúp chuyên viên tư vấn dịch vụ phù hợp.</li>
               <li>Không đăng tải, quảng cáo hay chia sẻ ảnh của bạn vì mục đích thương mại.</li>
               <li>Chỉ chuyển ảnh cho đơn vị kỹ thuật phục vụ việc phân tích: {POLICY.processors}.</li>
-              <li>Lưu ảnh và kết quả phân tích trong {POLICY.retention}, sau đó xóa.</li>
+              <li>Lưu ảnh và kết quả phân tích trong {POLICY.retention} để bạn và bác sĩ theo dõi tiến triển da, sau đó tự động xóa. Bạn có thể tự xóa từng lượt soi bất cứ lúc nào ở trang Lịch sử soi da.</li>
               <li>Chỉ nhân sự được phân quyền mới xem được ảnh của bạn.</li>
               <li>
                 Bạn có quyền yêu cầu xem, xóa ảnh hoặc rút lại đồng ý bất cứ lúc nào qua{' '}
@@ -140,8 +140,10 @@ export default function PhotoConsentModal({ open, onAccept, onClose }) {
                 onChange={(e) => setAllowTraining(e.target.checked)}
               />
               <span className="text-slate-600">
-                Tôi đồng ý cho dùng ảnh đã được ẩn danh để cải thiện mô hình AI. Không đồng ý sẽ không ảnh hưởng đến kết
-                quả phân tích của tôi. (Không bắt buộc)
+                Tôi đồng ý cho GlowSkin dùng ảnh và kết quả bác sĩ xác nhận để cải thiện mô hình AI. Trước khi đưa vào bộ dữ
+                liệu, ảnh được làm mờ vùng mắt và bỏ thông tin định danh (tên, số điện thoại, thông tin thiết bị / vị trí trong ảnh);
+                người quen vẫn có thể nhận ra. Tôi có thể rút lại đồng ý hoặc xóa lượt soi bất kỳ lúc nào ở trang Lịch sử soi da,
+                khi đó ảnh cũng được gỡ khỏi dữ liệu cải thiện AI. Không đồng ý sẽ không ảnh hưởng đến kết quả phân tích của tôi. (Không bắt buộc)
               </span>
             </label>
           </div>

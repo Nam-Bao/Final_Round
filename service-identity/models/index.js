@@ -20,9 +20,30 @@ const User = sequelize.define('User', {
     defaultValue: 'CUSTOMER' 
   },
   status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'BANNED'), defaultValue: 'ACTIVE' },
+  // Quên mật khẩu: lưu HMAC của mã OTP (không lưu mã gốc), hạn 15 phút, tối đa 5 lần nhập sai
   reset_password_token: { type: DataTypes.STRING, allowNull: true },
-  reset_password_expires: { type: DataTypes.DATE, allowNull: true }
+  reset_password_expires: { type: DataTypes.DATE, allowNull: true },
+  reset_password_attempts: { type: DataTypes.INTEGER, defaultValue: 0 },
+  // Khách tắt email nhắc lịch (nhắc khám, tái khám, gói liệu trình). Email giao dịch / bảo mật vẫn gửi.
+  email_reminders: { type: DataTypes.BOOLEAN, defaultValue: true },
 });
+
+// Nhật ký email gửi khách: key duy nhất theo loại + đối tượng + mốc nhắc => chạy lại cron / restart không gửi trùng
+const EmailLog = sequelize.define('EmailLog', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  key: { type: DataTypes.STRING(200), allowNull: false, unique: true },
+  template: { type: DataTypes.STRING(40), allowNull: false },
+  user_id: { type: DataTypes.UUID },
+  to_email: { type: DataTypes.STRING },
+  subject: { type: DataTypes.STRING(300) },
+  // QUEUED đang gửi | SENT đã gửi | FAILED lỗi (thử lại tối đa 3 lần) | SKIPPED không gửi (skip_reason)
+  status: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'QUEUED' },
+  skip_reason: { type: DataTypes.STRING(100) },
+  attempts: { type: DataTypes.INTEGER, defaultValue: 0 },
+  last_error: { type: DataTypes.STRING(500) },
+  data: { type: DataTypes.JSONB }, // dữ liệu dựng email (đã bỏ phần nhạy cảm như mã OTP) để gửi lại khi lỗi
+  sent_at: { type: DataTypes.DATE },
+}, { indexes: [{ fields: ['status'] }, { fields: ['template'] }, { fields: ['createdAt'] }] });
 
 // 2. Bảng Profiles (Chứa thông tin nhân viên hoặc thông tin định danh của Account)
 const Profile = sequelize.define('Profile', {
@@ -149,7 +170,8 @@ const ChatSession = sequelize.define('ChatSession', {
 const ChatMessage = sequelize.define('ChatMessage', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   sender_type: { type: DataTypes.ENUM('CUSTOMER', 'CONSULTANT', 'SYSTEM') },
-  content: { type: DataTypes.TEXT }
+  content: { type: DataTypes.TEXT },
+  attachments: { type: DataTypes.JSONB }, // [{ url, type: image | pdf, name, size }] tệp gửi trong chat (utils/chatFiles.js)
 });
 
 // ==========================================
@@ -191,4 +213,4 @@ ChatMessage.belongsTo(ChatSession, { foreignKey: 'session_id' });
 
 // Đồng bộ bảng được gọi 1 lần duy nhất trong index.js (trước đây gọi ở cả 2 nơi)
 
-module.exports = { WalkInClaim, sequelize, User, Profile, DoctorProfile, EmployeeRecord, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };
+module.exports = { EmailLog, WalkInClaim, sequelize, User, Profile, DoctorProfile, EmployeeRecord, PatientProfile, Attendance, MedicalRecord, ChatSession, ChatMessage };

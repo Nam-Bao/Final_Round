@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  CalendarCheck, CalendarDays, ChevronDown, ClipboardList, LogIn, LogOut, Menu, MessageCircle, Package, Phone, Scan, Search, Sparkles, User, X,
+  CalendarCheck, CalendarDays, ChevronDown, ClipboardList, LogIn, LogOut, Menu, MessageCircle, Package, Phone, Scan, Search, Sparkles, User, X, ScanFace,
 } from 'lucide-react';
 import GlobalSearch from './GlobalSearch';
 import { HOTLINE, HOTLINE_DISPLAY, WORKING_HOURS, ZALO_URL } from '../utils/contact';
@@ -46,6 +46,7 @@ const NAV_GROUPS = [
 const ACCOUNT_LINKS = [
   ['/profile', 'Hồ sơ cá nhân', User],
   ['/appointments', 'Sổ lịch khám', CalendarDays],
+  ['/lich-su-soi-da', 'Lịch sử soi da', ScanFace],
   ['/treatments', 'Gói liệu trình của tôi', ClipboardList],
   ['/orders', 'Đơn hàng mỹ phẩm', Package],
 ];

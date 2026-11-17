@@ -32,6 +32,7 @@ router.post('/counter', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER',
 // 3. Quản lý đơn: chỉ NVBH/Quản lý/Admin (đặt trước route '/')
 router.get('/admin', salesStaff, orderController.getAllOrdersForAdmin);
 router.post('/admin', salesStaff, orderController.createStaffOrder); // NVBH tạo đơn hộ khách (tại quầy / giao GHN)
+router.get('/admin/:id/print', salesStaff, require('../controllers/print.controller.js').counterOrderPrint); // hóa đơn bán lẻ tại quầy (A5)
 router.put('/admin/:id/status', salesStaff, orderController.updateOrderStatus);
 router.put('/admin/:id/cancel', salesStaff, orderController.cancelOrder);
 router.put('/admin/:id/refund', salesStaff, orderController.confirmOrderRefund);

@@ -11,6 +11,8 @@ router.get('/', getProducts);
 router.get('/admin', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getProductsForAdmin);
 // Cửa hàng web: chỉ sản phẩm đã bật "Bán trên web"; chi tiết tra theo slug trên URL
 // Thành phần để kiểm tra chống chỉ định khi kê đơn (gồm cả thuốc kê đơn không hiện trên web)
+// In đơn thuốc / điền sẵn cách dùng: tên, dung tích, hướng dẫn sử dụng
+router.get('/print-info', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'SALES', 'GEN_MANAGER', 'ADMIN'), require('../controllers/print.controller.js').productPrintInfo);
 router.get('/safety-info', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'SALES', 'GEN_MANAGER', 'ADMIN'), getProductSafetyInfo);
 router.get('/safety-catalog', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getSafetyCatalog);
 router.get('/shop', getShopProducts);

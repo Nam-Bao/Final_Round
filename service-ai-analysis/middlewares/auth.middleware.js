@@ -7,6 +7,15 @@ const getSecret = () => {
   return secret;
 };
 
+// Chỉ service khác gọi (token hệ thống ký bằng JWT_SECRET chung, { sys: true })
+const systemOnly = (req, res, next) => {
+  try {
+    const payload = jwt.verify(String(req.header('Authorization') || '').replace(/^Bearer /, ''), getSecret());
+    if (payload.sys !== true) return res.status(403).json({ message: 'Chỉ dành cho hệ thống' });
+    next();
+  } catch { return res.status(401).json({ message: 'Unauthorized' }); }
+};
+
 const verifyToken = (req, res, next) => {
   // Lấy token từ header của request (chuẩn Authorization: Bearer <token>)
   const authHeader = req.header('Authorization');
@@ -56,4 +65,4 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-module.exports = { verifyToken, optionalAuth, authorizeRoles, getSecret };
+module.exports = { verifyToken, optionalAuth, authorizeRoles, getSecret, systemOnly };

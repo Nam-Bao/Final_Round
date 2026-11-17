@@ -137,7 +137,7 @@ const getContentStats = async (req, res) => {
   }
 };
 
-const CLINIC_TEXT_FIELDS = { address: ['Địa chỉ', 300], map_query: ['Địa điểm bản đồ', 300], working_hours: ['Giờ khám', 100], consult_hours: ['Giờ tư vấn', 100] };
+const CLINIC_TEXT_FIELDS = { address: ['Địa chỉ', 300], map_query: ['Địa điểm bản đồ', 300], working_hours: ['Giờ khám', 100], consult_hours: ['Giờ tư vấn', 100], business_name: ['Tên pháp lý', 200], tax_code: ['Mã số thuế', 20], license_no: ['Số giấy phép hoạt động', 100] };
 const CLINIC_URL_FIELDS = { zalo_url: 'Zalo', facebook_url: 'Facebook', instagram_url: 'Instagram', tiktok_url: 'TikTok', youtube_url: 'YouTube' };
 
 const pickClinicInfo = (body) => {

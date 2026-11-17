@@ -10,6 +10,18 @@ router.get('/', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR', 'C
 // Lễ tân, CSKH, Bác sĩ, Quản lý đều được xem danh sách khách
 router.get('/customers', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'DOCTOR', 'CONSULTANT', 'SALES', 'TECHNICIAN'), getCustomers);
 router.get('/profile', verifyToken, getCusProfile);
+// Khách bật / tắt email nhắc lịch (nhắc khám, tư vấn, tái khám, gói liệu trình). Email giao dịch / bảo mật vẫn gửi.
+const { User: UserModel } = require('../models');
+router.get('/me/email-preferences', verifyToken, async (req, res) => {
+  const u = await UserModel.findByPk(req.user.id, { attributes: ['email', 'email_reminders'] });
+  if (!u) return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
+  res.json({ data: { email: /@walkin\.glowskin\.local$/i.test(u.email) ? null : u.email, email_reminders: u.email_reminders !== false } });
+});
+router.put('/me/email-preferences', verifyToken, async (req, res) => {
+  if (typeof req.body?.email_reminders !== 'boolean') return res.status(400).json({ message: 'Giá trị không hợp lệ' });
+  await UserModel.update({ email_reminders: req.body.email_reminders }, { where: { id: req.user.id } });
+  res.json({ message: req.body.email_reminders ? 'Đã bật email nhắc lịch' : 'Đã tắt email nhắc lịch', data: { email_reminders: req.body.email_reminders } });
+});
 
 // Chỉ Quản lý và Admin được xem danh sách toàn bộ nhân viên
 router.get('/employees', verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER'), getEmployees);
@@ -33,6 +45,9 @@ router.get('/walk-in/lookup', ...walkInStaff, lookupCustomerByPhone);
 router.post('/walk-in', ...walkInStaff, createWalkInCustomer);
 router.post('/walk-in/:id/claim-code', ...walkInStaff, renewClaimCode);
 // Quản lý tài khoản: chỉ ADMIN (trang Quản lý Người dùng)
+// Chứng từ in (service khác gọi bằng token hệ thống)
+const { systemOnly, printInfo } = require('../controllers/printInfo.controller.js');
+router.post('/print-info', systemOnly, printInfo);
 router.post('/', verifyToken, authorizeRoles('ADMIN'), createUser);
 router.put('/:id', verifyToken, authorizeRoles('ADMIN'), updateUser);
 router.delete('/:id', verifyToken, authorizeRoles('ADMIN'), deleteUser);

@@ -8,7 +8,9 @@ import {
   ATT_API, authConfig, errorText, shiftStatus, checkoutStatus, fmtTime, fmtDateTime, money, SHIFT_LABEL, ROLE_LABEL, EXPLANATION_STATUS,
 } from '../components/attendance/attendanceApi';
 import CheckoutRequestTab from '../components/attendance/CheckoutRequestTab';
+import { FaceBadge, FaceReviewDrawer, FaceEnrollTab, ShiftHoursTab, FLAGGED } from '../components/attendance/FaceAdmin';
 import { useLiveRefresh } from '../components/Notifications';
+import EmployeeMonthDetail from '../components/attendance/EmployeeMonthDetail';
 
 const MANAGER_ROLES = ['ADMIN', 'GEN_MANAGER'];
 const METHOD = { QR: 'Quét QR', EXPLANATION: 'Giải trình', REQUEST: 'Theo đơn', AUTO: 'Hệ thống' };
@@ -30,6 +32,7 @@ function DailyTab({ people }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState('');
+  const [faceTarget, setFaceTarget] = useState(null); // { record, kind, name } xác nhận ảnh chấm công
 
   const load = async () => {
     setLoading(true);
@@ -43,6 +46,7 @@ function DailyTab({ people }) {
     }
   };
   useEffect(() => { load(); }, [date]);
+  useLiveRefresh(['attendance'], load);
 
   const shown = rows.filter((r) => !role || people[r.employee_id]?.role === role);
   // Bộ lọc cột: lấy theo các giá trị đang có trong ngày
@@ -52,7 +56,7 @@ function DailyTab({ people }) {
   const columns = [
     { title: 'Nhân viên', key: 'emp', render: (_, r) => <div><div className="font-medium">{people[r.employee_id]?.name || 'Không rõ'}</div><div className="text-xs text-gray-500">{ROLE_LABEL[people[r.employee_id]?.role] || people[r.employee_id]?.role}</div></div> },
     {
-      title: 'Ca', dataIndex: 'shift_type', width: 180, render: (t) => SHIFT_LABEL[t],
+      title: 'Ca', dataIndex: 'shift_type', width: 200, render: (t, r) => r.label || SHIFT_LABEL[t],
       filters: [...new Set(shown.map((r) => r.shift_type))].map((t) => ({ text: SHIFT_LABEL[t], value: t })),
       onFilter: (value, r) => r.shift_type === value,
     },
@@ -62,7 +66,7 @@ function DailyTab({ people }) {
         return (
           <div className="flex items-center gap-2">
             {r.record?.photo_url && <Image src={r.record.photo_url} width={40} height={40} className="rounded object-cover" />}
-            <div><Tag color={s.color}>{s.label}</Tag><div className="text-xs text-gray-500">{fmtTime(r.record?.check_in_at)}{r.record?.minutes_late ? ` · trễ ${r.record.minutes_late}'` : ''}{r.record?.method ? ` · ${METHOD[r.record.method]}` : ''}</div></div>
+            <div><Tag color={s.color}>{s.label}</Tag><div className="text-xs text-gray-500">{fmtTime(r.record?.check_in_at)}{r.record?.minutes_late ? ` · trễ ${r.record.minutes_late}'` : ''}{r.record?.method ? ` · ${METHOD[r.record.method]}` : ''}</div><FaceBadge check={r.record?.face_check} review={r.record?.face_review} onOpen={() => setFaceTarget({ record: r.record, kind: 'IN', name: people[r.employee_id]?.name || '' })} /></div>
           </div>
         );
       },
@@ -74,7 +78,7 @@ function DailyTab({ people }) {
         return (
           <div className="flex items-center gap-2">
             {r.record?.checkout_photo_url && <Image src={r.record.checkout_photo_url} width={40} height={40} className="rounded object-cover" />}
-            <div><Tag color={s.color}>{s.label}</Tag><div className="text-xs text-gray-500">{fmtTime(r.record?.check_out_at)}{r.record?.minutes_early ? ` · sớm ${r.record.minutes_early}'` : ''}</div></div>
+            <div><Tag color={s.color}>{s.label}</Tag><div className="text-xs text-gray-500">{fmtTime(r.record?.check_out_at)}{r.record?.minutes_early ? ` · sớm ${r.record.minutes_early}'` : ''}</div><FaceBadge check={r.record?.checkout_face_check} review={r.record?.checkout_face_review} onOpen={() => setFaceTarget({ record: r.record, kind: 'OUT', name: people[r.employee_id]?.name || '' })} /></div>
           </div>
         );
       },
@@ -91,9 +95,11 @@ function DailyTab({ people }) {
         <Button icon={<ReloadOutlined />} onClick={load}>Tải lại</Button>
         <span className="text-gray-500 text-sm">
           {rows.length} ca · đúng giờ {stat((r) => r.record?.status === 'ON_TIME')} · trễ {stat((r) => r.record?.minutes_late > 0)} ·
-          về sớm {stat((r) => r.record?.checkout_status === 'EARLY')} · vắng {stat((r) => r.record?.status === 'ABSENT')}
+          về sớm {stat((r) => r.record?.checkout_status === 'EARLY')} · vắng {stat((r) => r.record?.status === 'ABSENT')} ·
+          ảnh cần xác nhận {stat((r) => (FLAGGED.includes(r.record?.face_check?.status) && !r.record?.face_review) || (FLAGGED.includes(r.record?.checkout_face_check?.status) && !r.record?.checkout_face_review))}
         </span>
       </Space>
+      <FaceReviewDrawer target={faceTarget} onClose={() => setFaceTarget(null)} onDone={load} />
       <Table key={date.format('YYYY-MM-DD')} rowKey="id" size="middle" loading={loading} dataSource={shown} columns={columns} scroll={{ x: 1100 }} pagination={false} locale={{ emptyText: 'Không có ca làm trong ngày' }} />
     </div>
   );
@@ -212,6 +218,7 @@ function ReportTab({ people }) {
   const [month, setMonth] = useState(dayjs());
   const [data, setData] = useState({ summary: [], shifts: [] });
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -242,7 +249,7 @@ function ReportTab({ people }) {
         (s.violations || []).map((v) => `${v.severity === 'SERIOUS' ? '[Nghiêm trọng] ' : ''}${v.label}`).join('; '), s.record?.note || '']));
 
   const columns = [
-    { title: 'Nhân viên', key: 'emp', fixed: 'left', render: (_, r) => <div><div className="font-medium">{name(r.employee_id)}</div><div className="text-xs text-gray-500">{roleOf(r.employee_id)}</div></div> },
+    { title: 'Nhân viên', key: 'emp', fixed: 'left', render: (_, r) => <div><a className="font-medium" onClick={(e) => { e.stopPropagation(); setSelected(r.employee_id); }}>{name(r.employee_id)}</a><div className="text-xs text-gray-500">{roleOf(r.employee_id)}</div></div> },
     { title: 'Ca có công', key: 'worked', align: 'center', render: (_, r) => <span><b>{r.worked}</b> / {r.scheduled}</span> },
     { title: 'Vắng', dataIndex: 'absent', align: 'center', render: (v) => (v ? <span className="text-red-600 font-semibold">{v}</span> : 0) },
     { title: 'Phút trễ / về sớm', key: 'min', align: 'center', render: (_, r) => `${r.late_minutes} / ${r.early_minutes}` },
@@ -256,11 +263,18 @@ function ReportTab({ people }) {
     <div className="space-y-3">
       <Space wrap>
         <DatePicker picker="month" value={month} onChange={(v) => v && setMonth(v)} allowClear={false} format="MM/YYYY" />
+        <Select showSearch allowClear className="w-64" placeholder="Xem chi tiết 1 nhân viên" value={selected} onChange={setSelected} optionFilterProp="label"
+          options={summary.map((r) => ({ value: r.employee_id, label: `${name(r.employee_id)} (${roleOf(r.employee_id)})` }))} />
         <Button icon={<DownloadOutlined />} onClick={exportSummary} disabled={!summary.length}>Xuất tổng hợp (Excel)</Button>
         <Button icon={<DownloadOutlined />} onClick={exportDetail} disabled={!data.shifts.length}>Xuất chi tiết từng ca</Button>
       </Space>
-      <p className="text-xs text-gray-500">Thưởng chuyên cần là tạm tính: có thưởng khi tổng vi phạm không quá 3 lần và không có vi phạm nghiêm trọng. "Chưa chốt" = ca chưa tới / đang chờ giải trình hoặc chờ duyệt; bảng lương chỉ tạo được khi không còn ca chưa chốt.</p>
-      <Table rowKey="employee_id" size="middle" loading={loading} dataSource={summary} columns={columns} scroll={{ x: 900 }} pagination={false} />
+      <p className="text-xs text-gray-500">Thưởng chuyên cần là tạm tính: có thưởng khi tổng vi phạm không quá 3 lần và không có vi phạm nghiêm trọng. "Chưa chốt" = ca chưa tới / đang chờ giải trình hoặc chờ duyệt; bảng lương chỉ tạo được khi không còn ca chưa chốt. Bấm vào 1 dòng (hoặc tên nhân viên) để xem chi tiết từng ngày.</p>
+      <Table rowKey="employee_id" size="middle" loading={loading} dataSource={summary} columns={columns} scroll={{ x: 900 }} pagination={false}
+        onRow={(r) => ({ onClick: () => setSelected(r.employee_id), className: 'cursor-pointer' })} />
+      <EmployeeMonthDetail open={!!selected} onClose={() => setSelected(null)} month={month}
+        person={selected ? { name: name(selected), roleLabel: roleOf(selected) } : null}
+        summary={summary.find((r) => r.employee_id === selected)}
+        shifts={data.shifts.filter((x) => x.employee_id === selected)} />
     </div>
   );
 }
@@ -318,6 +332,8 @@ export default function AttendanceManagementPage() {
     { key: 'explanations', label: <Badge count={pending} size="small" offset={[10, -2]}><span>Giải trình vào ca</span></Badge>, children: <ExplanationTab people={people} onPending={setPending} /> },
     { key: 'checkout', label: <Badge count={pendingCheckout} size="small" offset={[10, -2]}><span>Đơn ra ca</span></Badge>, children: <CheckoutRequestTab people={people} onPending={setPendingCheckout} /> },
     { key: 'report', label: 'Báo cáo tháng', children: <ReportTab people={people} /> },
+    { key: 'faces', label: 'Ảnh gốc khuôn mặt', children: <FaceEnrollTab people={people} /> },
+    { key: 'shift-hours', label: 'Điều chỉnh giờ ca', children: <ShiftHoursTab /> },
     { key: 'kiosks', label: 'Máy chấm công', children: <KioskTab /> },
   ], [people, pending, pendingCheckout]);
 

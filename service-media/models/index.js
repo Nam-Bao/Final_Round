@@ -132,6 +132,10 @@ const ClinicInfo = sequelize.define('ClinicInfo', {
   instagram_url: { type: DataTypes.STRING(500) },
   tiktok_url: { type: DataTypes.STRING(500) },
   youtube_url: { type: DataTypes.STRING(500) },
+  // Thông tin pháp lý in trên chứng từ (phiếu thanh toán, đơn thuốc, hóa đơn quầy)
+  business_name: { type: DataTypes.STRING(200) },  // tên pháp lý trên giấy phép
+  tax_code: { type: DataTypes.STRING(20) },        // mã số thuế
+  license_no: { type: DataTypes.STRING(100) },     // số giấy phép hoạt động khám chữa bệnh
   updated_by: { type: DataTypes.UUID },
 });
 

@@ -5,26 +5,32 @@ const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const {
   Appointment, AppointmentCancellation, Consultation, ShiftRequest, AttendanceCheckoutRequest, AttendanceExplanation,
-  RefundClaim, BankTransaction, TreatmentSession, ServiceSession, SafetyRule, SafetyRuleReview,
+  RefundClaim, BankTransaction, TreatmentSession, ServiceSession, SafetyRule, SafetyRuleReview, AttendanceRecord, sequelize,
 } = require('../models');
+const { FLAGGED } = require('../utils/faceVerify');
 const { OPEN: OPEN_REFUND } = require('../utils/refunds');
 
 const OPEN_BANK = ['PARTIAL', 'UNMATCHED', 'OVERPAID'];
 const task = (key, label, count, path, topic) => ({ key, label, count, path, topic });
 
 const managerTasks = async (me, role) => {
-  const [refunds, shifts, checkouts, explanations, rules] = await Promise.all([
+  // Ảnh chấm công không khớp / không đọc được ảnh gốc mà quản lý chưa xác nhận (31 ngày gần nhất)
+  const flagged = FLAGGED.map((x) => sequelize.escape(x)).join(',');
+  const faceWhere = sequelize.literal(`("shift_date" >= CURRENT_DATE - 31) AND ((("face_check"->>'status') IN (${flagged}) AND "face_review" IS NULL) OR (("checkout_face_check"->>'status') IN (${flagged}) AND "checkout_face_review" IS NULL))`);
+  const [refunds, shifts, checkouts, explanations, rules, faces] = await Promise.all([
     RefundClaim.count({ where: { status: { [Op.in]: OPEN_REFUND }, claimed_by: { [Op.ne]: me } } }),
     ShiftRequest.count({ where: { status: 'PENDING' } }),
     AttendanceCheckoutRequest.count({ where: { status: 'PENDING' } }),
     AttendanceExplanation.count({ where: { status: 'PENDING' } }),
     // Quy tắc an toàn: chỉ quản lý chung duyệt (đã được bác sĩ xem xét + đề xuất của bác sĩ)
     role === 'GEN_MANAGER' ? SafetyRule.count({ where: { status: { [Op.in]: ['REVIEWED', 'PROPOSED'] } } }) : 0,
+    AttendanceRecord.count({ where: faceWhere }),
   ]);
   return [
     task('refund-claims', 'Khoản hoàn tiền chờ đối chiếu', refunds, '/bank-transactions', 'bank'),
     task('shift-requests', 'Yêu cầu đổi / nghỉ ca chờ duyệt', shifts, '/schedule', 'shift-requests'),
     task('attendance', 'Giải trình / về sớm chờ duyệt', checkouts + explanations, '/attendance-management', 'attendance'),
+    task('attendance-faces', 'Ảnh chấm công cần xác nhận đúng người', faces, '/attendance-management', 'attendance'),
     ...(role === 'GEN_MANAGER' ? [task('safety-rules', 'Quy tắc an toàn chờ quản lý xử lý (đã xem xét / bác sĩ đề xuất)', rules, '/safety-rules', 'safety-rules')] : []),
   ];
 };
@@ -43,15 +49,17 @@ const doctorTasks = async (me, today) => {
 };
 
 const consultantTasks = async () => {
-  const [walkIn, reschedule, checkout, aptRefund, consultRefund, bank] = await Promise.all([
+  const [walkIn, reschedule, checkout, aptRefund, consultRefund, bank, overdue] = await Promise.all([
     Appointment.count({ where: { status: 'CHECK_IN', source: 'WALK_IN' } }),
     Appointment.count({ where: { status: 'NEEDS_RESCHEDULE' } }),
     Appointment.count({ where: { status: 'WAITING_FOR_SALE' } }),
     AppointmentCancellation.count({ where: { deposit_outcome: 'REFUND_PENDING' } }),
     Consultation.count({ where: { deposit_outcome: 'REFUND_PENDING' } }),
     BankTransaction.count({ where: { status: { [Op.in]: OPEN_BANK } } }),
+    require('../utils/reminders').overdueArrivals().then((l) => l.length),
   ]);
   return [
+    task('overdue-arrivals', 'Lịch khám quá giờ, khách chưa đến', overdue, '/appointment-management', 'appointments'),
     task('walk-in', 'Khách vãng lai đang chờ', walkIn, '/consultant-workspace', 'appointments'),
     task('reschedule', 'Lịch cần sắp xếp lại', reschedule, '/consultant-workspace', 'appointments'),
     task('checkout', 'Khách khám xong chờ thu tiền', checkout, '/consultant-checkout', 'appointments'),

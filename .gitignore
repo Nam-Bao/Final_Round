@@ -13,5 +13,11 @@ Thumbs.db
 
 data/
 .cache/
+# Bộ dữ liệu huấn luyện xuất từ lượt soi của khách (scripts/export_training.js) - dữ liệu cá nhân, không đưa lên git
+exports/
+# Ảnh khuôn mặt dùng để đo xác thực chấm công (scripts/face_calibrate.js) - dữ liệu sinh trắc học
+faces-eval/
 
 dist/
+# Email ghi ra file khi MAIL_MODE=log (có mã OTP)
+mail-outbox/

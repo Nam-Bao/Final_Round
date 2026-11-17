@@ -154,6 +154,23 @@ Cần một lịch hẹn **hôm nay**: CSKH tạo ở **Quản lý lịch hẹn 
 | 3.10 | Tạm tính cho bác sĩ tư vấn | Bác sĩ chọn dịch vụ / gói / sản phẩm ở tab **Lộ trình & Kê đơn** | Khung **Tạm tính chi phí của khách** cập nhật ngay: phí khám, từng mục, tổng, đã cọc, số khách cần trả thêm |
 | 3.11 | AI rà soát đơn (tham khảo) | Kê sản phẩm cho hồ sơ có kế hoạch mang thai (như 3.8) → bấm **Rà soát bằng AI** | AI nêu thêm điểm cần lưu ý (nhãn **AI**) và câu nên hỏi khách. **Sản phẩm thay thế do hệ thống chọn theo quy tắc**: cùng "vấn đề da xử lý được", không vướng cảnh báo với khách, xếp theo số lần bác sĩ đã kê cho chẩn đoán tương tự (VD: Klenzit → Kem Azelaic Acid). Bấm **Dùng** để thay vào đơn. AI lỗi vẫn có sản phẩm thay thế. Cảnh báo của bảng quy tắc vẫn bắt buộc như 3.8. AI dùng Gemini qua `GEMINI_API_KEY`, mất khoảng 30 - 60 giây |
 | 3.11b | Cảnh báo AI khi hoàn tất khám | Sau 3.11, giữ sản phẩm AI cảnh báo mức **Thận trọng / Chống chỉ định** (kể cả khi bảng quy tắc không cảnh báo) → **Hoàn tất khám** | Hiện hộp xác nhận "gồm cảnh báo của AI rà soát", phải ghi lý do mới lưu được (lưu cùng cảnh báo bảng quy tắc). Bỏ sản phẩm đó khỏi đơn thì không bị hỏi |
+| 3.11c | Soi da AI chưa xác nhận không chặn khám | Khách đã soi da (chọn hồ sơ Bản thân) rồi đến khám → bác sĩ bấm **Hoàn tất khám** khi chưa xác nhận lượt soi | Hiện hộp nhắc; chọn **Hoàn tất khám, xác nhận sau** thì lưu bệnh án bình thường (lượt soi vẫn chờ xác nhận); chọn **Xác nhận ngay** thì mở hộp xác nhận lượt soi mới nhất |
+| 3.11d | Hiệu chỉnh kết quả AI | Trong hộp xác nhận: vùng 1 **Sai loại** → Mụn sẩn đỏ, vùng 2 **Không phải**, khoanh thêm 1 Mụn bọc, bỏ sót 3 mụn viêm, 4 nhóm Có/Không, ghi chú → **Lưu xác nhận** → **Hoàn tất khám** | Số mụn viêm tính lại = 1 + 1 + 3 = 5 → Nhẹ (Hayashi). Thiếu vùng hoặc nhóm thì không lưu được. API lịch sử của khách trả bản hiệu chỉnh + ghi chú; kết quả gốc AI giữ nguyên trong DB. Hoàn tất khám thành công |
+| 3.11e | Xác nhận soi da làm sau | Sau 3.11c chọn **Hoàn tất khám, xác nhận sau** → bác sĩ mở **Xác nhận soi da** | Lượt soi ở tab **Chưa xác nhận**, hạn 48 giờ, chuông có số việc. Tìm được theo tên / SĐT, lọc ngày soi / ngày khám. Bấm **Xác nhận** → lưu → chuyển sang **Đã xác nhận**; khách thấy dải nhắc "Bác sĩ đã xem lại" |
+| 3.11f | Quyền sửa + giao lại | Bác sĩ khác mở trang; quản lý bấm **Giao lại** một lượt chưa xác nhận; quản lý sửa một lượt đã xác nhận | Bác sĩ khác không thấy lượt soi; giao lại thì bác sĩ mới thấy, hạn tính lại; sửa đã xác nhận chỉ bác sĩ xác nhận ban đầu hoặc quản lý, mỗi lần sửa lưu bản trước |
+| 3.11g | Dữ liệu cải thiện AI | Khách đồng ý dùng ảnh; bác sĩ xác nhận (a) chỉ nhập số bỏ sót, (b) chấm mọi khung + khoanh đủ; chạy `node scripts/export_training.js`; khách rút lại đồng ý rồi xuất lại | (a) không dùng được "Thiếu nhãn"; (b) "đủ nhãn, chờ xuất" → xuất ra COCO (ảnh tên ngẫu nhiên, không EXIF, không thông tin khách) → "đã xuất"; rút lại → "khách rút đồng ý", file nằm trong `removed.json` |
+| 3.11h | Khách xóa lượt soi / hết hạn lưu | Khách đã cho phép cải thiện AI, lượt soi đã xuất dữ liệu → khách bấm **Xóa lượt soi này**; lượt soi quá 2 năm | Ảnh bị xóa trên Cloudinary, bác sĩ và khách không còn thấy, lần xuất dữ liệu sau `removed.json` có file của lượt đó; hạn mức trong ngày không được hoàn; lượt soi quá 730 ngày tự xóa (chạy mỗi ngày) |
+| 3.11i | Ảnh tại phòng khám + AI | Khách đặt lịch trực tiếp (tải 1 ảnh khi đặt lịch), đã soi web 5 ngày trước → CSKH chụp 3 góc, tick đồng ý phân tích AI → bác sĩ mở tab Soi da AI | Quét nền xong: lượt "Tại phòng khám" giao cho bác sĩ, không trừ lượt soi của khách, không gọi Gemini; lượt web ghi "Đã đánh giá bằng ảnh tại phòng khám" (khách vẫn thấy); ảnh khách tự tải vẫn còn |
+| 3.11j | Đồng ý cải thiện AI + quét lại | Bác sĩ chọn "Khách đồng ý" trong hộp xác nhận, xác nhận đủ nhãn; bấm Quét lại | Lượt soi "đủ nhãn, chờ xuất"; quét lại khi đã xác nhận phải xác nhận thêm, kết quả mới chờ xác nhận, bản cũ được lưu |
+| 3.11k | Không đồng ý phân tích AI | CSKH không tick đồng ý, vẫn chụp ảnh | Ảnh lưu vào hồ sơ khám, không quét AI; bác sĩ không có nút quét (gọi API quét bị từ chối) |
+| 3.11l | Ảnh khi đặt lịch online | Khách đặt **khám online** không tải ảnh; tải 1 ảnh rồi đặt; đặt **khám trực tiếp** | Online thiếu ảnh bị chặn (cả trên giao diện và server); có ảnh thì lịch lưu ảnh "khách tự tải"; khám trực tiếp không có mục tải ảnh, server không lưu ảnh |
+| 3.11m | Gửi tệp trong chat CSKH + đính vào hồ sơ | Khách (có lịch khám online sắp tới) chat với CSKH, gửi 1 ảnh da; CSKH bấm **Đính kèm vào hồ sơ khám**, chọn lịch; CSKH gửi lại 1 PDF hướng dẫn | Hai bên thấy ảnh / PDF trong khung chat; ảnh vào hồ sơ khám của lịch đã chọn (bác sĩ thấy "Khách gửi qua chat"); gửi tệp .txt / .docx bị từ chối |
+| 3.11n | In đơn thuốc | Bác sĩ kê 1 sản phẩm SL 2, sửa **Cách dùng**, hẹn tái khám → **Hoàn tất khám** → **In đơn**; bác sĩ khác mở link in của lịch này | Đơn A5: họ tên, tuổi, giới tính, chẩn đoán, sản phẩm + cách dùng, chỉ định dịch vụ / gói, lời dặn, ngày tái khám, học hàm + tên + CCHN bác sĩ, số DT-…; bác sĩ khác bị từ chối |
+| 3.11o | Đơn thuốc giữ nguyên sau khi chốt bill | CSKH chốt bill khách chỉ mua 1 (ít hơn đơn kê) → in lại đơn thuốc | Đơn vẫn ghi SL 2 + cách dùng như bác sĩ kê |
+| 3.11p | Phiếu thanh toán | Sau 3.9 bấm **In phiếu thanh toán**; mở lại ở **Quản lý lịch hẹn**; NVBH thử mở link in | Tổng các dòng = tạm tính; giảm giá ghi mã; đã trả khi đặt lịch + thu tại quầy = tổng đã thu; số tiền bằng chữ; tên thu ngân; số HD-…; NVBH bị từ chối. Lịch chưa chốt bill thì chưa in được |
+| 3.12a | Đăng ký + duyệt ảnh gốc khuôn mặt | Nhân viên đăng ký 3 ảnh (đồng ý xử lý dữ liệu); thử 3 ảnh của 2 người khác nhau; quản lý duyệt | Thiếu đồng ý / không đủ 3 ảnh / 3 ảnh không cùng người bị từ chối; ảnh hợp lệ "chờ duyệt"; quản lý duyệt => "Đã có ảnh gốc" |
+| 3.12b | Xác thực ảnh chấm công | Quản lý điều chỉnh giờ ca hôm nay sang vài phút tới; A chấm công bằng mặt mình; B chấm bằng mặt người khác; C chưa có ảnh gốc | A: "Khớp ảnh gốc"; B: vẫn ghi nhận, gắn cờ "Không khớp", chuông quản lý; quản lý chọn "Không phải nhân viên này" => vắng + vi phạm nghiêm trọng; C: "Chưa có ảnh gốc" + nhắc đăng ký |
+| 3.12c | Xoá dữ liệu khuôn mặt | Nhân viên **Rút lại đồng ý**; quản lý khoá tài khoản một nhân viên | Ảnh gốc riêng tư bị xoá, trạng thái về "chưa có ảnh gốc" |
 | 3.10 | Có dịch vụ hoặc gói? → Có | Thu tiền cho khách có gói liệu trình | Kỹ thuật viên thấy khách ở **Không gian kỹ thuật viên** (buổi 1); khách thấy gói ở **Gói liệu trình** |
 | 3.11 | Có dịch vụ hoặc gói? → Không | Thu tiền cho khách chỉ khám và mua sản phẩm | Hoàn tất; đơn mỹ phẩm tại quầy hiện ở tab **Đơn tại quầy** của nhân viên bán hàng |
 
@@ -301,6 +318,7 @@ Dữ liệu demo có sẵn các khoản hoàn cũ đã xác minh và 1 khoản g
 | 13.6 | Lưu theo đơn | Mở đơn vừa tạo | Khung **Sàng lọc an toàn tại quầy**: câu trả lời, cảnh báo, người hỏi, giờ hỏi (viền đỏ nếu khách vẫn mua dù chống chỉ định) |
 | 13.7 | Điền sẵn lần sau | Tạo đơn khác cho cùng khách, chọn lại Duo+M | Câu trả lời điền sẵn theo "Khai khi mua tại quầy" |
 | 13.8 | Kéo lên hồ sơ | Khách đến khám, CSKH mở **Không gian tư vấn** | Khung sàng lọc hiện "Khách khai khi mua tại quầy ngày …" + nút **Điền vào form**; vẫn phải bấm **Xác nhận đã hỏi khách** |
+| 13.9 | In hóa đơn bán lẻ | Tạo đơn tại quầy có Duo+M (đã sàng lọc) → **In hóa đơn**; chọn đơn giao hàng; chọn đơn mỹ phẩm mua sau khám | Hóa đơn A5 có sản phẩm, tiền bằng chữ, NVBH, "Tiền mặt", lưu ý an toàn đã tư vấn, số DH-…; đơn giao hàng và đơn sau khám không có nút in |
 
 ## 14. Quy tắc an toàn (sơ đồ 11)
 
@@ -335,6 +353,28 @@ Chỉ **quản lý chung** duyệt (admin không tham gia). Cần 1 quản lý c
 | 15.2 | Cập nhật không tải lại | Khách đặt đơn online / CSKH chuyển khách cho bác sĩ | Trang NVBH / bác sĩ đang mở tự hiện đơn / khách mới, số trên chuông tăng |
 | 15.3 | Tải lại không mất | Bấm F5 | Số việc vẫn còn |
 | 15.4 | Tự hết khi xử lý xong | Xử lý xong việc (duyệt đơn, thu tiền...) | Số việc giảm / mất, ở mọi máy đang mở |
+
+## 16. Email gửi khách và việc chạy định kỳ
+
+Chế độ `MAIL_MODE=log`: xem email trong `service-identity/mail-outbox/` hoặc **Lịch sử email** (quản lý).
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 16.1 | Quên mật khẩu | Web khách → **Quên mật khẩu?** → email đã đăng ký → nhập mã trong email + mật khẩu mới | Đặt lại được, đăng nhập bằng mật khẩu mới; nhận thêm email "Mật khẩu đã được thay đổi" |
+| 16.2 | Không lộ email | Nhập email chưa đăng ký | Cùng câu "Nếu email đã đăng ký..." như email đúng, không có email nào được gửi |
+| 16.3 | Chống dò mã | Nhập sai mã 5 lần; dùng lại mã đã dùng; mã quá 15 phút; bấm gửi lại trong 60 giây; gọi quên mật khẩu quá 5 lần / 15 phút | Lần 1-4 báo số lần còn lại, lần 5 hủy mã; mã cũ / hết hạn bị từ chối; không gửi mã mới trong 60 giây; quá 5 lần bị chặn tạm |
+| 16.4 | Xác nhận đặt lịch | Khách trả cọc VietQR hoặc CSKH xác nhận cọc tiền mặt | Email mã lịch, giờ, bác sĩ, hình thức (online: hướng dẫn vào phòng; tại phòng khám: địa chỉ) |
+| 16.5 | Đã đổi lịch | CSKH dời lịch (có ghi chú) / khách tự đổi lịch | Email ghi lịch cũ (gạch) + lịch mới + ghi chú. Hủy lịch không gửi email (CSKH liên hệ trực tiếp) |
+| 16.6 | Hoàn cọc | CSKH ghi "Đã chuyển khoản hoàn cọc" (lịch khám / tư vấn) | Email số tiền + mã giao dịch |
+| 16.7 | Tư vấn chuyên gia | Xác nhận cọc → chuyên gia gửi kết quả; buổi chuyên gia không vào phòng | Email xác nhận lịch; email "đã có kết quả" (không chép nội dung); email xin lỗi + hoàn cọc |
+| 16.8 | Đơn giao hàng | Đặt đơn COD / chuyển khoản xong; NVBH tạo vận đơn; hủy đơn; hoàn tiền | Email đặt hàng thành công, đang giao (mã GHN + link tra cứu), bị hủy (lý do, hoàn tiền nếu đã chuyển khoản), đã hoàn tiền. Đơn nhận tại quầy không gửi |
+| 16.9 | Hoàn / trả hàng | NVBH duyệt / từ chối (lý do) / hoàn tiền | Email tương ứng |
+| 16.10 | Nhắc lịch khám | Lịch đã xác nhận còn 24 giờ / 2 giờ (cron 10 phút) | 1 email mỗi mốc, không gửi trùng; lịch đặt sát giờ không nhắc; lịch online có hướng dẫn vào phòng |
+| 16.11 | Nhắc tái khám / gói | Bác sĩ hẹn tái khám (3 ngày trước, 8h); gói còn buổi mà 14 ngày không đến (9h) | Có email; khách đã đặt lịch sắp tới thì không nhắc tái khám; gói nhắc tối đa 2 lần |
+| 16.12 | Tắt nhắc lịch | Khách tắt ở **Hồ sơ → Email thông báo** | Email nhắc ghi "Không gửi - Khách tắt email nhắc lịch"; email giao dịch vẫn gửi |
+| 16.13 | Lịch quá giờ chưa đến | Lịch tại phòng khám quá giờ hẹn 15 phút (`NO_SHOW_GRACE_MINUTES`), khách chưa được tiếp nhận | CSKH: chuông "Lịch khám quá giờ, khách chưa đến" + khung cam ở **Quản lý lịch hẹn** → **Mở lịch** → **Khách không đến**. Hệ thống **không tự** ghi không đến |
+| 16.14 | Dọn mã OTP | Mã OTP hết hạn (cron 3h sáng) | Mã bị xóa khỏi tài khoản |
+| 16.15 | Gửi lại email lỗi | Email lỗi trong **Lịch sử email** → **Gửi lại** | Gửi lại được; email mã OTP lỗi không gửi lại được (không lưu mã), khách yêu cầu mã mới |
 
 ## Ghi lại kết quả
 

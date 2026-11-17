@@ -77,6 +77,20 @@ export default function ClinicInfoForm() {
         </Row>
       </Card>
 
+      <Card size="small" title="Thông tin pháp lý (in trên phiếu thanh toán, đơn thuốc, hóa đơn quầy)" className="mb-4">
+        <Form.Item name="business_name" label="Tên pháp lý" extra="Để trống sẽ in &quot;Phòng khám da liễu GlowSkin&quot;">
+          <Input maxLength={200} placeholder="VD: Phòng khám chuyên khoa Da liễu GlowSkin" />
+        </Form.Item>
+        <Row gutter={12}>
+          <Col xs={24} sm={12}>
+            <Form.Item name="tax_code" label="Mã số thuế"><Input maxLength={20} /></Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="license_no" label="Số giấy phép hoạt động"><Input maxLength={100} /></Form.Item>
+          </Col>
+        </Row>
+      </Card>
+
       <Card size="small" title="Mạng xã hội" className="mb-4">
         <Row gutter={12}>
           {SOCIALS.map(([name, label, placeholder]) => (

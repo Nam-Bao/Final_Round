@@ -17,6 +17,9 @@ const {
   rescheduleAppointment,
   preCheckAppointment,
   finishExam,
+  scanCounterImages,
+  getCustomerUpcoming,
+  attachChatImages,
   getAllAppointments,
   updateAppointment,
   cancelAppointment, 
@@ -51,6 +54,13 @@ router.get('/walk-in/doctor-board', verifyToken, authorizeRoles('CONSULTANT', 'G
 router.post('/walk-in', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), createWalkIn);
 router.get('/taken-slots', getTakenSlots);
 // Lịch do phòng khám hủy, chờ CSKH hoàn cọc cho khách
+// Lịch khám tại phòng khám quá giờ hẹn mà khách chưa đến quầy: CSKH gọi khách hoặc ghi "không đến" (hệ thống không tự ghi)
+router.get('/overdue-arrivals', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), async (req, res) => {
+  try {
+    const list = await require('../utils/reminders').overdueArrivals();
+    res.json({ data: list.map((a) => ({ id: a.id, customer_id: a.customer_id, patient_profile_id: a.patient_profile_id, doctor_id: a.doctor_id, appointment_date: a.appointment_date, appointment_time: a.appointment_time, status: a.status })) });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+});
 router.get('/pending-refunds', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), getPendingDepositRefunds);
 router.get('/deposit-quote', verifyToken, authorizeRoles('CUSTOMER'), getDepositQuote); // Báo giá cọc theo đúng công thức server
 router.get('/doctors-available', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN', 'CONSULTANT'), getAvailableDoctors);
@@ -66,6 +76,11 @@ router.get('/patient/:patientProfileId', verifyToken, authorizeRoles('ADMIN', 'G
 // ==========================================
 // 2. CÁC ĐƯỜNG DẪN ĐỘNG (Có chứa /:id ở giữa)
 // ==========================================
+// Chứng từ in cho khách (A5): phiếu thanh toán sau khám, đơn thuốc / chỉ định điều trị
+const { printInvoice, printPrescription } = require('../controllers/print.controller.js');
+router.get('/:id/print/invoice', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), printInvoice);
+router.get('/:id/print/prescription', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), printPrescription);
+
 // Khách kiểm tra trạng thái thanh toán
 router.get('/:id/check-payment', verifyToken, checkPaymentStatus);
 
@@ -85,6 +100,10 @@ router.put('/:id/invite', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER
 router.put('/:id/no-show', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), markNoShow);
 router.put('/:id/pre-check', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), preCheckAppointment);
 router.put('/:id/start-exam', verifyToken, authorizeRoles('DOCTOR'), startExam);
+router.put('/:id/ai-scan', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), scanCounterImages); // quét AI ảnh CSKH chụp tại quầy
+// CSKH đính ảnh khách gửi qua chat vào hồ sơ khám
+router.get('/customer/:customerId/upcoming', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), getCustomerUpcoming);
+router.put('/:id/attach-images', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), attachChatImages);
 router.put('/:id/return-to-queue', verifyToken, authorizeRoles('DOCTOR'), returnToQueue);
 router.put('/:id/finish-exam', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER'), finishExam);
 router.put('/:id/refund-deposit', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), confirmDepositRefund);

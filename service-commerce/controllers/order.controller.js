@@ -7,6 +7,7 @@ const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricing');
 const axios = require('axios');
 require('dotenv').config();
+const orderMail = require('../utils/orderMail');
 
 
 const DEFAULT_ITEM_WEIGHT = 200; // gram, dùng khi sản phẩm cũ chưa có cân nặng
@@ -209,6 +210,7 @@ exports.checkout = async (req, res) => {
     await CartItem.destroy({ where: { cart_id: cart.id }, transaction: t });
     
     await t.commit();
+    if (validPaymentMethod !== 'VIETQR_SEPAY') orderMail.orderPlaced(newOrder.id).catch(() => {});
     return res.status(201).json({ success: true, data: newOrder });
 
   } catch (error) {
@@ -356,6 +358,7 @@ exports.updateOrderStatus = async (req, res) => {
         if (ghnRes.data && ghnRes.data.code === 200) {
           const trackingCode = ghnRes.data.data.order_code;
           await order.update({ status, tracking_code: trackingCode });
+          orderMail.orderShipping(order);
           
           return res.status(200).json({ 
             success: true, data: order, 
@@ -443,6 +446,7 @@ exports.cancelOrder = async (req, res) => {
     if (initiator === 'CLINIC') await releaseVoucher(order, t);
 
     await t.commit();
+    orderMail.orderCancelled(order, { initiator, reason, refundPending: needsRefund, voucherReturned: initiator === 'CLINIC' });
     return res.status(200).json({
       success: true,
       needs_refund: needsRefund,
@@ -511,6 +515,7 @@ exports.ghnWebhook = async (req, res) => {
           await restoreStock(order.OrderDetails, t);
           if (carrierCancelled) await releaseVoucher(order, t);
         });
+        orderMail.orderCancelled(order, { initiator: carrierCancelled ? 'CARRIER' : null, reason: order.cancel_reason, refundPending: order.refund_status === 'PENDING', voucherReturned: carrierCancelled });
       } else {
         await order.update({ status: newStatus });
       }
@@ -554,6 +559,7 @@ exports.releaseExpiredOrders = async () => {
       await restoreStock(order.OrderDetails, t);
       // Khách có thể chưa chuyển được do lỗi ngân hàng, ví điện tử nên không mất lượt voucher
       await releaseVoucher(order, t);
+      t.afterCommit(() => orderMail.orderCancelled(order, { initiator: 'SYSTEM', reason: `Quá ${ORDER_PAYMENT_HOLD_MINUTES} phút chưa nhận được chuyển khoản`, voucherReturned: true }));
     });
   }
   if (orders.length) console.log(`🧹 [ĐƠN HÀNG] Đã tự hủy ${orders.length} đơn VietQR quá ${ORDER_PAYMENT_HOLD_MINUTES} phút chưa thanh toán`);
@@ -593,6 +599,7 @@ exports.confirmOrderRefund = async (req, res) => {
     );
     if (!count || !order) return res.status(409).json({ success: false, message: 'Đơn này không có khoản chờ hoàn tiền' });
     await sendRefundClaim({ source: 'ORDER', source_id: order.id, customer_id: order.customer_id, amount: Number(order.refund_amount), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id });
+    orderMail.orderRefunded(order, refund_ref);
     return res.status(200).json({ success: true, message: 'Đã ghi nhận hoàn tiền. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -637,6 +644,7 @@ exports.sepayOrderWebhook = async (req, res) => {
                // Trước đây đặt thẳng PROCESSING nên đơn đã trả tiền không bao giờ được tạo vận đơn.
                order.status = 'PAID';
                await order.save();
+               orderMail.orderPlaced(order.id).catch(() => {});
                console.log(`✅ [SEPAY WEBHOOK] Đã nhận thanh toán ${transferAmount} cho đơn hàng mua Mỹ phẩm ${order.id}`);
                const excess = Number(transferAmount) - amountToPay;
                await logBankTransaction(req.body, excess > 0
@@ -863,6 +871,7 @@ exports.createStaffOrder = async (req, res) => {
         })), { transaction: t });
 
         await t.commit();
+        if (isDelivery && payment_method === 'COD') orderMail.orderPlaced(order.id).catch(() => {});
         // Ghi câu trả lời vào hồ sơ "Bản thân" của khách: lần mua sau điền sẵn, CSKH thấy khi khách đến khám
         if (safetyScreening?.patient_profile_id) {
             axios.post('http://localhost:4000/api/booking/safety/counter-report', {

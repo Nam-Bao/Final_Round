@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import VoucherProofUpload from './VoucherProofUpload';
+import { openPrint } from '../utils/print';
 import { SafetyWarnings } from './PatientSafetyPanel';
 
 const API = 'http://localhost:4000/api';
@@ -191,7 +192,7 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
             provinces.find(p => p.ProvinceID === values.province_id)?.ProvinceName].filter(Boolean).join(', ')
         : undefined;
 
-      await axios.post(`${API}/commerce/orders/admin`, {
+      const created = await axios.post(`${API}/commerce/orders/admin`, {
         customer_id: customerId,
         recipient_name: values.recipient_name || values.new_full_name,
         shipping_phone: values.shipping_phone || values.new_phone,
@@ -208,6 +209,8 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
       }, authConfig());
 
       message.success(isDelivery ? 'Đã tạo đơn giao hàng, đơn đang chờ duyệt' : 'Đã tạo đơn tại quầy (đã hoàn thành)');
+      const orderId = created.data?.data?.id;
+      if (!isDelivery && orderId) Modal.confirm({ title: 'Đã tạo đơn tại quầy', content: 'In hóa đơn bán lẻ đưa khách?', okText: 'In hóa đơn', cancelText: 'Để sau', onOk: () => openPrint('order', orderId) });
       onCreated?.();
       onClose();
     } catch (error) {
