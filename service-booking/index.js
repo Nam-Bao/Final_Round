@@ -63,9 +63,14 @@ app.listen(PORT, async() => {
         runMaintenance();
         setInterval(runMaintenance, 60 * 1000);
         // Mỗi 5 phút ghi vắng các ca đã quá hạn giải trình mà không chấm công
-        const { markAbsences } = require('./controllers/attendance.controller.js');
+        const { markAbsences, loadShiftOverrides } = require('./controllers/attendance.controller.js');
+        // Giờ ca điều chỉnh theo ngày: nạp vào bộ nhớ lúc khởi động và mỗi phút
+        await loadShiftOverrides();
+        setInterval(loadShiftOverrides, 60 * 1000);
         markAbsences();
         setInterval(markAbsences, 5 * 60 * 1000);
+        // Email nhắc lịch khám / tư vấn / tái khám / gói liệu trình + báo CSKH lịch quá giờ chưa đến (giờ Việt Nam)
+        require('./utils/reminders').start();
     } catch (error) {
         console.error('❌ Lỗi DB Booking:', error.message);
     }

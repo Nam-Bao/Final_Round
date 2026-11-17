@@ -17,6 +17,12 @@ const MAX_PRODUCTS = 3;
 const SYSTEM = `Bạn là trợ lý chăm sóc da của phòng khám da liễu GlowSkin, viết nhận xét cho CHÍNH KHÁCH HÀNG đọc sau khi họ tự chụp ảnh da mặt.
 Bạn KHÔNG phải bác sĩ và KHÔNG chẩn đoán bệnh. Bạn nhận: ảnh, kết quả khoanh vùng tự động (có thể sai hoặc bỏ sót) và danh sách sản phẩm ỨNG VIÊN đã được hệ thống lọc theo vấn đề da.
 
+Nguyên tắc chính xác (đo trên 199 ảnh có nhãn: tự nhận định thường báo THỪA vấn đề, nhất là thâm, mụn đầu đen, nám):
+- Bám theo "concerns" trong kết quả khoanh vùng: đó là các nhóm vấn đề hệ thống đã phát hiện.
+- Vấn đề KHÔNG có trong concerns chỉ được nêu khi nhìn thấy RẤT RÕ trên ảnh; nếu nêu thì ghi rõ là "có thể có, nên để chuyên viên kiểm tra".
+- Không suy diễn từ màu da đỏ / sạm chung, bóng sáng, lỗ chân lông, bóng đổ, lông mày, chất lượng ảnh.
+- concerns rỗng: không khẳng định da có vấn đề; nói AI chưa thấy vấn đề rõ ràng và gợi ý chăm sóc cơ bản.
+
 Yêu cầu:
 - observations: mô tả những gì thấy được trên ảnh theo từng vùng (má trái, trán, cằm...), dùng từ dễ hiểu. Không chắc thì nói là chưa rõ.
 - customer_summary: 1 - 2 câu nói trực tiếp với khách (xưng "bạn"), nhẹ nhàng, không gây lo lắng, không dùng từ chuyên môn khó.
@@ -88,18 +94,26 @@ const attachProducts = (picked, candidates) => {
   return chosen.length ? chosen : candidates.slice(0, MAX_PRODUCTS).map((p) => toCard(p, ruleReason(p)));
 };
 
-// imageUrl đã được controller kiểm tra (chỉ nhận ảnh Cloudinary của hệ thống)
-// findings: { level, concerns, groups: [{ name, confirmed, possible }] } từ Roboflow; candidates: sản phẩm đã lọc theo quy tắc
-exports.describeSkin = async (imageUrl, findings = {}, candidates = []) => {
-  const img = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 20000, maxContentLength: 8 * 1024 * 1024 });
-  const mimeType = String(img.headers['content-type'] || 'image/jpeg').split(';')[0];
+// images: [{ url, angle }] (1 - 3 ảnh của cùng lượt soi, URL đã được controller kiểm tra: chỉ ảnh Cloudinary của hệ thống)
+// findings: { level, concerns, groups: [{ name, confirmed, possible }] } từ Roboflow (gộp các ảnh); candidates: sản phẩm đã lọc theo quy tắc
+exports.describeSkin = async (images, findings = {}, candidates = []) => {
+  const list = (Array.isArray(images) ? images : [{ url: images, angle: 'Chính diện' }]).slice(0, 3);
+  const files = await Promise.all(list.map((im) => axios.get(im.url, { responseType: 'arraybuffer', timeout: 20000, maxContentLength: 8 * 1024 * 1024 })));
   const context = {
+    so_anh: list.length,
+    goc_chup: list.map((im, i) => `Ảnh ${i + 1}: ${im.angle}`),
     ket_qua_khoanh_vung: findings,
     ung_vien: candidates.map((p) => ({ product_id: p.id, name: p.name, xu_ly: p.concerns, skin_types: p.skin_types, benefits: p.benefits })),
   };
   const parts = [
-    { inlineData: { mimeType, data: Buffer.from(img.data).toString('base64') } },
-    { text: `Dữ liệu kèm theo (JSON):\n${JSON.stringify(context)}\n\nHãy viết nhận xét cho khách theo đúng cấu trúc.` },
+    ...files.flatMap((img, i) => [
+      { text: `Ảnh ${i + 1} (${list[i].angle}):` },
+      { inlineData: { mimeType: String(img.headers['content-type'] || 'image/jpeg').split(';')[0], data: Buffer.from(img.data).toString('base64') } },
+    ]),
+    { text: `Dữ liệu kèm theo (JSON):
+${JSON.stringify(context)}
+
+${list.length > 1 ? 'Các ảnh là CÙNG MỘT người chụp ở các góc khác nhau: nhận xét gộp, không lặp lại cùng một vùng. ' : ''}Hãy viết nhận xét cho khách theo đúng cấu trúc.` },
   ];
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);

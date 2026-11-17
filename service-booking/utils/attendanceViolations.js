@@ -2,6 +2,7 @@
 // NORMAL  = vi phạm thường: chỉ tính để xét thưởng chuyên cần.
 // SERIOUS = vi phạm nghiêm trọng: tính thưởng chuyên cần + căn cứ đề xuất kỷ luật.
 const { RULES } = require('./attendanceRules');
+const { FLAGGED } = require('./faceVerify');
 
 const normal = (code, label) => ({ code, severity: 'NORMAL', label });
 const serious = (code, label) => ({ code, severity: 'SERIOUS', label });
@@ -12,7 +13,7 @@ const violationsOf = (view) => {
   const req = view.checkout_request;
   const list = [];
   if (!r) return list;
-  if (r.status === 'ABSENT') return [serious('ABSENT', 'Vắng')];
+  if (r.status === 'ABSENT') return [r.face_review?.verdict === 'NOT_SAME' ? serious('FACE_NOT_SAME', 'Vắng: ảnh vào ca không phải nhân viên (quản lý xác nhận)') : serious('ABSENT', 'Vắng')];
 
   // Vào ca
   if (r.status === 'LATE_REJECTED') list.push(serious('LATE_REJECTED', `Vào trễ ${r.minutes_late} phút, giải trình bị từ chối`));
@@ -22,7 +23,7 @@ const violationsOf = (view) => {
   }
 
   // Ra ca
-  if (r.checkout_status === 'MISSING') list.push(serious('CHECKOUT_MISSING', 'Không chấm ra ca và không giải trình'));
+  if (r.checkout_status === 'MISSING') list.push(r.checkout_face_review?.verdict === 'NOT_SAME' ? serious('FACE_NOT_SAME_OUT', 'Ảnh ra ca không phải nhân viên (quản lý xác nhận)') : serious('CHECKOUT_MISSING', 'Không chấm ra ca và không giải trình'));
   else if (req && req.status !== 'PENDING') {
     const early = r.checkout_status === 'EARLY';
     if (early && req.status === 'APPROVED') list.push(normal('EARLY_APPROVED', `Về sớm ${r.minutes_early} phút (được duyệt)`));
@@ -38,6 +39,8 @@ const unsettledReason = (view) => {
   if (view.explanation?.status === 'PENDING') return 'Giải trình vào ca đang chờ duyệt';
   if (!r) return 'Chưa có kết quả vào ca';
   if (r.status === 'ABSENT') return null;
+  // Ảnh chấm công bị gắn cờ (không khớp ảnh gốc) mà quản lý chưa xác nhận
+  if ((FLAGGED.includes(r.face_check?.status) && !r.face_review) || (FLAGGED.includes(r.checkout_face_check?.status) && !r.checkout_face_review)) return 'Ảnh chấm công chờ quản lý xác nhận đúng người';
   if (view.checkout_request?.status === 'PENDING') return 'Đơn ra ca (về sớm / quên chấm) đang chờ duyệt';
   if (!r.checkout_status) return 'Chưa có kết quả ra ca';
   return null;

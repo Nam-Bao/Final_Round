@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid, Badge } from 'antd';
+import { Layout, Menu, Button, theme, Dropdown, Space, Avatar, Modal, Descriptions, Tag, Input, Popconfirm, message, Switch, Drawer, Grid, Badge, Radio, Checkbox, Image } from 'antd';
 import {
   MenuFoldOutlined, MenuUnfoldOutlined, DashboardOutlined, UserOutlined, CalendarOutlined,
   LogoutOutlined, AppstoreOutlined, ExperimentOutlined, LineChartOutlined, TeamOutlined, GlobalOutlined, AppstoreAddOutlined,
   ScheduleOutlined, SolutionOutlined, PhoneOutlined, PlayCircleOutlined, DollarOutlined, TagsOutlined, 
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
   SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined,
-  SafetyOutlined, AuditOutlined
+  SafetyOutlined, AuditOutlined, ScanOutlined, PaperClipOutlined, FilePdfOutlined, LoadingOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -16,6 +17,65 @@ import { TaskProvider, NotificationBell, useTasks } from './Notifications';
 const { Header, Sider, Content } = Layout;
 
 // Bọc bộ đếm việc đang chờ (thông báo real-time) cho toàn bộ trang quản trị
+// Tệp gửi trong chat CSKH: ảnh (bấm phóng to) / PDF (mở tab mới). Ảnh khách gửi: CSKH đính vào hồ sơ khám sắp tới.
+function ChatFiles({ files, onAttach }) {
+  if (!files?.length) return null;
+  const images = files.filter((f) => f.type !== 'pdf');
+  return (
+    <div className="mt-1">
+      <Image.PreviewGroup>
+        <div className="flex flex-wrap gap-1">
+          {files.map((f) => (f.type === 'pdf'
+            ? <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white text-gray-700 rounded px-2 py-1 text-xs border max-w-[180px]"><FilePdfOutlined className="text-red-500" /><span className="truncate">{f.name}</span></a>
+            : <Image key={f.url} src={f.url} width={88} height={88} className="rounded object-cover" />))}
+        </div>
+      </Image.PreviewGroup>
+      {onAttach && images.length > 0 && <Button size="small" type="link" className="!px-0 !text-xs" onClick={() => onAttach(images.map((f) => f.url))}>Đính kèm vào hồ sơ khám</Button>}
+    </div>
+  );
+}
+
+// Chọn lịch sắp tới của khách để đính ảnh gửi qua chat (bác sĩ xem trước khi khám)
+function AttachToRecordModal({ open, customerId, urls, onClose }) {
+  const [list, setList] = useState(null);
+  const [aptId, setAptId] = useState(null);
+  const [picked, setPicked] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const headers = { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` };
+  useEffect(() => {
+    if (!open) return;
+    setPicked(urls || []); setAptId(null); setList(null);
+    axios.get(`http://localhost:4000/api/booking/appointments/customer/${customerId}/upcoming`, { headers })
+      .then((r) => { setList(r.data.data || []); setAptId(r.data.data?.[0]?.id || null); })
+      .catch(() => setList([]));
+  }, [open, customerId]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await axios.put(`http://localhost:4000/api/booking/appointments/${aptId}/attach-images`, { customer_id: customerId, urls: picked }, { headers });
+      message.success(r.data.message); onClose();
+    } catch (e) { message.error(e.response?.data?.message || 'Không đính được ảnh'); } finally { setSaving(false); }
+  };
+  return (
+    <Modal open={open} title="Đính ảnh khách gửi vào hồ sơ khám" okText="Đính kèm" cancelText="Đóng" onCancel={onClose} onOk={save} confirmLoading={saving}
+      okButtonProps={{ disabled: !aptId || !picked.length }} destroyOnHidden>
+      <div className="text-sm text-gray-500 mb-2">Bác sĩ thấy ảnh trong "Xem Lời khai & Hình ảnh da" và tab "Soi da AI" (ghi "Khách gửi qua chat"). Ảnh không được đưa qua AI.</div>
+      <Checkbox.Group value={picked} onChange={setPicked} className="flex flex-wrap gap-2 mb-3">
+        {(urls || []).map((u) => <Checkbox key={u} value={u}><img src={u} alt="" className="w-16 h-16 object-cover rounded" /></Checkbox>)}
+      </Checkbox.Group>
+      {list === null ? 'Đang tải lịch hẹn...' : !list.length ? <div className="text-orange-600">Khách chưa có lịch hẹn sắp tới. Tạo lịch trước rồi đính ảnh.</div> : (
+        <Radio.Group value={aptId} onChange={(e) => setAptId(e.target.value)} className="flex flex-col gap-1">
+          {list.map((a) => (
+            <Radio key={a.id} value={a.id}>
+              {a.appointment_date.split('-').reverse().join('/')} {a.appointment_time} · {a.online ? 'Khám online' : 'Khám trực tiếp'} <Tag className="ml-1">{a.status}</Tag>{a.images ? <span className="text-xs text-gray-500">đã có {a.images} ảnh</span> : null}
+            </Radio>
+          ))}
+        </Radio.Group>
+      )}
+    </Modal>
+  );
+}
+
 export default function AdminLayout() {
   return <TaskProvider><AdminLayoutInner /></TaskProvider>;
 }
@@ -85,6 +145,9 @@ function AdminLayoutInner() {
   const [chatSessions, setChatSessions] = useState([]); 
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [chatInput, setChatInput] = useState('');
+  const [chatUploading, setChatUploading] = useState(false);
+  const chatFileRef = useRef(null);
+  const [attachState, setAttachState] = useState(null); // { customerId, urls } đính ảnh chat vào hồ sơ khám
   const [customers, setCustomers] = useState([]); 
   const [isChatMinimized, setIsChatMinimized] = useState(true); // thu gọn sẵn để không che màn hình làm việc, có tin mới thì tự mở
   const [isReady, setIsReady] = useState(true); 
@@ -118,7 +181,7 @@ function AdminLayoutInner() {
       newSocket.on('receive_message', (data) => {
          setChatSessions(prev => prev.map(s => {
             if (s.sessionId === data.sessionId) {
-               return { ...s, messages: [...(s.messages || []), { sender: data.senderType, text: data.content }] };
+               return { ...s, messages: [...(s.messages || []), { sender: data.senderType, text: data.content, attachments: data.attachments }] };
             }
             return s;
          }));
@@ -153,6 +216,29 @@ function AdminLayoutInner() {
 
       chatSocket.emit('send_message', { sessionId: activeSessionId, content: chatInput });
       setChatInput('');
+  };
+
+  // CSKH gửi ảnh / PDF cho khách (tải qua service-media rồi gửi URL qua socket)
+  const handleSendFiles = async (e) => {
+      const files = Array.from(e.target.files || []).slice(0, 5);
+      e.target.value = '';
+      if (!files.length || !activeSessionId || !chatSocket) return;
+      setChatUploading(true);
+      const attachments = [];
+      for (const file of files) {
+          try {
+              const form = new FormData();
+              form.append('file', file);
+              const res = await fetch('http://localhost:4000/api/media/upload/chat', { method: 'POST', headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, body: form });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.message || 'Không gửi được tệp');
+              attachments.push(data);
+          } catch (err) { message.error(`${file.name}: ${err.message}`); }
+      }
+      setChatUploading(false);
+      if (!attachments.length) return;
+      setChatSessions(prev => prev.map(s => (s.sessionId === activeSessionId ? { ...s, messages: [...(s.messages || []), { sender: 'CONSULTANT', text: '', attachments }] } : s)));
+      chatSocket.emit('send_message', { sessionId: activeSessionId, content: '', attachments });
   };
 
   const handleCloseSession = (sessionId) => {
@@ -201,6 +287,7 @@ function AdminLayoutInner() {
       ['Hệ thống', <SettingOutlined />, [
         { key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' },
         { key: '/staff-records', icon: <IdcardOutlined />, label: 'Hồ sơ nhân sự' },
+        { key: '/email-logs', icon: <MailOutlined />, label: 'Lịch sử email' },
       ]],
       ['Dịch vụ', <HeartOutlined />, [{ key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' }]],
       ['Kho hàng', <InboxOutlined />, [
@@ -228,6 +315,7 @@ function AdminLayoutInner() {
         { key: '/packages', icon: <AppstoreAddOutlined />, label: 'Gói lộ trình' },
         { key: '/consultations', icon: <VideoCameraOutlined />, label: 'Tư vấn chuyên gia' },
         { key: '/safety-rules', icon: <SafetyOutlined />, label: 'Quy tắc an toàn' },
+        { key: '/skin-reviews', icon: <ScanOutlined />, label: 'Xác nhận soi da' },
       ]],
       ['Kho hàng', <InboxOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
@@ -236,11 +324,13 @@ function AdminLayoutInner() {
       ['Marketing & Website', <NotificationOutlined />, [
         { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
         { key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' },
+        { key: '/email-logs', icon: <MailOutlined />, label: 'Lịch sử email' },
       ]],
     ],
     DOCTOR: [
       ['Chuyên môn', <MedicineBoxOutlined />, [
         { key: '/workspace', icon: <TeamOutlined />, label: 'Không gian khám bệnh' },
+        { key: '/skin-reviews', icon: <ScanOutlined />, label: 'Xác nhận soi da' },
         { key: '/my-articles', icon: <FileTextOutlined />, label: 'Bài viết của tôi' },
         { key: '/safety-rule-reviews', icon: <AuditOutlined />, label: 'Quy tắc an toàn' },
       ]],
@@ -438,6 +528,7 @@ function AdminLayoutInner() {
                                     }}>
                                       + Tạo Lịch
                                     </Button>
+                                    <AttachToRecordModal open={!!attachState} customerId={attachState?.customerId} urls={attachState?.urls} onClose={() => setAttachState(null)} />
                                     <Popconfirm title="Đóng phiên chat này?" onConfirm={() => handleCloseSession(activeSessionId)}>
                                        <Button size="small" danger>Đóng</Button>
                                     </Popconfirm>
@@ -447,11 +538,14 @@ function AdminLayoutInner() {
                                   {(currentSession.messages || []).map((msg, idx) => (
                                      <div key={idx} className={`p-2 rounded-xl text-sm max-w-[85%] shadow-sm ${msg.sender === 'CONSULTANT' ? 'self-end bg-blue-600 text-white rounded-br-sm' : 'self-start bg-gray-100 text-gray-800 rounded-bl-sm'}`}>
                                         {msg.text}
+                                        <ChatFiles files={msg.attachments} onAttach={msg.sender === 'CUSTOMER' && currentSession.customerId ? (urls) => setAttachState({ customerId: currentSession.customerId, urls }) : null} />
                                      </div>
                                   ))}
                                   <div ref={messagesEndRef} />
                                </div>
                                <div className="p-3 border-t bg-gray-50 flex gap-2">
+                                  <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple className="hidden" onChange={handleSendFiles} />
+                                  <Button shape="circle" title="Gửi ảnh (tối đa 5MB) hoặc PDF (tối đa 10MB)" icon={chatUploading ? <LoadingOutlined /> : <PaperClipOutlined />} disabled={chatUploading} onClick={() => chatFileRef.current?.click()} />
                                   <Input 
                                      placeholder="Nhập câu trả lời..." 
                                      value={chatInput}

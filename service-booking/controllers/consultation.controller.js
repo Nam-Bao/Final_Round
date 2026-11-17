@@ -67,15 +67,20 @@ const settleFinishedConsultations = async () => {
     if (!c.expert_joined_at) {
       // Lỗi phía phòng khám => hoàn cọc cho khách
       await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING' });
+      sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, consultMail(c));
     } else if (!c.customer_joined_at) {
       // Chuyên gia có mặt, khách không vào => mất cọc
       await c.update({ status: 'NO_SHOW', deposit_outcome: 'FORFEITED' });
     } else if (!now.isBefore(closedAt.add(RESULT_DEADLINE_MINUTES, 'minute'))) {
       // Hai bên đã vào phòng nhưng quá hạn vẫn không có kết quả => khách không nhận được dịch vụ, hoàn cọc, không tính thù lao
       await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING', cancel_reason: `Chuyên gia không gửi kết quả trong ${durationLabel(RESULT_DEADLINE_MINUTES)}` });
+      sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, consultMail(c));
     }
   }
 };
+
+const { sendEmail } = require('../utils/mail');
+const consultMail = (c) => ({ consultation_id: c.id, expert_name: c.expert_name, date: c.appointment_date, time: String(c.appointment_time).slice(0, 5), amount: Number(c.deposit_amount) });
 
 const runMaintenance = async () => {
   try {
@@ -271,6 +276,7 @@ const handleConsultTransfer = async (content, transferAmount) => {
   const c = candidates[0];
   if (Number(transferAmount) >= Number(c.deposit_amount)) {
     await c.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: 'VIETQR' });
+    sendEmail('CONSULT_BOOKED', c.customer_id, `CONSULT_BOOKED:${c.id}`, consultMail(c));
     const excess = Number(transferAmount) - Number(c.deposit_amount);
     return excess > 0
       ? { code_type: 'CONSULTATION', code, status: 'OVERPAID', matched_id: c.id, reason: `Chuyển thừa ${money(excess)}, cần hoàn phần dư` }
@@ -435,7 +441,7 @@ const saveConsultResult = async (req, res) => {
     const follow_up = text('follow_up', 0, 1000, 'Hẹn theo dõi');
     const products = await parseResultProducts(req.body.products);
 
-    await sequelize.transaction(async (t) => {
+    const done = await sequelize.transaction(async (t) => {
       const c = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
       if (!c || c.expert_id !== req.user.id) throw new ConsultError('Không tìm thấy lịch tư vấn', 404);
       if (!['CONFIRMED', 'COMPLETED'].includes(c.status)) throw new ConsultError('Lịch tư vấn này không nhận kết quả');
@@ -449,7 +455,10 @@ const saveConsultResult = async (req, res) => {
         result: { assessment, advice, lifestyle, follow_up, products },
         expert_note: advice, recommend_exam: req.body.recommend_exam === true,
       }, { transaction: t });
+      return c;
     });
+    // Báo khách đã có kết quả (chỉ lần gửi đầu; chuyên gia sửa lại kết quả thì không gửi thêm)
+    sendEmail('CONSULT_RESULT', done.customer_id, `CONSULT_RESULT:${done.id}`, consultMail(done));
     res.status(200).json({ message: 'Đã gửi kết quả tư vấn cho khách' });
   } catch (error) { sendError(res, error); }
 };
@@ -512,12 +521,14 @@ const confirmConsultPayment = async (req, res) => {
     const ref = String(req.body.payment_ref || '').trim();
     if (ref.length < 4 || ref.length > 50) throw new ConsultError('Nhập mã giao dịch hoặc số phiếu thu (4 - 50 ký tự)');
     const method = req.body.payment_method === 'CASH' ? 'CASH' : 'VIETQR';
-    await sequelize.transaction(async (t) => {
+    const paid = await sequelize.transaction(async (t) => {
       const c = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
       if (!c) throw new ConsultError('Lịch giữ chỗ đã hết hạn, vui lòng đặt lại', 404);
       if (c.status !== 'PENDING_PAYMENT') throw new ConsultError('Lịch này đã xác nhận cọc');
       await c.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: method, payment_ref: ref }, { transaction: t });
+      return c;
     });
+    sendEmail('CONSULT_BOOKED', paid.customer_id, `CONSULT_BOOKED:${paid.id}`, consultMail(paid));
     res.status(200).json({ message: 'Đã xác nhận cọc tư vấn' });
   } catch (error) { sendError(res, error); }
 };
@@ -572,6 +583,7 @@ const confirmConsultRefund = async (req, res) => {
     });
     await recordClaim({ source: 'CONSULTATION', source_id: c.id, customer_id: c.customer_id, amount: Number(c.deposit_amount), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id })
       .catch((e) => console.error('❌ Không ghi được khoản hoàn để đối chiếu:', e.message));
+    sendEmail('DEPOSIT_REFUNDED', c.customer_id, `REFUNDED:CONSULTATION:${c.id}`, { kind: 'CONSULTATION', source_id: c.id, amount: Number(c.deposit_amount), ref: refund_ref, date: c.appointment_date });
     res.status(200).json({ message: 'Đã ghi nhận hoàn cọc. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) { sendError(res, error); }
 };

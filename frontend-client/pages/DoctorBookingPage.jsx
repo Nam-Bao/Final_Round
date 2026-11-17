@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle, Star } from 'lucide-react';
+import { Calendar, Clock, User, Video, MapPin, CheckCircle, ScanLine, MessageSquare, AlertCircle, Star, Camera, Loader2, Trash2, ImagePlus } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/authStore';
 import DoctorProfileModal, { doctorDisplayName } from '../components/DoctorProfileModal';
+
+// Ảnh da khách tự tải khi đặt lịch (lưu vào hồ sơ khám để bác sĩ xem trước), tối đa 5 ảnh, khớp service-booking/utils/clinicScan.js
+const PHOTO_SLOTS = [['front', 'Chính diện'], ['left', 'Má trái'], ['right', 'Má phải']];
+const MAX_PHOTOS = 5;
 
 // Mỗi lượt khám 30 phút, khớp EXAM_SLOTS ở service-booking
 const SHIFT_SLOTS = {
@@ -14,6 +18,21 @@ const SHIFT_SLOTS = {
 export default function DoctorBookingPage() {
   const storeToken = useAuthStore((state) => state.token);
   const getToken = () => storeToken || sessionStorage.getItem('token') || '';
+  const [uploadingSlot, setUploadingSlot] = useState(null);
+  // Tải 1 ảnh lên (Cloudinary qua service-media); angle = góc chụp hoặc null (ảnh khác)
+  const uploadPhoto = async (file, angle) => {
+    if (!file) return;
+    if (!angle && uploadedImages.length >= MAX_PHOTOS) return alert(`Tối đa ${MAX_PHOTOS} ảnh`);
+    setUploadingSlot(angle || 'other');
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch('/api/media/upload/skin', { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Tải ảnh thất bại');
+      setUploadedImages((prev) => [...(angle ? prev.filter((x) => x.angle !== angle) : prev), { url: data.url, angle }].slice(0, MAX_PHOTOS));
+    } catch (e) { alert(e.message); } finally { setUploadingSlot(null); }
+  };
 
   const [doctors, setDoctors] = useState([]);
   const [doctorStats, setDoctorStats] = useState({}); // Điểm đánh giá thật { [doctor_id]: { avg_rating, review_count } }
@@ -193,6 +212,8 @@ export default function DoctorBookingPage() {
     if (!slot) return alert('Vui lòng chọn Giờ khám!');
     if (!dayjs(`${date} ${slot}`).isAfter(dayjs())) return alert('Giờ khám đã qua, vui lòng chọn ngày giờ khác!');
     if (appointmentType === 'ONLINE' && !skinCondition.trim()) return alert('Vui lòng điền tình trạng da hiện tại!');
+    if (appointmentType === 'ONLINE' && !uploadedImages.length) return alert('Khám online cần ít nhất 1 ảnh tình trạng da để bác sĩ xem trước!');
+    if (uploadingSlot) return alert('Ảnh đang được tải lên, vui lòng đợi');
 
     let finalSymptoms = '';
     if (appointmentType === 'ONLINE') {
@@ -208,7 +229,7 @@ export default function DoctorBookingPage() {
         appointment_date: date,
         appointment_time: `${slot}:00`,
         symptoms: finalSymptoms, 
-        pre_exam_images: uploadedImages,
+        pre_exam_images: appointmentType === 'ONLINE' ? uploadedImages : [], // khám trực tiếp: CSKH chụp tại quầy
         pre_notes: `[ONLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`
       };
 
@@ -330,6 +351,50 @@ export default function DoctorBookingPage() {
                  </button>
                </div>
             </div>
+
+            {/* ẢNH TÌNH TRẠNG DA: bắt buộc khi khám online (khám trực tiếp thì CSKH chụp tại quầy) */}
+            {appointmentType === 'ONLINE' && (
+            <div className="card bg-base-100 p-6 shadow-xl border border-base-200">
+              <h2 className="font-bold text-lg mb-1 flex items-center gap-2"><Camera className="w-5 h-5" /> Ảnh tình trạng da <span className="text-sm font-normal text-error">* bắt buộc khi khám online</span></h2>
+              <p className="text-sm opacity-70 mb-3">
+                Bác sĩ không gặp trực tiếp nên cần ảnh để xem trước buổi khám online. Tải ít nhất 1 ảnh, nên đủ 3 góc Chính diện / Má trái / Má phải.
+                Chụp nơi đủ sáng, không trang điểm. Tối đa {MAX_PHOTOS} ảnh.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {PHOTO_SLOTS.map(([angle, label]) => {
+                  const img = uploadedImages.find((x) => x.angle === angle);
+                  return (
+                    <div key={angle} className="w-24 text-center">
+                      <label className={`relative w-24 h-24 rounded-lg border-2 ${img ? 'border-primary' : 'border-dashed border-base-300'} flex items-center justify-center cursor-pointer overflow-hidden bg-base-200/40`}>
+                        {uploadingSlot === angle ? <Loader2 className="w-5 h-5 animate-spin" />
+                          : img ? <img src={img.url} alt={label} className="w-full h-full object-cover" />
+                          : <Camera className="w-6 h-6 opacity-40" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => { uploadPhoto(e.target.files?.[0], angle); e.target.value = ''; }} />
+                      </label>
+                      <div className="text-xs mt-1">{label}{img && <button type="button" className="ml-1 text-error" onClick={() => setUploadedImages((p) => p.filter((x) => x !== img))} aria-label={`Xóa ảnh ${label}`}><Trash2 className="w-3 h-3 inline" /></button>}</div>
+                    </div>
+                  );
+                })}
+                {uploadedImages.filter((x) => !x.angle).map((x) => (
+                  <div key={x.url} className="w-24 text-center">
+                    <img src={x.url} alt="Ảnh da" className="w-24 h-24 rounded-lg object-cover border border-base-300" />
+                    <button type="button" className="text-xs text-error mt-1" onClick={() => setUploadedImages((p) => p.filter((y) => y !== x))}>Xóa</button>
+                  </div>
+                ))}
+                {uploadedImages.length < MAX_PHOTOS && (
+                  <div className="w-24 text-center">
+                    <label className="w-24 h-24 rounded-lg border-2 border-dashed border-base-300 flex flex-col items-center justify-center cursor-pointer bg-base-200/40 text-xs opacity-70">
+                      {uploadingSlot === 'other' ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ImagePlus className="w-6 h-6 mb-1" />Ảnh khác</>}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => { uploadPhoto(e.target.files?.[0], null); e.target.value = ''; }} />
+                    </label>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs opacity-60 mt-3">
+                Ảnh chỉ nhân sự phụ trách (bác sĩ, tư vấn viên) xem được và được lưu theo hồ sơ khám. Muốn AI sàng lọc da, hãy dùng <Link to="/sang-loc-da" className="link link-primary">Sàng lọc AI</Link>.
+              </p>
+            </div>
+            )}
 
             {/* FORM KHAI THÁC THÔNG TIN (ONLINE) */}
             {appointmentType === 'ONLINE' && (

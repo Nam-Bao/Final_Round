@@ -2,6 +2,7 @@ const { SafetyOverride, sequelize, Appointment, AppointmentCancellation, WorkShi
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
+const clinicScan = require('../utils/clinicScan');
 const { isOnlineAppointment } = require('./video.controller');
 // Khung giờ khám theo ca (khớp với getAvailableSlots và trang đặt lịch)
 const { EXAM_SLOTS, EXAM_SHIFT_HOURS } = require('../utils/shiftSlots');
@@ -118,9 +119,15 @@ const getExamFee = (invoice) => (invoice && Number(invoice.total_amount) === 0 ?
 const getDepositPaid = (invoice) => (invoice?.payment_status === 'PAID' ? Number(invoice.total_amount) : 0);
 
 // Đánh dấu đã thu tiền cọc: lịch online vào thẳng hàng chờ bác sĩ, lịch tại phòng khám chờ check-in
+const { sendEmail } = require('../utils/mail');
+// Dữ liệu email của 1 lịch khám (chỉ mã + giờ, không gửi thông tin y tế)
+const aptMail = (apt) => ({ appointment_id: apt.id, date: apt.appointment_date, time: String(apt.appointment_time).slice(0, 5), online: isOnlineAppointment(apt), doctor_id: apt.doctor_id, patient_profile_id: apt.patient_profile_id });
+
 const markDepositPaid = async (apt, invoice, paymentMethod, note) => {
   apt.status = isOnlineAppointment(apt) ? 'WAITING' : 'CONFIRMED';
   await apt.save();
+  // Email xác nhận đặt lịch (key theo lịch => gọi lại không gửi trùng)
+  sendEmail('APPOINTMENT_BOOKED', apt.customer_id, `APT_BOOKED:${apt.id}`, { ...aptMail(apt), paid: Number(invoice?.total_amount || 0) });
   if (invoice && invoice.payment_status === 'PENDING') {
     invoice.payment_status = 'PAID';
     invoice.payment_method = paymentMethod;
@@ -135,12 +142,15 @@ const markDepositPaid = async (apt, invoice, paymentMethod, note) => {
 // Gộp dòng trùng, số lượng 1 - 20.
 const normalizeMedicines = (list) => {
   const qty = {};
+  const usage = {}; // cách dùng bác sĩ ghi cho từng sản phẩm (in trên đơn thuốc)
   (Array.isArray(list) ? list : []).forEach((m) => {
     const productId = typeof m === 'string' ? m : (m?.product_id || m?.id);
     const quantity = typeof m === 'string' ? 1 : Math.min(Math.max(parseInt(m?.quantity, 10) || 1, 1), 20);
     if (productId) qty[productId] = Math.min((qty[productId] || 0) + quantity, 20);
+    const text = typeof m === 'object' ? String(m?.usage || '').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+    if (productId && text) usage[productId] = text;
   });
-  return Object.entries(qty).map(([product_id, quantity]) => ({ product_id, quantity }));
+  return Object.entries(qty).map(([product_id, quantity]) => ({ product_id, quantity, ...(usage[product_id] ? { usage: usage[product_id] } : {}) }));
 };
 
 class CheckoutError extends Error {}
@@ -160,13 +170,13 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
     if (Number(product.stock_quantity || 0) < m.quantity) {
       throw new CheckoutError(`Sản phẩm ${product.name} chỉ còn ${product.stock_quantity || 0} trong kho`);
     }
-    return Number(product.price) * m.quantity;
+    return { id: product.id, name: product.name, price: Number(product.price), quantity: m.quantity, amount: Number(product.price) * m.quantity };
   });
 
   const scope_values = {
     SPA_SERVICE: services.reduce((s, x) => s + Number(x.price), 0),
     TREATMENT_PACKAGE: packages.reduce((s, x) => s + Number(x.promotional_price || x.price), 0),
-    PRODUCT: productLines.reduce((s, x) => s + x, 0),
+    PRODUCT: productLines.reduce((s, x) => s + x.amount, 0),
   };
   const items_total = scope_values.SPA_SERVICE + scope_values.TREATMENT_PACKAGE + scope_values.PRODUCT;
   const exam_fee = getExamFee(invoice);
@@ -178,7 +188,8 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
     exam_fee, deposit_paid, consult_credit, items_total, scope_values, gross: exam_fee + items_total,
     // Dòng chi tiết để lưu vào hoá đơn (báo cáo doanh thu theo dịch vụ / gói)
     service_items: services.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
-    package_items: packages.map((p) => ({ id: p.id, name: p.name, price: Number(p.promotional_price || p.price) })),
+    package_items: packages.map((p) => ({ id: p.id, name: p.name, price: Number(p.promotional_price || p.price), sessions: p.total_sessions })),
+    product_items: productLines.map(({ amount, ...p }) => p),
   };
 };
 
@@ -271,7 +282,9 @@ const getMyTodayAppointments = async (req, res) => {
         gender: patientProfile?.gender || customerInfo?.Profile?.gender || 'OTHER',
         patient_profile_id: apt.patient_profile_id, 
         pre_notes: apt.pre_notes || '',
-        pre_exam_images: apt.pre_exam_images || []
+        pre_exam_images: apt.pre_exam_images || [],
+        pre_exam_image_meta: apt.pre_exam_image_meta || {},
+        ai_consent: apt.ai_consent || null,
       };
     });
 
@@ -382,6 +395,13 @@ const createAppointment = async (req, res) => {
     if (!appointment_date || !appointment_time || !customer_id || !patient_profile_id) {
        return res.status(400).json({ message: 'Vui lòng điền đủ thông tin hồ sơ và thời gian' });
     }
+    // Ảnh da khách tự tải: chỉ cho khám online (bác sĩ không gặp trực tiếp) và BẮT BUỘC khi khách tự đặt;
+    // khám trực tiếp thì CSKH chụp tại quầy nên không nhận ảnh lúc đặt lịch
+    const online = isOnlineAppointment({ pre_notes });
+    const customerImages = online ? clinicScan.normalize(pre_exam_images, 5) : [];
+    if (online && req.user.role === 'CUSTOMER' && !customerImages.length) {
+      return res.status(400).json({ code: 'PHOTOS_REQUIRED', message: 'Khám online cần ít nhất 1 ảnh tình trạng da để bác sĩ xem trước' });
+    }
 
     // Ngày giờ hợp lệ, không ở quá khứ, đúng ca làm của bác sĩ và chưa ai đặt (lịch giữ chỗ quá hạn thanh toán không tính)
     await releaseExpiredHolds();
@@ -418,7 +438,8 @@ const createAppointment = async (req, res) => {
         symptoms: '',
         pre_notes: finalPreNotes,
         status: req.user.role === 'CUSTOMER' ? 'PENDING_PAYMENT' : 'PENDING',
-        pre_exam_images: pre_exam_images || []
+        // Ảnh da khách tự tải khi đặt lịch online (chỉ ảnh Cloudinary của hệ thống, tối đa 5) => pre_exam_images + pre_exam_image_meta
+        ...(() => { const o = {}; clinicScan.setCustomerImages(o, customerImages); return o; })(),
       }, { transaction: t });
 
       // Gắn 1 khoản cọc tư vấn chuyên gia (nếu có) vào lịch khám này; khách cũ được miễn phí khám nên không cần
@@ -594,6 +615,7 @@ const rescheduleAppointment = async (req, res) => {
     const apt = await Appointment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     if (CLOSED_STATUSES.includes(apt.status)) return res.status(409).json({ message: CLOSED_MESSAGE });
+    const before = aptMail(apt);
     // Dời lịch chuyển lịch sang "đã xác nhận": lịch chưa trả cọc hoặc khách đang ở danh sách chờ không đi qua đây
     if (['PENDING_PAYMENT', 'CHECK_IN'].includes(apt.status)) return res.status(409).json({ message: 'Lịch này chưa đủ điều kiện dời: đang chờ cọc hoặc đang ở danh sách chờ' });
     await sequelize.transaction(async (t) => {
@@ -611,6 +633,12 @@ const rescheduleAppointment = async (req, res) => {
       if (note) apt.pre_notes = `[ĐÃ DỜI LỊCH: ${note}] - ` + (apt.pre_notes || '');
       await apt.save({ transaction: t });
     });
+    // Email báo khách lịch đã đổi (CSKH đã liên hệ trực tiếp, email để khách lưu lại thông tin mới)
+    const after = aptMail(apt);
+    if (after.date !== before.date || after.time !== before.time || after.doctor_id !== before.doctor_id) {
+      sendEmail('APPOINTMENT_RESCHEDULED', apt.customer_id, `APT_RESCHEDULED:${apt.id}:${after.date}T${after.time}:${after.doctor_id}`,
+        { ...after, old_date: before.date, old_time: before.time, by: 'CLINIC', note: String(note || '').slice(0, 200) || null });
+    }
     res.status(200).json({ message: 'Dời lịch thành công!', data: apt });
   } catch (error) { walkInFail(res, error); }
 };
@@ -627,8 +655,10 @@ const applyPreCheck = (apt, body, consultantId) => {
   apt.pre_notes = notesArray.join(' - ');
   apt.budget = budget || apt.budget;
   apt.consultant_id = consultantId;
-  if (pre_exam_images && pre_exam_images.length > 0) {
-     apt.pre_exam_images = pre_exam_images;
+  // Ảnh CSKH chụp tại quầy (giữ ảnh khách đã tự tải khi đặt lịch) + khách có đồng ý cho phân tích ảnh bằng AI không
+  if (Array.isArray(pre_exam_images)) clinicScan.setCounterImages(apt, pre_exam_images, consultantId);
+  if (typeof body.ai_consent === 'boolean') {
+    apt.ai_consent = body.ai_consent ? { accepted: true, at: new Date().toISOString(), by: consultantId } : { accepted: false, at: new Date().toISOString(), by: consultantId };
   }
   apt.status = 'WAITING';
   apt.queued_at = new Date();
@@ -645,9 +675,57 @@ const preCheckAppointment = async (req, res) => {
 
     applyPreCheck(apt, req.body, req.user.id);
     await apt.save();
+    clinicScan.scanInBackground(apt); // có đồng ý + ảnh tại quầy => AI quét sẵn cho bác sĩ
 
     res.status(200).json({ message: 'Đã lưu hồ sơ', data: apt });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [CSKH] GET /appointments/customer/:customerId/upcoming — lịch sắp tới của khách đang chat (để đính ảnh khách gửi vào hồ sơ khám)
+const UPCOMING_STATUSES = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE', 'CHECK_IN', 'WAITING', 'IN_PROGRESS'];
+const getCustomerUpcoming = async (req, res) => {
+  try {
+    const rows = await Appointment.findAll({
+      where: { customer_id: req.params.customerId, status: { [Op.in]: UPCOMING_STATUSES }, appointment_date: { [Op.gte]: dayjs().format('YYYY-MM-DD') } },
+      order: [['appointment_date', 'ASC'], ['appointment_time', 'ASC']], limit: 10, raw: true,
+    });
+    res.status(200).json({
+      data: rows.map((a) => ({
+        id: a.id, appointment_date: a.appointment_date, appointment_time: String(a.appointment_time).slice(0, 5), status: a.status,
+        online: isOnlineAppointment(a), patient_profile_id: a.patient_profile_id, doctor_id: a.doctor_id, images: (a.pre_exam_images || []).length,
+      })),
+    });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [CSKH] PUT /appointments/:id/attach-images { customer_id, urls } — đính ảnh khách gửi qua chat vào hồ sơ khám (bác sĩ xem trước khi khám)
+const attachChatImages = async (req, res) => {
+  try {
+    const apt = await Appointment.findByPk(req.params.id);
+    if (!apt || apt.customer_id !== String(req.body?.customer_id || '')) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn của khách này' });
+    if (!UPCOMING_STATUSES.includes(apt.status)) return res.status(409).json({ message: 'Lịch hẹn đã kết thúc hoặc đã hủy' });
+    const r = clinicScan.addChatImages(apt, req.body?.urls, req.user.id);
+    if (!r.added) return res.status(400).json({ message: r.skipped ? 'Hồ sơ khám đã đủ 15 ảnh' : 'Ảnh đã có trong hồ sơ hoặc không phải ảnh gửi qua chat' });
+    await apt.save();
+    res.status(200).json({ message: `Đã đính ${r.added} ảnh vào hồ sơ khám${r.skipped ? ` (bỏ ${r.skipped} ảnh vì hồ sơ đã đủ 15 ảnh)` : ''}`, data: { images: apt.pre_exam_images.length } });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [BÁC SĨ] PUT /appointments/:id/ai-scan { force } — quét AI ảnh CSKH chụp tại quầy (khách đã đồng ý); force: quét lại khi lượt trước đã xác nhận
+const scanCounterImages = async (req, res) => {
+  try {
+    const apt = await Appointment.findByPk(req.params.id);
+    if (!apt) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    if (req.user.role === 'DOCTOR' && apt.doctor_id !== req.user.id) return res.status(403).json({ message: 'Lịch khám này không phải của bạn' });
+    if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(apt.status)) return res.status(409).json({ message: 'Lịch hẹn không ở trạng thái khám' });
+    const data = await clinicScan.requestScan(apt, { force: req.body?.force === true });
+    res.status(200).json({ message: 'Đã quét AI ảnh tại phòng khám', data: data.data });
+  } catch (error) {
+    const r = error.response; // lỗi từ service AI (axios cũng có error.status nên xét response trước)
+    if (r) return res.status(r.status || 502).json({ code: r.data?.code, message: r.data?.message || 'Không quét được ảnh bằng AI, vui lòng thử lại' });
+    if (error.status) return res.status(error.status).json({ code: error.code, message: error.message }); // lỗi kiểm tra trong booking
+    res.status(502).json({ message: 'Không quét được ảnh bằng AI, vui lòng thử lại' });
+  }
 };
 
 const finishExam = async (req, res) => {
@@ -663,6 +741,8 @@ const finishExam = async (req, res) => {
     if (apt.status !== 'IN_PROGRESS') {
       return res.status(400).json({ message: 'Cần bấm Bắt đầu khám trước khi lưu bệnh án' });
     }
+
+    // Lượt soi da AI chưa xác nhận KHÔNG chặn hoàn tất khám: khách da nặng cần nhiều thời gian, bác sĩ xác nhận sau (giao việc ở cuối hàm).
 
     // Có cảnh báo chống chỉ định thì bác sĩ phải xem và ghi lý do mới kê được; server tự kiểm tra lại, không tin giao diện
     const { checkPrescription, aiWarningsFor } = require('./safety.controller');
@@ -700,6 +780,9 @@ const finishExam = async (req, res) => {
     apt.prescribed_services = spa_services || [];
     apt.prescribed_packages = treatment_package ? [treatment_package] : []; 
     apt.prescribed_medicines = normalizeMedicines(prescriptions);
+    // Giữ nguyên đơn bác sĩ kê để in đơn thuốc (prescribed_* sẽ thành thứ khách mua khi chốt bill)
+    apt.doctor_prescription = { medicines: apt.prescribed_medicines, services: apt.prescribed_services, packages: apt.prescribed_packages, doctor_id: req.user.id, at: new Date() };
+    apt.follow_up_date = /^\d{4}-\d{2}-\d{2}$/.test(String(follow_up_date || '').slice(0, 10)) ? String(follow_up_date).slice(0, 10) : null;
     
     apt.status = 'WAITING_FOR_SALE';
     await apt.save();
@@ -707,6 +790,12 @@ const finishExam = async (req, res) => {
       await SafetyOverride.create({ appointment_id: apt.id, patient_profile_id: apt.patient_profile_id, doctor_id: req.user.id, warnings: safetyWarnings, reason: safetyReason });
     }
     res.status(200).json({ message: 'Khám xong, đã lưu Hồ sơ Y tế và chuyển Thu Ngân', data: apt });
+    // Lượt soi da AI chưa xác nhận => giao cho bác sĩ này xác nhận sau (trang "Xác nhận soi da", hạn 48 giờ).
+    // Không chờ kết quả; service AI lỗi thì bác sĩ vẫn thấy lượt soi chờ xác nhận trong tab Soi da AI của khách.
+    if (apt.patient_profile_id && req.user.role === 'DOCTOR') {
+      axios.post(`${process.env.GATEWAY_URL || 'http://localhost:4000'}/api/ai/analyses/profile/${apt.patient_profile_id}/assign`, { appointment_id: apt.id }, { headers: { Authorization: req.headers.authorization }, timeout: 8000 })
+        .catch((e) => console.warn('Không giao được lượt soi da AI cho bác sĩ:', e.message));
+    }
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
@@ -800,6 +889,9 @@ const customerRescheduleAppointment = async (req, res) => {
       throwSlotError(await validateAppointmentSlot({ doctor_id: apt.doctor_id, appointment_date, appointment_time, isCustomer: true, excludeId: apt.id, transaction: t }));
       await apt.update({ appointment_date, appointment_time, customer_reschedule_count: 1 }, { transaction: t });
     });
+    const after = aptMail(apt);
+    sendEmail('APPOINTMENT_RESCHEDULED', apt.customer_id, `APT_RESCHEDULED:${apt.id}:${after.date}T${after.time}:${after.doctor_id}`,
+      { ...after, old_date: start.format('YYYY-MM-DD'), old_time: start.format('HH:mm'), by: 'CUSTOMER' });
     res.status(200).json({ message: 'Đã đổi lịch khám' });
   } catch (error) { walkInFail(res, error); }
 };
@@ -950,10 +1042,11 @@ const confirmDepositRefund = async (req, res) => {
       refunded_by: req.user.id, refunded_at: new Date()
     });
     await cancellation.save({ transaction: t });
-    const apt = await Appointment.findByPk(req.params.id, { attributes: ['customer_id'], transaction: t });
+    const apt = await Appointment.findByPk(req.params.id, { attributes: ['customer_id', 'appointment_date'], transaction: t });
     claim = { source: 'APPOINTMENT', source_id: req.params.id, customer_id: apt?.customer_id, amount: Number(cancellation.deposit_paid), bank_ref: refund_ref, account: req.body.account, claimed_by: req.user.id };
     await t.commit();
     await recordClaim(claim).catch((e) => console.error('❌ Không ghi được khoản hoàn để đối chiếu:', e.message));
+    sendEmail('DEPOSIT_REFUNDED', apt?.customer_id, `REFUNDED:APPOINTMENT:${req.params.id}`, { kind: 'APPOINTMENT', source_id: req.params.id, amount: claim.amount, ref: refund_ref, date: apt?.appointment_date });
     res.status(200).json({ message: 'Đã ghi nhận hoàn cọc. Khoản hoàn sẽ được đối chiếu với giao dịch tiền ra của ngân hàng.' });
   } catch (error) {
     await t.rollback();
@@ -1135,6 +1228,7 @@ const inviteWalkIn = async (req, res) => {
       apt.doctor_id = doctor_id;
       apt.appointment_time = dayjs().format('HH:mm:ss');
       await apt.save({ transaction: t });
+      t.afterCommit(() => clinicScan.scanInBackground(apt)); // có đồng ý + ảnh tại quầy => AI quét sẵn cho bác sĩ
     });
     res.status(200).json({ message: 'Đã mời khách vào phòng khám' });
   } catch (error) { walkInFail(res, error); }
@@ -1265,7 +1359,10 @@ const checkoutAppointment = async (req, res) => {
             invoice.breakdown = {
               exam_fee: bill.exam_fee, services: bill.scope_values.SPA_SERVICE, packages: bill.scope_values.TREATMENT_PACKAGE,
               products: bill.scope_values.PRODUCT, discount: discountAmount, consult_credit: bill.consult_credit, total: totalBill,
-              service_items: bill.service_items, package_items: bill.package_items, checked_out_at: new Date(),
+              service_items: bill.service_items, package_items: bill.package_items, product_items: bill.product_items, checked_out_at: new Date(),
+              // In phiếu thanh toán: ai chốt bill, mã khuyến mãi, tiền cọc đã trừ, số thu thêm
+              cashier_id: req.user.id, voucher_code: discountAmount > 0 ? String(voucher_code).trim().toUpperCase() : null,
+              deposit_paid: bill.deposit_paid, amount_due_now: amountDueNow,
             };
             await invoice.save({ transaction: t });
 
@@ -1340,7 +1437,7 @@ module.exports = {
   customerRescheduleAppointment,
   getMyReminders, 
   getMyTodayAppointments, getMyHistory, getTakenSlots, getDepositQuote, createAppointment, checkPaymentStatus, confirmPayment, sepayWebhook,
-  getConsultantQueues, rescheduleAppointment, preCheckAppointment, finishExam, getAllAppointments, updateAppointment, cancelAppointment,
+  getConsultantQueues, rescheduleAppointment, preCheckAppointment, finishExam, scanCounterImages, getCustomerUpcoming, attachChatImages, getAllAppointments, updateAppointment, cancelAppointment,
   getAvailableDoctors, getAvailableSlots, checkoutAppointment, getAppointmentsByPatient,
   abandonUnpaidAppointment, releaseExpiredHolds, getPendingDepositRefunds, confirmDepositRefund
 };

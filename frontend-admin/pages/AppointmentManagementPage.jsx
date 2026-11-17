@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Calendar, Badge, Modal, Form, Input, Select, DatePicker, Button, List, Typography, Space, Tag, message, Radio } from 'antd';
-import { CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, DollarOutlined } from '@ant-design/icons';
+import { PrinterOutlined, CalendarOutlined, PlusOutlined, PhoneOutlined, UserOutlined, DeleteOutlined, AlertOutlined, DollarOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import RefundTransferNote from '../components/RefundTransferNote';
 import dayjs from 'dayjs';
 import { useLocation, useNavigate } from 'react-router-dom'; 
 import { useTiming } from '../utils/timing';
 import { useLiveRefresh } from '../components/Notifications';
+import { openPrint } from '../utils/print';
 
 const { Title, Text } = Typography;
 
@@ -35,6 +36,8 @@ export default function AppointmentManagementPage() {
   const [refundRef, setRefundRef] = useState('');
   const [refundNote, setRefundNote] = useState('');
   const [refundAccount, setRefundAccount] = useState('');
+  // Lịch tại phòng khám quá giờ hẹn mà khách chưa đến: CSKH gọi khách hoặc ghi "không đến" (hệ thống không tự ghi vì khách mất cọc)
+  const [overdue, setOverdue] = useState([]);
   const location = useLocation();
   const navigate = useNavigate();
   const timingCfg = useTiming();
@@ -44,12 +47,14 @@ export default function AppointmentManagementPage() {
       const token = sessionStorage.getItem('admin_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [resApt, resCust, resRefunds] = await Promise.all([
+      const [resApt, resCust, resRefunds, resOverdue] = await Promise.all([
         axios.get('http://localhost:4000/api/booking/appointments', { headers }),
         axios.get('http://localhost:4000/api/identity/users/customers', { headers }),
-        axios.get('http://localhost:4000/api/booking/appointments/pending-refunds', { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get('http://localhost:4000/api/booking/appointments/pending-refunds', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get('http://localhost:4000/api/booking/appointments/overdue-arrivals', { headers }).catch(() => ({ data: { data: [] } })),
       ]);
       setPendingRefunds(resRefunds.data?.data || []);
+      setOverdue(resOverdue.data?.data || []);
 
       setAppointments(resApt.data?.data || []);
       setCustomers(resCust.data?.data || []);
@@ -295,7 +300,7 @@ export default function AppointmentManagementPage() {
 
   return (
     <Row gutter={16} className="h-[85vh]">
-      <Col span={pendingRefunds.length > 0 ? 18 : 24} className="h-full">
+      <Col span={pendingRefunds.length > 0 || overdue.length > 0 ? 18 : 24} className="h-full">
         <Card variant="borderless" className="h-full shadow-sm overflow-y-auto" styles={{ body: { padding: 10 } }}>
           <div className="flex justify-between items-center mb-4 p-2">
             <Title level={4} className="m-0 text-blue-800"><CalendarOutlined className="mr-2"/> Lịch Khám & Dịch vụ</Title>
@@ -311,8 +316,36 @@ export default function AppointmentManagementPage() {
         </Card>
       </Col>
 
-      {pendingRefunds.length > 0 && (
+      {(pendingRefunds.length > 0 || overdue.length > 0) && (
       <Col span={6} className="h-full flex flex-col gap-3">
+          {overdue.length > 0 && (
+          <Card size="small" title={<span className="text-orange-600"><AlertOutlined className="mr-2"/>Quá giờ, khách chưa đến ({overdue.length})</span>} variant="borderless"
+            className="shadow-sm bg-orange-50 border-orange-100 shrink-0" styles={{ body: { padding: 0, maxHeight: 260, overflowY: 'auto' } }}>
+            <div className="px-3 pt-2 text-xs text-gray-500">Quá giờ hẹn {timingCfg.noShowGraceMinutes} phút chưa tiếp nhận. Gọi khách; khách không đến thì mở lịch → <b>Khách không đến</b>.</div>
+            <List
+              dataSource={overdue}
+              renderItem={item => {
+                const patient = getPatientInfo(item.customer_id, item.patient_profile_id);
+                const start = dayjs(`${item.appointment_date} ${String(item.appointment_time).slice(0, 5)}`);
+                const late = dayjs().diff(start, 'minute');
+                const full = (appointments || []).find((a) => a.id === item.id) || item;
+                return (
+                  <List.Item className="px-3 py-2 border-b border-orange-100">
+                    <div className="w-full">
+                      <div className="flex justify-between items-start gap-2">
+                        <b className="text-gray-800">{patient.name || 'Khách'}</b>
+                        <Tag color="orange" className="mr-0">{start.format('HH:mm DD/MM')}</Tag>
+                      </div>
+                      <Text type="secondary" className="text-xs block"><PhoneOutlined/> {patient.phone || 'Chưa có SĐT'} · trễ {late >= 1440 ? `${Math.floor(late / 1440)} ngày` : late >= 60 ? `${Math.floor(late / 60)} giờ ${late % 60} phút` : `${late} phút`}</Text>
+                      <Button size="small" className="mt-1" onClick={() => handleEdit(full)}>Mở lịch</Button>
+                    </div>
+                  </List.Item>
+                );
+              }}
+            />
+          </Card>
+          )}
+          {pendingRefunds.length > 0 && (
           <Card size="small" title={<span className="text-red-600"><DollarOutlined className="mr-2"/>Chờ hoàn cọc ({pendingRefunds.length})</span>} variant="borderless"
             className="shadow-sm bg-red-50 border-red-100 shrink-0" styles={{ body: { padding: 0, maxHeight: 220, overflowY: 'auto' } }}>
             <List
@@ -335,6 +368,7 @@ export default function AppointmentManagementPage() {
               }}
             />
           </Card>
+          )}
       </Col>
       )}
 
@@ -344,6 +378,12 @@ export default function AppointmentManagementPage() {
               <AlertOutlined className="mt-1" />
               <p>Khách hàng này <b>đã khám xong</b>. Dữ liệu đã được bác sĩ lưu vào bệnh án nên không thể chỉnh sửa hoặc hủy lịch nữa.</p>
            </div>
+        )}
+        {editingAppointment && ['WAITING_FOR_SALE', 'COMPLETED'].includes(editingAppointment.status) && (
+          <Space className="mb-4" wrap>
+            <Button icon={<PrinterOutlined />} onClick={() => openPrint('prescription', editingAppointment.id)}>In đơn thuốc</Button>
+            {editingAppointment.status === 'COMPLETED' && <Button type="primary" ghost icon={<PrinterOutlined />} onClick={() => openPrint('invoice', editingAppointment.id)}>In phiếu thanh toán</Button>}
+          </Space>
         )}
 
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ method: 'OFFLINE', type: 'NEW_EXAM' }} disabled={isReadOnly}>

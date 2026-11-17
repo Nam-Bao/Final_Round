@@ -63,11 +63,17 @@ const Appointment = sequelize.define('Appointment', {
     },
     symptoms: { type: DataTypes.TEXT },
     pre_exam_images: { type: DataTypes.JSONB, defaultValue: [] },
+    pre_exam_image_meta: { type: DataTypes.JSONB, defaultValue: {} }, // { [url]: { source: customer | counter, angle, at, by } } (utils/clinicScan.js)
+    ai_consent: { type: DataTypes.JSONB },                              // { accepted, at, by } khách đồng ý cho phân tích ảnh bằng AI (CSKH ghi nhận)
     diagnosis: { type: DataTypes.STRING },
     doctor_notes: { type: DataTypes.TEXT },
     prescribed_services: { type: DataTypes.JSONB, defaultValue: [] },
     prescribed_packages: { type: DataTypes.JSONB, defaultValue: [] },
     prescribed_medicines: { type: DataTypes.JSONB, defaultValue: [] },
+    // Đơn bác sĩ kê lúc kết thúc khám (in đơn thuốc). prescribed_* bị CSKH ghi đè bằng thứ khách mua khi chốt bill, còn đơn này giữ nguyên.
+    // { medicines: [{ product_id, quantity, usage }], services, packages, doctor_id, at }
+    doctor_prescription: { type: DataTypes.JSONB },
+    follow_up_date: { type: DataTypes.DATEONLY }, // ngày hẹn tái khám bác sĩ ghi
 });
 
 // Bằng chứng mỗi lần hủy lịch khám: ai hủy, theo yêu cầu của bên nào, lý do, tiền cọc xử lý ra sao.
@@ -507,7 +513,24 @@ const AttendanceRecord = sequelize.define('AttendanceRecord', {
     checkout_photo_url: { type: DataTypes.STRING(500) },
     checkout_face_count: { type: DataTypes.INTEGER },
     minutes_early: { type: DataTypes.INTEGER, defaultValue: 0 },
+    // ---- So khuôn mặt với ảnh gốc của nhân viên (service AI). { status: MATCH | REVIEW | NO_MATCH | NO_FACE | MULTI_FACE | NO_REFERENCE | ERROR, distance, checked_at }
+    face_check: { type: DataTypes.JSONB },
+    checkout_face_check: { type: DataTypes.JSONB },
+    // Quản lý xác nhận lượt bị gắn cờ: { verdict: SAME | NOT_SAME, by, at, note }
+    face_review: { type: DataTypes.JSONB },
+    checkout_face_review: { type: DataTypes.JSONB },
 });
+
+// Giờ ca điều chỉnh theo ngày (quản lý đổi giờ 1 ca của 1 ngày: sự kiện, tăng ca, demo). utils/attendanceRules.js đọc qua bộ nhớ đệm.
+const ShiftHourOverride = sequelize.define('ShiftHourOverride', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    shift_type: { type: DataTypes.ENUM('MORNING', 'AFTERNOON', 'EVENING'), allowNull: false },
+    start_time: { type: DataTypes.TIME, allowNull: false },
+    end_time: { type: DataTypes.TIME, allowNull: false },
+    reason: { type: DataTypes.STRING(300), allowNull: false },
+    created_by: { type: DataTypes.UUID },
+}, { indexes: [{ unique: true, fields: ['date', 'shift_type'] }] });
 
 // Đơn ra ca: EARLY_LEAVE xin về sớm (gửi trước khi về, quét QR ra ca được ngay)
 //            FORGOT quên chấm ra ca (gửi sau khi hết khung QR ra ca; khai giờ về trước giờ kết thúc => coi là về sớm)
@@ -657,6 +680,7 @@ watch(AppointmentCancellation, 'appointments');
 watch(Consultation, 'consultations');
 watch(ShiftRequest, 'shift-requests');
 watch(AttendanceCheckoutRequest, 'attendance');
+watch(ShiftHourOverride, 'attendance');
 watch(AttendanceExplanation, 'attendance');
 watch(RefundClaim, 'bank');
 watch(BankTransaction, 'bank');
@@ -671,6 +695,7 @@ module.exports = {
     WorkShift,
     AttendanceKiosk,
     AttendanceQr,
+    ShiftHourOverride,
     AttendanceRecord,
     AttendanceExplanation,
     AttendanceCheckoutRequest,

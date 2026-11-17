@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import { MessageCircle, X, Send, User, Clock, PhoneCall, LogIn } from 'lucide-react';
+import { MessageCircle, X, Send, User, Clock, PhoneCall, LogIn, Paperclip, FileText, Loader2 } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import dayjs from 'dayjs';
 
@@ -14,7 +14,9 @@ import ReminderBanner from './components/ReminderBanner';
 import PromoPopup from './components/PromoPopup';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import AiTriagePage from './pages/AiTriagePage';
+import SkinHistoryPage from './pages/SkinHistoryPage';
 import HomePage from './pages/HomePage';
 import DoctorBookingPage from './pages/DoctorBookingPage';
 import AppointmentHistoryPage from './pages/AppointmentHistoryPage';
@@ -72,6 +74,22 @@ async function streamConsultReply(messages, token, onText) {
 }
 
 // Chưa đăng nhập -> sang trang đăng nhập, đăng nhập xong quay lại đúng trang đang mở
+// Tệp gửi trong chat CSKH: ảnh hiện thu nhỏ (bấm để xem), PDF hiện thẻ tên tệp
+function ChatAttachments({ files }) {
+  if (!files?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-1">
+      {files.map((f) => (f.type === 'pdf' ? (
+        <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-white/90 text-slate-700 rounded-lg px-2 py-1.5 text-xs max-w-[200px] border border-slate-200">
+          <FileText className="w-4 h-4 text-red-500 shrink-0" /><span className="truncate">{f.name}</span>
+        </a>
+      ) : (
+        <a key={f.url} href={f.url} target="_blank" rel="noreferrer"><img src={f.url} alt={f.name || 'Ảnh'} className="w-28 h-28 object-cover rounded-lg border border-white/50" /></a>
+      )))}
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const token = useAuthStore((state) => state.token);
   const location = useLocation();
@@ -177,8 +195,34 @@ function App() {
     });
   
     newSocket.on('receive_message', (data) => {
-      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.content }]);
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: data.content, attachments: data.attachments }]);
     });
+  };
+
+  const fileInputRef = useRef(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const handleAttachFiles = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 5);
+    e.target.value = '';
+    if (!files.length || !socket || !currentSessionId) return;
+    setIsUploadingFile(true);
+    const attachments = [];
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch('/api/media/upload/chat', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Không gửi được tệp');
+        attachments.push(data);
+      } catch (err) {
+        setMessages((prev) => [...prev, { id: Date.now() + Math.random(), sender: 'cs', isSystem: true, text: `${file.name}: ${err.message}` }]);
+      }
+    }
+    setIsUploadingFile(false);
+    if (!attachments.length) return;
+    setMessages((prev) => [...prev, { id: Date.now(), sender: 'user', text: '', attachments }]);
+    socket.emit('send_message', { sessionId: currentSessionId, content: '', attachments });
   };
 
   const handleSendMessage = async () => {
@@ -237,8 +281,10 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/sang-loc-da" element={<AiTriagePage />} />
+            <Route path="/lich-su-soi-da" element={<ProtectedRoute><SkinHistoryPage /></ProtectedRoute>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
             <Route path="/booking" element={<ProtectedRoute><DoctorBookingPage /></ProtectedRoute>} />
             <Route path="/tu-van" element={<ProtectedRoute><ConsultationBookingPage /></ProtectedRoute>} />
             <Route path="/appointments" element={<ProtectedRoute><AppointmentHistoryPage /></ProtectedRoute>} />
@@ -292,6 +338,7 @@ function App() {
                   <div key={msg.id} className={`chat ${msg.sender === 'user' ? 'chat-end' : 'chat-start'}`}>
                     <div className={`chat-bubble text-sm shadow-sm break-words ${msg.sender === 'user' ? 'bg-base-100 text-base-content' : 'chat-bubble-primary text-white'}`}>
                       {msg.text}
+                      <ChatAttachments files={msg.attachments} />
                     </div>
                   </div>
                 ))}
@@ -330,6 +377,15 @@ function App() {
                 )}
                 
                 <div className="flex gap-2 items-center">
+                  {chatMode === 'HUMAN' && currentSessionId && (
+                    <>
+                      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple className="hidden" onChange={handleAttachFiles} />
+                      <button type="button" className="btn btn-ghost btn-circle" aria-label="Gửi ảnh hoặc PDF" title="Gửi ảnh (tối đa 5MB) hoặc PDF (tối đa 10MB), tối đa 5 tệp"
+                        onClick={() => fileInputRef.current?.click()} disabled={isUploadingFile}>
+                        {isUploadingFile ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+                      </button>
+                    </>
+                  )}
                   <input
                     type="text"
                     value={inputValue}

@@ -235,6 +235,8 @@ exports.updateRecord = async (req, res) => {
     const existing = await EmployeeRecord.findOne({ where: { user_id: user.id } });
     if (!existing) throw bad('Tài khoản này chưa có hồ sơ nhân sự', 404);
     await persist(req, user, existing);
+    // Hồ sơ chuyển "Đã nghỉ việc" => xoá dữ liệu khuôn mặt chấm công
+    if (req.body?.employment_status === 'RESIGNED') require('../utils/faceCleanup').removeStaffFace(user.id, req.headers.authorization);
     res.status(200).json({ message: 'Đã cập nhật hồ sơ nhân sự' });
   } catch (error) { fail(res, error); }
 };

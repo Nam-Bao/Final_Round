@@ -16,6 +16,9 @@ const TIMING = {
   consultResultDeadlineMinutes: minutes(read('CONSULT_RESULT_DEADLINE_HOURS', 24) * 60), // hạn gửi kết quả sau khi phòng đóng
   attendanceQrTtlSeconds: Math.max(5, Math.round(read('ATTENDANCE_QR_TTL_SECONDS', 20))), // mã QR chấm công sống
   attendanceExplainMinutes: minutes(read('ATTENDANCE_EXPLAIN_HOURS', 24) * 60), // hạn giải trình sau khi hết ca, quá hạn tự ghi vắng
+  attendanceOpenBeforeMinutes: minutes(read('ATTENDANCE_OPEN_BEFORE_MINUTES', 20)),   // mở QR vào ca trước giờ vào ca
+  attendanceCloseAfterMinutes: minutes(read('ATTENDANCE_CLOSE_AFTER_MINUTES', 10)),   // đóng QR vào ca sau giờ vào ca
+  attendanceCheckoutMinutes: minutes(read('ATTENDANCE_CHECKOUT_WINDOW_MINUTES', 30)), // khung QR ra ca sau giờ kết thúc ca
 };
 
 // "24 giờ", "10 phút", "1 giờ 30 phút" để đưa vào thông báo

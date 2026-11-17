@@ -123,6 +123,7 @@ export default function MySchedulePage() {
   const currentWeek = () => setCurrentWeekStart(dayjs().startOf('isoWeek'));
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => currentWeekStart.add(i, 'day'));
+  const todayStr = dayjs().format('YYYY-MM-DD');
   const shiftTypes = ['MORNING', 'AFTERNOON']; // ca Tối đã bỏ (vẫn hiện tên nếu còn ca cũ)
   const shiftLabels = { 
      MORNING: { title: 'Sáng', time: '08:00 - 12:00' }, 
@@ -156,9 +157,10 @@ export default function MySchedulePage() {
             <tr>
               <th className="border border-gray-400 bg-gray-100 py-3 text-blue-800 w-[120px]">Ca làm</th>
               {weekDays.map(day => (
-                <th key={day.format('YYYY-MM-DD')} className="border border-gray-400 bg-gray-100 py-3 text-center">
-                  <div className="text-blue-800 font-bold">{day.format('dddd').replace('Monday', 'Thứ 2').replace('Tuesday', 'Thứ 3').replace('Wednesday', 'Thứ 4').replace('Thursday', 'Thứ 5').replace('Friday', 'Thứ 6').replace('Saturday', 'Thứ 7').replace('Sunday', 'Chủ nhật')}</div>
-                  <div className="font-medium text-blue-600">{day.format('DD/MM/YYYY')}</div>
+                <th key={day.format('YYYY-MM-DD')} className={`border border-gray-400 py-3 text-center ${day.format('YYYY-MM-DD') === todayStr ? 'bg-blue-600 !text-white' : 'bg-gray-100'}`}>
+                  {day.format('YYYY-MM-DD') === todayStr && <div className="text-[11px] font-bold uppercase tracking-wide text-white">Hôm nay</div>}
+                  <div className={day.format('YYYY-MM-DD') === todayStr ? 'text-white font-bold' : 'text-blue-800 font-bold'}>{day.format('dddd').replace('Monday', 'Thứ 2').replace('Tuesday', 'Thứ 3').replace('Wednesday', 'Thứ 4').replace('Thursday', 'Thứ 5').replace('Friday', 'Thứ 6').replace('Saturday', 'Thứ 7').replace('Sunday', 'Chủ nhật')}</div>
+                  <div className={day.format('YYYY-MM-DD') === todayStr ? 'font-medium text-blue-100' : 'font-medium text-blue-600'}>{day.format('DD/MM/YYYY')}</div>
                 </th>
               ))}
             </tr>
@@ -173,10 +175,22 @@ export default function MySchedulePage() {
                 {weekDays.map(day => {
                   const dateStr = day.format('YYYY-MM-DD');
                   const shift = shifts.find(s => s.date === dateStr && s.shift_type === type);
-                  
+                  const isToday = dateStr === todayStr;
+                  const isPast = dateStr < todayStr;
+                  // Hôm nay có ca: tô đậm cả ô để nhân viên thấy ngay
+                  const cellCls = isToday && shift ? 'bg-blue-600 border-x-2 border-x-blue-700 shadow-inner'
+                    : isToday ? 'bg-blue-50 border-x-2 border-x-blue-400'
+                      : isPast ? 'bg-gray-50 opacity-60 hover:bg-gray-100' : 'hover:bg-gray-50';
+
                   return (
-                    <td key={dateStr} className="border border-gray-400 p-2 text-center h-[80px] align-middle hover:bg-gray-50 transition-colors">
-                      {shift ? (
+                    <td key={dateStr} className={`border border-gray-400 p-2 text-center h-[80px] align-middle transition-colors ${cellCls}`}>
+                      {shift && isToday ? (
+                        <div className="flex flex-col items-center gap-1 text-white">
+                          <span className="px-3 py-1 rounded-full font-bold bg-white text-blue-700 shadow">Hôm nay làm ca {shiftLabels[type].title.toLowerCase()}</span>
+                          {role === 'DOCTOR' && <span className="text-xs font-semibold">{shift.appointment_count > 0 ? `Có ${shift.appointment_count} khách` : 'Chưa có khách đặt'}</span>}
+                          {shift.status !== 'SCHEDULED' && <span className="text-xs font-bold">[{shift.status}]</span>}
+                        </div>
+                      ) : shift ? (
                         <div className="flex flex-col items-center gap-1">
                           {role === 'DOCTOR' ? (
                               <span className={`px-3 py-1 rounded-full font-medium shadow-sm ${shift.appointment_count > 0 ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-green-100 text-green-700 border border-green-300'}`}>

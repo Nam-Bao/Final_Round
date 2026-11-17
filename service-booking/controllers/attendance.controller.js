@@ -2,12 +2,13 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const {
-  sequelize, WorkShift, AttendanceKiosk, AttendanceQr, AttendanceRecord, AttendanceExplanation, AttendanceCheckoutRequest, Payroll,
+  sequelize, WorkShift, AttendanceKiosk, AttendanceQr, AttendanceRecord, AttendanceExplanation, AttendanceCheckoutRequest, Payroll, ShiftHourOverride,
 } = require('../models');
+const { verifyFace, FLAGGED } = require('../utils/faceVerify');
 const { getSecret } = require('../middlewares/auth.middleware');
 const {
   SHIFT_HOURS, ACTIVE_SHIFTS, RULES, MANAGER_ROLES, EXPLANATION_REASONS, EARLY_LEAVE_REASONS,
-  vnToday, shiftTimes, kioskWindow, nextWindow, minutesLate, minutesEarly,
+  vnToday, shiftTimes, kioskWindow, nextWindow, minutesLate, minutesEarly, hoursOf, setOverrides, at, addMin,
 } = require('../utils/attendanceRules');
 const { durationLabel } = require('../utils/timing');
 const { violationsOf, unsettledReason, summarizeViolations } = require('../utils/attendanceViolations');
@@ -77,8 +78,11 @@ const updateKiosk = async (req, res) => {
   res.json({ message: req.body.is_active ? 'Đã bật lại máy chấm công' : 'Đã vô hiệu hóa máy chấm công' });
 };
 
+// Nhãn ca kèm giờ thực tế của ngày (giờ ca có thể được quản lý điều chỉnh)
+const shiftLabel = (date, type) => { const h = hoursOf(date, type); return `${SHIFT_HOURS[type].label} (${h.start} - ${h.end}${h.adjusted ? ', đã điều chỉnh' : ''})`; };
+
 const windowInfo = (w) => w && ({
-  date: w.date, shift_type: w.shift_type, kind: w.kind, label: SHIFT_HOURS[w.shift_type].label,
+  date: w.date, shift_type: w.shift_type, kind: w.kind, label: shiftLabel(w.date, w.shift_type), adjusted: !!w.adjusted,
   open_at: w.kind === 'OUT' ? w.checkoutOpenAt : w.openAt, until: w.until, start: w.start, end: w.end,
 });
 
@@ -94,7 +98,7 @@ const createQr = async (req, res) => {
   const w = kioskWindow(now);
   if (!w) {
     const next = nextWindow(now);
-    return res.status(400).json({ message: `Ngoài giờ chấm công. Mở lại lúc ${fmtTime(next.openAt)} (${SHIFT_HOURS[next.shift_type].label})` });
+    return res.status(400).json({ message: `Ngoài giờ chấm công. Mở lại lúc ${fmtTime(next.openAt)} (${shiftLabel(next.date, next.shift_type)})` });
   }
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
@@ -151,7 +155,7 @@ const shiftView = (shift, now = new Date()) => {
   }
 
   const view = {
-    id: shift.id, employee_id: shift.employee_id, date: shift.date, shift_type: shift.shift_type, label: SHIFT_HOURS[shift.shift_type].label,
+    id: shift.id, employee_id: shift.employee_id, date: shift.date, shift_type: shift.shift_type, label: shiftLabel(shift.date, shift.shift_type), adjusted: !!t.adjusted,
     start: t.start, end: t.end, open_at: t.openAt, close_at: t.closeAt,
     checkout_open_at: t.checkoutOpenAt, checkout_close_at: t.checkoutCloseAt, explain_until: t.explainUntil,
     phase, checkout, record, explanation, checkout_request: request,
@@ -276,21 +280,25 @@ const checkIn = async (req, res) => {
         checkout_photo_url: photo, checkout_face_count: faces, minutes_early: early,
       }, { transaction: t });
       await t.commit();
+      const check = await verifyFace(req.user.id, photo); // so với ảnh gốc, không chặn chấm công
+      await record.update({ checkout_face_check: check });
       return res.json({
-        message: early > 0 ? `Đã chấm ra ca (về sớm ${early} phút, chờ quản lý duyệt đơn)` : 'Đã chấm ra ca, hẹn gặp lại!',
-        data: { kind: 'OUT', time: qr.used_at },
+        message: (early > 0 ? `Đã chấm ra ca (về sớm ${early} phút, chờ quản lý duyệt đơn)` : 'Đã chấm ra ca, hẹn gặp lại!') + faceNote(check),
+        data: { kind: 'OUT', time: qr.used_at, face_check: { status: check.status } },
       });
     }
 
     const late = minutesLate(times.start, qr.used_at);
-    await AttendanceRecord.create({
+    const created = await AttendanceRecord.create({
       shift_id: shift.id, employee_id: req.user.id, shift_date: shift.date, shift_type: shift.shift_type,
       status: late > 0 ? 'LATE' : 'ON_TIME', check_in_at: qr.used_at, minutes_late: late,
       method: 'QR', photo_url: photo, face_count: faces, qr_id: qr.id, kiosk_id: qr.kiosk_id,
     }, { transaction: t });
     await shift.update({ status: 'ATTENDED' }, { transaction: t });
     await t.commit();
-    res.status(201).json({ message: late > 0 ? `Chấm công vào ca thành công (trễ ${late} phút)` : 'Chấm công vào ca thành công, đúng giờ', data: { kind: 'IN', time: qr.used_at } });
+    const check = await verifyFace(req.user.id, photo); // so với ảnh gốc, không chặn chấm công
+    await created.update({ face_check: check });
+    res.status(201).json({ message: (late > 0 ? `Chấm công vào ca thành công (trễ ${late} phút)` : 'Chấm công vào ca thành công, đúng giờ') + faceNote(check), data: { kind: 'IN', time: qr.used_at, face_check: { status: check.status } } });
   } catch (err) {
     await t.rollback();
     if (err.name === 'SequelizeUniqueConstraintError') return res.status(400).json({ message: 'Bạn đã chấm vào ca này rồi' });
@@ -403,6 +411,90 @@ const dailyBoard = async (req, res) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : vnToday();
   const shifts = await shiftsWithAttendance({ date });
   res.json({ data: sortShifts(shifts.map((s) => shiftView(s))), date });
+};
+
+// Thông báo cho nhân viên về kết quả so khuôn mặt (không nói khoảng cách / chi tiết)
+const faceNote = (check) => (check.status === 'MATCH' ? '' : check.status === 'NO_REFERENCE'
+  ? '. Bạn chưa có ảnh gốc khuôn mặt được duyệt, hãy đăng ký ở trang Chấm công của tôi'
+  : '. Ảnh chưa khớp rõ với ảnh gốc, quản lý sẽ kiểm tra lại');
+
+// ---------- Giờ ca điều chỉnh theo ngày ----------
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const loadShiftOverrides = async () => {
+  try {
+    const from = vnToday(new Date(Date.now() - 3 * 24 * 3600000));
+    setOverrides(await ShiftHourOverride.findAll({ where: { date: { [Op.gte]: from } }, raw: true }));
+  } catch (err) { console.error('Không nạp được giờ ca điều chỉnh:', err.message); }
+};
+
+// [MANAGER] GET /attendance/shift-hours — giờ ca mặc định + các ngày đã điều chỉnh (từ hôm nay)
+const listShiftHours = async (req, res) => {
+  const rows = await ShiftHourOverride.findAll({ where: { date: { [Op.gte]: vnToday() } }, order: [['date', 'ASC'], ['shift_type', 'ASC']] });
+  res.json({ data: rows, defaults: Object.fromEntries(ACTIVE_SHIFTS.map((s) => [s, SHIFT_HOURS[s]])), rules: { open_before: RULES.OPEN_BEFORE_MIN, close_after: RULES.CLOSE_AFTER_MIN, checkout_window: RULES.CHECKOUT_AFTER_MIN, min_minutes: RULES.CLOSE_AFTER_MIN + 5 } });
+};
+
+// [MANAGER] PUT /attendance/shift-hours { date, shift_type, start, end, reason, confirm } — điều chỉnh giờ 1 ca của 1 ngày
+const saveShiftHours = async (req, res) => {
+  const { date, shift_type: type, start, end, confirm } = req.body || {};
+  const reason = text(req.body?.reason);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || date < vnToday()) return res.status(400).json({ message: 'Chọn ngày từ hôm nay trở đi' });
+  if (!ACTIVE_SHIFTS.includes(type)) return res.status(400).json({ message: 'Ca không hợp lệ' });
+  if (!HHMM.test(start || '') || !HHMM.test(end || '')) return res.status(400).json({ message: 'Giờ vào / ra ca không hợp lệ (HH:mm)' });
+  const minutes = (at(date, end) - at(date, start)) / 60000;
+  // Ca phải dài hơn khung trễ cho phép, để máy đóng QR vào ca trước giờ kết thúc (mặc định tối thiểu 15 phút)
+  const minMinutes = RULES.CLOSE_AFTER_MIN + 5;
+  if (minutes < minMinutes || minutes > 600) return res.status(400).json({ message: `Ca phải dài từ ${minMinutes} phút đến 10 giờ` });
+  if (reason.length < 5) return res.status(400).json({ message: 'Ghi lý do điều chỉnh (ít nhất 5 ký tự)' });
+  await assertMonthOpen(date);
+  // Khung chấm công của 2 ca trong ngày không được chồng nhau (máy chấm công chỉ mở 1 khung tại 1 thời điểm)
+  const span = (s, e) => [addMin(at(date, s), -RULES.OPEN_BEFORE_MIN), addMin(at(date, e), RULES.CHECKOUT_AFTER_MIN)];
+  const [a0, a1] = span(start, end);
+  for (const other of ACTIVE_SHIFTS.filter((x) => x !== type)) {
+    const h = hoursOf(date, other);
+    const [b0, b1] = span(h.start, h.end);
+    if (a0 < b1 && b0 < a1) return res.status(400).json({ message: `Khung chấm công chồng với ${SHIFT_HOURS[other].label} (${h.start} - ${h.end}). Chọn giờ khác hoặc điều chỉnh ca kia trước` });
+  }
+  const recorded = await AttendanceRecord.count({ where: { shift_date: date, shift_type: type } });
+  if (recorded && confirm !== true) {
+    return res.status(409).json({ code: 'HAS_RECORDS', message: `Đã có ${recorded} nhân viên chấm công ca này. Điều chỉnh giờ sẽ tính lại khung chấm công cho các lượt còn lại (không đổi lượt đã chấm).` });
+  }
+  const [row] = await ShiftHourOverride.upsert({ date, shift_type: type, start_time: start, end_time: end, reason: reason.slice(0, 300), created_by: req.user.id }, { conflictFields: ['date', 'shift_type'] });
+  await loadShiftOverrides();
+  res.json({ message: `Đã điều chỉnh ${SHIFT_HOURS[type].label} ngày ${date.split('-').reverse().join('/')} thành ${start} - ${end}`, data: row });
+};
+
+// [MANAGER] DELETE /attendance/shift-hours/:id — trở về giờ ca mặc định
+const deleteShiftHours = async (req, res) => {
+  const row = await ShiftHourOverride.findByPk(req.params.id);
+  if (!row) return res.status(404).json({ message: 'Không tìm thấy' });
+  await assertMonthOpen(row.date);
+  await row.destroy();
+  await loadShiftOverrides();
+  res.json({ message: 'Đã trả ca về giờ mặc định' });
+};
+
+// ---------- Quản lý xác nhận ảnh chấm công bị gắn cờ ----------
+// [MANAGER] POST /attendance/records/:id/face-review { kind: IN | OUT, verdict: SAME | NOT_SAME, note }
+// NOT_SAME: vào ca => vắng (vi phạm nghiêm trọng); ra ca => coi như không chấm ra ca
+const reviewFace = async (req, res) => {
+  const kind = req.body?.kind === 'OUT' ? 'OUT' : 'IN';
+  const verdict = ['SAME', 'NOT_SAME'].includes(req.body?.verdict) ? req.body.verdict : null;
+  const note = text(req.body?.note);
+  if (!verdict) return res.status(400).json({ message: 'Chọn đúng người hoặc không phải nhân viên này' });
+  if (verdict === 'NOT_SAME' && note.length < 10) return res.status(400).json({ message: 'Ghi rõ lý do (ít nhất 10 ký tự)' });
+  const record = await AttendanceRecord.findByPk(req.params.id);
+  if (!record) return res.status(404).json({ message: 'Không tìm thấy lượt chấm công' });
+  if (record.employee_id === req.user.id) return res.status(400).json({ message: 'Không được tự xác nhận chấm công của mình' });
+  await assertMonthOpen(record.shift_date);
+  const photo = kind === 'IN' ? record.photo_url : record.checkout_photo_url;
+  if (!photo) return res.status(400).json({ message: 'Lượt này không có ảnh chấm công' });
+  const review = { verdict, by: req.user.id, at: new Date().toISOString(), note: note.slice(0, 1000) };
+  if (kind === 'IN') {
+    await record.update({ face_review: review, ...(verdict === 'NOT_SAME' ? { status: 'ABSENT', note: `Ảnh vào ca không phải nhân viên: ${note}` } : {}) });
+  } else {
+    await record.update({ checkout_face_review: review, ...(verdict === 'NOT_SAME' ? { checkout_status: 'MISSING', note: `${record.note ? `${record.note} | ` : ''}Ảnh ra ca không phải nhân viên: ${note}` } : {}) });
+  }
+  res.json({ message: verdict === 'SAME' ? 'Đã xác nhận đúng người' : (kind === 'IN' ? 'Đã ghi vắng ca này (ảnh không phải nhân viên)' : 'Đã ghi không chấm ra ca (ảnh không phải nhân viên)') });
 };
 
 // [MANAGER] GET /attendance/explanations?status= — giải trình vào ca
@@ -564,5 +656,6 @@ module.exports = {
   kioskAuth, createKiosk, listKiosks, updateKiosk, kioskStatus, createQr, qrState,
   myToday, myMonth, scanQr, checkIn, createExplanation, createCheckoutRequest,
   dailyBoard, listExplanations, reviewExplanation, listCheckoutRequests, reviewCheckoutRequest, monthlyReport, markAbsences,
+  loadShiftOverrides, listShiftHours, saveShiftHours, deleteShiftHours, reviewFace, FLAGGED,
   shiftView, shiftsWithAttendance, monthRange, parseMonth, assertMonthOpen, httpError, MANAGER_ROLES,
 };

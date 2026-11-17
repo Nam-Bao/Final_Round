@@ -1,0 +1,49 @@
+Tập TEST: đo 199/203 ảnh (loại 4 ảnh trùng với train)
+
+Roboflow (luồng app) - mức cả ảnh:
+  Mụn viêm               precision  87%  recall  86%  F1  87%   (ảnh có thật 111, báo nhầm 14)
+  Mụn đầu đen/đầu trắng  precision  54%  recall  67%  F1  60%   (ảnh có thật 46, báo nhầm 26)
+  Thâm sau mụn (PIH)     precision  70%  recall  77%  F1  73%   (ảnh có thật 69, báo nhầm 23)
+  Nám/tàn nhang          precision  98%  recall  88%  F1  93%   (ảnh có thật 50, báo nhầm 1)
+  Trung bình 4 nhóm      F1 78%
+Mức từng khung (IoU >= 0.3):
+  Mụn viêm               precision  37%  recall  33%  F1  35%
+  Mụn đầu đen/đầu trắng  precision  29%  recall   5%  F1   9%   (app không vẽ khung nhóm này)
+  Thâm sau mụn (PIH)     precision  13%  recall   4%  F1   6%   (app không vẽ khung nhóm này)
+  Nám/tàn nhang          precision  83%  recall  68%  F1  75%
+Mức độ mụn viêm so với thang Hayashi trên nhãn thật: đúng mức 74%, lệch tối đa 1 mức 100%
+  Ma trận (hàng = thật, cột = app; Không có mụn viêm / Nhẹ / Trung bình / Nặng):
+  Không có mụn viêm    70  18   0   0
+  Nhẹ                  13  62   6   0
+  Trung bình            0  15  14   0
+  Nặng                  0   0   0   1
+
+===== So sánh với Gemini trên 199 ảnh có cả hai kết quả
+Roboflow:
+  Mụn viêm               precision  87%  recall  86%  F1  87%   (ảnh có thật 111, báo nhầm 14)
+  Mụn đầu đen/đầu trắng  precision  54%  recall  67%  F1  60%   (ảnh có thật 46, báo nhầm 26)
+  Thâm sau mụn (PIH)     precision  70%  recall  77%  F1  73%   (ảnh có thật 69, báo nhầm 23)
+  Nám/tàn nhang          precision  98%  recall  88%  F1  93%   (ảnh có thật 50, báo nhầm 1)
+  Trung bình 4 nhóm      F1 78%
+Gemini:
+  Mụn viêm               precision  76%  recall  99%  F1  86%   (ảnh có thật 111, báo nhầm 35)
+  Mụn đầu đen/đầu trắng  precision  38%  recall  74%  F1  50%   (ảnh có thật 46, báo nhầm 55)
+  Thâm sau mụn (PIH)     precision  49%  recall  97%  F1  65%   (ảnh có thật 69, báo nhầm 71)
+  Nám/tàn nhang          precision  57%  recall  94%  F1  71%   (ảnh có thật 50, báo nhầm 36)
+  Trung bình 4 nhóm      F1 68%
+Kết hợp HOẶC (một trong hai báo có):
+  Mụn viêm               precision  76%  recall  99%  F1  86%   (ảnh có thật 111, báo nhầm 35)
+  Mụn đầu đen/đầu trắng  precision  40%  recall  87%  F1  54%   (ảnh có thật 46, báo nhầm 61)
+  Thâm sau mụn (PIH)     precision  49%  recall  99%  F1  65%   (ảnh có thật 69, báo nhầm 71)
+  Nám/tàn nhang          precision  57%  recall 100%  F1  73%   (ảnh có thật 50, báo nhầm 37)
+  Trung bình 4 nhóm      F1 70%
+Kết hợp VÀ (cả hai cùng báo có):
+  Mụn viêm               precision  87%  recall  86%  F1  87%   (ảnh có thật 111, báo nhầm 14)
+  Mụn đầu đen/đầu trắng  precision  56%  recall  54%  F1  55%   (ảnh có thật 46, báo nhầm 20)
+  Thâm sau mụn (PIH)     precision  69%  recall  75%  F1  72%   (ảnh có thật 69, báo nhầm 23)
+  Nám/tàn nhang          precision 100%  recall  82%  F1  90%   (ảnh có thật 50, báo nhầm 0)
+  Trung bình 4 nhóm      F1 76%
+Gemini trung bình mỗi ảnh: 2051 ms, 1312 token vào, 148 token ra (203 ảnh)
+Mức độ mụn viêm từ số nốt Gemini ước lượng: đúng mức Hayashi 51%
+
+Đã ghi scripts/reports/compare-test-flash-lite.json

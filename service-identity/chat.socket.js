@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { ChatSession, ChatMessage } = require('./models');
+const chatFiles = require('./utils/chatFiles');
 
 const MAX_CHATS = 5;
 const MAX_MESSAGE_LENGTH = 2000;
@@ -75,11 +76,16 @@ module.exports = function(io) {
       }
 
       const content = String(data.content || '').trim().slice(0, MAX_MESSAGE_LENGTH);
-      if (!content) return;
+      // Tệp đính kèm: chỉ ảnh / PDF đã tải qua service-media vào thư mục chat của hệ thống (tối đa 5 tệp / tin)
+      const attachments = chatFiles.normalize(data.attachments);
+      if (Array.isArray(data.attachments) && data.attachments.length && attachments.length !== Math.min(data.attachments.length, chatFiles.MAX_FILES)) {
+        return socket.emit('system_message', 'Có tệp không hợp lệ, tin nhắn chưa được gửi.');
+      }
+      if (!content && !attachments.length) return;
 
       try {
-        await ChatMessage.create({ session_id: data.sessionId, sender_type: senderType, content });
-        io.to(receiverSocket).emit('receive_message', { sessionId: data.sessionId, senderType, content });
+        await ChatMessage.create({ session_id: data.sessionId, sender_type: senderType, content, attachments: attachments.length ? attachments : null });
+        io.to(receiverSocket).emit('receive_message', { sessionId: data.sessionId, senderType, content, attachments });
       } catch (dbError) {
         console.error('LỖI LƯU TIN NHẮN:', dbError.message);
       }

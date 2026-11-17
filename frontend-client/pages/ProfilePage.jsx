@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Save, Users, Plus, Trash2, CalendarDays, ClipboardList, Package, LogOut, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import EmailPreferences from '../components/EmailPreferences';
 
 export default function ProfilePage() {
   const { user, updateUser, logout } = useAuthStore();
@@ -206,6 +207,8 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      <EmailPreferences />
 
       {/* DANH SÁCH HỒ SƠ KHÁM BỆNH */}
       <div className="card bg-base-100 shadow-xl border border-base-200 p-6">

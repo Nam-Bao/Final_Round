@@ -3,7 +3,8 @@ const { AiAnalysis } = require('../models');
 // Hạn mức phân tích da (mỗi lượt gọi Roboflow tốn tiền):
 // - Khách vãng lai: GUEST_LIMIT lượt / GUEST_WINDOW_HOURS giờ, tính theo IP
 // - Khách đã đăng nhập: USER_LIMIT lượt / ngày (reset lúc 00:00)
-// Đếm từ MongoDB (chỉ lượt thành công) => khởi động lại service không bị reset, phân tích lỗi không mất lượt.
+// Đếm từ MongoDB (lượt thành công, kể cả lượt khách đã xoá) => khởi động lại service không bị reset, phân tích lỗi không mất lượt,
+// xoá lượt soi rồi soi lại cũng không được thêm lượt.
 const GUEST_LIMIT = Number(process.env.AI_GUEST_LIMIT || 1);
 const GUEST_WINDOW_HOURS = Number(process.env.AI_GUEST_WINDOW_HOURS || 24);
 const USER_LIMIT = Number(process.env.AI_USER_DAILY_LIMIT || 3);
@@ -14,11 +15,11 @@ const getQuota = async (req) => {
   if (isMember(req)) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const used = await AiAnalysis.countDocuments({ customer_id: req.user.id, status: 'success', createdAt: { $gte: startOfDay } });
+    const used = await AiAnalysis.countDocuments({ customer_id: req.user.id, source: { $ne: 'clinic' }, status: { $in: ['success', 'deleted'] }, createdAt: { $gte: startOfDay } });
     return { isGuest: false, limit: USER_LIMIT, used, remaining: Math.max(0, USER_LIMIT - used), period: 'day' };
   }
   const since = new Date(Date.now() - GUEST_WINDOW_HOURS * 60 * 60 * 1000);
-  const used = await AiAnalysis.countDocuments({ customer_id: 'GUEST_ANALYSIS', client_ip: req.ip, status: 'success', createdAt: { $gte: since } });
+  const used = await AiAnalysis.countDocuments({ customer_id: 'GUEST_ANALYSIS', client_ip: req.ip, status: { $in: ['success', 'deleted'] }, createdAt: { $gte: since } });
   return { isGuest: true, limit: GUEST_LIMIT, used, remaining: Math.max(0, GUEST_LIMIT - used), period: `${GUEST_WINDOW_HOURS}h` };
 };
 

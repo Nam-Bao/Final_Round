@@ -180,6 +180,8 @@ const updateUser = async (req, res) => {
       );
     });
 
+    // Khoá tài khoản (nghỉ việc) => xoá dữ liệu khuôn mặt chấm công
+    if (status && status !== 'ACTIVE') require('../utils/faceCleanup').removeStaffFace(id, req.headers.authorization);
     res.status(200).json({ message: 'Cập nhật thành công' });
   } catch (error) {
     console.error("LỖI CẬP NHẬT USER:", error);
@@ -197,6 +199,7 @@ const deleteUser = async (req, res) => {
     }
 
     await User.destroy({ where: { id } });
+    require('../utils/faceCleanup').removeStaffFace(id, req.headers.authorization); // xoá dữ liệu khuôn mặt chấm công (nếu có)
     res.status(200).json({ message: 'Đã xóa tài khoản vĩnh viễn' });
   } catch (error) {
     console.error("LỖI XÓA USER:", error);
@@ -204,48 +207,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-const forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ message: 'Email chưa được đăng ký trong hệ thống' });
-
-    // Sinh Token ngẫu nhiên (Mã OTP 6 số để dễ nhập qua điện thoại)
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    user.reset_password_token = resetToken;
-    user.reset_password_expires = Date.now() + 15 * 60 * 1000; // Token sống 15 phút
-    await user.save();
-
-    // TO-DO: Tích hợp thư viện Nodemailer gửi email chứa `resetToken` tại đây
-    console.log(`[HỆ THỐNG] Mã OTP Reset Pass của ${email} là: ${resetToken}`);
-
-    res.status(200).json({ message: 'Mã khôi phục đã được tạo (Xem log hệ thống). Vui lòng gửi email cho khách.' });
-  } catch (error) { res.status(500).json({ message: 'Lỗi xử lý quên mật khẩu' }); }
-};
-
-const resetPassword = async (req, res) => {
-  try {
-    const { email, token, new_password } = req.body;
-    const user = await User.findOne({ 
-      where: { 
-        email, 
-        reset_password_token: token,
-        reset_password_expires: { [Op.gt]: Date.now() } // Kiểm tra còn hạn không
-      } 
-    });
-
-    if (!user) return res.status(400).json({ message: 'Mã OTP không hợp lệ hoặc đã hết hạn' });
-
-    const salt = await bcrypt.genSalt(10);
-    user.password_hash = await bcrypt.hash(new_password, salt);
-    user.reset_password_token = null;
-    user.reset_password_expires = null;
-    await user.save();
-
-    res.status(200).json({ message: 'Cập nhật mật khẩu mới thành công' });
-  } catch (error) { res.status(500).json({ message: 'Lỗi cập nhật mật khẩu' }); }
-};
+// Quên mật khẩu: xem controllers/passwordReset.controller.js
 
 // [PUBLIC] Đội ngũ bác sĩ cho trang giới thiệu: chỉ tên và ảnh, không lộ email / số điện thoại
 const getPublicDoctors = async (req, res) => {
@@ -364,4 +326,4 @@ module.exports = {
   getStaffNames,
   lookupCustomerByPhone,
   createWalkInCustomer,
-  renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, forgotPassword, resetPassword, getCusProfile };
+  renewClaimCode, getAllUsers, createUser, updateUser, deleteUser, getDoctors, getPublicDoctors, getTechnicianIds, getCustomers, getEmployees, createQuickCustomer, getCusProfile };

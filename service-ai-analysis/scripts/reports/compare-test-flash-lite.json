@@ -1,0 +1,201 @@
+{
+  "split": "test",
+  "images": 199,
+  "config": {
+    "presence": {
+      "inflammatory": 30,
+      "comedone": 20,
+      "pih": 15,
+      "pigment_region": 40
+    },
+    "severity": [
+      5,
+      20
+    ]
+  },
+  "roboflow": {
+    "inflammatory": {
+      "tp": 96,
+      "fp": 14,
+      "fn": 15,
+      "tn": 74
+    },
+    "comedone": {
+      "tp": 31,
+      "fp": 26,
+      "fn": 15,
+      "tn": 127
+    },
+    "pih": {
+      "tp": 53,
+      "fp": 23,
+      "fn": 16,
+      "tn": 107
+    },
+    "pigment_region": {
+      "tp": 44,
+      "fp": 1,
+      "fn": 6,
+      "tn": 148
+    }
+  },
+  "boxes": {
+    "inflammatory": {
+      "tp": 164,
+      "fp": 285,
+      "fn": 335
+    },
+    "comedone": {
+      "tp": 11,
+      "fp": 27,
+      "fn": 201
+    },
+    "pih": {
+      "tp": 15,
+      "fp": 99,
+      "fn": 386
+    },
+    "pigment_region": {
+      "tp": 49,
+      "fp": 10,
+      "fn": 23
+    }
+  },
+  "severity": {
+    "exact": 0.7386934673366834,
+    "within1": 1,
+    "confusion": [
+      [
+        70,
+        18,
+        0,
+        0
+      ],
+      [
+        13,
+        62,
+        6,
+        0
+      ],
+      [
+        0,
+        15,
+        14,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ]
+  },
+  "compare": {
+    "images": 199,
+    "roboflow": {
+      "inflammatory": {
+        "tp": 96,
+        "fp": 14,
+        "fn": 15,
+        "tn": 74
+      },
+      "comedone": {
+        "tp": 31,
+        "fp": 26,
+        "fn": 15,
+        "tn": 127
+      },
+      "pih": {
+        "tp": 53,
+        "fp": 23,
+        "fn": 16,
+        "tn": 107
+      },
+      "pigment_region": {
+        "tp": 44,
+        "fp": 1,
+        "fn": 6,
+        "tn": 148
+      }
+    },
+    "gemini": {
+      "inflammatory": {
+        "tp": 110,
+        "fp": 35,
+        "fn": 1,
+        "tn": 53
+      },
+      "comedone": {
+        "tp": 34,
+        "fp": 55,
+        "fn": 12,
+        "tn": 98
+      },
+      "pih": {
+        "tp": 67,
+        "fp": 71,
+        "fn": 2,
+        "tn": 59
+      },
+      "pigment_region": {
+        "tp": 47,
+        "fp": 36,
+        "fn": 3,
+        "tn": 113
+      }
+    },
+    "or": {
+      "inflammatory": {
+        "tp": 110,
+        "fp": 35,
+        "fn": 1,
+        "tn": 53
+      },
+      "comedone": {
+        "tp": 40,
+        "fp": 61,
+        "fn": 6,
+        "tn": 92
+      },
+      "pih": {
+        "tp": 68,
+        "fp": 71,
+        "fn": 1,
+        "tn": 59
+      },
+      "pigment_region": {
+        "tp": 50,
+        "fp": 37,
+        "fn": 0,
+        "tn": 112
+      }
+    },
+    "and": {
+      "inflammatory": {
+        "tp": 96,
+        "fp": 14,
+        "fn": 15,
+        "tn": 74
+      },
+      "comedone": {
+        "tp": 25,
+        "fp": 20,
+        "fn": 21,
+        "tn": 133
+      },
+      "pih": {
+        "tp": 52,
+        "fp": 23,
+        "fn": 17,
+        "tn": 107
+      },
+      "pigment_region": {
+        "tp": 41,
+        "fp": 0,
+        "fn": 9,
+        "tn": 149
+      }
+    }
+  }
+}

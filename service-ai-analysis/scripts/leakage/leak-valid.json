@@ -1,0 +1,469 @@
+{
+  "a": "./data/valid",
+  "b": "./data/train",
+  "minCorr": 0.9,
+  "pairs": [
+    {
+      "a": "75_jpg.rf.6aef4c69982203bcd5c94b866c891959.jpg",
+      "a_name": "75.jpg",
+      "b": "98_jpg.rf.905711513ce145df9b08306017e8d682.jpg",
+      "b_name": "98.jpg",
+      "corr": 0.9999
+    },
+    {
+      "a": "a3_jpg.rf.02c6d95d77b0752ffdda7767c33c3698.jpg",
+      "a_name": "a3.jpg",
+      "b": "33_jpeg.rf.7f67deff3a13d9b871d3d23c7f327683.jpg",
+      "b_name": "33.jpeg",
+      "corr": 0.9996
+    },
+    {
+      "a": "levle2_144_jpg.rf.9cfe956cef1ce9275178cb0cd2126127.jpg",
+      "a_name": "levle2_144.jpg",
+      "b": "levle2_145_jpg.rf.91456199c2c12eebfd8cdcad33a46d8e.jpg",
+      "b_name": "levle2_145.jpg",
+      "corr": 0.9538
+    },
+    {
+      "a": "levle0_280_jpg.rf.71715d988800cc490e0a9114fab32869.jpg",
+      "a_name": "levle0_280.jpg",
+      "b": "levle0_279_jpg.rf.eceb267c3f5d794a000033b0a579e0d1.jpg",
+      "b_name": "levle0_279.jpg",
+      "corr": 0.9509
+    },
+    {
+      "a": "levle0_297_jpg.rf.c3ddbc3dba8dc78301a1fe2491f98647.jpg",
+      "a_name": "levle0_297.jpg",
+      "b": "levle1_311_jpg.rf.52b17b8ff7087069e69a7560f3100dcd.jpg",
+      "b_name": "levle1_311.jpg",
+      "corr": 0.949
+    },
+    {
+      "a": "levle0_492_jpg.rf.1dd2e144bb109ad599e358eea65cb691.jpg",
+      "a_name": "levle0_492.jpg",
+      "b": "levle2_131_jpg.rf.5886c77e7e58f7d7f23be643da89be9c.jpg",
+      "b_name": "levle2_131.jpg",
+      "corr": 0.9487
+    },
+    {
+      "a": "levle1_176_jpg.rf.0e8708426fbf32fe60eeff5cffe01e7d.jpg",
+      "a_name": "levle1_176.jpg",
+      "b": "levle1_594_jpg.rf.27a9cde42fea69ef6a2a63e35eb1b03f.jpg",
+      "b_name": "levle1_594.jpg",
+      "corr": 0.9468
+    },
+    {
+      "a": "levle1_464_jpg.rf.f7898bd6f150835cb2624a908bc5111f.jpg",
+      "a_name": "levle1_464.jpg",
+      "b": "levle1_177_jpg.rf.2e2db059f84ee77234f1cd9c256ac204.jpg",
+      "b_name": "levle1_177.jpg",
+      "corr": 0.9462
+    },
+    {
+      "a": "levle1_446_jpg.rf.61532587e8e6840bed86752064c802e1.jpg",
+      "a_name": "levle1_446.jpg",
+      "b": "levle1_447_jpg.rf.f56a3d358e2edf079c242ef5ea665475.jpg",
+      "b_name": "levle1_447.jpg",
+      "corr": 0.9446
+    },
+    {
+      "a": "levle1_165_jpg.rf.e79fe195d03beee87e89077694b4ecfc.jpg",
+      "a_name": "levle1_165.jpg",
+      "b": "levle1_163_jpg.rf.f350209d42cb1d790621fcd8d2636b6a.jpg",
+      "b_name": "levle1_163.jpg",
+      "corr": 0.9414
+    },
+    {
+      "a": "levle1_198_jpg.rf.7f52374ff0dafd66cb16e48fcfa87f85.jpg",
+      "a_name": "levle1_198.jpg",
+      "b": "levle0_375_jpg.rf.55a9085297a4b6a0c666bfb0165daa29.jpg",
+      "b_name": "levle0_375.jpg",
+      "corr": 0.941
+    },
+    {
+      "a": "levle0_473_jpg.rf.5b3a9dbae424b3067a261dd74d5a8991.jpg",
+      "a_name": "levle0_473.jpg",
+      "b": "levle1_461_jpg.rf.56d0196282abb2563879914f8a7bd8c4.jpg",
+      "b_name": "levle1_461.jpg",
+      "corr": 0.9399
+    },
+    {
+      "a": "levle0_256_jpg.rf.0b0358d34612d8c9edba673b71317426.jpg",
+      "a_name": "levle0_256.jpg",
+      "b": "levle1_311_jpg.rf.52b17b8ff7087069e69a7560f3100dcd.jpg",
+      "b_name": "levle1_311.jpg",
+      "corr": 0.9398
+    },
+    {
+      "a": "levle0_482_jpg.rf.59110ed39cd120416f6265f93e0e987a.jpg",
+      "a_name": "levle0_482.jpg",
+      "b": "levle0_375_jpg.rf.55a9085297a4b6a0c666bfb0165daa29.jpg",
+      "b_name": "levle0_375.jpg",
+      "corr": 0.9395
+    },
+    {
+      "a": "levle0_197_jpg.rf.5151e24e878f59ad5fa7b928cba8ed7f.jpg",
+      "a_name": "levle0_197.jpg",
+      "b": "levle1_405_jpg.rf.d35a3b1e410181b6b31917917f85150e.jpg",
+      "b_name": "levle1_405.jpg",
+      "corr": 0.9394
+    },
+    {
+      "a": "levle1_174_jpg.rf.48ce2d3efc88e5bab2e7847e753368b1.jpg",
+      "a_name": "levle1_174.jpg",
+      "b": "levle2_78_jpg.rf.e289e079b973ae59feae0993971bddf2.jpg",
+      "b_name": "levle2_78.jpg",
+      "corr": 0.9394
+    },
+    {
+      "a": "levle2_102_jpg.rf.f62fafa7f897aac50e6df9ae64f221a0.jpg",
+      "a_name": "levle2_102.jpg",
+      "b": "levle1_58_jpg.rf.0932c7132b371aa9056553b32e5d9460.jpg",
+      "b_name": "levle1_58.jpg",
+      "corr": 0.9386
+    },
+    {
+      "a": "levle1_576_jpg.rf.39d477855c9dcecd0771e94f4a78f109.jpg",
+      "a_name": "levle1_576.jpg",
+      "b": "levle0_315_jpg.rf.07610ad56b9402c3ad534a10188b5ad2.jpg",
+      "b_name": "levle0_315.jpg",
+      "corr": 0.9385
+    },
+    {
+      "a": "levle0_100_jpg.rf.871c6be0a9992792b5b3a97020edd493.jpg",
+      "a_name": "levle0_100.jpg",
+      "b": "levle0_334_jpg.rf.fb2832defd7c456084335df65df16a59.jpg",
+      "b_name": "levle0_334.jpg",
+      "corr": 0.9355
+    },
+    {
+      "a": "levle2_171_jpg.rf.02f37c8ce7f4667720d274b8054c922b.jpg",
+      "a_name": "levle2_171.jpg",
+      "b": "levle0_470_jpg.rf.9cb957116a5854d861b9a764edb24d85.jpg",
+      "b_name": "levle0_470.jpg",
+      "corr": 0.9349
+    },
+    {
+      "a": "levle1_32_jpg.rf.e6089e7a595f9d79c886aae9991896db.jpg",
+      "a_name": "levle1_32.jpg",
+      "b": "levle1_407_jpg.rf.c337823830937506e0a9e3dc772ba82e.jpg",
+      "b_name": "levle1_407.jpg",
+      "corr": 0.9339
+    },
+    {
+      "a": "levle0_417_jpg.rf.20caba3e4aac5655884c4843f9358fee.jpg",
+      "a_name": "levle0_417.jpg",
+      "b": "levle1_544_jpg.rf.9d0fee0fb892a470089d13d6b2bf6e93.jpg",
+      "b_name": "levle1_544.jpg",
+      "corr": 0.9336
+    },
+    {
+      "a": "levle1_171_jpg.rf.a1683c4f7c706d68ff0f6edb08793916.jpg",
+      "a_name": "levle1_171.jpg",
+      "b": "levle0_188_jpg.rf.beb02e549da878d04a66395671075347.jpg",
+      "b_name": "levle0_188.jpg",
+      "corr": 0.9336
+    },
+    {
+      "a": "levle2_118_jpg.rf.f1c5a92c242b4cf540fdcb0bb6528fcf.jpg",
+      "a_name": "levle2_118.jpg",
+      "b": "levle1_58_jpg.rf.0932c7132b371aa9056553b32e5d9460.jpg",
+      "b_name": "levle1_58.jpg",
+      "corr": 0.933
+    },
+    {
+      "a": "levle2_79_jpg.rf.a9609c27dac65bc476fc78780321ad6d.jpg",
+      "a_name": "levle2_79.jpg",
+      "b": "levle1_431_jpg.rf.3c66f84448c2f276de6ec76a88aa5124.jpg",
+      "b_name": "levle1_431.jpg",
+      "corr": 0.9329
+    },
+    {
+      "a": "levle1_565_jpg.rf.697b818b9fec9854b7b30f1fc13303b8.jpg",
+      "a_name": "levle1_565.jpg",
+      "b": "levle0_486_jpg.rf.211344c24ce9ca111a21318513a1f001.jpg",
+      "b_name": "levle0_486.jpg",
+      "corr": 0.9326
+    },
+    {
+      "a": "levle0_34_jpg.rf.aefa5c605536a04295c0d88bc5bdb4ac.jpg",
+      "a_name": "levle0_34.jpg",
+      "b": "levle0_334_jpg.rf.fb2832defd7c456084335df65df16a59.jpg",
+      "b_name": "levle0_334.jpg",
+      "corr": 0.9324
+    },
+    {
+      "a": "levle1_520_jpg.rf.86f360cf198f9eccd77c517d12b47d43.jpg",
+      "a_name": "levle1_520.jpg",
+      "b": "levle1_52_jpg.rf.852f2dad25f2219cb8f96f37c5442b0d.jpg",
+      "b_name": "levle1_52.jpg",
+      "corr": 0.932
+    },
+    {
+      "a": "levle2_70_jpg.rf.33dc6c264f4657403ccda51787441cd5.jpg",
+      "a_name": "levle2_70.jpg",
+      "b": "levle0_276_jpg.rf.86973b37fb3b4194e46c40cee844c756.jpg",
+      "b_name": "levle0_276.jpg",
+      "corr": 0.9315
+    },
+    {
+      "a": "levle0_415_jpg.rf.adc1ec8e86e758cb4581e8a10c4f33ab.jpg",
+      "a_name": "levle0_415.jpg",
+      "b": "levle0_334_jpg.rf.fb2832defd7c456084335df65df16a59.jpg",
+      "b_name": "levle0_334.jpg",
+      "corr": 0.9314
+    },
+    {
+      "a": "levle1_217_jpg.rf.e9ea21d18a851b2e47587f2fa1ac288d.jpg",
+      "a_name": "levle1_217.jpg",
+      "b": "levle1_580_jpg.rf.e5a0d15aab5dca049f7775a717a83631.jpg",
+      "b_name": "levle1_580.jpg",
+      "corr": 0.9313
+    },
+    {
+      "a": "levle0_36_jpg.rf.27fb8e7c9b9a6a90bcba74a93d99c69e.jpg",
+      "a_name": "levle0_36.jpg",
+      "b": "levle1_64_jpg.rf.8d0071ef1f5ea533a29a2c2d046f77c6.jpg",
+      "b_name": "levle1_64.jpg",
+      "corr": 0.931
+    },
+    {
+      "a": "levle0_483_jpg.rf.b5333003d9b5f50dfcb0e81ca9b699e8.jpg",
+      "a_name": "levle0_483.jpg",
+      "b": "levle1_589_jpg.rf.8a8c14f04a5ac2abb6edca0958c2b1af.jpg",
+      "b_name": "levle1_589.jpg",
+      "corr": 0.9302
+    },
+    {
+      "a": "levle2_155_jpg.rf.6e48a4a744be83b8a18da848cbe4d3c4.jpg",
+      "a_name": "levle2_155.jpg",
+      "b": "levle1_512_jpg.rf.ac0d49dc4f711f04d1558b2d3dfe6c1a.jpg",
+      "b_name": "levle1_512.jpg",
+      "corr": 0.9283
+    },
+    {
+      "a": "levle0_264_jpg.rf.d3054aa149003775ba8fd15fa92650fd.jpg",
+      "a_name": "levle0_264.jpg",
+      "b": "levle1_412_jpg.rf.c150bc54dd11f5ccbfdb7bea99555cf7.jpg",
+      "b_name": "levle1_412.jpg",
+      "corr": 0.9278
+    },
+    {
+      "a": "levle2_187_jpg.rf.cc24336e7cf7f35eedf8dba92b650e82.jpg",
+      "a_name": "levle2_187.jpg",
+      "b": "levle1_146_jpg.rf.d7132789b4490e2da95d8fb052c8d192.jpg",
+      "b_name": "levle1_146.jpg",
+      "corr": 0.9273
+    },
+    {
+      "a": "levle2_76_jpg.rf.571a73312c173186614dad48b8e00092.jpg",
+      "a_name": "levle2_76.jpg",
+      "b": "levle1_167_jpg.rf.cd7bc68782241f1d625d0acdcb39b6bc.jpg",
+      "b_name": "levle1_167.jpg",
+      "corr": 0.9258
+    },
+    {
+      "a": "levle1_65_jpg.rf.467f6463cb876cfae7fdc5a1b2d82983.jpg",
+      "a_name": "levle1_65.jpg",
+      "b": "levle2_148_jpg.rf.9c24d837812db1c12d574f1fe9a9bea9.jpg",
+      "b_name": "levle2_148.jpg",
+      "corr": 0.9254
+    },
+    {
+      "a": "levle0_444_jpg.rf.99558a8c2599c310f7add4b9fb11b238.jpg",
+      "a_name": "levle0_444.jpg",
+      "b": "levle0_441_jpg.rf.4f0007b54343ebe931f800d964bba8ad.jpg",
+      "b_name": "levle0_441.jpg",
+      "corr": 0.9251
+    },
+    {
+      "a": "levle1_459_jpg.rf.476a280aa0ca571b17a418580ee5f9cc.jpg",
+      "a_name": "levle1_459.jpg",
+      "b": "levle1_505_jpg.rf.7b36136d2e7f24163e6eca383c379c6a.jpg",
+      "b_name": "levle1_505.jpg",
+      "corr": 0.9249
+    },
+    {
+      "a": "levle0_512_jpg.rf.cfdf2038555991df9fa932b44652a9c7.jpg",
+      "a_name": "levle0_512.jpg",
+      "b": "levle1_457_jpg.rf.034847eac706141e7a9072797c3b6027.jpg",
+      "b_name": "levle1_457.jpg",
+      "corr": 0.9247
+    },
+    {
+      "a": "levle1_278_jpg.rf.fc1cd0941b70c3ac733de10508ed1c4e.jpg",
+      "a_name": "levle1_278.jpg",
+      "b": "levle0_470_jpg.rf.9cb957116a5854d861b9a764edb24d85.jpg",
+      "b_name": "levle0_470.jpg",
+      "corr": 0.9242
+    },
+    {
+      "a": "levle1_272_jpg.rf.56013451a2c47557a18745f718085400.jpg",
+      "a_name": "levle1_272.jpg",
+      "b": "levle0_211_jpg.rf.bbf4c5b67201f226f52cba4cfa0de082.jpg",
+      "b_name": "levle0_211.jpg",
+      "corr": 0.9224
+    },
+    {
+      "a": "levle0_51_jpg.rf.70246f76145ee96c0c571cd5c6f0dce1.jpg",
+      "a_name": "levle0_51.jpg",
+      "b": "levle1_178_jpg.rf.2373e8cbb7ce8488b6e0d89651e9995e.jpg",
+      "b_name": "levle1_178.jpg",
+      "corr": 0.9223
+    },
+    {
+      "a": "levle1_513_jpg.rf.ea0fe0dbfd9467ab27a44f9173782c90.jpg",
+      "a_name": "levle1_513.jpg",
+      "b": "levle1_63_jpg.rf.229863d50158078171b73ab42d8bba54.jpg",
+      "b_name": "levle1_63.jpg",
+      "corr": 0.9218
+    },
+    {
+      "a": "levle0_522_jpg.rf.b40432ed3a82ebd51abd07c7f3779dca.jpg",
+      "a_name": "levle0_522.jpg",
+      "b": "levle0_375_jpg.rf.55a9085297a4b6a0c666bfb0165daa29.jpg",
+      "b_name": "levle0_375.jpg",
+      "corr": 0.9212
+    },
+    {
+      "a": "levle1_193_jpg.rf.ed8b7d071fcd881a9c95baffaeb9006a.jpg",
+      "a_name": "levle1_193.jpg",
+      "b": "levle1_512_jpg.rf.ac0d49dc4f711f04d1558b2d3dfe6c1a.jpg",
+      "b_name": "levle1_512.jpg",
+      "corr": 0.9206
+    },
+    {
+      "a": "levle2_160_jpg.rf.364cb915ba0d16213cfaa149927e2cfe.jpg",
+      "a_name": "levle2_160.jpg",
+      "b": "levle1_480_jpg.rf.94c19f23ee48a89064031de573c30df5.jpg",
+      "b_name": "levle1_480.jpg",
+      "corr": 0.9203
+    },
+    {
+      "a": "levle0_381_jpg.rf.3b989e8b134395bdb4ab28db47eb0a04.jpg",
+      "a_name": "levle0_381.jpg",
+      "b": "levle2_81_jpg.rf.b499891788c9af7eb43ae91aec84bd82.jpg",
+      "b_name": "levle2_81.jpg",
+      "corr": 0.92
+    },
+    {
+      "a": "levle1_618_jpg.rf.1c61165edc73705c1cf1b057d0998a03.jpg",
+      "a_name": "levle1_618.jpg",
+      "b": "levle1_532_jpg.rf.6290c38d8da0456ddf14ef75768fcbcb.jpg",
+      "b_name": "levle1_532.jpg",
+      "corr": 0.9186
+    },
+    {
+      "a": "levle0_364_jpg.rf.a8162ef357f5a3b18fcfb98e33031b21.jpg",
+      "a_name": "levle0_364.jpg",
+      "b": "levle1_502_jpg.rf.0f3fff0b27fe50f9b89330176f2150c3.jpg",
+      "b_name": "levle1_502.jpg",
+      "corr": 0.918
+    },
+    {
+      "a": "levle1_509_jpg.rf.7f40f3da17d8ff64d3e934f45512d0ab.jpg",
+      "a_name": "levle1_509.jpg",
+      "b": "levle0_527_jpg.rf.b91dd89d83e6ab7220487c55ea9b3bd4.jpg",
+      "b_name": "levle0_527.jpg",
+      "corr": 0.9175
+    },
+    {
+      "a": "levle0_354_jpg.rf.443bb8cc1eafb4a2d18ba268b7c457b8.jpg",
+      "a_name": "levle0_354.jpg",
+      "b": "levle1_463_jpg.rf.30b048bd56726251e81c84a654b8bdb7.jpg",
+      "b_name": "levle1_463.jpg",
+      "corr": 0.9172
+    },
+    {
+      "a": "levle1_277_jpg.rf.3e30803fe408b47c6bc61979012e630e.jpg",
+      "a_name": "levle1_277.jpg",
+      "b": "levle0_190_jpg.rf.133d4e081d6a30e27289b37388adfbda.jpg",
+      "b_name": "levle0_190.jpg",
+      "corr": 0.9167
+    },
+    {
+      "a": "levle3_130_jpg.rf.81b6f17782148dc00aa2498476aad104.jpg",
+      "a_name": "levle3_130.jpg",
+      "b": "levle1_512_jpg.rf.ac0d49dc4f711f04d1558b2d3dfe6c1a.jpg",
+      "b_name": "levle1_512.jpg",
+      "corr": 0.915
+    },
+    {
+      "a": "levle0_142_jpg.rf.b683a16f884e8572a2ba99efbfa7b592.jpg",
+      "a_name": "levle0_142.jpg",
+      "b": "levle1_151_jpg.rf.b211f35be680f23cdb37c9f99b9640ec.jpg",
+      "b_name": "levle1_151.jpg",
+      "corr": 0.9141
+    },
+    {
+      "a": "levle0_159_jpg.rf.a0f82a8f89f2f511002a45b3ddd24375.jpg",
+      "a_name": "levle0_159.jpg",
+      "b": "levle0_239_jpg.rf.a815bd38b52ec5238c4114efa1a208eb.jpg",
+      "b_name": "levle0_239.jpg",
+      "corr": 0.9129
+    },
+    {
+      "a": "levle1_186_jpg.rf.b5009b2daa999647d4c4aa4c2e11edcb.jpg",
+      "a_name": "levle1_186.jpg",
+      "b": "levle1_187_jpg.rf.0cff012636fcf781efb00a90156755d3.jpg",
+      "b_name": "levle1_187.jpg",
+      "corr": 0.9122
+    },
+    {
+      "a": "levle0_91_jpg.rf.428f5f77e137f5ae4338827070faa9d7.jpg",
+      "a_name": "levle0_91.jpg",
+      "b": "levle0_510_jpg.rf.be94aa79642b1a07b7f194576553a8f5.jpg",
+      "b_name": "levle0_510.jpg",
+      "corr": 0.9107
+    },
+    {
+      "a": "levle1_173_jpg.rf.bdb537295fc1297d29f867c457ac18ad.jpg",
+      "a_name": "levle1_173.jpg",
+      "b": "levle2_78_jpg.rf.e289e079b973ae59feae0993971bddf2.jpg",
+      "b_name": "levle2_78.jpg",
+      "corr": 0.9072
+    },
+    {
+      "a": "levle1_85_jpg.rf.103d127f9b348d85cc1e3da0d63ef487.jpg",
+      "a_name": "levle1_85.jpg",
+      "b": "levle1_83_jpg.rf.9b9d0157abaf41101684c65f2d199e2b.jpg",
+      "b_name": "levle1_83.jpg",
+      "corr": 0.9066
+    },
+    {
+      "a": "levle1_212_jpg.rf.9dbbd1d6b04e35d5d5d6f4ab9d3dd561.jpg",
+      "a_name": "levle1_212.jpg",
+      "b": "levle1_501_jpg.rf.2fa1b9d3c53d15eabd5244b1a364b55e.jpg",
+      "b_name": "levle1_501.jpg",
+      "corr": 0.9061
+    },
+    {
+      "a": "levle2_111_jpg.rf.b96b162cbd8d3b201e522da3dd4e2306.jpg",
+      "a_name": "levle2_111.jpg",
+      "b": "levle1_145_jpg.rf.c5aff75c25cdcdebcc6b9ead8908f06c.jpg",
+      "b_name": "levle1_145.jpg",
+      "corr": 0.9054
+    },
+    {
+      "a": "levle3_89_jpg.rf.9f4d9fcbbab8ed90f3ba1cba0f6840fa.jpg",
+      "a_name": "levle3_89.jpg",
+      "b": "levle0_294_jpg.rf.f2ae9f4b8b0bb51892508ffa61140b5b.jpg",
+      "b_name": "levle0_294.jpg",
+      "corr": 0.9024
+    },
+    {
+      "a": "levle0_523_jpg.rf.b053fe8632309f5e68cda27fa612b377.jpg",
+      "a_name": "levle0_523.jpg",
+      "b": "levle1_595_jpg.rf.6a34eddc079ba078ec5985ae08e151a4.jpg",
+      "b_name": "levle1_595.jpg",
+      "corr": 0.9013
+    },
+    {
+      "a": "levle1_333_jpg.rf.472def7cb12eb24f51762d3584476419.jpg",
+      "a_name": "levle1_333.jpg",
+      "b": "levle1_467_jpg.rf.02e835d2d170303ad2a2686178310c6b.jpg",
+      "b_name": "levle1_467.jpg",
+      "corr": 0.901
+    }
+  ]
+}

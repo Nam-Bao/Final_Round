@@ -36,6 +36,9 @@ import VideoCallPage from './pages/VideoCallPage';
 import BankTransactionsPage from './pages/BankTransactionsPage';
 import SafetyRulesPage from './pages/SafetyRulesPage';
 import SafetyRuleReviewsPage from './pages/SafetyRuleReviewsPage';
+import SkinReviewsPage from './pages/SkinReviewsPage';
+import PrintPage from './pages/PrintPage';
+import EmailLogPage from './pages/EmailLogPage';
 
 function App() {
   return (
@@ -46,10 +49,13 @@ function App() {
         <Route path="/kiosk" element={<AttendanceKioskPage />} />
         {/* Phòng video mở ở tab riêng để bác sĩ / chuyên gia vừa gọi vừa nhập kết quả */}
         <Route path="/video-call" element={<VideoCallPage />} />
+        {/* Chứng từ in cho khách (A5): mở ở tab riêng, không có menu quản trị */}
+        <Route path="/print/:type/:id" element={<PrintPage />} />
         
         <Route element={<AdminLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/email-logs" element={<EmailLogPage />} />
           <Route path="/appointments" element={<div>Giao diện Lịch hẹn sẽ nằm ở đây</div>} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/materials" element={<MaterialsPage />} />
@@ -82,6 +88,7 @@ function App() {
           <Route path="/bank-transactions" element={<BankTransactionsPage />} />
           <Route path="/safety-rules" element={<SafetyRulesPage />} />
           <Route path="/safety-rule-reviews" element={<SafetyRuleReviewsPage />} />
+          <Route path="/skin-reviews" element={<SkinReviewsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

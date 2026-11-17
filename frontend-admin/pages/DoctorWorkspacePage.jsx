@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, List, Tag, Tabs, Form, Input, InputNumber, Select, Button, Space, Avatar, Typography, message, Divider, DatePicker, Drawer, Timeline, Spin, Empty, Image, Modal } from 'antd';
-import { PlusOutlined, MinusCircleOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { PrinterOutlined, PlusOutlined, MinusCircleOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, MedicineBoxOutlined, FileTextOutlined, HistoryOutlined, SolutionOutlined, ScissorOutlined, ShoppingOutlined, VideoCameraOutlined, ScanOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { openVideoCall } from '../utils/videoCall';
 import PatientSafetyPanel, { SafetyWarnings } from '../components/PatientSafetyPanel';
 import AiSafetyReview from '../components/AiSafetyReview';
+import SkinScanReview from '../components/SkinScanReview';
 import { useLiveRefresh } from '../components/Notifications';
+import { openPrint } from '../utils/print';
 
 const { Title, Text } = Typography;
 
@@ -29,6 +31,9 @@ const isOnlinePatient =(patient) => Boolean(patient?.pre_notes?.includes('[ONLIN
 
 export default function DoctorWorkspacePage() {
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [activeTab, setActiveTab] = useState('1');
+  const [scanStatus, setScanStatus] = useState({ count: 0, pending: false });
+  const [openScanId, setOpenScanId] = useState(null); // mở sẵn hộp xác nhận khi hoàn tất khám bị chặn
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]); 
   const [spaServices, setSpaServices] = useState([]); 
@@ -88,7 +93,7 @@ export default function DoctorWorkspacePage() {
           id: apt.id, customer_id: apt.customer_id, patient_profile_id: apt.patient_profile_id, 
           name: apt.customer_name, dob: apt.dob, gender: apt.gender, time: String(apt.appointment_time).slice(0,5),
           status: apt.status, phone: apt.customer_phone, history: apt.symptoms || '',
-          pre_notes: apt.pre_notes, pre_exam_images: apt.pre_exam_images || [],
+          pre_notes: apt.pre_notes, pre_exam_images: apt.pre_exam_images || [], pre_exam_image_meta: apt.pre_exam_image_meta || {}, ai_consent: apt.ai_consent || null,
           exam_fee: Number(apt.exam_fee || 0), deposit_paid: Number(apt.deposit_paid || 0), type: apt.type
         })));
       }
@@ -136,6 +141,7 @@ export default function DoctorWorkspacePage() {
 
   const handleSelectPatient = async (patient) => {
     setSelectedPatient(patient);
+    setActiveTab('1'); setOpenScanId(null); setScanStatus({ count: 0, pending: false });
     form.resetFields();
     fetchPatientHistory(patient.patient_profile_id);
   };
@@ -155,23 +161,49 @@ export default function DoctorWorkspacePage() {
     if (selectedPatient && selectedPatient.id === id) setSelectedPatient(prev => ({ ...prev, status }));
   };
 
+  // Chọn sản phẩm => điền sẵn "Cách dùng" từ hướng dẫn sử dụng của sản phẩm (bác sĩ sửa lại cho từng khách)
+  const fillUsage = async (fieldName, productId) => {
+    if (!productId || form.getFieldValue(['prescriptions', fieldName, 'usage'])) return;
+    try {
+      const token = sessionStorage.getItem('admin_token');
+      const res = await axios.get('http://localhost:4000/api/commerce/products/print-info', { params: { ids: productId }, headers: { Authorization: `Bearer ${token}` } });
+      const usage = res.data.data?.[0]?.usage;
+      if (usage && !form.getFieldValue(['prescriptions', fieldName, 'usage'])) form.setFieldValue(['prescriptions', fieldName, 'usage'], usage);
+    } catch { /* không có hướng dẫn thì bác sĩ tự ghi */ }
+  };
+
   const handleSubmitRecord = async (values, safety_reason) => {
     try {
+      const examId = selectedPatient.id;
       const token = sessionStorage.getItem('admin_token');
       await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
         symptoms: values.symptoms, diagnosis: values.diagnosis, doctor_notes: values.doctor_notes,
         follow_up_date: values.follow_up_date ? values.follow_up_date.format('YYYY-MM-DD') : null, 
         spa_services: values.spa_services, treatment_package: values.treatment_package,
-        prescriptions: (values.prescriptions || []).filter(p => p?.product_id), // [{ product_id, quantity }]
+        prescriptions: (values.prescriptions || []).filter(p => p?.product_id), // [{ product_id, quantity, usage }]
         safety_reason
       }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success('Đã lưu Bệnh án! Đang chuyển ra màn hình Thu Ngân.');
+      Modal.confirm({ title: 'Đã lưu bệnh án', content: 'In đơn thuốc / chỉ định điều trị để đưa khách?', okText: 'In đơn', cancelText: 'Để sau', icon: <PrinterOutlined />, onOk: () => openPrint('prescription', examId) });
       setSafetyPending(null); setSafetyReason('');
       handleUpdateStatus('WAITING_FOR_SALE'); setSelectedPatient(null); fetchTodayAppointments();
     } catch (error) {
       if (error.response?.data?.code === 'SAFETY_WARNINGS') { setSafetyPending({ values, warnings: error.response.data.warnings }); return; }
       message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hoàn tất khám');
     }
+  };
+
+  // Lượt soi da AI chưa xác nhận: chỉ nhắc, không chặn (khách da nặng cần thời gian, bác sĩ xác nhận sau trong tab Soi da AI)
+  const submitWithScanCheck = (values) => {
+    if (!scanStatus.pending) return handleSubmitRecord(values);
+    Modal.confirm({
+      title: 'Lượt soi da AI của khách chưa được xác nhận',
+      content: 'Bạn có thể hoàn tất khám ngay và xác nhận kết quả soi da sau (tab "Soi da AI" khi mở lại hồ sơ khách). Khách vẫn xem kết quả AI cho tới khi bác sĩ xác nhận.',
+      okText: 'Hoàn tất khám, xác nhận sau',
+      cancelText: 'Xác nhận ngay',
+      onOk: () => handleSubmitRecord(values),
+      onCancel: () => { setActiveTab('3'); setOpenScanId(`${scanStatus.latestId}#${Date.now()}`); },
+    });
   };
 
   const tabItems = [
@@ -201,14 +233,17 @@ export default function DoctorWorkspacePage() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map((field) => (
-                  <Space key={field.key} align="baseline" className="flex mb-1">
+                  <Space key={field.key} align="baseline" className="flex mb-1" wrap>
                     <Form.Item name={[field.name, 'product_id']} rules={[{ required: true, message: 'Chọn sản phẩm' }]} className="mb-2">
-                      <Select showSearch optionFilterProp="children" placeholder="Chọn sản phẩm" style={{ width: 340 }}>
+                      <Select showSearch optionFilterProp="children" placeholder="Chọn sản phẩm" style={{ width: 340 }} onChange={(v) => fillUsage(field.name, v)}>
                         {products.map(prod => <Select.Option key={prod.id} value={prod.id}>{`${prod.name} — ${vnd(prod.price)}`}</Select.Option>)}
                       </Select>
                     </Form.Item>
                     <Form.Item name={[field.name, 'quantity']} initialValue={1} className="mb-2">
                       <InputNumber min={1} max={20} addonAfter="SL" style={{ width: 110 }} />
+                    </Form.Item>
+                    <Form.Item name={[field.name, 'usage']} className="mb-2">
+                      <Input maxLength={300} placeholder="Cách dùng (VD: Tối, sau rửa mặt, chấm lên nốt mụn)" style={{ width: 360 }} />
                     </Form.Item>
                     <MinusCircleOutlined className="text-red-500" onClick={() => remove(field.name)} />
                   </Space>
@@ -237,7 +272,15 @@ export default function DoctorWorkspacePage() {
           </div>
         </div>
       )
-    }
+    },
+    { key: '3', label: <span><ScanOutlined /> Soi da AI {scanStatus.pending ? <Tag color="orange" className="ml-1">cần xác nhận</Tag> : scanStatus.count ? <Tag className="ml-1">{scanStatus.count}</Tag> : null}</span>, forceRender: true, children: (
+        <div className="p-4 bg-white rounded-lg border border-gray-100">
+          {selectedPatient?.patient_profile_id
+            ? <SkinScanReview key={selectedPatient.patient_profile_id} patientProfileId={selectedPatient.patient_profile_id} appointmentId={selectedPatient.id} appointment={selectedPatient} openScanId={openScanId?.split('#')[0]} openSignal={openScanId} onStatus={setScanStatus} />
+            : <Empty description="Lịch hẹn chưa gắn hồ sơ người khám" />}
+        </div>
+      )
+    },
   ];
 
   return (
@@ -256,6 +299,7 @@ export default function DoctorWorkspacePage() {
                       {item.status === 'WAITING' && <Tag color="warning">Thứ tự {patients.filter((p) => p.status === 'WAITING').indexOf(item) + 1}</Tag>}
                       {item.status === 'IN_PROGRESS' && <Tag color="processing">Đang khám</Tag>}
                       {(item.status === 'COMPLETED' || item.status === 'WAITING_FOR_SALE') && <Tag color="success">Đã xong</Tag>}
+                      {(item.status === 'COMPLETED' || item.status === 'WAITING_FOR_SALE') && <Button size="small" icon={<PrinterOutlined />} onClick={(e) => { e.stopPropagation(); openPrint('prescription', item.id); }}>In đơn</Button>}
                     </Space>
                   }
                 />
@@ -298,8 +342,8 @@ export default function DoctorWorkspacePage() {
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto">
-                <Form form={form} layout="vertical" onFinish={handleSubmitRecord}>
-                  <Tabs defaultActiveKey="1" items={tabItems} />
+                <Form form={form} layout="vertical" onFinish={submitWithScanCheck}>
+                  <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
                   <Divider />
                   <div className="flex justify-end pb-4">
                     <Space>
@@ -320,7 +364,15 @@ export default function DoctorWorkspacePage() {
            {selectedPatient?.pre_exam_images?.length > 0 && (
              <div className="mt-4 pt-4 border-t border-blue-200">
                <Text strong className="text-gray-700 block mb-3">📷 Hình ảnh da trước khám:</Text>
-               <Image.PreviewGroup><Space size="middle" wrap>{selectedPatient.pre_exam_images.map((url, i) => <Image key={i} src={url} width={80} height={80} className="rounded-lg object-cover border shadow-sm" />)}</Space></Image.PreviewGroup>
+               <Image.PreviewGroup><Space size="middle" wrap>{selectedPatient.pre_exam_images.map((url, i) => {
+                 const m = selectedPatient.pre_exam_image_meta?.[url];
+                 return (
+                   <div key={i} className="text-center">
+                     <Image src={url} width={80} height={80} className="rounded-lg object-cover border shadow-sm" />
+                     <div className="text-[11px] text-gray-500">{m?.source === 'customer' ? 'Khách tự tải' : m?.source === 'chat' ? 'Khách gửi qua chat' : 'CSKH chụp'}{m?.angle ? ` · ${{ front: 'Chính diện', left: 'Má trái', right: 'Má phải' }[m.angle]}` : ''}</div>
+                   </div>
+                 );
+               })}</Space></Image.PreviewGroup>
              </div>
            )}
         </div>
