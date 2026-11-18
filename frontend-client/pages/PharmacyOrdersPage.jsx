@@ -41,6 +41,7 @@ const RETURN_STATUS = {
   PICKING: { label: 'GHN đang lấy hàng về kho', color: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
   RECEIVED: { label: 'Kho đã nhận hàng, đang kiểm tra', color: 'bg-blue-50 border-blue-200 text-blue-800' },
   REFUNDED: { label: 'Đã hoàn tiền', color: 'bg-green-50 border-green-200 text-green-800' },
+  EXCHANGED: { label: 'Đã đổi sản phẩm, đang giao hàng đổi', color: 'bg-green-50 border-green-200 text-green-800' },
   REJECTED: { label: 'Yêu cầu bị từ chối', color: 'bg-red-50 border-red-200 text-red-700' },
 };
 // Yêu cầu đáng hiển thị: bỏ qua các yêu cầu khách đã tự hủy
@@ -286,7 +287,9 @@ export default function PharmacyOrdersPage() {
                     )}
                   </div>
                   <p>Sản phẩm trả: {(ret.items || []).map((i) => `${i.name} x${i.quantity}`).join(', ')}</p>
-                  <p>Số tiền hoàn dự kiến: <b>{formatVnd(ret.refund_amount)}</b></p>
+                  <p>Cách xử lý: <b>{ret.resolution === 'REFUND' ? 'Hoàn tiền' : 'Đổi sản phẩm'}</b></p>
+                  {ret.resolution === 'REFUND' && <p>Số tiền hoàn dự kiến: <b>{formatVnd(ret.refund_amount)}</b></p>}
+                  {ret.status === 'EXCHANGED' && ret.exchange_order_id && <p>Đơn giao hàng đổi: <b>#{ret.exchange_order_id.substring(0, 8).toUpperCase()}</b> (xem trong danh sách đơn)</p>}
                   {ret.tracking_code && <p>Mã vận đơn GHN lấy hàng: <b>{ret.tracking_code}</b></p>}
                   {ret.status === 'REFUNDED' && ret.refund_ref && <p>Mã giao dịch hoàn tiền: <b>{ret.refund_ref}</b></p>}
                   {ret.status === 'REJECTED' && ret.reject_reason && <p>Lý do: {ret.reject_reason}</p>}

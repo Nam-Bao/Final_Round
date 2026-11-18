@@ -16,6 +16,7 @@ const STATUS = {
   PICKING: { label: 'GHN đang lấy hàng', color: 'geekblue' },
   RECEIVED: { label: 'Kho đã nhận - chờ kiểm tra', color: 'blue' },
   REFUNDED: { label: 'Đã hoàn tiền', color: 'green' },
+  EXCHANGED: { label: 'Đã đổi hàng', color: 'green' },
   REJECTED: { label: 'Từ chối', color: 'red' },
   CANCELLED: { label: 'Khách đã hủy', color: 'default' },
 };
@@ -25,7 +26,9 @@ const REASONS = {
   DEFECTIVE: 'Sản phẩm lỗi',
   EXPIRED: 'Hết hạn / không có hạn sử dụng',
 };
-const STEP_ORDER = ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED', 'REFUNDED'];
+// Bước cuối theo cách xử lý khách chọn: đổi hàng (mặc định) hoặc hoàn tiền
+const stepsOf = (r) => ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED', r?.resolution === 'REFUND' ? 'REFUNDED' : 'EXCHANGED'];
+const hasSale = (r) => (r?.items || []).some((i) => i.is_sale);
 const FILTERS = [
   { value: 'TODO', label: 'Cần xử lý' },
   { value: 'ALL', label: 'Tất cả' },
@@ -45,7 +48,20 @@ export default function ReturnManagementPage() {
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundRef, setRefundRef] = useState('');
   const [restock, setRestock] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeLines, setExchangeLines] = useState([]); // [{ product_id, quantity }]
+  const [products, setProducts] = useState([]);
+  const [toRefundOpen, setToRefundOpen] = useState(false);
+  const [bank, setBank] = useState({ bank_name: '', bank_account: '', bank_holder: '' });
 
+  const openExchange = async () => {
+    setExchangeLines(selected.items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })));
+    setRestock(selected.reason === 'WRONG_ITEM');
+    setExchangeOpen(true);
+    if (!products.length) {
+      axios.get('http://localhost:4000/api/commerce/products/shop').then((r) => setProducts(r.data.data || [])).catch(() => {});
+    }
+  };
   const fetchReturns = async () => {
     try {
       const res = await axios.get(`${API}/admin`, authConfig());
@@ -61,6 +77,10 @@ export default function ReturnManagementPage() {
   useLiveRefresh(['returns', 'orders'], fetchReturns);
 
   const selected = returns.find((r) => r.id === selectedId);
+  // Giá trị đổi: cùng sản phẩm tính theo giá khách đã mua, sản phẩm khác theo giá niêm yết (server tính lại theo giá bán hiện tại)
+  const returnedValue = selected ? selected.items.reduce((s, i) => s + Number(i.price) * i.quantity, 0) : 0;
+  const priceOf = (pid) => Number(selected?.items.find((i) => i.product_id === pid)?.price ?? products.find((p) => p.id === pid)?.price ?? 0);
+  const exchangeValue = exchangeLines.reduce((s, l) => s + priceOf(l.product_id) * (l.quantity || 0), 0);
   const shown = returns.filter((r) => filter === 'ALL' || (filter === 'TODO') === TODO_STATUSES.includes(r.status));
 
   const act = async (path, body = {}) => {
@@ -82,12 +102,14 @@ export default function ReturnManagementPage() {
     { title: 'Mã đơn', render: (_, r) => <b>#{r.order_id.substring(0, 8).toUpperCase()}</b> },
     { title: 'Khách', render: (_, r) => <div>{r.Order?.recipient_name}<div className="text-xs text-slate-500">{r.Order?.shipping_phone}</div></div> },
     { title: 'Lý do', dataIndex: 'reason', render: (v) => REASONS[v] || v },
-    { title: 'Hoàn tiền', dataIndex: 'refund_amount', render: (v) => <b className="text-blue-600">{vnd(v)}</b> },
+    { title: 'Cách xử lý', render: (_, r) => (r.resolution === 'REFUND'
+      ? <span><Tag color="blue">Hoàn tiền</Tag><b className="text-blue-600">{vnd(r.refund_amount)}</b></span>
+      : <span><Tag color="purple">Đổi hàng</Tag>{hasSale(r) && <Tag color="orange">Khuyến mãi</Tag>}</span>) },
     { title: 'Gửi lúc', dataIndex: 'createdAt', render: fmtDate },
     { title: 'Trạng thái', dataIndex: 'status', render: (v) => <Tag color={STATUS[v]?.color}>{STATUS[v]?.label || v}</Tag> },
   ];
 
-  const stepIndex = selected ? STEP_ORDER.indexOf(selected.status) : -1;
+  const stepIndex = selected ? stepsOf(selected).indexOf(selected.status) : -1;
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
@@ -110,19 +132,21 @@ export default function ReturnManagementPage() {
             {['REJECTED', 'CANCELLED'].includes(selected.status) ? (
               <Tag color={STATUS[selected.status].color} className="text-sm">{STATUS[selected.status].label}</Tag>
             ) : (
-              <Steps size="small" current={stepIndex} items={STEP_ORDER.map((s) => ({ title: STATUS[s].label.split(' - ')[0] }))} />
+              <Steps size="small" current={stepIndex} items={stepsOf(selected).map((s) => ({ title: STATUS[s].label.split(' - ')[0] }))} />
             )}
 
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="Khách / SĐT">{selected.Order?.recipient_name} · {selected.Order?.shipping_phone}</Descriptions.Item>
               <Descriptions.Item label="Địa chỉ lấy hàng">{selected.Order?.shipping_address}</Descriptions.Item>
               <Descriptions.Item label="Sản phẩm trả">
-                {selected.items.map((i) => <div key={i.order_detail_id}>{i.name} x{i.quantity} ({vnd(i.price)})</div>)}
+                {selected.items.map((i) => <div key={i.order_detail_id}>{i.name} x{i.quantity} ({vnd(i.price)}) {i.is_sale && <Tag color="orange">Khuyến mãi: chỉ đổi</Tag>}</div>)}
               </Descriptions.Item>
+              <Descriptions.Item label="Khách chọn">{selected.resolution === 'REFUND' ? <Tag color="blue">Hoàn tiền</Tag> : <Tag color="purple">Đổi sản phẩm</Tag>}</Descriptions.Item>
+              {selected.exchange_order_id && <Descriptions.Item label="Đơn giao hàng đổi"><b>#{selected.exchange_order_id.substring(0, 8).toUpperCase()}</b> (xử lý ở Quản lý đơn hàng) {selected.restocked && <Tag color="green">Đã nhập lại kho</Tag>}</Descriptions.Item>}
               <Descriptions.Item label="Lý do">{REASONS[selected.reason] || selected.reason}</Descriptions.Item>
               <Descriptions.Item label="Mô tả của khách">{selected.description}</Descriptions.Item>
-              <Descriptions.Item label="Số tiền hoàn"><b className="text-blue-600">{vnd(selected.refund_amount)}</b></Descriptions.Item>
-              <Descriptions.Item label="Nhận hoàn tiền">{selected.bank_name} · {selected.bank_account} · {selected.bank_holder}</Descriptions.Item>
+              {selected.resolution === 'REFUND' && <Descriptions.Item label="Số tiền hoàn"><b className="text-blue-600">{vnd(selected.refund_amount)}</b></Descriptions.Item>}
+              {selected.resolution === 'REFUND' && <Descriptions.Item label="Nhận hoàn tiền">{selected.bank_name} · {selected.bank_account} · {selected.bank_holder}</Descriptions.Item>}
               {selected.tracking_code && <Descriptions.Item label="Vận đơn GHN">{selected.tracking_code} {selected.ghn_status && <Tag>{selected.ghn_status}</Tag>}</Descriptions.Item>}
               {selected.refund_ref && <Descriptions.Item label="Mã GD hoàn tiền">{selected.refund_ref} {selected.restocked && <Tag color="green">Đã nhập lại kho</Tag>}</Descriptions.Item>}
               {selected.reject_reason && <Descriptions.Item label="Lý do từ chối">{selected.reject_reason}</Descriptions.Item>}
@@ -172,14 +196,23 @@ export default function ReturnManagementPage() {
               )}
               {selected.status === 'RECEIVED' && (
                 <>
-                  <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: chuyển khoản {vnd(selected.refund_amount)} cho khách rồi ghi nhận mã giao dịch. Không đạt: từ chối và liên hệ gửi trả hàng cho khách.</p>
-                  <Space>
-                    <Button type="primary" onClick={() => { setRefundRef(''); setRestock(selected.reason === 'WRONG_ITEM'); setRefundOpen(true); }}>Đạt - Ghi nhận hoàn tiền</Button>
+                  {selected.resolution === 'REFUND' ? (
+                    <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: chuyển khoản {vnd(selected.refund_amount)} cho khách rồi ghi nhận mã giao dịch. Không đạt: từ chối và liên hệ gửi trả hàng cho khách.</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: tạo đơn giao hàng đổi (0đ), rồi đóng gói và tạo vận đơn ở Quản lý đơn hàng như đơn thường. {hasSale(selected) ? 'Hàng khuyến mãi: chỉ đổi đúng sản phẩm, không hoàn tiền.' : 'Hết hàng: đổi sản phẩm khác không vượt giá trị hàng trả, hoặc chuyển sang hoàn tiền nếu khách đồng ý.'}</p>
+                  )}
+                  <Space wrap>
+                    {selected.resolution === 'REFUND'
+                      ? <Button type="primary" onClick={() => { setRefundRef(''); setRestock(selected.reason === 'WRONG_ITEM'); setRefundOpen(true); }}>Đạt - Ghi nhận hoàn tiền</Button>
+                      : <Button type="primary" onClick={openExchange}>Đạt - Đổi hàng</Button>}
+                    {selected.resolution !== 'REFUND' && !hasSale(selected) && (
+                      <Button onClick={() => { setBank({ bank_name: '', bank_account: '', bank_holder: '' }); setToRefundOpen(true); }}>Không còn hàng - Chuyển sang hoàn tiền</Button>
+                    )}
                     <Button danger onClick={() => { setRejectReason(''); setRejectOpen(true); }}>Không đạt - Từ chối</Button>
                   </Space>
                 </>
               )}
-              {['REFUNDED', 'REJECTED', 'CANCELLED'].includes(selected.status) && (
+              {['REFUNDED', 'EXCHANGED', 'REJECTED', 'CANCELLED'].includes(selected.status) && (
                 <p className="text-xs text-slate-500">Yêu cầu đã đóng. Cập nhật lần cuối: {fmtDate(selected.updatedAt)}</p>
               )}
             </div>
@@ -205,6 +238,44 @@ export default function ReturnManagementPage() {
             </Checkbox>
           </div>
         )}
+      </Modal>
+
+      <Modal title="Đổi hàng cho khách" open={exchangeOpen} onCancel={() => setExchangeOpen(false)} okText="Tạo đơn giao hàng đổi" okButtonProps={{ loading: acting, disabled: exchangeValue > returnedValue }}
+        onOk={async () => { if (await act('exchange', { items: exchangeLines, restock })) setExchangeOpen(false); }}>
+        {selected && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">
+              {hasSale(selected) ? 'Hàng khuyến mãi: chỉ đổi đúng sản phẩm và số lượng khách đã trả.' : 'Mặc định đổi đúng sản phẩm. Hết hàng thì chọn sản phẩm khác, tổng giá trị không vượt giá trị hàng trả.'}
+            </p>
+            {exchangeLines.map((l, idx) => (
+              <Space key={idx} className="w-full" align="center">
+                <select className="border rounded px-2 py-1 text-sm" style={{ width: 330 }} disabled={hasSale(selected)} value={l.product_id}
+                  onChange={(e) => setExchangeLines(exchangeLines.map((x, i) => (i === idx ? { ...x, product_id: e.target.value } : x)))}>
+                  {[...selected.items.map((i) => ({ id: i.product_id, name: i.name })), ...products.filter((p) => !selected.items.some((i) => i.product_id === p.id))]
+                    .map((p) => <option key={p.id} value={p.id}>{p.name}{p.stock_quantity != null ? ` (còn ${p.stock_quantity})` : ''}</option>)}
+                </select>
+                <Input type="number" min={1} style={{ width: 70 }} disabled={hasSale(selected)} value={l.quantity}
+                  onChange={(e) => setExchangeLines(exchangeLines.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) } : x)))} />
+              </Space>
+            ))}
+            <p className={`text-sm ${exchangeValue > returnedValue ? 'text-red-600' : 'text-slate-600'}`}>
+              Giá trị hàng đổi: <b>{vnd(exchangeValue)}</b> / hàng khách trả: <b>{vnd(returnedValue)}</b>{exchangeValue > returnedValue ? ' (vượt, hãy chọn lại)' : ''}
+            </p>
+            <Checkbox checked={restock} onChange={(e) => setRestock(e.target.checked)}>
+              Nhập lại kho hàng khách trả (chỉ chọn khi còn nguyên vẹn, bán lại được)
+            </Checkbox>
+          </div>
+        )}
+      </Modal>
+
+      <Modal title="Chuyển sang hoàn tiền" open={toRefundOpen} onCancel={() => setToRefundOpen(false)} okText="Chuyển sang hoàn tiền" okButtonProps={{ loading: acting }}
+        onOk={async () => { if (await act('to-refund', bank)) setToRefundOpen(false); }}>
+        <p className="text-sm text-slate-500 mb-2">Chỉ dùng khi không còn hàng để đổi và khách đồng ý nhận tiền. Nhập tài khoản khách cung cấp.</p>
+        <div className="space-y-2">
+          <Input placeholder="Ngân hàng" value={bank.bank_name} onChange={(e) => setBank({ ...bank, bank_name: e.target.value })} />
+          <Input placeholder="Số tài khoản" value={bank.bank_account} onChange={(e) => setBank({ ...bank, bank_account: e.target.value })} />
+          <Input placeholder="Tên chủ tài khoản" value={bank.bank_holder} onChange={(e) => setBank({ ...bank, bank_holder: e.target.value })} />
+        </div>
       </Modal>
     </div>
   );

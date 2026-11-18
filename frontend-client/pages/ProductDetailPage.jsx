@@ -241,7 +241,10 @@ export default function ProductDetailPage() {
                 )}
               </div>
               {isOnSale(product) && (
-                <p className="text-xs text-red-600 font-medium mt-1">Giá ưu đãi khi mua online đến hết {dayjs(product.sale_end).format('HH:mm DD/MM/YYYY')}</p>
+                <>
+                  <p className="text-xs text-red-600 font-medium mt-1">Giá ưu đãi khi mua online đến hết {dayjs(product.sale_end).format('HH:mm DD/MM/YYYY')}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Hàng khuyến mãi không hoàn tiền; nếu sản phẩm lỗi, giao sai hoặc hết hạn, GlowSkin đổi đúng sản phẩm này cho bạn.</p>
+                </>
               )}
               <p className="text-xs text-slate-500 mt-1">Phí vận chuyển GHN được tính theo địa chỉ nhận hàng khi đặt.</p>
             </div>

@@ -14,6 +14,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
   const [images, setImages] = useState([]);
   const [bank, setBank] = useState({ bank_name: '', bank_account: '', bank_holder: '' });
   const [agree, setAgree] = useState(false);
+  const [resolution, setResolution] = useState('EXCHANGE'); // mặc định đổi sản phẩm (hàng khuyến mãi chỉ được đổi)
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -24,6 +25,10 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
 
   const details = order.OrderDetails || [];
   const maxImages = policy?.max_images || 5;
+  // Mua lúc đang khuyến mãi (cờ ghi lúc đặt hàng; đơn cũ: giá mua thấp hơn giá niêm yết)
+  const isSale = (d) => !!d.is_sale || (d.Product?.price != null && Number(d.price) < Number(d.Product.price));
+  const saleSelected = details.some((d) => (qty[d.id] || 0) > 0 && isSale(d));
+  const refund = resolution === 'REFUND' && !saleSelected;
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, maxImages - images.length);
@@ -53,7 +58,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
     if (!reason) return setError('Chọn lý do hoàn trả');
     if (description.trim().length < 20) return setError('Mô tả tình trạng sản phẩm ít nhất 20 ký tự');
     if (!images.length) return setError('Cần ít nhất 1 ảnh chụp sản phẩm làm bằng chứng');
-    if (!bank.bank_name.trim() || !bank.bank_holder.trim() || !/^\d{6,20}$/.test(bank.bank_account.replace(/\s/g, ''))) {
+    if (refund && (!bank.bank_name.trim() || !bank.bank_holder.trim() || !/^\d{6,20}$/.test(bank.bank_account.replace(/\s/g, '')))) {
       return setError('Điền đủ thông tin nhận hoàn tiền (số tài khoản 6 - 20 chữ số)');
     }
     if (!agree) return setError('Bạn cần đồng ý với quy định hoàn trả');
@@ -61,7 +66,8 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
     setSubmitting(true);
     try {
       await axios.post(`${API}/commerce/returns`, {
-        order_id: order.id, items, reason, description: description.trim(), images, ...bank, agree,
+        order_id: order.id, items, reason, description: description.trim(), images, agree,
+        resolution: refund ? 'REFUND' : 'EXCHANGE', ...(refund ? bank : {}),
       }, { headers: { Authorization: `Bearer ${token}` } });
       onCreated();
     } catch (err) {
@@ -89,7 +95,9 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
             <li>Chỉ nhận hoàn trả khi sản phẩm lỗi, hư hỏng, giao sai hoặc hết hạn. Không nhận trả vì đổi ý (mỹ phẩm là hàng vệ sinh cá nhân).</li>
             <li>Sản phẩm còn đủ hộp, tem, phụ kiện; chưa qua sử dụng (trừ lỗi chỉ phát hiện khi mở).</li>
             <li>GlowSkin gửi GHN đến lấy hàng tại địa chỉ nhận hàng, phí vận chuyển do GlowSkin chịu.</li>
-            <li>Hoàn tiền qua chuyển khoản sau khi kho nhận và kiểm tra đạt: giá sản phẩm trả lại trừ phần voucher đã giảm; trả toàn bộ đơn được hoàn cả phí ship. Voucher đã dùng không được hoàn lại.</li>
+            <li>Mặc định GlowSkin <b>đổi sản phẩm</b> cho bạn sau khi kho nhận và kiểm tra đạt. Hết hàng thì nhân viên liên hệ để đổi sản phẩm khác có giá trị tương đương hoặc hoàn tiền.</li>
+            <li>Chọn hoàn tiền: chuyển khoản sau khi kiểm tra đạt, gồm giá sản phẩm trả lại trừ phần voucher đã giảm; trả toàn bộ đơn được hoàn cả phí ship. Voucher đã dùng không được hoàn lại.</li>
+            <li><b>{policy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b></li>
             <li>Hàng nhận về không đúng mô tả hoặc không đạt điều kiện, yêu cầu sẽ bị từ chối.</li>
           </ul>
         </div>
@@ -99,7 +107,8 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
           <div className="space-y-2">
             {details.map((d) => (
               <div key={d.id} className="flex items-center gap-3 text-sm">
-                <span className="flex-1 text-slate-700">{d.Product?.name || 'Sản phẩm'} <span className="text-slate-400">({formatVnd(d.price)})</span></span>
+                <span className="flex-1 text-slate-700">{d.Product?.name || 'Sản phẩm'} <span className="text-slate-400">({formatVnd(d.price)})</span>
+                  {isSale(d) && <span className="badge badge-warning badge-sm ml-1">Khuyến mãi: chỉ đổi</span>}</span>
                 <select className="select select-bordered select-sm" value={qty[d.id] || 0}
                   onChange={(e) => setQty({ ...qty, [d.id]: Number(e.target.value) })}>
                   {Array.from({ length: d.quantity + 1 }, (_, n) => <option key={n} value={n}>{n === 0 ? 'Không trả' : `Trả ${n}/${d.quantity}`}</option>)}
@@ -141,13 +150,26 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
         </div>
 
         <div>
-          <p className="font-semibold text-sm text-slate-700 mb-2">4. Tài khoản nhận hoàn tiền</p>
+          <p className="font-semibold text-sm text-slate-700 mb-2">4. Bạn muốn</p>
+          <div className="flex flex-col gap-1 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" className="radio radio-sm radio-primary" checked={!refund} onChange={() => setResolution('EXCHANGE')} /> Đổi sản phẩm (khuyên dùng)
+            </label>
+            <label className={`flex items-center gap-2 ${saleSelected ? 'opacity-50' : 'cursor-pointer'}`}>
+              <input type="radio" className="radio radio-sm radio-primary" disabled={saleSelected} checked={refund} onChange={() => setResolution('REFUND')} /> Hoàn tiền
+            </label>
+            {saleSelected && <p className="text-xs text-amber-700">Có hàng khuyến mãi trong yêu cầu: chỉ được đổi sản phẩm, không hoàn tiền.</p>}
+          </div>
+        </div>
+
+        {refund && <div>
+          <p className="font-semibold text-sm text-slate-700 mb-2">5. Tài khoản nhận hoàn tiền</p>
           <div className="grid grid-cols-2 gap-2">
             <input className="input input-bordered input-sm" placeholder="Ngân hàng" value={bank.bank_name} onChange={(e) => setBank({ ...bank, bank_name: e.target.value })} />
             <input className="input input-bordered input-sm" placeholder="Số tài khoản" inputMode="numeric" value={bank.bank_account} onChange={(e) => setBank({ ...bank, bank_account: e.target.value })} />
             <input className="input input-bordered input-sm col-span-2 uppercase" placeholder="Tên chủ tài khoản" value={bank.bank_holder} onChange={(e) => setBank({ ...bank, bank_holder: e.target.value })} />
           </div>
-        </div>
+        </div>}
 
         <label className="flex items-start gap-2 text-sm text-slate-600 cursor-pointer">
           <input type="checkbox" className="checkbox checkbox-sm checkbox-primary mt-0.5" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
@@ -157,7 +179,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
         {error && <div className="alert alert-error text-sm py-2">{error}</div>}
 
         <button onClick={handleSubmit} disabled={submitting || uploading || !policy} className="btn btn-primary w-full">
-          {submitting ? <span className="loading loading-spinner loading-sm"></span> : 'Gửi yêu cầu hoàn trả'}
+          {submitting ? <span className="loading loading-spinner loading-sm"></span> : (refund ? 'Gửi yêu cầu hoàn tiền' : 'Gửi yêu cầu đổi sản phẩm')}
         </button>
       </div>
     </div>

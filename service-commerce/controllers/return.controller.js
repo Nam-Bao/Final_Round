@@ -1,5 +1,7 @@
-const { sequelize, Product, Order, OrderDetail, OrderReturn } = require('../models');
+const { sequelize, Product, ProductDetail, Order, OrderDetail, OrderReturn } = require('../models');
+const { Op } = require('sequelize');
 const axios = require('axios');
+const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricing');
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const { sendRefundClaim } = require('../utils/refundClaim');
 
@@ -15,6 +17,19 @@ const RETURN_REASONS = {
 };
 const MAX_IMAGES = 5;
 const PACKAGING_WEIGHT = 300; // gram, khớp với đơn giao đi
+// Cách xử lý (theo góp ý của giảng viên): mặc định ĐỔI HÀNG; hoàn tiền chỉ khi khách chọn và không phải hàng khuyến mãi.
+// Hàng khuyến mãi: không hoàn tiền, lỗi / giao sai thì chỉ đổi đúng sản phẩm đó.
+const RESOLUTIONS = { EXCHANGE: 'Đổi sản phẩm', REFUND: 'Hoàn tiền' };
+const SALE_RULE = 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó';
+// Mua lúc đang khuyến mãi: cờ is_sale ghi lúc đặt hàng; đơn cũ trước khi có cờ => giá mua thấp hơn giá niêm yết
+const isSaleDetail = (detail) => !!detail.is_sale || (detail.Product && Number(detail.price) < Number(detail.Product.price));
+const hasSaleItem = (ret) => (ret.items || []).some((i) => i.is_sale);
+const bankInfo = (body) => ({
+  bank_name: String(body.bank_name || '').trim(),
+  bank_account: String(body.bank_account || '').replace(/\s/g, ''),
+  bank_holder: String(body.bank_holder || '').trim().toUpperCase(),
+});
+const bankError = (b) => (!b.bank_name || !b.bank_holder || !/^\d{6,20}$/.test(b.bank_account) ? 'Thông tin nhận hoàn tiền chưa hợp lệ (số tài khoản 6 - 20 chữ số)' : null);
 // Chỉ nhận ảnh đã tải qua service-media (Cloudinary), không nhận link ngoài
 const isEvidenceUrl = (url) => typeof url === 'string' && /^https:\/\/res\.cloudinary\.com\/[^\s]+$/.test(url);
 
@@ -53,7 +68,7 @@ const sendError = (res, error, fallback) => {
 
 // [PUBLIC] Quy định hoàn trả để frontend hiển thị
 exports.getReturnPolicy = (req, res) => {
-  res.status(200).json({ data: { window_days: RETURN_WINDOW_DAYS, reasons: RETURN_REASONS, max_images: MAX_IMAGES } });
+  res.status(200).json({ data: { window_days: RETURN_WINDOW_DAYS, reasons: RETURN_REASONS, max_images: MAX_IMAGES, resolutions: RESOLUTIONS, sale_rule: SALE_RULE } });
 };
 
 // ==========================================
@@ -65,9 +80,8 @@ exports.createReturn = async (req, res) => {
   const customer_id = req.user.id;
   const { order_id, reason, agree } = req.body;
   const description = String(req.body.description || '').trim();
-  const bank_name = String(req.body.bank_name || '').trim();
-  const bank_account = String(req.body.bank_account || '').replace(/\s/g, '');
-  const bank_holder = String(req.body.bank_holder || '').trim().toUpperCase();
+  const resolution = req.body.resolution === 'REFUND' ? 'REFUND' : 'EXCHANGE';
+  const bank = resolution === 'REFUND' ? bankInfo(req.body) : { bank_name: null, bank_account: null, bank_holder: null };
   const images = Array.isArray(req.body.images) ? [...new Set(req.body.images)] : [];
 
   // 1. Kiểm tra hồ sơ (không cần DB)
@@ -77,9 +91,7 @@ exports.createReturn = async (req, res) => {
   if (images.length < 1 || images.length > MAX_IMAGES || !images.every(isEvidenceUrl)) {
     return res.status(400).json({ success: false, message: `Cần 1 - ${MAX_IMAGES} ảnh bằng chứng tải lên từ hệ thống` });
   }
-  if (!bank_name || !bank_holder || !/^\d{6,20}$/.test(bank_account)) {
-    return res.status(400).json({ success: false, message: 'Thông tin nhận hoàn tiền chưa hợp lệ (số tài khoản 6 - 20 chữ số)' });
-  }
+  if (resolution === 'REFUND' && bankError(bank)) return res.status(400).json({ success: false, message: bankError(bank) });
   if (agree !== true) return res.status(400).json({ success: false, message: 'Bạn cần xác nhận đồng ý với quy định hoàn trả' });
 
   const t = await sequelize.transaction();
@@ -93,7 +105,7 @@ exports.createReturn = async (req, res) => {
     if (existed) throw new ReturnError('Đơn này đã có yêu cầu hoàn trả, mỗi đơn chỉ được yêu cầu một lần');
 
     // 3. Sản phẩm trả: phải thuộc đơn, số lượng không vượt số đã mua
-    const details = await OrderDetail.findAll({ where: { order_id }, include: [{ model: Product, attributes: ['name'] }], transaction: t });
+    const details = await OrderDetail.findAll({ where: { order_id }, include: [{ model: Product, attributes: ['name', 'price'] }], transaction: t });
     const qtyByDetail = {};
     (Array.isArray(req.body.items) ? req.body.items : []).forEach((item) => {
       const quantity = parseInt(item?.quantity, 10) || 0;
@@ -105,17 +117,20 @@ exports.createReturn = async (req, res) => {
       const detail = details.find((d) => d.id === detailId);
       if (!detail) throw new ReturnError('Sản phẩm không thuộc đơn hàng này');
       if (quantity > detail.quantity) throw new ReturnError(`Số lượng trả của ${detail.Product?.name || 'sản phẩm'} vượt số đã mua (${detail.quantity})`);
-      return { order_detail_id: detail.id, product_id: detail.product_id, name: detail.Product?.name || 'Sản phẩm', quantity, price: Number(detail.price), weight: detail.weight };
+      return { order_detail_id: detail.id, product_id: detail.product_id, name: detail.Product?.name || 'Sản phẩm', quantity, price: Number(detail.price), weight: detail.weight, is_sale: isSaleDetail(detail) };
     });
+    if (resolution === 'REFUND' && items.some((i) => i.is_sale)) {
+      throw new ReturnError(`${items.find((i) => i.is_sale).name}: ${SALE_RULE}. Vui lòng chọn "Đổi sản phẩm".`);
+    }
     const isFullReturn = details.every((d) => qtyByDetail[d.id] === d.quantity);
 
     const created = await OrderReturn.create({
-      order_id, customer_id, items, reason, description, images, bank_name, bank_account, bank_holder,
+      order_id, customer_id, items, reason, description, images, resolution, ...bank,
       refund_amount: calcRefund(order, items, isFullReturn),
     }, { transaction: t });
 
     await t.commit();
-    return res.status(201).json({ success: true, data: created, message: 'Đã gửi yêu cầu hoàn trả, nhân viên sẽ phản hồi trong 24 giờ làm việc' });
+    return res.status(201).json({ success: true, data: created, message: `Đã gửi yêu cầu ${resolution === 'EXCHANGE' ? 'đổi sản phẩm' : 'hoàn tiền'}, nhân viên sẽ phản hồi trong 24 giờ làm việc` });
   } catch (error) {
     await t.rollback();
     return sendError(res, error, 'Không gửi được yêu cầu hoàn trả');
@@ -266,6 +281,8 @@ exports.refundReturn = (req, res) => {
   }
   const restock = req.body.restock === true;
   return withReturn(req, res, ['RECEIVED'], async (ret, t) => {
+    if (hasSaleItem(ret)) throw new ReturnError(`${SALE_RULE}. Hãy chọn "Đạt - Đổi hàng"`);
+    if (ret.resolution !== 'REFUND') throw new ReturnError('Khách chọn đổi sản phẩm. Hãy chọn "Đạt - Đổi hàng", hoặc chuyển sang hoàn tiền nếu không còn hàng để đổi');
     // Tài khoản nhận hoàn là tài khoản khách khai khi gửi yêu cầu; ghi khoản hoàn để quản lý đối chiếu tiền ra
     t.afterCommit(() => sendRefundClaim({
       source: 'RETURN', source_id: ret.id, customer_id: ret.customer_id, amount: Number(ret.refund_amount), bank_ref: refund_ref,
@@ -279,6 +296,68 @@ exports.refundReturn = (req, res) => {
     Object.assign(ret, { status: 'REFUNDED', refund_ref, restocked: restock, refunded_at: new Date(), handled_by: req.user.id });
     t.afterCommit(() => returnUpdate(ret, { status: 'REFUNDED', amount: Number(ret.refund_amount), ref: refund_ref }));
   }, 'Đã hoàn tất hoàn tiền cho khách');
+};
+
+// [SALES] PUT /returns/admin/:id/exchange { items?: [{ product_id, quantity }], restock } — kiểm tra hàng trả đạt => tạo đơn giao hàng đổi 0đ.
+// Mặc định đổi đúng sản phẩm, số lượng đã trả. Đổi sang sản phẩm khác (hết hàng) thì tổng giá trị không vượt giá trị hàng trả,
+// phần chênh nếu rẻ hơn không hoàn. Hàng khuyến mãi chỉ đổi đúng sản phẩm đó.
+exports.exchangeReturn = (req, res) => {
+  const restock = req.body.restock === true;
+  return withReturn(req, res, ['RECEIVED'], async (ret, t) => {
+    if (ret.resolution === 'REFUND') throw new ReturnError('Khách chọn hoàn tiền. Hãy chọn "Đạt - Ghi nhận hoàn tiền"');
+    const order = await Order.findByPk(ret.order_id, { transaction: t });
+    const returnedValue = ret.items.reduce((s, i) => s + Number(i.price) * i.quantity, 0);
+    const asked = (Array.isArray(req.body.items) && req.body.items.length ? req.body.items : ret.items)
+      .map((i) => ({ product_id: i.product_id, quantity: parseInt(i.quantity, 10) || 0 })).filter((i) => i.product_id && i.quantity > 0);
+    const want = {};
+    for (const i of asked) want[i.product_id] = (want[i.product_id] || 0) + i.quantity;
+    if (!Object.keys(want).length) throw new ReturnError('Chọn sản phẩm đổi cho khách');
+
+    // Hàng khuyến mãi: đúng sản phẩm, đúng số lượng đã trả
+    const returnedQty = {};
+    for (const i of ret.items) returnedQty[i.product_id] = (returnedQty[i.product_id] || 0) + i.quantity;
+    if (hasSaleItem(ret)) {
+      const same = Object.keys(want).length === Object.keys(returnedQty).length && Object.entries(returnedQty).every(([p, q]) => want[p] === q);
+      if (!same) throw new ReturnError(`${SALE_RULE}: chỉ đổi đúng sản phẩm và số lượng khách đã trả`);
+    }
+
+    const products = await Product.findAll({ where: { id: Object.keys(want), type: 'PRODUCT' }, include: [{ model: ProductDetail, attributes: SALE_FIELDS }], transaction: t });
+    if (products.length !== Object.keys(want).length) throw new ReturnError('Sản phẩm đổi không hợp lệ');
+    // Giá trị đổi: cùng sản phẩm tính theo giá khách đã mua, sản phẩm khác tính theo giá bán hiện tại
+    const paidPrice = Object.fromEntries(ret.items.map((i) => [i.product_id, Number(i.price)]));
+    const lines = products.map((p) => ({ product: p, quantity: want[p.id], price: paidPrice[p.id] ?? onlinePrice(p), is_sale: paidPrice[p.id] != null ? ret.items.find((i) => i.product_id === p.id).is_sale : activeSalePercent(p) !== null }));
+    const value = lines.reduce((s, l) => s + l.price * l.quantity, 0);
+    if (value > returnedValue) throw new ReturnError(`Giá trị hàng đổi (${value.toLocaleString('vi-VN')}đ) vượt giá trị hàng khách trả (${returnedValue.toLocaleString('vi-VN')}đ)`);
+
+    // Hàng trả còn bán được thì nhập lại kho trước (đổi đúng sản phẩm vẫn dùng được hàng vừa nhập)
+    if (restock) for (const i of ret.items) await Product.increment('stock_quantity', { by: i.quantity, where: { id: i.product_id }, transaction: t });
+    for (const l of lines) {
+      const [affected] = await Product.update({ stock_quantity: sequelize.literal(`stock_quantity - ${Number(l.quantity)}`) },
+        { where: { id: l.product.id, stock_quantity: { [Op.gte]: l.quantity } }, transaction: t });
+      if (!affected) throw new ReturnError(`${l.product.name} không đủ hàng để đổi. Chọn sản phẩm khác${hasSaleItem(ret) ? '' : ' hoặc chuyển sang hoàn tiền'}`);
+    }
+    const exchangeOrder = await Order.create({
+      customer_id: ret.customer_id, recipient_name: order.recipient_name, shipping_phone: order.shipping_phone, shipping_address: order.shipping_address,
+      shipping_district_id: order.shipping_district_id, shipping_ward_code: order.shipping_ward_code, latitude: order.latitude, longitude: order.longitude,
+      shipping_fee: 0, total_amount: value, discount_amount: value, // khách không trả thêm, giao hàng không thu hộ
+      note: `Đơn đổi hàng cho yêu cầu hoàn trả #${ret.id.slice(0, 8).toUpperCase()} (đơn gốc #${order.id.slice(0, 8).toUpperCase()})`,
+      status: 'CONFIRMED', payment_method: 'COD',
+    }, { transaction: t });
+    await OrderDetail.bulkCreate(lines.map((l) => ({ order_id: exchangeOrder.id, product_id: l.product.id, quantity: l.quantity, price: l.price, weight: l.product.weight || 200, is_sale: l.is_sale })), { transaction: t });
+    Object.assign(ret, { status: 'EXCHANGED', exchange_order_id: exchangeOrder.id, restocked: restock, handled_by: req.user.id });
+    t.afterCommit(() => returnUpdate(ret, { status: 'EXCHANGED', exchange_order_id: exchangeOrder.id }));
+  }, 'Đã tạo đơn giao hàng đổi, hãy đóng gói và tạo vận đơn GHN như đơn thường');
+};
+
+// [SALES] PUT /returns/admin/:id/to-refund { bank_name, bank_account, bank_holder } — không còn hàng để đổi, khách đồng ý nhận tiền
+exports.switchToRefund = (req, res) => {
+  const bank = bankInfo(req.body);
+  if (bankError(bank)) return res.status(400).json({ success: false, message: bankError(bank) });
+  return withReturn(req, res, ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED'], async (ret) => {
+    if (hasSaleItem(ret)) throw new ReturnError(SALE_RULE);
+    if (ret.resolution === 'REFUND') throw new ReturnError('Yêu cầu này đã là hoàn tiền');
+    Object.assign(ret, { resolution: 'REFUND', ...bank, handled_by: req.user.id });
+  }, 'Đã chuyển yêu cầu sang hoàn tiền');
 };
 
 // [WEBHOOK GHN] Trả true nếu mã vận đơn là đơn lấy hàng hoàn trả (đã xử lý), false nếu không phải

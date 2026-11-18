@@ -127,7 +127,8 @@ const OrderDetail = sequelize.define('OrderDetail', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   quantity: { type: DataTypes.INTEGER, allowNull: false },
   price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-  weight: { type: DataTypes.INTEGER, defaultValue: 200 } // Mặc định mỗi sp 200g, NVBH có thể sửa sau 
+  weight: { type: DataTypes.INTEGER, defaultValue: 200 }, // Mặc định mỗi sp 200g, NVBH có thể sửa sau 
+  is_sale: { type: DataTypes.BOOLEAN, defaultValue: false } // mua lúc đang khuyến mãi => không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
 });
 
 const InventoryRequest = sequelize.define('InventoryRequest', {
@@ -265,15 +266,19 @@ const OrderReturn = sequelize.define('OrderReturn', {
   reason: { type: DataTypes.ENUM('DAMAGED', 'WRONG_ITEM', 'DEFECTIVE', 'EXPIRED'), allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
   images: { type: DataTypes.JSONB, allowNull: false }, // URL ảnh bằng chứng (Cloudinary)
-  bank_name: { type: DataTypes.STRING, allowNull: false },
-  bank_account: { type: DataTypes.STRING(30), allowNull: false },
-  bank_holder: { type: DataTypes.STRING, allowNull: false },
+  // Cách xử lý khách chọn: EXCHANGE đổi hàng (mặc định) | REFUND hoàn tiền. Hàng khuyến mãi chỉ được đổi
+  resolution: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'EXCHANGE' },
+  exchange_order_id: { type: DataTypes.UUID }, // đơn giao hàng đổi (0đ) tạo khi kiểm tra hàng đạt
+  // Tài khoản nhận hoàn tiền: chỉ bắt buộc khi hoàn tiền
+  bank_name: { type: DataTypes.STRING },
+  bank_account: { type: DataTypes.STRING(30) },
+  bank_holder: { type: DataTypes.STRING },
   refund_amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false }, // server tự tính khi khách gửi yêu cầu
   status: {
     // PENDING: chờ NVBH duyệt -> APPROVED: đã duyệt -> PICKING: GHN đang lấy hàng về kho
-    // -> RECEIVED: kho đã nhận, chờ kiểm tra -> REFUNDED: đã hoàn tiền
+    // -> RECEIVED: kho đã nhận, chờ kiểm tra -> REFUNDED: đã hoàn tiền | EXCHANGED: đã tạo đơn giao hàng đổi
     // REJECTED: từ chối (khi duyệt hoặc khi kiểm tra hàng) | CANCELLED: khách tự hủy lúc còn chờ duyệt
-    type: DataTypes.ENUM('PENDING', 'APPROVED', 'PICKING', 'RECEIVED', 'REFUNDED', 'REJECTED', 'CANCELLED'),
+    type: DataTypes.ENUM('PENDING', 'APPROVED', 'PICKING', 'RECEIVED', 'REFUNDED', 'EXCHANGED', 'REJECTED', 'CANCELLED'),
     defaultValue: 'PENDING'
   },
   reject_reason: { type: DataTypes.TEXT },

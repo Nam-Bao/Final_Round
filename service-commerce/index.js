@@ -60,6 +60,15 @@ app.listen(PORT, async() => {
         await sequelize.sync({ alter });
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
+        // Đổi hàng / hàng khuyến mãi: yêu cầu cũ đều là hoàn tiền (REFUND); tài khoản ngân hàng chỉ bắt buộc khi hoàn tiền
+        await sequelize.query('ALTER TABLE "OrderDetails" ADD COLUMN IF NOT EXISTS "is_sale" BOOLEAN NOT NULL DEFAULT false');
+        await sequelize.query(`ALTER TABLE "OrderReturns" ADD COLUMN IF NOT EXISTS "resolution" VARCHAR(10) NOT NULL DEFAULT 'REFUND', ADD COLUMN IF NOT EXISTS "exchange_order_id" UUID,
+          ALTER COLUMN "bank_name" DROP NOT NULL, ALTER COLUMN "bank_account" DROP NOT NULL, ALTER COLUMN "bank_holder" DROP NOT NULL`);
+        await sequelize.query(`DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_OrderReturns_status') THEN
+            ALTER TYPE "enum_OrderReturns_status" ADD VALUE IF NOT EXISTS 'EXCHANGED';
+          END IF;
+        END $$;`);
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "concerns" JSONB');
         await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "safety_screening" JSONB');
         // Sản phẩm cũ chưa có nhãn "Vấn đề da": gắn nhãn ban đầu theo tên / công dụng / thành phần (quản lý sửa lại được)
