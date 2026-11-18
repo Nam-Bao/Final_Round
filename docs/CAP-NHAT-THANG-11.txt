@@ -1,0 +1,194 @@
+CẬP NHẬT THÁNG 11 - GLOWSKIN
+Viết cho: Nam (người gộp code), cập nhật ngày 19/11/2026
+Tính từ main e0c2c6d (sau PR #30).
+
+==================================================
+TÓM TẮT
+==================================================
+Có 4 nhánh code, mỗi nhánh 1 commit, đều tách từ main e0c2c6d:
+
+  1. fix/du-lieu-that          Dữ liệu thật, có nguồn (dịch vụ, giá, bài viết, hồ sơ bác sĩ)
+  2. feat/diem-glowskin        Điểm GlowSkin + quy tắc hủy lịch mới + sửa lỗi "khách cũ"
+  3. feat/doi-hang-khuyen-mai  Đổi hàng khi hàng lỗi, hàng khuyến mãi không hoàn tiền
+  4. feat/danh-gia-chuyen-gia  Tab đánh giá chuyên gia ở trang Đánh giá
+
+Mục 2, 3 làm theo góp ý của cô khi xem demo. Đã thử gộp từng cặp nhánh với nhau:
+không xung đột. Gộp theo thứ tự nào cũng được, nên gộp theo thứ tự trên.
+
+Mục 2 và 3 ĐỔI QUY TẮC NGHIỆP VỤ đang có. Đọc kỹ phần "ẢNH HƯỞNG TỚI CODE CỦA BẠN".
+
+
+==================================================
+1. fix/du-lieu-that: DỮ LIỆU THẬT, CÓ NGUỒN
+==================================================
+Lý do: website đang có nhiều dữ liệu bịa trông như thật (số chứng chỉ hành nghề, tên bệnh viện
+thật trong hồ sơ bác sĩ, sự kiện không có thật, khẳng định y khoa không có nguồn).
+
+Đã làm:
+  - 13 dịch vụ: viết lại mô tả, quy trình, "phù hợp với", chăm sóc sau, chỉ giữ ý có trong nguồn
+    (AAD, DermNet, StatPearls, các nguồn đã dùng cho quy tắc chống chỉ định).
+    Thêm cột SpaServices.sources (tự thêm khi booking khởi động) và mục "Nguồn tham khảo"
+    ở trang chi tiết dịch vụ; trang admin Dịch vụ sửa được nguồn.
+  - Đổi tên các dịch vụ tự nhận công dụng không có căn cứ, ví dụ:
+      "Chăm Sóc & Thải Độc Da Chuyên Sâu" -> "Chăm Sóc Da Định Kỳ"
+      "Nâng Cơ Trẻ Hóa Bằng Sóng RF"      -> "Điều Trị Bằng Sóng RF"
+      "Meso Căng Bóng Trẻ Hóa Tầng Sâu"   -> "Tiêm Meso Dưỡng Da"
+    Lịch khám / hoá đơn lưu dịch vụ theo id nên không ảnh hưởng. Quy tắc chống chỉ định nhận
+    theo từ khoá (peel, laser, vi kim, meso, RF, điện di) vẫn đúng, đã chạy lại test.
+  - Giá dịch vụ, gói liệu trình: theo trung vị bảng giá công khai của 3 phòng khám da liễu
+    TP.HCM. Cách tính và từng dòng đối chiếu: docs/CAN-CU-GIA-DICH-VU.md
+  - Định mức vật tư đối chiếu nhãn sản phẩm: docs/CAN-CU-DINH-MUC-VAT-TU.md
+    (cồn 70 độ trong kho là loại khử khuẩn thiết bị, không dùng sát khuẩn da; kho còn thiếu
+    dung dịch peel, meso, gel RF, kem chống nắng dùng tại phòng khám).
+  - Bài viết mẫu (seed-news.js): bỏ bài sự kiện, workshop, bài "vô trùng, đạt FDA/CE";
+    3 bài kiến thức viết lại có nguồn.
+  - Trang Đội ngũ bác sĩ, trang Tư vấn chuyên gia ghi "Hồ sơ ... là giả định, phục vụ đồ án".
+  - Xoá service-identity/seed-staff-records.js (CCCD, mã số thuế, số tài khoản, số chứng chỉ
+    giả). Vẫn còn trong lịch sử git.
+  - GIỮ NGUYÊN devops/seed-demo vì bạn đang dùng. Lưu ý: seed-demo/data.js có số chứng chỉ
+    hành nghề bịa, chạy lại sẽ ghi đè hồ sơ bác sĩ đã làm sạch.
+
+Phần chỉ có trong database máy mình (không nằm trong code), máy bạn sẽ khác:
+  - Hồ sơ 3 bác sĩ, 6 chuyên gia: đã xoá số chứng chỉ, bệnh viện thật, học vấn, ảnh người thật.
+  - 6 chuyên gia đổi email @test.local -> @glowskin.example (tên miền dành cho ví dụ, không
+    trùng email ai). Ví dụ tuvan.dalieu@glowskin.example.
+  - Thêm vật tư "Dung dịch Povidon iodin 10% (Chai 90ml)", tồn kho 0, có định mức.
+  Muốn có cùng dữ liệu: chạy lại node seed-spa-services.js (booking) và node seed-news.js (media)
+  để có nội dung dịch vụ, bài viết mới; phần hồ sơ bác sĩ thì báo mình gửi script.
+
+
+==================================================
+2. feat/diem-glowskin: ĐIỂM GLOWSKIN, QUY TẮC HỦY LỊCH, SỬA "KHÁCH CŨ"
+==================================================
+Góp ý của cô: hủy trước 24 giờ thì được hoàn cọc, hủy sau thì mất cọc (lúc demo bị ngược);
+hoàn cọc nên đổi thành điểm tích lũy để lần sau đặt bằng điểm, thay vì CSKH chuyển khoản tay.
+
+Quy tắc mới (lịch khám và lịch tư vấn như nhau):
+  - Khách tự hủy, hoặc CSKH hủy hộ (bên yêu cầu = khách), TRƯỚC giờ hẹn từ 24 giờ:
+    cọc đổi thành Điểm GlowSkin (1 điểm = 100đ; cọc 50.000đ = 500 điểm). Không hỏi xác nhận mất cọc.
+  - Hủy TRONG VÒNG 24 giờ: mất cọc như cũ (vẫn phải xác nhận accept_forfeit).
+  - Lịch "cần đổi lịch" (bác sĩ nghỉ) mà khách hủy: luôn đổi thành điểm.
+  - Phòng khám hủy: vẫn chờ hoàn cọc. CSKH chọn chuyển khoản như cũ, hoặc nút mới
+    "Hoàn bằng điểm" (+10%, vì lỗi của phòng khám).
+  - Khách trả cọc lịch khám / phí tư vấn bằng điểm khi đủ điểm cho TOÀN BỘ cọc:
+    lịch xác nhận ngay, không qua trang QR. Không đủ điểm: báo thiếu, không giữ chỗ.
+  - Lịch trả cọc bằng điểm khi chốt hoá đơn vẫn trừ cọc bình thường.
+  - Trả bằng điểm không ghi Transaction tiền vào; cọc đổi thành điểm không tính doanh thu "mất cọc".
+
+Sổ điểm: bảng mới PointTransactions (booking tự tạo khi khởi động). Mỗi lần cộng / trừ là 1 dòng,
+số dư = tổng. Mỗi lịch hoàn / trừ điểm 1 lần (unique type + reference_id). Trừ điểm có khoá
+theo khách (pg_advisory_xact_lock) nên 2 lần trả cùng lúc không tiêu trùng.
+Enum thêm giá trị 'POINTS' cho deposit_outcome (AppointmentCancellations, Consultations) và
+payment_method (Invoices, Consultations), tự thêm khi booking khởi động.
+
+Sửa lỗi "khách cũ" (miễn cọc, miễn phí khám): trước đây tính cả lịch CONFIRMED / NEEDS_RESCHEDULE
+(đã cọc nhưng chưa khám) => khách mới cọc 1 lịch là đặt thêm lịch khác miễn phí.
+Nay chỉ tính lịch bác sĩ đã khám xong: WAITING_FOR_SALE, COMPLETED (hàm isOldPatient).
+Áp dụng chung cho báo giá cọc, đặt online, CSKH tạo lịch, khách đến thẳng.
+
+Giao diện: thẻ "Điểm GlowSkin" ở Hồ sơ (số dư, lịch sử); ô "Trả cọc bằng X điểm" ở trang đặt
+lịch khám và tư vấn; thông báo khi hủy ghi rõ đổi thành điểm hay mất cọc; chính sách mục 2.2;
+nút "Hoàn bằng điểm" ở mục chờ hoàn cọc (lịch khám, lịch tư vấn).
+
+API mới:
+  GET /api/booking/points/me                 (CUSTOMER) số dư + lịch sử
+  GET /api/booking/points/customers/:id      (CONSULTANT, GEN_MANAGER, ADMIN)
+  PUT /appointments/:id/refund-deposit { method: 'POINTS' }   hoàn bằng điểm
+  PUT /consultations/:id/refund { method: 'POINTS' }          hoàn bằng điểm
+  POST /appointments, POST /consultations nhận thêm use_points: true
+  GET /appointments/deposit-quote trả thêm points: { balance, value_vnd, online, offline }
+Biến .env tuỳ chọn (booking): POINT_VALUE_VND (mặc định 100), POINT_CLINIC_REFUND_BONUS_PERCENT (10).
+
+Test: tests/diem-glowskin.test.js (28 bước), tests/khach-cu.test.js (31 bước). Cách chạy: tests/README.md
+
+
+==================================================
+3. feat/doi-hang-khuyen-mai: ĐỔI HÀNG, HÀNG KHUYẾN MÃI
+==================================================
+Góp ý của cô: hàng lỗi thì đổi sản phẩm (hoặc chọn sản phẩm giá trị tương đương) chứ không hoàn
+tiền; hàng khuyến mãi không hoàn tiền, không đổi trả.
+Mình làm hàng khuyến mãi "không hoàn tiền, lỗi thì chỉ đổi đúng sản phẩm đó" thay vì cấm hẳn,
+vì hàng lỗi thì người bán vẫn phải xử lý. Nên hỏi lại cô điểm này.
+
+Đã làm:
+  - OrderDetails.is_sale: ghi lúc checkout khi sản phẩm đang giảm giá online. Đơn cũ chưa có cờ:
+    giá mua thấp hơn giá niêm yết thì coi là hàng khuyến mãi.
+  - Yêu cầu hoàn trả có resolution: EXCHANGE (mặc định) | REFUND. Tài khoản ngân hàng chỉ bắt
+    buộc khi REFUND. Có hàng khuyến mãi thì không chọn REFUND được.
+  - Kiểm tra hàng trả đạt (RECEIVED):
+      "Đạt - Đổi hàng": tạo ĐƠN GIAO HÀNG ĐỔI 0đ (total_amount = discount_amount, phí ship 0, COD 0,
+      status CONFIRMED), trừ kho, đi tiếp luồng đóng gói / GHN như đơn thường. Không cộng doanh thu.
+      Mặc định đúng sản phẩm, số lượng đã trả. Hết hàng: đổi sang sản phẩm khác, tổng giá trị
+      không vượt hàng khách trả (rẻ hơn thì phòng khám giữ phần chênh). Hàng khuyến mãi chỉ đổi
+      đúng sản phẩm, đúng số lượng.
+      "Không còn hàng - Chuyển sang hoàn tiền": khách đồng ý thì nhập tài khoản, rồi hoàn như cũ.
+      Không áp dụng cho hàng khuyến mãi.
+      Khách đã chọn hoàn tiền thì nhân viên không tự đổi hàng thay.
+  - OrderReturns: thêm resolution, exchange_order_id, trạng thái EXCHANGED; cột bank_* bỏ NOT NULL
+    (tự sửa khi commerce khởi động; yêu cầu cũ được ghi resolution = REFUND).
+  - Mẫu email RETURN_UPDATE thêm trạng thái EXCHANGED ("Sản phẩm đổi đang được chuẩn bị").
+  - Giao diện: form hoàn trả có "Bạn muốn: Đổi sản phẩm / Hoàn tiền" và nhãn "Khuyến mãi: chỉ đổi";
+    trang Quản lý hoàn trả có nút Đổi hàng (chọn sản phẩm, số lượng, xem giá trị) và Chuyển sang
+    hoàn tiền; trang sản phẩm đang giảm giá ghi chú quy định; chính sách mục Hoàn / trả hàng.
+
+API mới:
+  PUT /api/commerce/returns/admin/:id/exchange   { items?: [{ product_id, quantity }], restock }
+  PUT /api/commerce/returns/admin/:id/to-refund  { bank_name, bank_account, bank_holder }
+  POST /api/commerce/returns nhận thêm resolution: 'EXCHANGE' | 'REFUND'
+
+Test: tests/doi-hang.test.js (32 bước). Chạy từ service-commerce: node ../tests/doi-hang.test.js
+
+
+==================================================
+4. feat/danh-gia-chuyen-gia: ĐÁNH GIÁ CHUYÊN GIA
+==================================================
+  - Trang Đánh giá thêm tab "Chuyên gia tư vấn": lọc theo chuyên gia (kèm lĩnh vực), số sao,
+    điểm trung bình. Link ?tab=expert&expert=<id> lọc sẵn 1 chuyên gia.
+  - Popup hồ sơ chuyên gia có nút "Xem tất cả đánh giá".
+  - GET /api/booking/consultations/reviews: không truyền expert_id thì trả đánh giá của mọi
+    chuyên gia (kèm expert_name, consult_field_label); có expert_id thì như cũ.
+  - Quy tắc giữ nguyên: chỉ buổi COMPLETED (chuyên gia đã gửi kết quả) mới được đánh giá,
+    mỗi buổi 1 lần; quản lý ẩn được.
+  - Hiện chưa có đánh giá chuyên gia nào vì chưa có buổi tư vấn hoàn thành. Không tạo đánh giá giả;
+    dự định đi 1 buổi tư vấn thật để có đánh giá thật.
+
+Test: tests/danh-gia-chuyen-gia.test.js (13 bước). Chạy từ service-booking.
+
+
+==================================================
+ẢNH HƯỞNG TỚI CODE CỦA BẠN
+==================================================
+  - Hủy lịch khám / tư vấn: khách hủy trước 24 giờ KHÔNG còn mất cọc mà đổi thành điểm.
+    deposit_outcome có thêm 'POINTS'. Chỗ nào đang đếm / hiển thị deposit_outcome nên thêm nhãn.
+    Báo cáo doanh thu chỉ cộng 'FORFEITED' nên không bị ảnh hưởng.
+  - isOldPatient chỉ tính WAITING_FOR_SALE, COMPLETED. Kịch bản test / seed-demo nào dựa vào
+    "lịch đã cọc là khách cũ" sẽ ra kết quả khác (lịch 2 vẫn phải cọc).
+  - Hoàn trả: mặc định là đổi hàng. Nút "Đạt - Ghi nhận hoàn tiền" chỉ còn ở yêu cầu REFUND.
+  - consultation.controller.js, appointment.controller.js, return.controller.js là 3 file sửa
+    nhiều nhất. Bạn đang sửa dở các file này thì báo trước để tránh xung đột.
+
+Sau khi pull:
+  - Không cần npm install thêm. Không có biến .env bắt buộc mới.
+  - Khởi động lại booking, commerce, identity: cột / bảng / enum mới tự thêm khi khởi động.
+
+
+==================================================
+VIỆC NHỜ BẠN XEM
+==================================================
+  1. docs/KICH-BAN-TEST-THEO-BPMN.md ca 3.8b: Điện di cho người cho con bú là "Thận trọng"
+     (phải ghi lý do), không phải chỉ "Lưu ý". Kịch bản cũng cần sửa phần hủy lịch theo quy tắc mới.
+  2. Email nhắc lịch khám gửi đúng 24 giờ trước giờ khám, lúc đó khách đã hết hạn tự đổi lịch.
+     Có nên gửi sớm hơn (ví dụ 8:00 sáng hôm trước)?
+  3. Lịch 2 đặt khi lịch 1 chưa khám: khi lịch 1 khám xong, lịch 2 có được miễn phí khám không?
+     Hiện vẫn tính phí khám vì lúc đặt chưa phải khách cũ.
+  4. Điểm GlowSkin đợt 2 chưa làm: tích 1% theo hoá đơn, hạng thành viên + quà theo mốc,
+    điểm hết hạn sau 12 tháng, báo cáo điểm đang lưu hành, màn hình CSKH xem điểm khách.
+
+
+==================================================
+ĐÃ TEST / CHƯA TEST
+==================================================
+Đã chạy qua API, đều đạt: Điểm 28/28, Khách cũ 31/31, Đổi hàng 32/32, Đánh giá chuyên gia 13/13.
+Trang admin và trang khách build được.
+Chưa test: bấm thử trên giao diện; tạo vận đơn GHN thật cho đơn đổi hàng; gửi email thật
+(máy mình đang MAIL_MODE=log).
