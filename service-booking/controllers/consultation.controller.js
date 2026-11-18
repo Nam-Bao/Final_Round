@@ -3,6 +3,7 @@ const axios = require('axios');
 const { Op } = require('sequelize');
 const { sequelize, Consultation, ExpertShift, ExpertPayout, Appointment } = require('../models');
 const { recordClaim, validateClaimInput } = require('../utils/refunds');
+const points = require('../utils/points');
 const { CONSULT_SLOTS, CONSULT_SLOT_MINUTES, EXAM_SLOT_MINUTES } = require('../utils/shiftSlots');
 const { generateRoomToken } = require('../utils/zegoToken');
 const { maskName } = require('./review.controller');
@@ -13,7 +14,8 @@ const { maskName } = require('./review.controller');
 // Lịch tư vấn cũ (trước quy định này) đã gắn trừ vào lịch khám vẫn được tính đúng khi chốt bill.
 // HOÀN THÀNH = cả 2 bên đã vào phòng, đủ thời lượng tối thiểu VÀ chuyên gia đã gửi kết quả tư vấn (không chỉ là mở phòng).
 // Khách không vào phòng => mất cọc. Chuyên gia không vào / không gửi kết quả trong hạn / phòng khám hủy => hoàn cọc.
-// Khách tự hủy => mất cọc (giống lịch khám); trước giờ hẹn từ 24 giờ được đổi lịch 1 lần miễn phí.
+// Khách tự hủy (giống lịch khám): trước giờ hẹn từ 24 giờ => phí đổi thành Điểm GlowSkin; trong vòng 24 giờ => mất phí.
+// Trước giờ hẹn từ 24 giờ được đổi lịch 1 lần miễn phí. Khách đủ điểm thì trả phí tư vấn bằng điểm.
 const { CONSULT_FEE: CONSULT_DEPOSIT } = require('../utils/timing');
 const CONSULT_FIELDS = { DERMATOLOGY: 'Da liễu', NUTRITION: 'Dinh dưỡng', COSMETICS: 'Mỹ phẩm' };
 const { TIMING, durationLabel } = require('../utils/timing');
@@ -37,7 +39,7 @@ class ConsultError extends Error {
   constructor(message, status = 400, extra = {}) { super(message); this.status = status; this.extra = extra; }
 }
 const sendError = (res, error) => {
-  if (error instanceof ConsultError) return res.status(error.status).json({ message: error.message, ...error.extra });
+  if (error instanceof ConsultError || error instanceof points.PointError) return res.status(error.status).json({ message: error.message, ...error.extra });
   console.error('[Consultation]', error);
   return res.status(500).json({ message: 'Lỗi server', error: error.message });
 };
@@ -177,15 +179,25 @@ const createConsultation = async (req, res) => {
       // Mỗi khách chỉ giữ 1 chỗ chưa cọc: chỗ cũ bỏ dở được trả lại
       await Consultation.destroy({ where: { customer_id: req.user.id, status: 'PENDING_PAYMENT' }, transaction: t });
 
-      return Consultation.create({
+      const c = await Consultation.create({
         customer_id: req.user.id, customer_name,
         expert_id, expert_name: expert.full_name, consult_field: expert.consult_field,
         appointment_date, appointment_time: `${time}:00`, question,
         deposit_amount: CONSULT_DEPOSIT, status: 'PENDING_PAYMENT'
       }, { transaction: t });
+      // Trả phí bằng Điểm GlowSkin (đủ điểm cho toàn bộ phí) => xác nhận ngay, không qua trang QR
+      if (req.body.use_points === true) {
+        await points.spend({ customerId: req.user.id, points: points.pointsToPay(CONSULT_DEPOSIT), type: 'SPEND_CONSULTATION', referenceType: 'CONSULTATION', referenceId: c.id, note: `Trả phí tư vấn ${c.id.slice(0, 6).toUpperCase()}` }, t);
+        await c.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: 'POINTS' }, { transaction: t });
+      }
+      return c;
     });
 
-    res.status(201).json({ message: 'Đã giữ chỗ, vui lòng đặt cọc để xác nhận lịch tư vấn', data: { id: consultation.id } });
+    if (consultation.status === 'CONFIRMED') {
+      sendEmail('CONSULT_BOOKED', consultation.customer_id, `CONSULT_BOOKED:${consultation.id}`, consultMail(consultation));
+      return res.status(201).json({ message: 'Đã đặt lịch tư vấn, phí được trả bằng Điểm GlowSkin', data: { id: consultation.id, paid: true, points_used: points.pointsToPay(CONSULT_DEPOSIT) } });
+    }
+    res.status(201).json({ message: 'Đã giữ chỗ, vui lòng đặt cọc để xác nhận lịch tư vấn', data: { id: consultation.id, paid: false } });
   } catch (error) { sendError(res, error); }
 };
 
@@ -306,19 +318,26 @@ const cancelConsultation = async (req, res) => {
         throw new ConsultError('Lịch tư vấn đã diễn ra, đã kết thúc hoặc đã hủy, không thể hủy nữa');
       }
       const deposit = Number(c.deposit_amount);
-      if (isCustomer && req.body.accept_forfeit !== true) {
-        throw new ConsultError(`Hủy lịch này bạn sẽ mất ${money(deposit)} tiền cọc. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: deposit });
+      const inTime = !dayjs().isAfter(startOf(c).subtract(RESCHEDULE_MIN_MINUTES, 'minute'));
+      const deposit_outcome = initiator === 'CLINIC' ? 'REFUND_PENDING' : inTime ? 'POINTS' : 'FORFEITED';
+      if (isCustomer && deposit_outcome === 'FORFEITED' && req.body.accept_forfeit !== true) {
+        throw new ConsultError(`Hủy lịch trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ hẹn, bạn sẽ mất ${money(deposit)} phí tư vấn. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: deposit });
       }
-      const deposit_outcome = initiator === 'CLINIC' ? 'REFUND_PENDING' : 'FORFEITED';
+      const pointsAdded = deposit_outcome === 'POINTS' ? points.toPoints(deposit) : 0;
       await c.update({
         status: 'CANCELLED', cancel_initiator: initiator, cancel_reason: reason || null,
-        cancelled_by: req.user.id, cancelled_at: new Date(), deposit_outcome
+        cancelled_by: req.user.id, cancelled_at: new Date(), deposit_outcome,
+        ...(pointsAdded ? { refunded_by: req.user.id, refunded_at: new Date() } : {}),
       }, { transaction: t });
-      return { deposit_outcome, deposit };
+      if (pointsAdded) {
+        await points.credit({ customerId: c.customer_id, points: pointsAdded, type: 'CANCEL_REFUND', referenceType: 'CONSULTATION', referenceId: c.id, note: `Hủy lịch tư vấn ${c.id.slice(0, 6).toUpperCase()} trước hạn`, createdBy: isCustomer ? null : req.user.id }, t);
+      }
+      return { deposit_outcome, deposit, points_added: pointsAdded };
     });
     const messages = {
-      FORFEITED: `Đã hủy lịch tư vấn. Tiền cọc ${money(result.deposit)} không được hoàn theo chính sách.`,
+      FORFEITED: `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} không được hoàn vì hủy trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ hẹn.`,
       REFUND_PENDING: `Đã hủy lịch tư vấn. Khách được hoàn ${money(result.deposit)} tiền cọc, vui lòng liên hệ khách để hoàn tiền.`,
+      POINTS: `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} đã đổi thành ${result.points_added.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
     };
     res.status(200).json({ message: messages[result.deposit_outcome], ...result });
   } catch (error) { sendError(res, error); }
@@ -569,8 +588,25 @@ const setReviewVisibility = async (req, res) => {
   } catch (error) { sendError(res, error); }
 };
 
+// [STAFF] PUT /consultations/:id/refund { method: 'POINTS' } — hoàn bằng Điểm GlowSkin (+%) thay vì chuyển khoản
+const refundConsultAsPoints = async (req, res) => {
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const row = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!row || row.deposit_outcome !== 'REFUND_PENDING') throw new ConsultError('Lịch này không có khoản cọc chờ hoàn');
+      const base = points.toPoints(row.deposit_amount);
+      const added = base + Math.floor(base * points.CLINIC_REFUND_BONUS_PERCENT / 100);
+      await points.credit({ customerId: row.customer_id, points: added, type: 'CLINIC_REFUND', referenceType: 'CONSULTATION', referenceId: row.id, note: `Hoàn phí tư vấn ${row.id.slice(0, 6).toUpperCase()} bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)`, createdBy: req.user.id }, t);
+      await row.update({ deposit_outcome: 'POINTS', refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
+      return added;
+    });
+    res.status(200).json({ message: `Đã hoàn bằng ${result.toLocaleString('vi-VN')} Điểm GlowSkin cho khách`, points_added: result });
+  } catch (error) { sendError(res, error); }
+};
+
 // [STAFF] PUT /consultations/:id/refund — ghi nhận đã chuyển khoản hoàn cọc
 const confirmConsultRefund = async (req, res) => {
+  if (req.body.method === 'POINTS') return refundConsultAsPoints(req, res);
   try {
     const refund_ref = String(req.body.refund_ref || '').trim();
     const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });

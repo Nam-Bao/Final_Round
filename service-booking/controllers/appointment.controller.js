@@ -10,6 +10,7 @@ const { EXAM_SLOTS, EXAM_SHIFT_HOURS } = require('../utils/shiftSlots');
 const { findAvailableCredit, getCreditForAppointment, releaseCredit, handleConsultTransfer } = require('./consultation.controller');
 const { isDuplicateTransaction, recordTransaction } = require('../utils/bankLog');
 const { recordOutgoing, recordClaim, validateClaimInput } = require('../utils/refunds');
+const points = require('../utils/points'); // Điểm GlowSkin: hoàn cọc bằng điểm, trả cọc bằng điểm
 
 // Phí khám bác sĩ 100k. Khám online trả trước toàn bộ; khám tại phòng khám cọc 50k, phần còn lại thu khi chốt sale.
 // Server tự quyết định, không tin số tiền / ghi chú từ client.
@@ -17,9 +18,10 @@ const EXAM_FEE = 100000;
 const OFFLINE_DEPOSIT = 50000;
 
 // "Khách cũ" (miễn cọc + miễn phí khám) xét theo HỒ SƠ NGƯỜI ĐƯỢC KHÁM, không theo tài khoản:
-// người thân lần đầu khám vẫn phải cọc và trả phí khám. Chỉ tính lịch đã được thanh toán/phục vụ
-// (lịch hủy hoặc chưa trả tiền KHÔNG tính, để không thể đặt 1 lịch bỏ đó rồi đặt lịch thứ 2 miễn phí).
-const SERVED_STATUSES = ['CONFIRMED', 'CHECK_IN', 'WAITING', 'IN_PROGRESS', 'WAITING_FOR_SALE', 'COMPLETED', 'NEEDS_RESCHEDULE'];
+// người thân lần đầu khám vẫn phải cọc và trả phí khám. Chỉ tính lịch BÁC SĨ ĐÃ KHÁM XONG
+// (chờ thu tiền hoặc hoàn thành). Lịch mới đặt cọc, đang chờ, đang khám, cần đổi lịch, đã hủy, không đến KHÔNG tính:
+// trước đây tính cả lịch đã cọc chưa khám => khách mới cọc 1 lịch là đặt thêm lịch khác miễn phí.
+const EXAMINED_STATUSES = ['WAITING_FOR_SALE', 'COMPLETED'];
 const SELF_RELATIONSHIP = 'Bản thân';
 // Ca còn hiệu lực: chấm công xong ca chuyển sang ATTENDED nhưng bác sĩ vẫn đang làm
 const WORKING_SHIFT_STATUSES = ['SCHEDULED', 'ATTENDED'];
@@ -32,9 +34,8 @@ const isOldPatient = async (customer_id, profile) => {
   const profileMatch = profile.relationship === SELF_RELATIONSHIP
     ? { [Op.or]: [{ patient_profile_id: profile.id }, { patient_profile_id: null }] }
     : { patient_profile_id: profile.id };
-  // Khách đến thẳng chỉ tính là khách cũ khi bác sĩ đã khám (đang ngồi chờ rồi bỏ về thì không tính)
-  const walkInServed = { [Op.or]: [{ source: null }, { source: { [Op.ne]: WALK_IN } }, { status: { [Op.notIn]: ['CHECK_IN', 'WAITING'] } }] };
-  return (await Appointment.count({ where: { customer_id, ...profileMatch, status: { [Op.in]: SERVED_STATUSES }, [Op.and]: [walkInServed] } })) > 0;
+  // Áp dụng như nhau cho lịch đặt online, CSKH tạo và khách đến thẳng (ngồi chờ rồi bỏ về thì chưa phải khách cũ)
+  return (await Appointment.count({ where: { customer_id, ...profileMatch, status: { [Op.in]: EXAMINED_STATUSES } } })) > 0;
 };
 
 const calculateDeposit = async (customer_id, profile, preNotes) => {
@@ -105,10 +106,13 @@ const getDepositQuote = async (req, res) => {
     // Cọc tư vấn chuyên gia còn hạn => trừ vào phí khám (khám online trả trước nên trừ ngay; tại quầy trừ lúc chốt bill)
     const credit = old ? null : await findAvailableCredit(req.user.id);
     const consultCredit = credit ? Number(credit.deposit_amount) : 0;
+    const online = old ? 0 : Math.max(EXAM_FEE - consultCredit, 0);
+    const offline = old ? 0 : OFFLINE_DEPOSIT;
     res.status(200).json({
       data: {
-        isOldCustomer: old, examFee: EXAM_FEE, consultCredit,
-        online: old ? 0 : Math.max(EXAM_FEE - consultCredit, 0), offline: old ? 0 : OFFLINE_DEPOSIT
+        isOldCustomer: old, examFee: EXAM_FEE, consultCredit, online, offline,
+        // Điểm GlowSkin: số điểm cần để trả cọc từng hình thức (đủ điểm mới trả được bằng điểm)
+        points: { balance: await points.balanceOf(req.user.id), value_vnd: points.POINT_VALUE_VND, online: points.pointsToPay(online), offline: points.pointsToPay(offline) },
       }
     });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
@@ -196,7 +200,7 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
 class WalkInError extends Error {
   constructor(message, status = 400, extra = {}) { super(message); this.status = status; this.extra = extra; }
 }
-const walkInFail = (res, error) => (error instanceof WalkInError
+const walkInFail = (res, error) => (error instanceof WalkInError || error instanceof points.PointError
   ? res.status(error.status).json({ message: error.message, ...error.extra })
   : res.status(500).json({ message: 'Lỗi server', error: error.message }));
 
@@ -306,7 +310,7 @@ const getMyHistory = async (req, res) => {
       where: { customer_id: req.user.id },
       include: [
         { model: Invoice, attributes: ['payment_status', 'total_amount'] },
-        { model: AppointmentCancellation, attributes: ['initiator', 'reason', 'deposit_paid', 'deposit_outcome', 'refund_ref', 'refunded_at', 'createdAt'] }
+        { model: AppointmentCancellation, attributes: ['initiator', 'reason', 'deposit_paid', 'deposit_outcome', 'refund_ref', 'refund_note', 'refunded_at', 'createdAt'] }
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -424,7 +428,9 @@ const createAppointment = async (req, res) => {
 
     const deposit = await calculateDeposit(customer_id, profile, finalPreNotes);
 
-    const { newAppointment, invoice, consultCredit } = await sequelize.transaction(async (t) => {
+    // Khách trả cọc bằng Điểm GlowSkin: chỉ khi đủ điểm cho toàn bộ cọc => xác nhận lịch ngay, không giữ chỗ chờ QR
+    const usePoints = req.user.role === 'CUSTOMER' && req.body.use_points === true;
+    const { newAppointment, invoice, consultCredit, pointsUsed } = await sequelize.transaction(async (t) => {
       await lockSlot(doctor_id, appointment_date, t);
       throwSlotError(await validateAppointmentSlot({ doctor_id, appointment_date, appointment_time, isCustomer: req.user.role === 'CUSTOMER', transaction: t }));
       const created = await Appointment.create({
@@ -454,8 +460,17 @@ const createAppointment = async (req, res) => {
       // Khám online trả trước toàn bộ phí khám => trừ cọc tư vấn ngay; khám tại quầy vẫn cọc như cũ, trừ lúc chốt bill
       const amount = isOnlineAppointment(created) ? Math.max(deposit.amount - credit, 0) : deposit.amount;
       const inv = await Invoice.create({ customer_id, appointment_id: created.id, total_amount: amount, payment_status: 'PENDING' }, { transaction: t });
-      return { newAppointment: created, invoice: inv, consultCredit: credit };
+      let used = 0;
+      if (usePoints && amount > 0) {
+        used = points.pointsToPay(amount);
+        await points.spend({ customerId: customer_id, points: used, type: 'SPEND_APPOINTMENT', referenceType: 'APPOINTMENT', referenceId: created.id, note: `Trả cọc lịch khám ${created.id.slice(0, 6).toUpperCase()}` }, t);
+        // Không ghi Transaction INCOME: không có tiền mới vào, điểm là khoản phòng khám đã nợ khách từ trước
+        await created.update({ status: isOnlineAppointment(created) ? 'WAITING' : 'CONFIRMED' }, { transaction: t });
+        await inv.update({ payment_status: 'PAID', payment_method: 'POINTS' }, { transaction: t });
+      }
+      return { newAppointment: created, invoice: inv, consultCredit: credit, pointsUsed: used };
     });
+    if (pointsUsed) sendEmail('APPOINTMENT_BOOKED', newAppointment.customer_id, `APT_BOOKED:${newAppointment.id}`, { ...aptMail(newAppointment), paid: Number(invoice.total_amount) });
 
     // Khách cũ miễn phí cọc: chốt lịch luôn, không cần qua trang thanh toán
     if (deposit.amount === 0 && req.user.role === 'CUSTOMER') {
@@ -467,7 +482,9 @@ const createAppointment = async (req, res) => {
       data: newAppointment,
       deposit_amount: Number(invoice.total_amount),
       consult_credit: consultCredit,
-      is_returning_customer: deposit.isReturningCustomer
+      is_returning_customer: deposit.isReturningCustomer,
+      points_used: pointsUsed,
+      paid: pointsUsed > 0 || deposit.amount === 0,
     });
   } catch (error) { walkInFail(res, error); }
 };
@@ -831,8 +848,12 @@ const updateAppointment = async (req, res) => {
 };
 
 // ===== HỦY LỊCH & TIỀN CỌC =====
-// Khách tự hủy (hoặc nhờ CSKH hủy hộ) => MẤT cọc. Phòng khám chủ động hủy => hoàn cọc: CSKH liên hệ khách,
-// chuyển khoản rồi ghi nhận mã giao dịch. Mọi lần hủy đều lưu vào AppointmentCancellations làm bằng chứng.
+// Khách tự hủy (hoặc nhờ CSKH hủy hộ):
+//   - trước giờ khám từ 24 giờ trở lên => cọc đổi thành Điểm GlowSkin (không mất), dùng trả cọc lần sau
+//   - trong vòng 24 giờ => MẤT cọc
+// Lịch phòng khám đã chuyển sang "cần đổi lịch" (bác sĩ nghỉ) mà khách hủy => luôn đổi cọc thành điểm (lỗi không phải của khách).
+// Phòng khám chủ động hủy => chờ hoàn cọc: CSKH chọn chuyển khoản (nhập mã giao dịch) hoặc hoàn bằng điểm (cộng thêm %).
+// Mọi lần hủy đều lưu vào AppointmentCancellations làm bằng chứng.
 const NO_SHOW_GRACE_MINUTES = TIMING.noShowGraceMinutes;   // quá giờ hẹn bao lâu mới được ghi khách không đến (mặc định 15 phút)
 const RESCHEDULE_MIN_MINUTES = TIMING.rescheduleMinMinutes; // khách tự đổi lịch trước giờ khám ít nhất (mặc định 24 giờ)
 const CUSTOMER_CANCELLABLE = ['PENDING_PAYMENT', 'PENDING', 'CONFIRMED', 'NEEDS_RESCHEDULE'];
@@ -964,12 +985,13 @@ const cancelAppointment = async (req, res) => {
 
     const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, transaction: t, lock: t.LOCK.UPDATE });
     const depositPaid = getDepositPaid(invoice);
-    // Khách tự hủy lịch đã đóng cọc phải xác nhận đã biết sẽ mất cọc (giao diện hỏi lại trước khi gửi)
-    if (isCustomer && depositPaid > 0 && req.body.accept_forfeit !== true) {
-      throw new CancelError(`Hủy lịch này bạn sẽ mất ${depositPaid.toLocaleString('vi-VN')}đ tiền cọc. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: depositPaid });
+    const inTime = !dayjs().isAfter(start.subtract(RESCHEDULE_MIN_MINUTES, 'minute')) || apt.status === 'NEEDS_RESCHEDULE';
+    const deposit_outcome = depositPaid === 0 ? 'NONE' : initiator === 'CLINIC' ? 'REFUND_PENDING' : inTime ? 'POINTS' : 'FORFEITED';
+    // Khách tự hủy trong vòng 24 giờ phải xác nhận đã biết sẽ mất cọc (giao diện hỏi lại trước khi gửi)
+    if (isCustomer && deposit_outcome === 'FORFEITED' && req.body.accept_forfeit !== true) {
+      throw new CancelError(`Hủy lịch trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ khám, bạn sẽ mất ${depositPaid.toLocaleString('vi-VN')}đ tiền cọc. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: depositPaid });
     }
-
-    const deposit_outcome = depositPaid === 0 ? 'NONE' : initiator === 'CLINIC' ? 'REFUND_PENDING' : 'FORFEITED';
+    const pointsAdded = deposit_outcome === 'POINTS' ? points.toPoints(depositPaid) : 0;
     await AppointmentCancellation.create({
       appointment_id: apt.id,
       cancelled_by: req.user.id,
@@ -980,7 +1002,11 @@ const cancelAppointment = async (req, res) => {
       deposit_paid: depositPaid,
       deposit_outcome,
       forfeit_acknowledged: isCustomer && deposit_outcome === 'FORFEITED',
+      ...(pointsAdded ? { refunded_by: req.user.id, refunded_at: new Date(), refund_note: `Đổi thành ${pointsAdded.toLocaleString('vi-VN')} điểm` } : {}),
     }, { transaction: t });
+    if (pointsAdded) {
+      await points.credit({ customerId: apt.customer_id, points: pointsAdded, type: 'CANCEL_REFUND', referenceType: 'APPOINTMENT', referenceId: apt.id, note: `Hủy lịch khám ${apt.id.slice(0, 6).toUpperCase()} trước hạn`, createdBy: isCustomer ? null : req.user.id }, t);
+    }
 
     // Hóa đơn cọc giữ nguyên "đã thu": mất cọc thì phòng khám giữ tiền; hoàn cọc thì chỉ chuyển REFUNDED khi CSKH đã chuyển khoản
     apt.status = 'CANCELLED';
@@ -991,10 +1017,11 @@ const cancelAppointment = async (req, res) => {
     const amount = `${depositPaid.toLocaleString('vi-VN')}đ`;
     const messages = {
       NONE: 'Hủy lịch thành công',
-      FORFEITED: `Đã hủy lịch. Tiền cọc ${amount} không được hoàn theo chính sách.`,
+      FORFEITED: `Đã hủy lịch. Tiền cọc ${amount} không được hoàn vì hủy trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ khám.`,
       REFUND_PENDING: `Đã hủy lịch. Khách được hoàn ${amount} tiền cọc, vui lòng liên hệ khách để hoàn tiền.`,
+      POINTS: `Đã hủy lịch. Tiền cọc ${amount} đã đổi thành ${pointsAdded.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
     };
-    res.status(200).json({ message: messages[deposit_outcome], deposit_outcome, deposit_paid: depositPaid });
+    res.status(200).json({ message: messages[deposit_outcome], deposit_outcome, deposit_paid: depositPaid, points_added: pointsAdded });
   } catch (error) {
     await t.rollback();
     if (error instanceof CancelError) return res.status(error.status).json({ message: error.message, ...error.extra });
@@ -1015,8 +1042,30 @@ const getPendingDepositRefunds = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
+// [STAFF] PUT /appointments/:id/refund-deposit { method: 'POINTS' } — khách chọn nhận Điểm GlowSkin thay vì tiền
+// (cộng thêm CLINIC_REFUND_BONUS_PERCENT vì lỗi của phòng khám). Không có tiền ra nên không ghi giao dịch hoàn / đối chiếu ngân hàng.
+const refundDepositAsPoints = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const cancellation = await AppointmentCancellation.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!cancellation || cancellation.deposit_outcome !== 'REFUND_PENDING') throw new CancelError('Lịch này không có khoản cọc chờ hoàn');
+    const apt = await Appointment.findByPk(req.params.id, { attributes: ['id', 'customer_id'], transaction: t });
+    const base = points.toPoints(cancellation.deposit_paid);
+    const added = base + Math.floor(base * points.CLINIC_REFUND_BONUS_PERCENT / 100);
+    await points.credit({ customerId: apt.customer_id, points: added, type: 'CLINIC_REFUND', referenceType: 'APPOINTMENT', referenceId: apt.id, note: `Phòng khám hủy lịch ${apt.id.slice(0, 6).toUpperCase()}, hoàn cọc bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)`, createdBy: req.user.id }, t);
+    await cancellation.update({ deposit_outcome: 'POINTS', refund_note: `Hoàn bằng ${added.toLocaleString('vi-VN')} điểm. ${String(req.body.note || '').trim().slice(0, 400)}`.trim(), refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
+    await t.commit();
+    res.status(200).json({ message: `Đã hoàn cọc bằng ${added.toLocaleString('vi-VN')} Điểm GlowSkin cho khách`, points_added: added });
+  } catch (error) {
+    await t.rollback();
+    if (error instanceof CancelError) return res.status(error.status).json({ message: error.message });
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
 // [STAFF] Ghi nhận đã chuyển khoản hoàn cọc: lưu mã giao dịch, hóa đơn chuyển REFUNDED và ghi giao dịch hoàn tiền
 const confirmDepositRefund = async (req, res) => {
+  if (req.body.method === 'POINTS') return refundDepositAsPoints(req, res);
   const refund_ref = String(req.body.refund_ref || '').trim();
   const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });
   if (invalid) return res.status(400).json({ message: invalid });

@@ -131,8 +131,9 @@ export default function PolicyPage() {
           <Section id="huy-lich">
             <Rules section="huy-lich" items={[
               <>Bạn tự hủy được lịch <b>chưa khám</b> (chờ xác nhận, đã xác nhận, cần xếp lại lịch) ngay trong mục Sổ lịch khám. Lịch khám trực tuyến đã thanh toán tự hủy được trước giờ khám.</>,
-              <>Lịch đã đặt cọc mà bị hủy trước khi khám thì <b>mất 100% tiền cọc</b>, dù bạn tự hủy trên website hay nhờ CSKH hủy hộ. Với lịch khám trực tuyến, khoản mất là toàn bộ phí khám {vnd(EXAM_FEE)} đã trả trước. Hệ thống yêu cầu bạn xác nhận số tiền cọc bị mất trước khi hủy.</>,
-              <>Trường hợp <b>phòng khám chủ động hủy lịch</b> (bác sĩ vắng, sự cố...), bạn được <b>hoàn lại 100% tiền cọc</b>. Lý do hủy và số tiền được hoàn hiển thị trong Sổ lịch khám; vui lòng liên hệ CSKH để cung cấp tài khoản nhận tiền. Khi chuyển khoản xong, mã giao dịch hoàn tiền được cập nhật vào lịch của bạn.</>,
+              <>Hủy lịch đã đặt cọc <b>trước giờ khám ít nhất {durationLabel(timing().rescheduleMinMinutes)}</b> (tự hủy trên website hoặc nhờ CSKH hủy hộ): tiền cọc được <b>đổi thành Điểm GlowSkin</b> (1 điểm = 100đ), dùng để trả cọc lịch khám hoặc phí tư vấn lần sau. Điểm không đổi ra tiền mặt. Lịch đã được phòng khám chuyển sang "cần xếp lại lịch" thì hủy lúc nào cũng được đổi thành điểm.</>,
+              <>Hủy <b>trong vòng {durationLabel(timing().rescheduleMinMinutes)}</b> trước giờ khám thì <b>mất 100% tiền cọc</b>. Với lịch khám trực tuyến, khoản mất là toàn bộ phí khám {vnd(EXAM_FEE)} đã trả trước. Hệ thống yêu cầu bạn xác nhận số tiền cọc bị mất trước khi hủy.</>,
+              <>Trường hợp <b>phòng khám chủ động hủy lịch</b> (bác sĩ vắng, sự cố...), bạn được hoàn <b>100% tiền cọc</b> theo lựa chọn của bạn: nhận lại tiền (cung cấp tài khoản cho CSKH, mã giao dịch hoàn tiền được cập nhật vào lịch) hoặc nhận Điểm GlowSkin <b>cộng thêm 10%</b>.</>,
               <>Lịch đã check-in, đang khám hoặc đã khám xong <b>không thể hủy</b>.</>,
               <>Nếu bận, bạn nên đổi lịch thay vì hủy: trước giờ khám <b>ít nhất {durationLabel(timing().rescheduleMinMinutes)}</b>, bạn được tự đổi ngày giờ <b>1 lần, không mất cọc</b> trong Sổ lịch khám.</>,
               <>Sau giờ hẹn 15 phút mà bạn không đến, phòng khám ghi nhận <b>khách không đến</b> và bạn mất tiền cọc như khi tự hủy.</>,
@@ -230,7 +231,7 @@ export default function PolicyPage() {
               <>Phí mỗi buổi tư vấn là <b>{consultFee().toLocaleString('vi-VN')}đ</b>, thanh toán trước khi xác nhận lịch và <b>không trừ vào phí khám</b>.</>,
               <>Muốn đi khám sau buổi tư vấn: đến quầy và cho nhân viên xem lịch sử tư vấn. Nhân viên kiểm tra và áp <b>voucher ưu đãi</b> trên tổng hóa đơn sau khám (phí khám, dịch vụ, gói liệu trình, mỹ phẩm).</>,
               <>Bạn không vào phòng thì <b>không được hoàn phí</b>. Chuyên gia vắng hoặc không gửi kết quả đúng hạn thì bạn được <b>hoàn phí 100%</b>.</>,
-              <>Trước giờ hẹn ít nhất {durationLabel(timing().rescheduleMinMinutes)}, bạn được tự đổi lịch <b>1 lần, miễn phí</b>. Tự hủy lịch thì không được hoàn phí.</>,
+              <>Trước giờ hẹn ít nhất {durationLabel(timing().rescheduleMinMinutes)}, bạn được tự đổi lịch <b>1 lần, miễn phí</b>. Tự hủy trước mốc này thì phí tư vấn đổi thành <b>Điểm GlowSkin</b>; hủy trong vòng {durationLabel(timing().rescheduleMinMinutes)} thì không được hoàn phí.</>,
               <>Mỗi tài khoản không đặt được 2 lịch trùng giờ, kể cả với chuyên gia khác hoặc lịch khám của bạn.</>,
               <>Sản phẩm chuyên gia gợi ý chỉ mang tính tham khảo, không phải đơn thuốc. Chuyên gia không kê thuốc.</>,
               <>Đánh giá vi phạm quy định (xúc phạm, quảng cáo, thông tin sai) có thể bị quản lý ẩn.</>,

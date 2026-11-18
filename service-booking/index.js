@@ -32,6 +32,7 @@ app.use('/follow-ups', require('./routes/followUp.route')); // CSKH gọi chăm 
 app.use('/safety', require('./routes/safety.route')); // sàng lọc an toàn, cảnh báo chống chỉ định
 app.use('/safety-rules', require('./routes/safetyRule.route')); // quản lý quy tắc: quản lý soạn -> bác sĩ xem xét -> quản lý duyệt
 app.use('/tasks', require('./routes/task.route')); // việc đang chờ (chuông thông báo)
+app.use('/points', require('./routes/points.route')); // Điểm GlowSkin: hoàn cọc bằng điểm, trả cọc bằng điểm
 
 app.listen(PORT, async() => {
     console.log(`🚀 [Booking Service] đang chạy tại port ${PORT}`);
@@ -45,6 +46,21 @@ app.listen(PORT, async() => {
         await sequelize.query(`DO $$ BEGIN
           IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Appointments_status') THEN
             ALTER TYPE "enum_Appointments_status" ADD VALUE IF NOT EXISTS 'NO_SHOW';
+          END IF;
+        END $$;`);
+        // Điểm GlowSkin: cọc đổi thành điểm (deposit_outcome = POINTS), trả cọc bằng điểm (payment_method = POINTS)
+        await sequelize.query(`DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_AppointmentCancellations_deposit_outcome') THEN
+            ALTER TYPE "enum_AppointmentCancellations_deposit_outcome" ADD VALUE IF NOT EXISTS 'POINTS';
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Consultations_deposit_outcome') THEN
+            ALTER TYPE "enum_Consultations_deposit_outcome" ADD VALUE IF NOT EXISTS 'POINTS';
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Invoices_payment_method') THEN
+            ALTER TYPE "enum_Invoices_payment_method" ADD VALUE IF NOT EXISTS 'POINTS';
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Consultations_payment_method') THEN
+            ALTER TYPE "enum_Consultations_payment_method" ADD VALUE IF NOT EXISTS 'POINTS';
           END IF;
         END $$;`);
         await sequelize.sync({ alter });

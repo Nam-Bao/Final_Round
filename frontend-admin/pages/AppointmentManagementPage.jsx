@@ -258,6 +258,20 @@ export default function AppointmentManagementPage() {
     } finally { setLoading(false); }
   };
 
+  // Khách chọn nhận Điểm GlowSkin thay vì tiền (cộng thêm 10%, không cần chuyển khoản)
+  const handleRefundAsPoints = (item) => Modal.confirm({
+    title: 'Hoàn cọc bằng Điểm GlowSkin?',
+    content: `Khách nhận ${Math.floor(Number(item.deposit_paid) / 100 * 1.1).toLocaleString('vi-VN')} điểm (cọc ${Number(item.deposit_paid).toLocaleString('vi-VN')}đ, cộng thêm 10%). Chỉ chọn khi khách đã đồng ý nhận điểm thay cho tiền.`,
+    okText: 'Hoàn bằng điểm', cancelText: 'Hủy',
+    onOk: async () => {
+      try {
+        const res = await axios.put(`http://localhost:4000/api/booking/appointments/${item.appointment_id}/refund-deposit`, { method: 'POINTS' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        message.success(res.data.message);
+        fetchData();
+      } catch (error) { message.error(error.response?.data?.message || 'Không hoàn được bằng điểm'); }
+    },
+  });
+
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
@@ -361,7 +375,10 @@ export default function AppointmentManagementPage() {
                       </div>
                       <Text type="secondary" className="text-xs block"><PhoneOutlined/> {patient.phone || 'Chưa có SĐT'} · Lịch {dayjs(item.Appointment?.appointment_date).format('DD/MM')}</Text>
                       <Text className="text-xs block text-gray-500">Lý do hủy: {item.reason}</Text>
-                      <Button size="small" type="primary" className="mt-1" onClick={() => { setRefundTarget(item); setRefundRef(''); setRefundNote(''); setRefundAccount(''); }}>Đã chuyển khoản hoàn cọc</Button>
+                      <Space size={4} wrap className="mt-1">
+                        <Button size="small" type="primary" onClick={() => { setRefundTarget(item); setRefundRef(''); setRefundNote(''); setRefundAccount(''); }}>Đã chuyển khoản hoàn cọc</Button>
+                        <Button size="small" onClick={() => handleRefundAsPoints(item)}>Hoàn bằng điểm</Button>
+                      </Space>
                     </div>
                   </List.Item>
                 );
