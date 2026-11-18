@@ -214,8 +214,8 @@ export default function DoctorProfileModal({ doctorId, onClose, onBook, kind = '
                     <CalendarCheck className="w-4 h-4" /> {isExpert ? 'Đặt lịch tư vấn' : 'Đặt lịch khám'}
                   </Link>
                 )}
-                {!isExpert && stats.count > 0 && (
-                  <Link to={`/reviews?doctor=${doctor.id}`} className="btn btn-outline btn-primary gap-2">
+                {stats.count > 0 && (
+                  <Link to={isExpert ? `/reviews?tab=expert&expert=${doctor.id}` : `/reviews?doctor=${doctor.id}`} className="btn btn-outline btn-primary gap-2">
                     <MessageSquare className="w-4 h-4" /> Xem tất cả đánh giá
                   </Link>
                 )}

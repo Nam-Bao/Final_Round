@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Star, MessageSquare, ShieldCheck, User, Calendar, Stethoscope, Sparkles, ShoppingBag } from 'lucide-react';
+import { Star, MessageSquare, ShieldCheck, User, Calendar, Stethoscope, Sparkles, ShoppingBag, MessagesSquare } from 'lucide-react';
 
 // Tên bác sĩ trong hồ sơ có thể đã kèm "BS." — chỉ thêm khi chưa có
 const doctorTitle = (name) => (/^(BS|Bác sĩ)/i.test(name || '') ? name : `BS. ${name}`);
@@ -29,6 +29,17 @@ const TABS = {
     detail: 'Mỗi buổi dịch vụ / buổi liệu trình được đánh giá một lần.',
     empty: 'Chưa có đánh giá dịch vụ nào. Bạn có thể đánh giá trong Sổ lịch khám sau khi hoàn thành buổi dịch vụ.',
   },
+  expert: {
+    label: 'Chuyên gia tư vấn',
+    icon: MessagesSquare,
+    url: '/api/booking/consultations/reviews',
+    subjectKey: 'expert_id',
+    subjectName: (r) => (r.expert_name ? `${r.expert_name}${r.consult_field_label ? ` · ${r.consult_field_label}` : ''}` : null),
+    allLabel: 'Tất cả chuyên gia',
+    rule: 'Chỉ khách đã hoàn thành buổi tư vấn mới được đánh giá',
+    detail: 'Mỗi buổi tư vấn được đánh giá một lần, sau khi chuyên gia gửi kết quả.',
+    empty: 'Chưa có đánh giá chuyên gia nào. Bạn có thể đánh giá trong Sổ lịch khám sau khi buổi tư vấn hoàn thành.',
+  },
   product: {
     label: 'Mỹ phẩm',
     icon: ShoppingBag,
@@ -55,11 +66,12 @@ export default function ReviewsPage() {
   const tab = TABS[searchParams.get('tab')] ? searchParams.get('tab') : 'doctor';
   const config = TABS[tab];
 
-  const [reviewsByTab, setReviewsByTab] = useState({ doctor: [], service: [], product: [] });
+  const [reviewsByTab, setReviewsByTab] = useState(Object.fromEntries(Object.keys(TABS).map((k) => [k, []])));
   const [loading, setLoading] = useState(true);
   const [filterRating, setFilterRating] = useState('ALL');
-  // ?doctor=<id> (từ trang Đội ngũ bác sĩ) lọc sẵn đánh giá của bác sĩ đó
-  const [filterSubject, setFilterSubject] = useState(tab === 'doctor' && searchParams.get('doctor') ? searchParams.get('doctor') : 'ALL');
+  // ?doctor=<id> (từ trang Đội ngũ bác sĩ) / ?expert=<id> lọc sẵn đánh giá của bác sĩ / chuyên gia đó
+  const presetSubject = (tab === 'doctor' && searchParams.get('doctor')) || (tab === 'expert' && searchParams.get('expert'));
+  const [filterSubject, setFilterSubject] = useState(presetSubject || 'ALL');
 
   useEffect(() => {
     let isMounted = true;
@@ -126,7 +138,7 @@ export default function ReviewsPage() {
           <MessageSquare className="w-7 h-7 text-primary" /> Đánh Giá Từ Khách Hàng
         </h1>
         <p className="text-base-content/60 mt-1">
-          Trải nghiệm thực tế của khách hàng về bác sĩ, dịch vụ và dược mỹ phẩm tại GlowSkin.
+          Trải nghiệm thực tế của khách hàng về bác sĩ, dịch vụ, chuyên gia tư vấn và dược mỹ phẩm tại GlowSkin.
         </p>
       </div>
 

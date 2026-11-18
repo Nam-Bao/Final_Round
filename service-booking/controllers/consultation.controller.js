@@ -713,15 +713,21 @@ const getPublicExpertStats = async (req, res) => {
 };
 
 // [PUBLIC] GET /consultations/reviews?expert_id=
+// Có expert_id: đánh giá của 1 chuyên gia (popup hồ sơ, 20 mới nhất). Không có: đánh giá của mọi chuyên gia cho trang Đánh giá.
+// Chỉ buổi đã hoàn thành (cả 2 bên vào phòng, chuyên gia gửi kết quả) mới được đánh giá; quản lý ẩn được đánh giá vi phạm.
 const getPublicConsultReviews = async (req, res) => {
   try {
-    if (!isUuid(req.query.expert_id)) return res.status(200).json({ data: [] });
+    const one = req.query.expert_id !== undefined;
+    if (one && !isUuid(req.query.expert_id)) return res.status(200).json({ data: [] });
     const rows = await Consultation.findAll({
-      where: { expert_id: req.query.expert_id, status: 'COMPLETED', rating: { [Op.ne]: null }, review_hidden: { [Op.not]: true } },
-      order: [['reviewed_at', 'DESC']], limit: 20
+      where: { ...(one ? { expert_id: req.query.expert_id } : {}), status: 'COMPLETED', rating: { [Op.ne]: null }, review_hidden: { [Op.not]: true } },
+      order: [['reviewed_at', 'DESC']], limit: one ? 20 : 200
     });
     res.status(200).json({
-      data: rows.map((c) => ({ id: c.id, customer_name: maskName(c.customer_name), rating: c.rating, comment: c.review_comment || '', createdAt: c.reviewed_at }))
+      data: rows.map((c) => ({
+        id: c.id, customer_name: maskName(c.customer_name), rating: c.rating, comment: c.review_comment || '', createdAt: c.reviewed_at,
+        expert_id: c.expert_id, expert_name: c.expert_name, consult_field: c.consult_field, consult_field_label: CONSULT_FIELDS[c.consult_field] || c.consult_field,
+      }))
     });
   } catch (error) { sendError(res, error); }
 };
