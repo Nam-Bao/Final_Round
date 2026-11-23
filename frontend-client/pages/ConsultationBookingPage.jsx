@@ -29,6 +29,15 @@ export default function ConsultationBookingPage() {
   const [question, setQuestion] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [points, setPoints] = useState(null); // Điểm GlowSkin { balance, value_vnd }
+  const [usePoints, setUsePoints] = useState(false);
+  useEffect(() => {
+    if (!token) return;
+    axios.get(`${API}/booking/points/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => setPoints(r.data.data)).catch(() => setPoints(null));
+  }, [token]);
+  const pointsNeeded = points ? Math.ceil(consultFee() / points.value_vnd) : 0;
+  const canPayWithPoints = !!points && points.balance >= pointsNeeded;
 
   // Danh sách chuyên gia (tất cả lĩnh vực) + điểm đánh giá thật từ các buổi tư vấn đã hoàn thành
   useEffect(() => {
@@ -71,6 +80,7 @@ export default function ConsultationBookingPage() {
     try {
       const res = await axios.post(`${API}/booking/consultations`, {
         expert_id: expert.id, appointment_date: date, appointment_time: time, question: question.trim(),
+        use_points: canPayWithPoints && usePoints,
       }, { headers: { Authorization: `Bearer ${token}` } });
       navigate(`/payment/tu-van/${res.data.data.id}`);
     } catch (err) {
@@ -214,9 +224,23 @@ export default function ConsultationBookingPage() {
               <p className="font-semibold flex items-center gap-1"><Info className="w-4 h-4" /> Quy định phí tư vấn</p>
               <p>• Thanh toán trước khi xác nhận lịch, không trừ vào phí khám.</p>
               <p>• Muốn đi khám sau buổi tư vấn: đến quầy và cho nhân viên xem lịch sử tư vấn để được ưu đãi trên hóa đơn sau khám.</p>
-              <p>• Không vào phòng đúng giờ hoặc tự hủy lịch: không hoàn phí.</p>
-              <p>• Chuyên gia vắng mặt hoặc phòng khám hủy lịch: hoàn phí 100%.</p>
+              <p>• Tự hủy lịch trước giờ hẹn từ 24 giờ: phí đổi thành Điểm GlowSkin, dùng trả phí lần sau.</p>
+              <p>• Tự hủy trong vòng 24 giờ hoặc không vào phòng đúng giờ: không hoàn phí.</p>
+              <p>• Chuyên gia vắng mặt hoặc phòng khám hủy lịch: hoàn phí 100% (chuyển khoản hoặc điểm).</p>
             </div>
+            {points && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm space-y-1">
+                <p>Điểm GlowSkin của bạn: <b>{points.balance.toLocaleString('vi-VN')} điểm</b></p>
+                {canPayWithPoints ? (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="checkbox checkbox-sm checkbox-warning" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+                    <span>Trả phí bằng <b>{pointsNeeded.toLocaleString('vi-VN')} điểm</b> (xác nhận lịch ngay)</span>
+                  </label>
+                ) : (
+                  <p className="text-xs opacity-70">Cần {pointsNeeded.toLocaleString('vi-VN')} điểm để trả phí bằng điểm.</p>
+                )}
+              </div>
+            )}
             {error && <p className="text-sm text-error">{error}</p>}
             <button type="button" onClick={handleSubmit} disabled={!expert || !time || submitting} className="btn btn-primary w-full">
               {submitting ? <span className="loading loading-spinner"></span> : 'Thanh toán & xác nhận'}

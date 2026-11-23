@@ -8,6 +8,7 @@ import ReviewModal from './ReviewModal';
 import RescheduleModal from './RescheduleModal';
 import { useAuthStore } from '../store/authStore';
 import { formatVnd } from '../utils/consult';
+import { timing } from '../utils/timing';
 
 const API = '/api/booking/consultations';
 const EXPERTS_API = '/api/identity/users/experts/public';
@@ -24,6 +25,7 @@ const DEPOSIT_TEXT = {
   FORFEITED: 'Tiền cọc không được hoàn theo chính sách.',
   REFUND_PENDING: 'Phòng khám sẽ hoàn lại tiền cọc cho bạn.',
   REFUNDED: 'Đã hoàn tiền cọc.',
+  POINTS: 'Phí tư vấn đã đổi thành Điểm GlowSkin, dùng trả phí lần sau.',
 };
 
 const firstImage = (v) => {
@@ -108,11 +110,16 @@ export default function MyConsultations() {
     setVideoId(c.id);
   };
 
-  // Khách tự hủy => mất cọc (cùng quy định với lịch khám)
+  // Cùng quy định với lịch khám: hủy trước giờ hẹn từ 24 giờ => phí đổi thành Điểm GlowSkin; trong vòng 24 giờ => mất phí
   const handleCancel = async (c) => {
-    if (!window.confirm(`Hủy lịch tư vấn này bạn sẽ MẤT ${formatVnd(c.deposit_amount)} phí tư vấn đã trả, khoản này không được hoàn lại.\n\nBạn vẫn muốn hủy?`)) return;
+    const hours = timing().rescheduleMinMinutes / 60;
+    const inTime = !dayjs().isAfter(dayjs(`${c.appointment_date} ${c.appointment_time}`).subtract(timing().rescheduleMinMinutes, 'minute'));
+    const text = inTime
+      ? `Lịch còn hơn ${hours} giờ nữa mới tới giờ hẹn: phí ${formatVnd(c.deposit_amount)} sẽ được đổi thành Điểm GlowSkin để trả phí lần sau (không hoàn tiền mặt).\n\nBạn muốn hủy?`
+      : `Hủy trong vòng ${hours} giờ trước giờ hẹn, bạn sẽ MẤT ${formatVnd(c.deposit_amount)} phí tư vấn đã trả.\n\nBạn vẫn muốn hủy?`;
+    if (!window.confirm(text)) return;
     try {
-      const res = await axios.put(`${API}/${c.id}/cancel`, { accept_forfeit: true }, { headers });
+      const res = await axios.put(`${API}/${c.id}/cancel`, { accept_forfeit: !inTime }, { headers });
       alert(res.data.message);
     } catch (err) {
       alert(err.response?.data?.message || 'Không thể hủy lịch tư vấn');

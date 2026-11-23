@@ -89,7 +89,7 @@ const AppointmentCancellation = sequelize.define('AppointmentCancellation', {
     previous_status: { type: DataTypes.STRING, allowNull: false },     // trạng thái lịch lúc bị hủy
     deposit_paid: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
     // NONE: chưa đóng cọc | FORFEITED: khách mất cọc | REFUND_PENDING: chờ CSKH hoàn | REFUNDED: đã hoàn
-    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED'), allowNull: false },
+    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED', 'POINTS'), allowNull: false }, // POINTS: cọc đã đổi thành Điểm GlowSkin
     forfeit_acknowledged: { type: DataTypes.BOOLEAN, defaultValue: false }, // khách đã xác nhận biết sẽ mất cọc
     refund_ref: { type: DataTypes.STRING },   // mã giao dịch chuyển khoản hoàn cọc
     refund_note: { type: DataTypes.TEXT },
@@ -200,7 +200,7 @@ const Invoice = sequelize.define('Invoice', {
     appointment_id: { type: DataTypes.UUID, allowNull: true },
     total_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     payment_status: { type: DataTypes.ENUM('PENDING', 'PAID', 'REFUNDED'), defaultValue: 'PENDING' },
-    payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN'), defaultValue: 'UNKNOWN' },
+    payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN', 'POINTS'), defaultValue: 'UNKNOWN' },
     // Chi tiết hoá đơn lúc chốt (báo cáo doanh thu theo nguồn): phí khám, dịch vụ lẻ, gói, mỹ phẩm, giảm giá, cọc tư vấn
     breakdown: { type: DataTypes.JSONB },
 });
@@ -244,7 +244,7 @@ const Consultation = sequelize.define('Consultation', {
         defaultValue: 'PENDING_PAYMENT'
     },
     deposit_amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN'), defaultValue: 'UNKNOWN' },
+    payment_method: { type: DataTypes.ENUM('VIETQR', 'CASH', 'UNKNOWN', 'POINTS'), defaultValue: 'UNKNOWN' },
     paid_at: { type: DataTypes.DATE },
     // Hủy lịch: cùng quy định với lịch khám (khách hủy => mất cọc, phòng khám hủy => hoàn cọc)
     cancel_initiator: { type: DataTypes.ENUM('CUSTOMER', 'CLINIC') },
@@ -252,7 +252,7 @@ const Consultation = sequelize.define('Consultation', {
     cancelled_by: { type: DataTypes.UUID },
     cancelled_at: { type: DataTypes.DATE },
     // NONE | FORFEITED: phòng khám giữ cọc | REFUND_PENDING: chờ hoàn | REFUNDED: đã hoàn
-    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED'), defaultValue: 'NONE' },
+    deposit_outcome: { type: DataTypes.ENUM('NONE', 'FORFEITED', 'REFUND_PENDING', 'REFUNDED', 'POINTS'), defaultValue: 'NONE' }, // POINTS: cọc đã đổi thành Điểm GlowSkin
     refund_ref: { type: DataTypes.STRING },
     refunded_by: { type: DataTypes.UUID },
     refunded_at: { type: DataTypes.DATE },
@@ -654,6 +654,24 @@ Payroll.hasMany(PayrollItem, { foreignKey: 'payroll_id', onDelete: 'CASCADE' });
 PayrollItem.belongsTo(Payroll, { foreignKey: 'payroll_id' });
 Payroll.hasMany(PayrollAdjustment, { foreignKey: 'payroll_id', onDelete: 'CASCADE' });
 
+// Sổ Điểm GlowSkin: mỗi lần cộng / trừ điểm là 1 dòng, số dư = tổng delta. Không sửa / xoá dòng cũ, sai thì ghi dòng điều chỉnh.
+// type: CANCEL_REFUND (khách hủy trước hạn, cọc đổi thành điểm) | CLINIC_REFUND (phòng khám hủy, CSKH hoàn bằng điểm)
+//       SPEND_APPOINTMENT / SPEND_CONSULTATION (trả cọc bằng điểm) | ADJUST (quản lý điều chỉnh, có lý do)
+const PointTransaction = sequelize.define('PointTransaction', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    customer_id: { type: DataTypes.UUID, allowNull: false },
+    delta: { type: DataTypes.INTEGER, allowNull: false },               // + cộng điểm, - trừ điểm
+    type: { type: DataTypes.STRING(30), allowNull: false },
+    reference_type: { type: DataTypes.STRING(20) },                    // APPOINTMENT | CONSULTATION
+    reference_id: { type: DataTypes.UUID },
+    value_vnd: { type: DataTypes.INTEGER },                            // số tiền tương ứng lúc ghi (để đối chiếu nếu tỷ lệ đổi sau này)
+    note: { type: DataTypes.STRING(500) },
+    created_by: { type: DataTypes.UUID },                              // null = khách tự thao tác
+}, {
+    // Mỗi lịch chỉ hoàn điểm 1 lần, chỉ trừ điểm 1 lần
+    indexes: [{ fields: ['customer_id'] }, { unique: true, fields: ['type', 'reference_id'] }],
+});
+
 // sync() không thêm cột mới vào bảng đã có => tự thêm cột còn thiếu (chỉ thêm, không sửa / xóa cột cũ)
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
@@ -690,6 +708,7 @@ for (const m of [SafetyRule, SafetyRuleReview, SafetySource, SafetyTarget]) watc
 
 module.exports = {
     sequelize,
+    PointTransaction,
     SafetySource, SafetyTarget, SafetyRule, SafetyRuleReview, SafetyRuleEvent, AiReviewLog,
     TreatmentPackage,
     WorkShift,

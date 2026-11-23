@@ -25,6 +25,7 @@ const DEPOSIT = {
   FORFEITED: { color: 'orange', text: 'Mất cọc' },
   REFUND_PENDING: { color: 'red', text: 'Chờ hoàn cọc' },
   REFUNDED: { color: 'green', text: 'Đã hoàn cọc' },
+  POINTS: { color: 'gold', text: 'Đã đổi thành điểm' },
 };
 const SHIFTS = [
   { value: 'MORNING', label: 'Sáng (08-12h)' },
@@ -80,6 +81,20 @@ function ConsultationList() {
     } catch (err) { message.error(err.response?.data?.message || 'Không ghi nhận được'); }
   };
 
+  // Khách chọn nhận Điểm GlowSkin thay vì tiền (cộng thêm 10%, không cần chuyển khoản)
+  const refundAsPoints = (c) => Modal.confirm({
+    title: 'Hoàn bằng Điểm GlowSkin?',
+    content: `Khách ${c.customer_name || ''} nhận ${Math.floor(Number(c.deposit_amount) / 100 * 1.1).toLocaleString('vi-VN')} điểm (phí ${Number(c.deposit_amount).toLocaleString('vi-VN')}đ, cộng thêm 10%). Chỉ chọn khi khách đã đồng ý nhận điểm thay cho tiền.`,
+    okText: 'Hoàn bằng điểm', cancelText: 'Hủy',
+    onOk: async () => {
+      try {
+        const res = await axios.put(`${API}/booking/consultations/${c.id}/refund`, { method: 'POINTS' }, { headers: headers() });
+        message.success(res.data.message);
+        fetchList();
+      } catch (err) { message.error(err.response?.data?.message || 'Không hoàn được bằng điểm'); }
+    },
+  });
+
   const submitPayment = async () => {
     try {
       const res = await axios.put(`${API}/booking/consultations/${payItem.id}/confirm-payment`, payForm, { headers: headers() });
@@ -125,6 +140,7 @@ function ConsultationList() {
           {isManager && c.rating && <Button size="small" onClick={() => toggleReview(c)}>{c.review_hidden ? 'Hiện đánh giá' : 'Ẩn đánh giá'}</Button>}
           {c.status === 'CONFIRMED' && <Button danger size="small" onClick={() => { setCancelItem(c); setCancelForm({ initiator: 'CLINIC', reason: '' }); }}>Hủy lịch</Button>}
           {c.deposit_outcome === 'REFUND_PENDING' && <Button type="primary" size="small" onClick={() => { setRefundItem(c); setRefundRef(''); setRefundAccount(''); }}>Đã hoàn cọc</Button>}
+          {c.deposit_outcome === 'REFUND_PENDING' && <Button size="small" onClick={() => refundAsPoints(c)}>Hoàn bằng điểm</Button>}
         </Space>
       ),
     },

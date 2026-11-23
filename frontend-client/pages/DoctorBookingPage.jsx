@@ -60,6 +60,8 @@ export default function DoctorBookingPage() {
   const [isOldCustomer, setIsOldCustomer] = useState(false);
   const [fee, setFee] = useState(100000);
   const [consultCredit, setConsultCredit] = useState(0); // cọc buổi tư vấn chuyên gia được trừ vào phí khám
+  const [pointsInfo, setPointsInfo] = useState(null);    // Điểm GlowSkin: { balance, online, offline } (số điểm cần cho từng hình thức)
+  const [usePoints, setUsePoints] = useState(false);
   const [status, setStatus] = useState('IDLE');
   
   const navigate = useNavigate();
@@ -116,6 +118,8 @@ export default function DoctorBookingPage() {
         setIsOldCustomer(old);
         setFee(old ? 0 : (quoteData.data?.examFee || 100000));
         setConsultCredit(old ? 0 : Number(quoteData.data?.consultCredit || 0));
+        setPointsInfo(quoteRes.ok ? quoteData.data?.points || null : null);
+        setUsePoints(false);
       } catch (error) { console.error('Lỗi lấy báo giá cọc', error); }
     };
     fetchQuote();
@@ -230,7 +234,8 @@ export default function DoctorBookingPage() {
         appointment_time: `${slot}:00`,
         symptoms: finalSymptoms, 
         pre_exam_images: appointmentType === 'ONLINE' ? uploadedImages : [], // khám trực tiếp: CSKH chụp tại quầy
-        pre_notes: `[ONLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`
+        pre_notes: `[ONLINE] ${isOldCustomer ? 'Khách cũ' : 'Khách mới'}`,
+        use_points: canPayWithPoints && usePoints,
       };
 
       if (appointmentType === 'OFFLINE') {
@@ -287,6 +292,9 @@ export default function DoctorBookingPage() {
   };
 
   const allDisplaySlots = [...availableSlots, ...disabledSlots].sort((a, b) => a.localeCompare(b));
+  // Điểm GlowSkin cần để trả cọc hình thức đang chọn (0 = không phải cọc); chỉ trả bằng điểm khi đủ cho toàn bộ cọc
+  const pointsNeeded = pointsInfo ? (appointmentType === 'ONLINE' ? pointsInfo.online : pointsInfo.offline) : 0;
+  const canPayWithPoints = !isOldCustomer && pointsNeeded > 0 && (pointsInfo?.balance || 0) >= pointsNeeded;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 relative pb-10">
@@ -551,7 +559,21 @@ export default function DoctorBookingPage() {
               {consultCredit > 0 && <div className="flex justify-between text-sm text-success font-medium"><span>Cọc buổi tư vấn chuyên gia:</span><span>-{consultCredit.toLocaleString()} đ</span></div>}
             </div>
             <div className="flex justify-between font-bold text-xl text-primary pt-2 border-t"><span>Tổng:</span><span>{Math.max(fee - consultCredit, 0).toLocaleString()} đ</span></div>
-            
+
+            {!isOldCustomer && pointsNeeded > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm space-y-1">
+                <p>Điểm GlowSkin của bạn: <b>{(pointsInfo?.balance || 0).toLocaleString('vi-VN')} điểm</b></p>
+                {canPayWithPoints ? (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="checkbox checkbox-sm checkbox-warning" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+                    <span>Trả cọc bằng <b>{pointsNeeded.toLocaleString('vi-VN')} điểm</b> (xác nhận lịch ngay, không cần chuyển khoản)</span>
+                  </label>
+                ) : (
+                  <p className="text-xs opacity-70">Cần {pointsNeeded.toLocaleString('vi-VN')} điểm để trả cọc bằng điểm.</p>
+                )}
+              </div>
+            )}
+
             <button 
               onClick={handleSaveAppointment} 
               disabled={!selectedDoc || !slot || status === 'PAYMENT_PROCESSING'} 

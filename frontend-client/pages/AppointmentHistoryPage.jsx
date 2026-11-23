@@ -33,6 +33,13 @@ function CancellationNotice({ cancellation }) {
       </div>
     );
   }
+  if (cancellation.deposit_outcome === 'POINTS') {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 max-w-md">
+        Tiền cọc <b>{amount}</b> đã đổi thành Điểm GlowSkin{cancellation.refund_note ? ` (${cancellation.refund_note})` : ''}. Dùng điểm để trả cọc ở lần đặt lịch sau.
+      </div>
+    );
+  }
   if (cancellation.deposit_outcome === 'REFUND_PENDING') {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 max-w-md space-y-1">
@@ -156,18 +163,21 @@ export default function AppointmentHistoryPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Khách tự hủy lịch đã đóng cọc sẽ mất cọc (chính sách mục 2.2) => hỏi lại rõ số tiền trước khi gửi
+  // Chính sách mục 2.2: hủy trước giờ khám từ 24 giờ => cọc đổi thành Điểm GlowSkin; trong vòng 24 giờ => mất cọc.
+  // Hỏi lại rõ kết quả trước khi gửi (server tự tính lại theo giờ thật, không tin giao diện)
   const handleCancel = async (apt) => {
     const deposit = Number(apt.deposit_paid || 0);
-    const confirmText = deposit > 0
-      ? `Hủy lịch này bạn sẽ MẤT ${formatVnd(deposit)} tiền cọc đã thanh toán (chính sách mục 2.2), tiền cọc không được hoàn lại.
-
-Bạn vẫn muốn hủy lịch?`
-      : 'Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.';
+    const start = dayjs(`${apt.appointment_date} ${String(apt.appointment_time).slice(0, 5)}`);
+    const inTime = !dayjs().isAfter(start.subtract(timing().rescheduleMinMinutes, 'minute')) || apt.status === 'NEEDS_RESCHEDULE';
+    const confirmText = deposit === 0
+      ? 'Bạn có chắc chắn muốn hủy lịch khám này? Giờ khám sẽ được nhường cho người khác.'
+      : inTime
+        ? `Lịch còn hơn ${timing().rescheduleMinMinutes / 60} giờ nữa mới tới giờ khám: tiền cọc ${formatVnd(deposit)} sẽ được đổi thành Điểm GlowSkin để trả cọc lần sau (không hoàn tiền mặt).\n\nBạn muốn hủy lịch?`
+        : `Hủy trong vòng ${timing().rescheduleMinMinutes / 60} giờ trước giờ khám, bạn sẽ MẤT ${formatVnd(deposit)} tiền cọc (chính sách mục 2.2).\n\nBạn vẫn muốn hủy lịch?`;
     if (!window.confirm(confirmText)) return;
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.put(`/api/booking/appointments/${apt.id}/cancel`, { accept_forfeit: deposit > 0 }, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await axios.put(`/api/booking/appointments/${apt.id}/cancel`, { accept_forfeit: deposit > 0 && !inTime }, { headers: { 'Authorization': `Bearer ${token}` } });
       alert(res.data.message || 'Hủy lịch thành công!');
       fetchData();
     } catch (error) {
