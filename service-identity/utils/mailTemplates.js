@@ -231,6 +231,7 @@ const T = {
         APPROVED: ['Yêu cầu hoàn trả đã được duyệt', [p('Nhân viên đã duyệt yêu cầu hoàn trả. GHN sẽ liên hệ lấy hàng tại địa chỉ nhận hàng của đơn, <b>GlowSkin trả phí vận chuyển</b>. Vui lòng đóng gói đủ sản phẩm, hộp và tem.')]],
         REJECTED: ['Yêu cầu hoàn trả không được chấp nhận', [table([row('Lý do', esc(d.reason))]), p(`Cần trao đổi thêm, vui lòng gọi hotline ${esc(ctx.clinic.hotline)}.`)]],
         REFUNDED: ['Đã hoàn tiền hàng trả lại', [table([row('Số tiền', money(d.amount)), row('Mã giao dịch', esc(d.ref))]), p('Tiền thường về tài khoản trong 1 - 3 ngày làm việc.')]],
+        EXCHANGED: ['Sản phẩm đổi đang được chuẩn bị', [table([row('Đơn giao hàng đổi', `#${code(d.exchange_order_id)}`)]), p('Hàng trả lại đã được kiểm tra đạt. GlowSkin giao sản phẩm đổi tới địa chỉ nhận hàng của đơn, bạn không trả thêm tiền.')]],
       }[d.status];
       return {
         subject: `${map[0]} (đơn #${code(d.order_id)})`,

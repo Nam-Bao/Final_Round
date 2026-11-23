@@ -21,5 +21,7 @@ router.put('/admin/:id/pickup', salesStaff, c.createReturnPickup);
 router.put('/admin/:id/cancel-pickup', salesStaff, c.cancelReturnPickup);
 router.put('/admin/:id/receive', salesStaff, c.receiveReturn);
 router.put('/admin/:id/refund', salesStaff, c.refundReturn);
+router.put('/admin/:id/exchange', salesStaff, c.exchangeReturn);   // kiểm tra đạt => tạo đơn giao hàng đổi
+router.put('/admin/:id/to-refund', salesStaff, c.switchToRefund);  // không còn hàng để đổi => chuyển sang hoàn tiền
 
 module.exports = router;

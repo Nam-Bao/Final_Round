@@ -204,12 +204,14 @@ export default function PolicyPage() {
                 {returnReasons.length > 0 && <ul className="list-disc pl-5 mt-1 space-y-0.5">{returnReasons.map((r) => <li key={r}>{r}</li>)}</ul>}
                 <span className="block mt-1"><b>Không nhận trả hàng vì đổi ý</b>, vì mỹ phẩm là sản phẩm dùng cho cá nhân.</span>
               </>,
-              <>Hồ sơ yêu cầu bắt buộc: chọn sản phẩm và số lượng trả (không vượt số đã mua), mô tả tình trạng ít nhất 20 ký tự, 1 - {returnPolicy?.max_images ?? 5} ảnh chụp sản phẩm, tài khoản ngân hàng nhận hoàn tiền.</>,
+              <>Hồ sơ yêu cầu bắt buộc: chọn sản phẩm và số lượng trả (không vượt số đã mua), mô tả tình trạng ít nhất 20 ký tự, 1 - {returnPolicy?.max_images ?? 5} ảnh chụp sản phẩm, và chọn cách xử lý. Chọn hoàn tiền thì khai thêm tài khoản ngân hàng.</>,
+              <>Cách xử lý mặc định là <b>đổi sản phẩm</b>: kho kiểm tra hàng trả đạt thì GlowSkin giao sản phẩm đổi cho bạn, bạn không trả thêm tiền. Sản phẩm hết hàng thì đổi sang sản phẩm khác có giá trị không vượt giá trị hàng trả, hoặc hoàn tiền nếu bạn đồng ý. Bạn cũng có thể chọn <b>hoàn tiền</b> ngay khi gửi yêu cầu.</>,
+              <><b>{returnPolicy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b> Hàng khuyến mãi là sản phẩm mua lúc đang có giá ưu đãi online.</>,
               <>Sản phẩm trả phải còn đủ hộp, tem, phụ kiện và chưa qua sử dụng (trừ lỗi chỉ phát hiện được khi mở).</>,
               <><b>Mỗi đơn chỉ được yêu cầu hoàn trả một lần.</b> Yêu cầu bị từ chối không được gửi lại. Bạn được hủy yêu cầu khi nhân viên chưa duyệt, và gửi lại nếu còn trong thời hạn.</>,
-              <>Quy trình: nhân viên duyệt hồ sơ (phản hồi trong 24 giờ làm việc) → GHN đến lấy hàng tại địa chỉ nhận hàng của đơn, <b>GlowSkin trả phí vận chuyển</b> → kho nhận và kiểm tra → hoàn tiền qua chuyển khoản.</>,
-              <><b>Số tiền hoàn</b> = giá các sản phẩm trả lại − phần voucher đã giảm tương ứng (chia theo tỷ lệ giá trị). Trả lại toàn bộ đơn thì được hoàn thêm phí vận chuyển ban đầu. Voucher đã dùng không được hoàn lại.</>,
-              <>Hàng nhận về không đúng mô tả, thiếu số lượng hoặc không đạt điều kiện ở mục {SECTIONS.findIndex((s) => s.id === 'hoan-tra') + 1}.4, yêu cầu sẽ bị từ chối và nhân viên liên hệ để gửi trả lại hàng cho bạn.</>,
+              <>Quy trình: nhân viên duyệt hồ sơ (phản hồi trong 24 giờ làm việc) → GHN đến lấy hàng tại địa chỉ nhận hàng của đơn, <b>GlowSkin trả phí vận chuyển</b> → kho nhận và kiểm tra → giao sản phẩm đổi, hoặc hoàn tiền qua chuyển khoản.</>,
+              <>Khi hoàn tiền, <b>số tiền hoàn</b> =giá các sản phẩm trả lại − phần voucher đã giảm tương ứng (chia theo tỷ lệ giá trị). Trả lại toàn bộ đơn thì được hoàn thêm phí vận chuyển ban đầu. Voucher đã dùng không được hoàn lại.</>,
+              <>Hàng nhận về không đúng mô tả, thiếu số lượng hoặc không đạt điều kiện ở mục {SECTIONS.findIndex((s) => s.id === 'hoan-tra') + 1}.6, yêu cầu sẽ bị từ chối và nhân viên liên hệ để gửi trả lại hàng cho bạn.</>,
             ]} />
           </Section>
 

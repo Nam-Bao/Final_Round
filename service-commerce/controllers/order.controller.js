@@ -148,7 +148,8 @@ exports.checkout = async (req, res) => {
       if (activeSalePercent(item.Product) === null) voucher_base += unitPrice * item.quantity;
       orderDetailsData.push({
         product_id: item.Product.id, quantity: item.quantity, price: unitPrice,
-        weight: item.Product.weight || DEFAULT_ITEM_WEIGHT // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
+        weight: item.Product.weight || DEFAULT_ITEM_WEIGHT, // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
+        is_sale: activeSalePercent(item.Product) !== null, // hàng khuyến mãi: không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
       });
 
       // Trừ tồn kho CÓ ĐIỀU KIỆN (stock >= số lượng) ngay trong câu UPDATE: 2 khách đặt cùng lúc
