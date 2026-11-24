@@ -24,6 +24,8 @@ const productInfo = (ids, authorization) => (ids.length
 const medicineList = (list) => (Array.isArray(list) ? list : []).map((m) => (typeof m === 'string' ? { product_id: m, quantity: 1 } : m)).filter((m) => m?.product_id);
 
 const person = (u) => (u ? { name: u.full_name, phone: u.phone } : null);
+// Tên trong hồ sơ có thể đã kèm "BS." => bỏ đi khi in kèm học vị, tránh "BS BS. Nguyễn Văn A"
+const doctorName = (d) => (d?.title ? String(d.full_name || '').replace(/^(BS\.?|Bác sĩ)\s*/i, '') : d?.full_name);
 const patientOf = (p, account) => (p ? { name: p.full_name, phone: p.phone || account?.phone || null, dob: p.dob, gender: p.gender, relationship: p.relationship } : account ? { name: account.full_name, phone: account.phone, dob: account.dob, gender: account.gender } : null);
 
 const loadAppointment = async (req, res) => {
@@ -53,13 +55,13 @@ const legacyBreakdown = async (invoice, apt, checkoutTx) => {
   };
 };
 
-// [CSKH/MANAGER] GET /appointments/:id/print/invoice — phiếu thanh toán sau khám
-const printInvoice = async (req, res) => {
-  try {
-    const apt = await loadAppointment(req, res);
-    if (!apt) return;
+class PrintError extends Error { constructor(status, message) { super(message); this.status = status; } }
+
+// Dữ liệu phiếu thanh toán sau khám: dùng chung cho phiếu in A5 (nhân viên) và file PDF khách tải về.
+// viewerId: người in / tải (ghi ở chân phiếu); authorization: token để hỏi thông tin mỹ phẩm của hóa đơn cũ
+const buildInvoiceData = async (apt, { viewerId, authorization }) => {
     const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, include: [{ model: Transaction }], order: [[Transaction, 'createdAt', 'ASC']] });
-    if (apt.status !== 'COMPLETED' || !invoice) return res.status(409).json({ message: 'Lịch khám chưa chốt bill nên chưa có phiếu thanh toán' });
+    if (apt.status !== 'COMPLETED' || !invoice) throw new PrintError(409, 'Lịch khám chưa chốt bill nên chưa có phiếu thanh toán');
     const txs = invoice.Transactions || [];
     const checkoutTx = txs.find((t) => t.transaction_type === 'INCOME' && String(t.note || '').startsWith('Thu phần còn lại'));
     const b = invoice.breakdown || await legacyBreakdown(invoice, apt, checkoutTx);
@@ -67,8 +69,8 @@ const printInvoice = async (req, res) => {
     const medicines = medicineList(apt.prescribed_medicines);
     const [clinic, people, products] = await Promise.all([
       clinicInfo(),
-      peopleInfo({ user_ids: [apt.customer_id, apt.doctor_id, b.cashier_id, req.user.id].filter(Boolean), patient_ids: [apt.patient_profile_id].filter(Boolean) }),
-      b.product_items ? {} : productInfo(medicines.map((m) => m.product_id), req.headers.authorization),
+      peopleInfo({ user_ids: [apt.customer_id, apt.doctor_id, b.cashier_id, viewerId].filter(Boolean), patient_ids: [apt.patient_profile_id].filter(Boolean) }),
+      b.product_items ? {} : productInfo(medicines.map((m) => m.product_id), authorization),
     ]);
     const u = people.users || {};
     // Hóa đơn cũ không lưu đơn giá mỹ phẩm: in tên + số lượng, tiền mỹ phẩm in theo tổng nhóm
@@ -83,8 +85,7 @@ const printInvoice = async (req, res) => {
     };
     const payments = txs.map((t, i) => ({ label: label(t, i), amount: Number(t.amount), at: t.createdAt }));
     const paidTotal = payments.reduce((s, p) => s + p.amount, 0);
-    res.json({
-      data: {
+    return {
         doc_no: docNo('HD', b.checked_out_at || invoice.updatedAt, invoice.id),
         clinic,
         checked_out_at: b.checked_out_at || invoice.updatedAt,
@@ -93,7 +94,7 @@ const printInvoice = async (req, res) => {
         appointment: { id: apt.id, date: apt.appointment_date, time: String(apt.appointment_time).slice(0, 5), type: apt.type, source: apt.source },
         patient: patientOf(people.patients?.[apt.patient_profile_id], u[apt.customer_id]),
         account: person(u[apt.customer_id]),
-        doctor: u[apt.doctor_id] ? { name: u[apt.doctor_id].full_name, title: u[apt.doctor_id].title } : null,
+        doctor: u[apt.doctor_id] ? { name: doctorName(u[apt.doctor_id]), title: u[apt.doctor_id].title } : null,
         cashier: u[b.cashier_id]?.full_name || null,
         groups: [
           { key: 'exam', label: 'Phí khám', items: Number(b.exam_fee) > 0 ? [{ name: 'Phí khám bác sĩ', quantity: 1, price: Number(b.exam_fee), amount: Number(b.exam_fee) }] : [] },
@@ -107,13 +108,42 @@ const printInvoice = async (req, res) => {
         },
         payments,
         legacy: !!b.derived,
-        printed_by: u[req.user.id]?.full_name || null,
+        printed_by: u[viewerId]?.full_name || null,
         printed_at: new Date(),
-      },
+    };
+};
+
+const sendPrintError = (res, error) => (error instanceof PrintError
+  ? res.status(error.status).json({ message: error.message })
+  : res.status(500).json({ message: 'Lỗi server', error: error.message }));
+
+// [CSKH/MANAGER] GET /appointments/:id/print/invoice — phiếu thanh toán sau khám
+const printInvoice = async (req, res) => {
+  try {
+    const apt = await loadAppointment(req, res);
+    if (!apt) return;
+    res.json({ data: await buildInvoiceData(apt, { viewerId: req.user.id, authorization: req.headers.authorization }) });
+  } catch (error) { sendPrintError(res, error); }
+};
+
+// [CUSTOMER] GET /appointments/:id/receipt.pdf — khách tải phiếu thanh toán (PDF) của lịch khám của mình
+const { renderReceiptPdf } = require('../utils/receiptPdf');
+const receiptPdf = async (req, res) => {
+  try {
+    const apt = await loadAppointment(req, res);
+    if (!apt) return;
+    // Lịch của người khác => trả 404 như không có, không để lộ lịch đó tồn tại
+    if (apt.customer_id !== req.user.id) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    const data = await buildInvoiceData(apt, { viewerId: null, authorization: req.headers.authorization });
+    const pdf = await renderReceiptPdf(data);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="phieu-thanh-toan-${data.doc_no}.pdf"`,
+      'Content-Length': pdf.length,
+      'Cache-Control': 'private, no-store',
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
-  }
+    res.send(pdf);
+  } catch (error) { sendPrintError(res, error); }
 };
 
 // [DOCTOR (lịch của mình)/CSKH/MANAGER] GET /appointments/:id/print/prescription — đơn thuốc / chỉ định điều trị
@@ -158,7 +188,7 @@ const printPrescription = async (req, res) => {
         items,
         services: services.map((s) => s.name),
         packages: packages.map((p) => (p.total_sessions ? `${p.name} (${p.total_sessions} buổi)` : p.name)),
-        doctor: doctor ? { name: doctor.full_name, title: doctor.title, license_number: doctor.license_number, specialty: doctor.specialty } : null,
+        doctor: doctor ? { name: doctorName(doctor), title: doctor.title, license_number: doctor.license_number, specialty: doctor.specialty } : null,
         legacy: !!rx.legacy,
         printed_by: u[req.user.id]?.full_name || null,
         printed_at: new Date(),
@@ -169,4 +199,4 @@ const printPrescription = async (req, res) => {
   }
 };
 
-module.exports = { printInvoice, printPrescription, docNo };
+module.exports = { printInvoice, printPrescription, receiptPdf, buildInvoiceData, docNo };
