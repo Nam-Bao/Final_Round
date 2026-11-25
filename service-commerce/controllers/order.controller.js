@@ -8,6 +8,12 @@ const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricin
 const axios = require('axios');
 require('dotenv').config();
 const orderMail = require('../utils/orderMail');
+const pointsLib = require('../utils/points');
+const code6 = (id) => String(id).replace(/-/g, '').slice(0, 6).toUpperCase();
+// Lỗi trả về cho khách / NVBH: lỗi điểm giữ đúng mã lỗi (409 không đủ điểm, 503 không gọi được booking)
+const pointsFail = (res, error, fallbackStatus, fallback) => (error instanceof pointsLib.PointsError
+  ? res.status(error.status).json({ success: false, message: error.message, ...error.extra })
+  : res.status(fallbackStatus).json({ success: false, message: error.message || fallback }));
 
 
 const DEFAULT_ITEM_WEIGHT = 200; // gram, dùng khi sản phẩm cũ chưa có cân nặng
@@ -102,7 +108,10 @@ exports.checkout = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Thiếu mã Quận/Huyện hoặc Phường/Xã GHN, vui lòng cập nhật địa chỉ' });
   }
 
-  const validPaymentMethod = ['COD', 'VIETQR_SEPAY'].includes(payment_method) ? payment_method : 'COD';
+  // Trả bằng Điểm GlowSkin: toàn bộ đơn (giá niêm yết, không áp giá khuyến mãi + phí ship), không dùng kèm voucher
+  const usePoints = payment_method === 'POINTS' || req.body.use_points === true;
+  const validPaymentMethod = usePoints ? 'POINTS' : ['COD', 'VIETQR_SEPAY'].includes(payment_method) ? payment_method : 'COD';
+  if (usePoints && promotion_code) return res.status(400).json({ success: false, message: 'Trả bằng Điểm GlowSkin không dùng kèm mã giảm giá' });
 
   // Đọc giỏ hàng và tính phí GHN TRƯỚC khi mở transaction, để không giữ khóa DB trong lúc chờ API bên ngoài
   let cart, cartItems, shipping_fee;
@@ -131,6 +140,17 @@ exports.checkout = async (req, res) => {
     return res.status(502).json({ success: false, message: 'Không tính được phí vận chuyển GHN, vui lòng thử lại sau' });
   }
 
+  // Kiểm tra đủ điểm trước khi giữ hàng (booking trừ điểm lần nữa có khóa, chống tiêu trùng)
+  let pointsNeeded = 0;
+  if (usePoints) {
+    try {
+      const { balance, value_vnd: valueVnd } = await pointsLib.balance(customer_id);
+      const goods = cartItems.reduce((s, item) => s + Number(item.Product.price) * item.quantity, 0);
+      pointsNeeded = pointsLib.toPointsCeil(goods + shipping_fee, valueVnd);
+      if (balance < pointsNeeded) return res.status(409).json({ success: false, code: 'NOT_ENOUGH_POINTS', balance, needed: pointsNeeded, message: `Không đủ điểm: cần ${pointsNeeded.toLocaleString('vi-VN')} điểm, bạn đang có ${balance.toLocaleString('vi-VN')} điểm` });
+    } catch (error) { return pointsFail(res, error, 503, 'Không kiểm tra được Điểm GlowSkin'); }
+  }
+
   const t = await sequelize.transaction();
 
   try {
@@ -142,14 +162,16 @@ exports.checkout = async (req, res) => {
       if (item.Product.stock_quantity < item.quantity) {
         throw new Error(`Sản phẩm ${item.Product.name} không đủ số lượng`);
       }
-      // Giá online (đã tính khuyến mãi đang chạy) do server tự tính, không tin giá phía trình duyệt
-      const unitPrice = onlinePrice(item.Product);
+      // Giá online (đã tính khuyến mãi đang chạy) do server tự tính, không tin giá phía trình duyệt.
+      // Trả bằng điểm: tính theo giá niêm yết, không áp khuyến mãi => không phải hàng khuyến mãi
+      const onSale = !usePoints && activeSalePercent(item.Product) !== null;
+      const unitPrice = usePoints ? Number(item.Product.price) : onlinePrice(item.Product);
       total_amount += unitPrice * item.quantity;
-      if (activeSalePercent(item.Product) === null) voucher_base += unitPrice * item.quantity;
+      if (!onSale) voucher_base += unitPrice * item.quantity;
       orderDetailsData.push({
         product_id: item.Product.id, quantity: item.quantity, price: unitPrice,
         weight: item.Product.weight || DEFAULT_ITEM_WEIGHT, // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
-        is_sale: activeSalePercent(item.Product) !== null, // hàng khuyến mãi: không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
+        is_sale: onSale, // hàng khuyến mãi: không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
       });
 
       // Trừ tồn kho CÓ ĐIỀU KIỆN (stock >= số lượng) ngay trong câu UPDATE: 2 khách đặt cùng lúc
@@ -200,23 +222,32 @@ exports.checkout = async (req, res) => {
 
     // TẠO ORDER: Kèm phương thức thanh toán, mã vùng và phí vận chuyển (NEW)
     const newOrder = await Order.create({
-      customer_id, recipient_name, shipping_phone, shipping_address, 
+      customer_id, recipient_name, shipping_phone, shipping_address,
       shipping_district_id, shipping_ward_code, shipping_fee, // TRƯỜNG DỮ LIỆU GHN MỚI
       latitude, longitude, note, total_amount, discount_amount, promotion_id,
-      status: 'UNPAID', payment_method: validPaymentMethod
+      // Trả bằng điểm = đã thanh toán, chờ NVBH duyệt như đơn chuyển khoản đã nhận tiền
+      status: usePoints ? 'PAID' : 'UNPAID', payment_method: validPaymentMethod, points_used: usePoints ? pointsNeeded : null,
     }, { transaction: t });
 
     const detailsWithOrderId = orderDetailsData.map(d => ({ ...d, order_id: newOrder.id }));
     await OrderDetail.bulkCreate(detailsWithOrderId, { transaction: t });
     await CartItem.destroy({ where: { cart_id: cart.id }, transaction: t });
-    
-    await t.commit();
+
+    // Trừ điểm ngay trước khi chốt đơn: không đủ / lỗi => hủy cả đơn (giữ hàng, giỏ hàng như cũ)
+    if (usePoints) await pointsLib.spend({ customerId: customer_id, points: pointsNeeded, orderId: newOrder.id, note: `Mua mỹ phẩm đơn #${code6(newOrder.id)}` });
+    try {
+      await t.commit();
+    } catch (error) {
+      // Đã trừ điểm mà không lưu được đơn => hoàn lại điểm
+      if (usePoints) pointsLib.credit({ customerId: customer_id, points: pointsNeeded, type: 'ORDER_REFUND', referenceId: newOrder.id, note: 'Đặt hàng lỗi, hoàn điểm' }).catch(() => {});
+      throw error;
+    }
     if (validPaymentMethod !== 'VIETQR_SEPAY') orderMail.orderPlaced(newOrder.id).catch(() => {});
     return res.status(201).json({ success: true, data: newOrder });
 
   } catch (error) {
-    await t.rollback();
-    return res.status(500).json({ success: false, message: error.message || 'Lỗi thanh toán' });
+    if (!t.finished) await t.rollback();
+    return pointsFail(res, error, 500, 'Lỗi thanh toán');
   }
 };
 
@@ -297,7 +328,7 @@ exports.updateOrderStatus = async (req, res) => {
     const order = await Order.findByPk(req.params.id, {
       include: [{ model: OrderDetail, include: [{ model: Product }] }]
     });
-    
+
     if (!order) return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
 
     // Chỉ cho chuyển trạng thái theo đúng luồng. Hủy đơn phải đi qua API /cancel (để hoàn kho, hủy vận đơn GHN).
@@ -312,7 +343,7 @@ exports.updateOrderStatus = async (req, res) => {
 
     // Đóng gói xong => lúc này mới tạo vận đơn trên GHN để shipper đến lấy
     if (status === 'SHIPPING' && !order.tracking_code) {
-      
+
       const warehouse = shopWarehouse(); // kho gửi hàng (cấu hình trong .env)
 
       const items = order.OrderDetails.map(detail => ({
@@ -347,8 +378,8 @@ exports.updateOrderStatus = async (req, res) => {
         to_ward_code: order.shipping_ward_code, // Giá trị lưu từ database (chuẩn hóa GHN)
         to_district_id: Number(order.shipping_district_id), // Giá trị lưu từ database
         weight: totalWeight,
-        length: 15, width: 15, height: 10, 
-        service_type_id: 2, 
+        length: 15, width: 15, height: 10,
+        service_type_id: 2,
         cod_amount: codAmount,
         items: items
       };
@@ -360,9 +391,9 @@ exports.updateOrderStatus = async (req, res) => {
           const trackingCode = ghnRes.data.data.order_code;
           await order.update({ status, tracking_code: trackingCode });
           orderMail.orderShipping(order);
-          
-          return res.status(200).json({ 
-            success: true, data: order, 
+
+          return res.status(200).json({
+            success: true, data: order,
             message: `Tạo đơn GHN thành công! Mã vận đơn: ${trackingCode}`
           });
         }
@@ -370,16 +401,16 @@ exports.updateOrderStatus = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Lỗi từ GHN: ' + (ghnRes.data?.message || 'Không tạo được vận đơn') });
       } catch (ghnError) {
         console.error("Lỗi đẩy đơn GHN:", ghnError.response?.data || ghnError.message);
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Lỗi từ GHN: ' + (ghnError.response?.data?.message || 'Sai thông tin địa chỉ/cấu hình') 
+        return res.status(400).json({
+          success: false,
+          message: 'Lỗi từ GHN: ' + (ghnError.response?.data?.message || 'Sai thông tin địa chỉ/cấu hình')
         });
       }
     }
 
     await order.update({ status });
     return res.status(200).json({ success: true, data: order, message: 'Cập nhật trạng thái thành công' });
-    
+
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -387,9 +418,17 @@ exports.updateOrderStatus = async (req, res) => {
 
 // Số tiền khách phải trả cho đơn
 const orderPayable = (order) => Number(order.total_amount) - Number(order.discount_amount) + Number(order.shipping_fee || 0);
-// Đơn chuyển khoản đã nhận tiền mà bị hủy => vào danh sách chờ hoàn tiền
-const refundFields = (order) => (order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID'
-  ? { refund_status: 'PENDING', refund_amount: orderPayable(order) } : {});
+// Đơn chuyển khoản đã nhận tiền mà bị hủy => vào danh sách chờ hoàn tiền. Đơn trả bằng điểm => hoàn điểm ngay (refund_status POINTS)
+const refundFields = (order) => (order.payment_method === 'POINTS'
+  ? { refund_status: 'POINTS', refund_amount: orderPayable(order), refunded_at: new Date() }
+  : order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID'
+    ? { refund_status: 'PENDING', refund_amount: orderPayable(order) } : {});
+// Hoàn lại điểm của đơn trả bằng điểm bị hủy (gọi trước khi chốt hủy: booking lỗi => không hủy, thử lại sau)
+const refundOrderPoints = (order, reason) => (order.payment_method === 'POINTS' && order.points_used > 0
+  ? pointsLib.credit({ customerId: order.customer_id, points: order.points_used, type: 'ORDER_REFUND', referenceType: 'ORDER', referenceId: order.id, note: `Hủy đơn #${code6(order.id)}: ${reason || ''}`.slice(0, 500), amountVnd: orderPayable(order), orderId: order.id })
+  : Promise.resolve(null));
+// Khách tự hủy được khi đơn giao hàng chưa tạo vận đơn GHN
+const CUSTOMER_CANCELLABLE = ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING'];
 
 const CANCELLABLE_ORDER_STATUSES = ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPING'];
 
@@ -412,22 +451,22 @@ exports.cancelOrder = async (req, res) => {
     const order = await Order.findByPk(req.params.id, {
       include: [{ model: OrderDetail }]
     });
-    
+
     if (!order) throw new Error('Không tìm thấy đơn hàng');
     // Đơn đã giao xong/đang đổi trả thì không hủy (trước đây hủy được cả đơn COMPLETED => kho bị cộng sai)
     if (!CANCELLABLE_ORDER_STATUSES.includes(order.status)) throw new Error(`Không thể hủy đơn ở trạng thái ${order.status}`);
     // Đơn chuyển khoản đã nhận tiền => sau khi hủy phải hoàn tiền tay cho khách
-    const needsRefund = order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID';
+    const needsRefund = order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID'; // trả bằng điểm: hoàn điểm tự động, không chờ chuyển khoản
 
     // NẾU ĐƠN HÀNG ĐÃ BẮN SANG GHN (CÓ MÃ VẬN ĐƠN), HỦY BÊN GHN TRƯỚC
     if (order.tracking_code) {
       const ghnCancelPayload = {
          order_codes: [order.tracking_code]
       };
-      
+
       try {
          const ghnCancelRes = await axios.post(ghnUrl('/v2/switch-status/cancel'), ghnCancelPayload, { headers: ghnHeaders() });
-         
+
          if (ghnCancelRes.data && ghnCancelRes.data.code === 200) {
             console.log(`Đã hủy thành công mã vận đơn ${order.tracking_code} trên GHN`);
          } else {
@@ -445,9 +484,10 @@ exports.cancelOrder = async (req, res) => {
     }, { transaction: t });
     await restoreStock(order.OrderDetails, t);
     if (initiator === 'CLINIC') await releaseVoucher(order, t);
+    await refundOrderPoints(order, reason);
 
     await t.commit();
-    orderMail.orderCancelled(order, { initiator, reason, refundPending: needsRefund, voucherReturned: initiator === 'CLINIC' });
+    orderMail.orderCancelled(order, { initiator, reason, refundPending: needsRefund, voucherReturned: initiator === 'CLINIC', pointsRefunded: order.payment_method === 'POINTS' ? order.points_used : 0 });
     return res.status(200).json({
       success: true,
       needs_refund: needsRefund,
@@ -515,8 +555,9 @@ exports.ghnWebhook = async (req, res) => {
           }, { transaction: t });
           await restoreStock(order.OrderDetails, t);
           if (carrierCancelled) await releaseVoucher(order, t);
+          await refundOrderPoints(order, order.cancel_reason);
         });
-        orderMail.orderCancelled(order, { initiator: carrierCancelled ? 'CARRIER' : null, reason: order.cancel_reason, refundPending: order.refund_status === 'PENDING', voucherReturned: carrierCancelled });
+        orderMail.orderCancelled(order, { initiator: carrierCancelled ? 'CARRIER' : null, reason: order.cancel_reason, refundPending: order.refund_status === 'PENDING', voucherReturned: carrierCancelled, pointsRefunded: order.payment_method === 'POINTS' ? order.points_used : 0 });
       } else {
         await order.update({ status: newStatus });
       }
@@ -590,10 +631,11 @@ exports.setReturnCause = async (req, res) => {
 // [SALE/ADMIN] PUT /orders/admin/:id/refund { refund_ref } — ghi nhận đã hoàn tiền đơn bị hủy
 exports.confirmOrderRefund = async (req, res) => {
   try {
+    const order = await Order.findByPk(req.params.id);
+    if (order?.payment_method === 'POINTS') return res.status(409).json({ success: false, message: 'Đơn trả bằng Điểm GlowSkin: đã hoàn bằng điểm, không chuyển khoản tiền mặt' });
     const refund_ref = String(req.body.refund_ref || '').trim();
     const invalid = validateClaimInput({ bank_ref: refund_ref, account: req.body.account });
     if (invalid) return res.status(400).json({ success: false, message: invalid });
-    const order = await Order.findByPk(req.params.id);
     const [count] = await Order.update(
       { refund_status: 'REFUNDED', refund_ref, refunded_at: new Date(), refunded_by: req.user.id },
       { where: { id: req.params.id, refund_status: 'PENDING' } }
@@ -660,7 +702,7 @@ exports.sepayOrderWebhook = async (req, res) => {
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('❌ [SEPAY WEBHOOK] Lỗi xử lý:', error.message);
-    return res.status(200).json({ success: false, message: error.message }); 
+    return res.status(200).json({ success: false, message: error.message });
   }
 };
 
@@ -754,7 +796,10 @@ exports.createStaffOrder = async (req, res) => {
     const { customer_id, recipient_name, shipping_phone, note, delivery_method,
         shipping_address, shipping_district_id, shipping_ward_code, promotion_code } = req.body;
     const isDelivery = delivery_method === 'DELIVERY';
-    const payment_method = req.body.payment_method === 'VIETQR_SEPAY' ? 'VIETQR_SEPAY' : 'COD';
+    // Khách trả bằng Điểm GlowSkin (giá niêm yết + phí ship nếu giao hàng), không dùng kèm voucher
+    const usePoints = req.body.payment_method === 'POINTS';
+    const payment_method = usePoints ? 'POINTS' : req.body.payment_method === 'VIETQR_SEPAY' ? 'VIETQR_SEPAY' : 'COD';
+    if (usePoints && promotion_code) return res.status(400).json({ success: false, message: 'Trả bằng Điểm GlowSkin không dùng kèm mã giảm giá' });
 
     // Gộp các dòng trùng sản phẩm, số lượng 1 - 50
     const qtyByProduct = {};
@@ -817,6 +862,15 @@ exports.createStaffOrder = async (req, res) => {
         return res.status(502).json({ success: false, message: isDelivery ? 'Không tính được phí vận chuyển GHN, vui lòng thử lại' : 'Lỗi đọc sản phẩm' });
     }
 
+    let pointsNeeded = 0;
+    if (usePoints) {
+        try {
+            const { balance, value_vnd: valueVnd } = await pointsLib.balance(customer_id);
+            pointsNeeded = pointsLib.toPointsCeil(products.reduce((s, p) => s + Number(p.price) * qtyByProduct[p.id], 0) + shipping_fee, valueVnd);
+            if (balance < pointsNeeded) return res.status(409).json({ success: false, code: 'NOT_ENOUGH_POINTS', balance, needed: pointsNeeded, message: `Khách không đủ điểm: cần ${pointsNeeded.toLocaleString('vi-VN')} điểm, đang có ${balance.toLocaleString('vi-VN')} điểm` });
+        } catch (error) { return pointsFail(res, error, 503, 'Không kiểm tra được Điểm GlowSkin'); }
+    }
+
     const t = await sequelize.transaction();
     try {
         let total_amount = 0;
@@ -857,9 +911,9 @@ exports.createStaffOrder = async (req, res) => {
             note: note || (isDelivery ? 'Đơn NVBH đặt hộ khách' : 'Mua tại quầy'),
             total_amount,
             promotion_id, discount_amount,
-            // Tại quầy: khách trả tiền và nhận hàng ngay. Giao hàng: chờ duyệt / chờ chuyển khoản như đơn online
-            status: isDelivery ? 'UNPAID' : 'COMPLETED',
-            payment_method,
+            // Tại quầy: khách trả tiền và nhận hàng ngay. Giao hàng: chờ duyệt / chờ chuyển khoản như đơn online (trả bằng điểm = đã thanh toán)
+            status: isDelivery ? (usePoints ? 'PAID' : 'UNPAID') : 'COMPLETED',
+            payment_method, points_used: usePoints ? pointsNeeded : null,
             safety_screening: safetyScreening,
         }, { transaction: t });
 
@@ -871,8 +925,14 @@ exports.createStaffOrder = async (req, res) => {
             weight: product.weight || DEFAULT_ITEM_WEIGHT
         })), { transaction: t });
 
-        await t.commit();
-        if (isDelivery && payment_method === 'COD') orderMail.orderPlaced(order.id).catch(() => {});
+        if (usePoints) await pointsLib.spend({ customerId: customer_id, points: pointsNeeded, orderId: order.id, note: `Mua mỹ phẩm ${isDelivery ? 'giao hàng' : 'tại quầy'} đơn #${code6(order.id)}` });
+        try {
+            await t.commit();
+        } catch (error) {
+            if (usePoints) pointsLib.credit({ customerId: customer_id, points: pointsNeeded, type: 'ORDER_REFUND', referenceId: order.id, note: 'Tạo đơn lỗi, hoàn điểm' }).catch(() => {});
+            throw error;
+        }
+        if (isDelivery && ['COD', 'POINTS'].includes(payment_method)) orderMail.orderPlaced(order.id).catch(() => {});
         // Ghi câu trả lời vào hồ sơ "Bản thân" của khách: lần mua sau điền sẵn, CSKH thấy khi khách đến khám
         if (safetyScreening?.patient_profile_id) {
             axios.post('http://localhost:4000/api/booking/safety/counter-report', {
@@ -883,8 +943,8 @@ exports.createStaffOrder = async (req, res) => {
         }
         return res.status(201).json({ success: true, data: order });
     } catch (error) {
-        await t.rollback();
-        return res.status(400).json({ success: false, message: error.message || 'Không tạo được đơn hàng' });
+        if (!t.finished) await t.rollback();
+        return pointsFail(res, error, 400, 'Không tạo được đơn hàng');
     }
 };
 
@@ -910,3 +970,58 @@ exports.getCustomerOrders = async(req, res) => {
     }
 };
 
+
+
+// [CUSTOMER] PUT /orders/:id/cancel { reason?, refund_method: 'MONEY' | 'POINTS', bank_name?, bank_account?, bank_holder? }
+// Khách tự hủy đơn giao hàng chưa tạo vận đơn GHN.
+// - COD / chuyển khoản chưa trả tiền: hủy, không có gì để hoàn.
+// - Đã chuyển khoản: khách chọn hoàn tiền (nhập tài khoản, CSKH chuyển khoản như cũ) hoặc hoàn Điểm GlowSkin tương đương 1:1 (không cộng thêm).
+// - Trả bằng điểm: luôn hoàn lại điểm.
+// Voucher đã dùng không được trả lại (khách tự hủy), hàng được cộng lại kho.
+exports.customerCancelOrder = async (req, res) => {
+  const reason = String(req.body?.reason || '').trim().slice(0, 500) || 'Khách tự hủy trên website';
+  const t = await sequelize.transaction();
+  try {
+    // Khóa riêng dòng đơn (Postgres không khóa được bảng nối ngoài), rồi đọc các dòng sản phẩm để hoàn kho
+    const order = await Order.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!order || order.customer_id !== req.user.id) throw Object.assign(new Error('Không tìm thấy đơn hàng'), { status: 404 });
+    order.OrderDetails = await OrderDetail.findAll({ where: { order_id: order.id }, transaction: t });
+    if (order.appointment_id || order.shipping_address === 'Nhận tại quầy phòng khám GlowSkin') throw Object.assign(new Error('Đơn mua tại quầy không hủy trên website'), { status: 400 });
+    if (!CUSTOMER_CANCELLABLE.includes(order.status) || order.tracking_code) throw Object.assign(new Error('Đơn đã giao cho đơn vị vận chuyển hoặc đã kết thúc, không tự hủy được. Vui lòng liên hệ CSKH'), { status: 400 });
+
+    const paidMoney = order.payment_method === 'VIETQR_SEPAY' && order.status !== 'UNPAID';
+    const amount = orderPayable(order);
+    let refund = {};
+    let pointsAdded = 0;
+    if (order.payment_method === 'POINTS') {
+      refund = refundFields(order);
+    } else if (paidMoney) {
+      const method = req.body?.refund_method === 'POINTS' ? 'POINTS' : req.body?.refund_method === 'MONEY' ? 'MONEY' : null;
+      if (!method) throw Object.assign(new Error('Chọn cách nhận lại tiền: hoàn tiền về tài khoản hoặc hoàn Điểm GlowSkin'), { status: 400, code: 'CHOOSE_REFUND' });
+      if (method === 'MONEY') {
+        const bank = { name: String(req.body.bank_name || '').trim(), account: String(req.body.bank_account || '').replace(/\s/g, ''), holder: String(req.body.bank_holder || '').trim().toUpperCase() };
+        if (!bank.name || !bank.holder || !/^\d{6,20}$/.test(bank.account)) throw Object.assign(new Error('Thông tin nhận hoàn tiền chưa hợp lệ (số tài khoản 6 - 20 chữ số)'), { status: 400 });
+        refund = { refund_status: 'PENDING', refund_amount: amount, refund_account: `${bank.name} - ${bank.account} - ${bank.holder}` };
+      } else {
+        const { value_vnd: valueVnd } = await pointsLib.balance(order.customer_id);
+        pointsAdded = pointsLib.toPointsFloor(amount, valueVnd);
+        refund = { refund_status: 'POINTS', refund_amount: amount, refunded_at: new Date() };
+      }
+    }
+    await order.update({ status: 'CANCELLED', cancel_initiator: 'CUSTOMER', cancel_reason: reason, cancelled_by: req.user.id, cancelled_at: new Date(), ...refund }, { transaction: t });
+    await restoreStock(order.OrderDetails, t);
+    // Cộng / hoàn điểm trước khi chốt: booking lỗi => đơn chưa bị hủy, khách thử lại
+    if (pointsAdded) await pointsLib.credit({ customerId: order.customer_id, points: pointsAdded, type: 'ORDER_CANCEL', referenceId: order.id, note: `Khách hủy đơn #${code6(order.id)}, chọn hoàn điểm`, amountVnd: amount, orderId: order.id });
+    await refundOrderPoints(order, reason);
+    await t.commit();
+    const refunded = pointsAdded || (order.payment_method === 'POINTS' ? order.points_used : 0);
+    orderMail.orderCancelled(order, { initiator: 'CUSTOMER', reason, refundPending: refund.refund_status === 'PENDING', pointsRefunded: refunded });
+    const message = refund.refund_status === 'PENDING' ? `Đã hủy đơn. GlowSkin sẽ chuyển khoản hoàn ${amount.toLocaleString('vi-VN')}đ vào tài khoản bạn cung cấp.`
+      : refunded ? `Đã hủy đơn và hoàn ${refunded.toLocaleString('vi-VN')} Điểm GlowSkin vào tài khoản của bạn.` : 'Đã hủy đơn hàng.';
+    return res.status(200).json({ success: true, message, refund_status: refund.refund_status || null, points_refunded: refunded });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    if (error instanceof pointsLib.PointsError) return pointsFail(res, error, 503, '');
+    return res.status(error.status || 500).json({ success: false, message: error.message, ...(error.code ? { code: error.code } : {}) });
+  }
+};

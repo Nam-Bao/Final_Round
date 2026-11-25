@@ -6,6 +6,7 @@ import axios from 'axios';
 import VoucherProofUpload from './VoucherProofUpload';
 import { openPrint } from '../utils/print';
 import { SafetyWarnings } from './PatientSafetyPanel';
+import ProductAdvisor from './ProductAdvisor';
 
 const API = 'http://localhost:4000/api';
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
@@ -32,6 +33,7 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   const [voucherError, setVoucherError] = useState('');
   const [checkingVoucher, setCheckingVoucher] = useState(false);
   const [voucherProof, setVoucherProof] = useState(null); // ảnh xác thực bắt buộc khi áp mã cho khách
+  const [customerPoints, setCustomerPoints] = useState(null); // { balance, value_vnd } của khách đang chọn
   // Sàng lọc an toàn tại quầy: chỉ hiện khi đơn có hoạt chất cần lưu ý (server quyết định)
   const [screening, setScreening] = useState(null); // kết quả /safety/counter-check
   const [answers, setAnswers] = useState({ flags: [], allergies: '' });
@@ -93,6 +95,11 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (voucher) { setVoucher(null); setVoucherError('Giỏ hàng hoặc khách đã thay đổi, vui lòng kiểm tra lại mã'); }
   }, [subtotal, customerId, customerType]);
+  useEffect(() => {
+    setCustomerPoints(null);
+    if (customerType !== 'EXISTING' || !customerId) return;
+    axios.get(`${API}/booking/points/customers/${customerId}`, authConfig()).then((r) => setCustomerPoints(r.data.data)).catch(() => {});
+  }, [customerId, customerType]);
 
   // Đơn hoặc khách đổi => hỏi lại server: có cần sàng lọc không, câu trả lời điền sẵn từ hồ sơ khách
   const productKey = validItems.map(i => i.product_id).sort().join(',');
@@ -117,6 +124,18 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
     }, 400);
     return () => clearTimeout(timer);
   }, [answers, answersTouched]);
+
+  // Thêm sản phẩm AI gợi ý: đã có thì tăng số lượng, còn dòng trống thì điền vào, không thì thêm dòng mới
+  const addAdvised = (productId) => {
+    const list = [...(form.getFieldValue('items') || [])];
+    const same = list.findIndex((i) => i?.product_id === productId);
+    const empty = list.findIndex((i) => !i?.product_id);
+    if (same >= 0) list[same] = { ...list[same], quantity: (list[same].quantity || 1) + 1 };
+    else if (empty >= 0) list[empty] = { product_id: productId, quantity: 1 };
+    else list.push({ product_id: productId, quantity: 1 });
+    form.setFieldsValue({ items: list });
+    message.success('Đã thêm vào đơn, nhớ hoàn tất bước sàng lọc an toàn nếu có');
+  };
 
   const changeAnswers = (patch) => { setAnswers(a => ({ ...a, ...patch })); setAnswersTouched(true); setAsked(false); };
 
@@ -166,7 +185,7 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
   };
 
   const handleSubmit = async (values) => {
-    if (voucher && !voucherProof) return message.warning('Áp mã cho khách phải tải ảnh xác thực');
+    if (voucher && !payByPoints && !voucherProof) return message.warning('Áp mã cho khách phải tải ảnh xác thực');
     if (screening?.error) return message.warning('Chưa kiểm tra được an toàn sản phẩm, hãy chọn lại sản phẩm để thử lại');
     if (screening?.needs_screening && !asked) return message.warning('Đơn có sản phẩm cần lưu ý: hỏi khách các câu sàng lọc rồi tick "Đã hỏi khách"');
     if (screening?.has_contraindication && !acknowledged) return message.warning('Có cảnh báo chống chỉ định: tư vấn cho khách rồi xác nhận, hoặc bỏ sản phẩm khỏi đơn');
@@ -199,8 +218,8 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
         delivery_method: values.delivery_method,
         payment_method: values.payment_method,
         note: values.note,
-        promotion_code: voucher?.code,
-        voucher_proof_url: voucher ? voucherProof : undefined,
+        promotion_code: payByPoints ? undefined : voucher?.code,
+        voucher_proof_url: voucher && !payByPoints ? voucherProof : undefined,
         safety_screening: screening?.needs_screening ? { ...answers, acknowledged } : undefined,
         items: validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
         shipping_address: address,
@@ -222,6 +241,10 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
 
   const discount = voucher?.discount || 0;
   const total = Math.max(0, subtotal - discount) + (isDelivery ? shippingFee : 0);
+  // Trả bằng Điểm GlowSkin: giá niêm yết + phí ship (nếu giao), không voucher, đủ điểm cho cả đơn
+  const paymentMethod = Form.useWatch('payment_method', form);
+  const payByPoints = paymentMethod === 'POINTS';
+  const pointsNeeded = customerPoints ? Math.ceil((subtotal + (isDelivery ? shippingFee : 0)) / customerPoints.value_vnd) : 0;
 
   return (
     <Modal title="Tạo đơn hàng mới" open={open} onCancel={onClose} footer={null} width={620} centered destroyOnHidden
@@ -279,8 +302,14 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
               <Radio.Group>
                 <Radio value="COD">{isDelivery ? 'Thu khi giao (COD)' : 'Tiền mặt'}</Radio>
                 <Radio value="VIETQR_SEPAY">Chuyển khoản</Radio>
+                {customerPoints && (
+                  <Radio value="POINTS" disabled={customerPoints.balance < pointsNeeded}>
+                    Điểm GlowSkin ({pointsNeeded.toLocaleString('vi-VN')} / có {customerPoints.balance.toLocaleString('vi-VN')} điểm)
+                  </Radio>
+                )}
               </Radio.Group>
             </Form.Item>
+            {payByPoints && <p className="text-xs text-slate-500 -mt-3 mb-3">Trả cả đơn bằng điểm theo giá niêm yết{isDelivery ? ' + phí ship' : ''}, không dùng kèm voucher.</p>}
           </Col>
         </Row>
 
@@ -328,6 +357,7 @@ export default function CreateOrderModal({ open, onClose, onCreated }) {
         )}
 
         <div className="font-semibold text-slate-700 text-sm mb-1.5 mt-1">Sản phẩm</div>
+        <ProductAdvisor onAdd={addAdvised} />
         <Form.List name="items">
           {(fields, { add, remove }) => (
             <>

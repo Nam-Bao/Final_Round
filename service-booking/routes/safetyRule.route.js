@@ -9,6 +9,8 @@ const doctor = [verifyToken, authorizeRoles('DOCTOR')];
 const both = [verifyToken, authorizeRoles('GEN_MANAGER', 'DOCTOR')];
 
 // Quy tắc chống chỉ định (gateway: /api/booking/safety-rules/...)
+// Nội bộ (token hệ thống): service-ai-analysis nạp quy tắc vào kho kiến thức RAG. Khai báo trước '/:id'
+router.get('/internal/knowledge', require('../controllers/points.controller').systemOnly, c.internalKnowledge);
 router.get('/meta', ...both, c.getMeta);
 router.get('/reviews/mine', ...doctor, c.myReviews);
 router.get('/proposals/mine', ...doctor, c.myProposals);

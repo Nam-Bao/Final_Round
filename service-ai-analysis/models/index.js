@@ -136,7 +136,40 @@ const staffFaceSchema = new mongoose.Schema({
   rejected_at: Date,
 }, { timestamps: true });
 
+// Kho kiến thức cho RAG: mỗi dòng là 1 đoạn văn bản + vector embedding.
+// ns CHAT: chatbot trên web khách (dịch vụ, gói, sản phẩm, bài viết, bác sĩ, chính sách, thông tin phòng khám)
+// ns SAFETY: AI rà soát đơn kê (quy tắc an toàn đang áp dụng kèm nguồn y khoa)
+// ns HANDBOOK: sổ tay quy trình nội bộ cho nhân viên (knowledge/so-tay, lọc theo vai trò) + chính sách khách hàng
+const knowledgeChunkSchema = new mongoose.Schema({
+  ns: { type: String, enum: ['CHAT', 'SAFETY', 'HANDBOOK'], required: true, index: true },
+  key: { type: String, required: true, unique: true },   // ns:loại:mã:số thứ tự đoạn
+  source_type: { type: String, required: true },          // SERVICE | PACKAGE | PRODUCT | ARTICLE | DOCTOR | EXPERT | POLICY | CLINIC | RULE
+  source_id: String,
+  title: { type: String, required: true },
+  url: String,                                            // đường dẫn trên web khách (chatbot) hoặc link tài liệu nguồn (quy tắc)
+  text: { type: String, required: true },
+  meta: mongoose.Schema.Types.Mixed,                      // quy tắc: nguồn y khoa [{ label, url }], mức độ...
+  hash: { type: String, required: true },                 // đổi nội dung => tạo lại embedding
+  model: String,
+  embedding: { type: [Number], required: true },
+}, { timestamps: true });
+
+// Khách cho chatbot xem dữ liệu riêng: hỏi trước, khách bấm đồng ý mới được xem. Đồng ý theo từng loại dữ liệu,
+// chỉ trong 1 phiên chat (session_id do trình duyệt tạo mỗi lần mở chat) và hết hạn sau CHAT_CONSENT_MINUTES.
+const chatConsentSchema = new mongoose.Schema({
+  user_id: { type: String, required: true, index: true },
+  session_id: { type: String, required: true },
+  scope: { type: String, enum: ['APPOINTMENTS', 'POINTS', 'ORDERS'], required: true },
+  granted_at: { type: Date, required: true },
+  expires_at: { type: Date, required: true },
+  revoked_at: Date,
+  accesses: [{ at: Date, _id: false }],                   // mỗi lần chatbot đọc dữ liệu (để đối chiếu khi khách hỏi lại)
+}, { timestamps: true });
+chatConsentSchema.index({ user_id: 1, session_id: 1, scope: 1 });
+
 module.exports = {
   AiAnalysis: mongoose.model('AiAnalysis', aiAnalysisSchema),
   StaffFace: mongoose.model('StaffFace', staffFaceSchema),
+  KnowledgeChunk: mongoose.model('KnowledgeChunk', knowledgeChunkSchema),
+  ChatConsent: mongoose.model('ChatConsent', chatConsentSchema),
 };

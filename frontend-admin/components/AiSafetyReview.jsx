@@ -59,7 +59,17 @@ export default function AiSafetyReview({ patientProfileId, appointmentId, form, 
           {result.warnings.map((w, i) => (
             <Alert key={i} className="mb-2" type={TYPE[w.severity]} showIcon
               message={<span><Tag color="geekblue">AI</Tag><b>{w.severity_label}</b>: {w.item}</span>}
-              description={<div className="text-sm"><div>{w.message}</div>{w.basis && <div className="text-xs text-gray-500">Căn cứ: {w.basis}</div>}</div>} />
+              description={<div className="text-sm"><div>{w.message}</div>{w.basis && <div className="text-xs text-gray-500">Căn cứ: {w.basis}</div>}
+                {/* Quy tắc của phòng khám mà AI dựa vào (tìm trong kho kiến thức), kèm nguồn y khoa để bác sĩ kiểm chứng */}
+                {w.citations?.length > 0 ? w.citations.map((c) => (
+                  <div key={c.ref} className="text-xs mt-1 p-1.5 bg-white/70 rounded border border-gray-200">
+                    <Tag color="purple" className="text-xs">Quy tắc phòng khám</Tag>{c.title}{c.severity_label ? ` (${c.severity_label})` : ''}
+                    {c.sources?.map((s, j) => (
+                      <div key={j} className="text-gray-500">Nguồn: {s.url ? <a href={s.url} target="_blank" rel="noreferrer" className="underline">{s.label}</a> : s.label}</div>
+                    ))}
+                  </div>
+                )) : <div className="text-xs text-gray-400 mt-0.5">AI nhận định theo thành phần / kiến thức chung, không có quy tắc tham chiếu.</div>}
+              </div>} />
           ))}
           {!result.ai_error && result.warnings.length === 0 && <p className="text-xs text-gray-600 mb-2">AI không thấy thêm điểm cần lưu ý ngoài cảnh báo của hệ thống.</p>}
           {result.alternatives.length > 0 && (

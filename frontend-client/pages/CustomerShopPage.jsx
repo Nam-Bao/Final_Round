@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/authStore';
 export default function CustomerShopPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeView, setActiveView] = useState(location.state?.openCart ? 'CART' : 'SHOP'); 
+  const [activeView, setActiveView] = useState(location.state?.openCart ? 'CART' : 'SHOP');
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
@@ -59,16 +59,16 @@ export default function CustomerShopPage() {
   const [addressBook, setAddressBook] = useState([]);
   const [showAddressList, setShowAddressList] = useState(false);
   const [addressModal, setAddressModal] = useState({ isOpen: false, mode: 'ADD', data: null });
-  
+
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
   const [shippingFee, setShippingFee] = useState(0);
 
-  const [modalForm, setModalForm] = useState({ 
-    recipient_name: '', phone: '', house_number: '', 
-    province_id: '', district_id: '', ward_code: '', 
-    province_name: '', district_name: '', ward_name: '' 
+  const [modalForm, setModalForm] = useState({
+    recipient_name: '', phone: '', house_number: '',
+    province_id: '', district_id: '', ward_code: '',
+    province_name: '', district_name: '', ward_name: ''
   });
 
   const [voucherCode, setVoucherCode] = useState('');
@@ -76,7 +76,7 @@ export default function CustomerShopPage() {
   const [appliedVoucher, setAppliedVoucher] = useState(null);
 
   const [showQRModal, setShowQRModal] = useState(false);
-  const [currentOrder, setCurrentOrder] = useState(null); 
+  const [currentOrder, setCurrentOrder] = useState(null);
   const BANK_ID = import.meta.env.VITE_BANK_ID || 'MB';
   const ACCOUNT_NO = import.meta.env.VITE_ACCOUNT_NO || '0909123456';
   const ACCOUNT_NAME = import.meta.env.VITE_ACCOUNT_NAME || 'GLOWSKIN SPA';
@@ -88,7 +88,7 @@ export default function CustomerShopPage() {
   const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
   const [checkoutForm, setCheckoutForm] = useState({
-    recipient_name: '', shipping_phone: '', shipping_address: '', 
+    recipient_name: '', shipping_phone: '', shipping_address: '',
     shipping_district_id: null, shipping_ward_code: null,
     note: '', payment_method: 'COD'
   });
@@ -98,10 +98,18 @@ export default function CustomerShopPage() {
   const voucherBase = cartItems.reduce((sum, item) => sum + (item.Product.original_price ? 0 : item.Product.price * item.quantity), 0);
   const totalWeight = cartItems.reduce((sum, item) => {
     // Ưu tiên lấy cân nặng thật từ database, nếu sản phẩm cũ chưa có thì lấy tạm 200g
-    const productWeight = item.Product.weight || 200; 
+    const productWeight = item.Product.weight || 200;
     return sum + (item.quantity * productWeight);
   }, 300); // 300g là khối lượng vỏ hộp/thùng carton đóng gói
-  const finalTotal = Math.max(0, cartTotal - discountAmount) + shippingFee; 
+  const finalTotal = Math.max(0, cartTotal - discountAmount) + shippingFee;
+  // Điểm GlowSkin: trả cả đơn bằng điểm theo GIÁ NIÊM YẾT (không áp giá khuyến mãi) + phí ship, không dùng kèm voucher
+  const [pointsInfo, setPointsInfo] = useState(null); // { balance, value_vnd, expire_months }
+  const [pointValue, setPointValue] = useState(null); // giá trị 1 điểm (đ), lấy cả khi chưa đăng nhập để hiện giá theo điểm
+  const pointsOf = (product) => (pointValue ? Math.ceil(Number(product.original_price || product.price) / pointValue) : 0);
+  const listTotal = cartItems.reduce((sum, item) => sum + (Number(item.Product.original_price || item.Product.price) * item.quantity), 0);
+  const pointsNeeded = pointsInfo ? Math.ceil((listTotal + shippingFee) / pointsInfo.value_vnd) : 0;
+  const payByPoints = checkoutForm.payment_method === 'POINTS';
+  const enoughPoints = !!pointsInfo && pointsInfo.balance >= pointsNeeded;
 
   // Load danh sách Tỉnh/Thành ngay từ đầu để sẵn sàng dò tìm
   useEffect(() => {
@@ -110,9 +118,12 @@ export default function CustomerShopPage() {
       .catch(err => console.error("Lỗi lấy Tỉnh:", err));
   }, []);
 
+  useEffect(() => { axios.get('/api/booking/points/config').then((r) => setPointValue(r.data.data.value_vnd)).catch(() => {}); }, []);
+
   useEffect(() => {
     fetchProducts();
     if (customer_id) { fetchCart(); fetchAddressBook(); }
+    if (customer_id) axios.get('/api/booking/points/me', authConfig).then((r) => setPointsInfo(r.data.data)).catch(() => setPointsInfo(null));
   }, [customer_id]);
 
   useEffect(() => {
@@ -145,7 +156,7 @@ export default function CustomerShopPage() {
       const res = await axios.get('/api/commerce/orders/addresses', authConfig);
       const addresses = res.data.data || [];
       setAddressBook(addresses);
-      
+
       if (addresses.length > 0) {
         handleSelectAddress(addresses[0]);
       }
@@ -268,20 +279,20 @@ export default function CustomerShopPage() {
   const handleSaveAddressModal = async () => {
     if(!modalForm.ward_code) return alert("Vui lòng chọn đầy đủ Phường/Xã");
     const fullAddress = `${modalForm.house_number}, ${modalForm.ward_name}, ${modalForm.district_name}, ${modalForm.province_name}`;
-    
+
     const payload = {
       recipient_name: modalForm.recipient_name, phone: modalForm.phone,
-      address: fullAddress, 
-      shipping_district_id: modalForm.district_id, 
-      shipping_ward_code: modalForm.ward_code 
+      address: fullAddress,
+      shipping_district_id: modalForm.district_id,
+      shipping_ward_code: modalForm.ward_code
     };
 
     try {
       if (addressModal.mode === 'ADD') await axios.post('/api/commerce/orders/addresses', payload, authConfig);
       else await axios.put(`/api/commerce/orders/addresses/${addressModal.data.id}`, payload, authConfig);
-      
+
       setAddressModal({ isOpen: false });
-      fetchAddressBook(); 
+      fetchAddressBook();
       setToastMsg('Đã lưu thông tin địa chỉ!');
       setTimeout(() => setToastMsg(''), 3000);
     } catch (err) { alert('Lỗi lưu địa chỉ'); }
@@ -326,27 +337,31 @@ export default function CustomerShopPage() {
     if (!customer_id) return setShowLoginModal(true);
     if (!checkoutForm.shipping_address) return alert('Vui lòng chọn địa chỉ giao hàng!');
     if (!checkoutForm.shipping_district_id) return alert('Địa chỉ bạn chọn là dữ liệu cũ. Vui lòng cập nhật Tỉnh/Phường!');
-    
+
     setLoading(true);
     try {
       const payload = {
-        ...checkoutForm, promotion_code: appliedVoucher?.code || null, save_address_to_book: false
+        ...checkoutForm, promotion_code: payByPoints ? null : appliedVoucher?.code || null, save_address_to_book: false
       };
       const res = await axios.post('/api/commerce/orders/checkout', payload, authConfig);
-      
+
       const newOrder = res.data.data;
-      
+
       // KIỂM TRA PHƯƠNG THỨC THANH TOÁN
       if (checkoutForm.payment_method === 'VIETQR_SEPAY') {
         // Số tiền chuyển khoản = số server đã tính (webhook SePay đối chiếu đúng số này)
         const serverTotal = Number(newOrder.total_amount) - Number(newOrder.discount_amount) + Number(newOrder.shipping_fee || 0);
         setCurrentOrder({ ...newOrder, finalTotal: serverTotal });
-        setShowQRModal(true); 
+        setShowQRModal(true);
+      } else if (checkoutForm.payment_method === 'POINTS') {
+        alert(`🎉 Đặt hàng thành công! Đã trả ${Number(newOrder.points_used || 0).toLocaleString('vi-VN')} Điểm GlowSkin.`);
+        setCartItems([]); setActiveView('SHOP'); fetchAddressBook();
+        axios.get('/api/booking/points/me', authConfig).then((r) => setPointsInfo(r.data.data)).catch(() => {});
       } else {
         alert(`🎉 Đặt hàng thành công! (Thanh toán: COD)`);
         setCartItems([]); setActiveView('SHOP'); fetchAddressBook();
       }
-    } catch (err) { alert(err.response?.data?.message || 'Lỗi thanh toán'); } 
+    } catch (err) { alert(err.response?.data?.message || 'Lỗi thanh toán'); }
     finally { setLoading(false); }
   };
 
@@ -356,7 +371,7 @@ export default function CustomerShopPage() {
     const interval = setInterval(async () => {
       try {
         const res = await axios.get(`/api/commerce/orders/${currentOrder.id}/check-payment`, authConfig);
-        
+
         if (res.data.status === 'CANCELLED') {
           clearInterval(interval);
           setShowQRModal(false);
@@ -368,14 +383,14 @@ export default function CustomerShopPage() {
           setShowQRModal(false);
           setToastMsg('🎉 Đã nhận thanh toán! Đơn hàng đang được chuẩn bị.');
           setTimeout(() => setToastMsg(''), 5000);
-          setCartItems([]); 
-          setActiveView('SHOP'); 
+          setCartItems([]);
+          setActiveView('SHOP');
           fetchAddressBook();
         }
       } catch (error) { console.error("Đang chờ thanh toán..."); }
-    }, 3000); 
+    }, 3000);
 
-    return () => clearInterval(interval); 
+    return () => clearInterval(interval);
   }, [showQRModal, currentOrder]);
 
   const getProductImage = (img) => {
@@ -463,6 +478,11 @@ export default function CustomerShopPage() {
                     <ProductPrice product={p} className="text-primary font-bold text-[15px] md:text-lg" />
                     <span className="text-[11px] md:text-xs text-slate-500 whitespace-nowrap md:mb-1">Đã bán {Number(p.sold_count || 0).toLocaleString('vi-VN')}</span>
                   </div>
+                  {pointValue && !p.ProductDetail?.is_prescription && (
+                    <p className="text-[11px] md:text-xs text-teal-700" title="Trả bằng Điểm GlowSkin theo giá niêm yết (không áp giá khuyến mãi)">
+                      hoặc <b>{pointsOf(p).toLocaleString('vi-VN')} điểm</b>
+                    </p>
+                  )}
                 </div>
                 {p.ProductDetail?.is_prescription ? (
                   // Thuốc kê đơn: không bán online, chỉ bác sĩ kê sau khi khám (server cũng chặn thêm vào giỏ)
@@ -495,6 +515,7 @@ export default function CustomerShopPage() {
                   <div className="flex-1">
                     <h3 className="font-bold text-slate-800">{item.Product.name}</h3>
                     <ProductPrice product={item.Product} className="text-primary font-medium" />
+                    {pointValue && <p className="text-xs text-teal-700">hoặc {pointsOf(item.Product).toLocaleString('vi-VN')} điểm{item.quantity > 1 ? ` × ${item.quantity} = ${(pointsOf(item.Product) * item.quantity).toLocaleString('vi-VN')} điểm` : ''}</p>}
                   </div>
                   <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-lg border">
                     <button onClick={() => handleUpdateQuantity(item.id, item.quantity, -1)} className="p-1 hover:bg-white rounded"><Minus className="w-4 h-4"/></button>
@@ -506,7 +527,14 @@ export default function CustomerShopPage() {
               ))}
             </div>
             <div className="bg-secondary text-white p-4 sm:p-6 rounded-2xl h-fit">
-              <div className="flex justify-between mb-4 sm:mb-8 text-lg font-bold"><span>Tạm tính</span><span>{cartTotal.toLocaleString()} ₫</span></div>
+              <div className={`flex justify-between text-lg font-bold ${pointValue ? 'mb-1' : 'mb-4 sm:mb-8'}`}><span>Tạm tính</span><span>{cartTotal.toLocaleString()} ₫</span></div>
+              {pointValue && (
+                <p className="text-sm text-white/80 mb-4 sm:mb-8 text-right">
+                  hoặc <b>{Math.ceil(listTotal / pointValue).toLocaleString('vi-VN')} điểm</b>
+                  <span className="block text-xs">chưa gồm phí ship</span>
+                  {pointsInfo && <span className="block text-xs">Bạn có {pointsInfo.balance.toLocaleString('vi-VN')} điểm</span>}
+                </p>
+              )}
               <button onClick={() => setActiveView('CHECKOUT')} className="w-full py-3 bg-white text-secondary font-bold rounded-xl flex items-center justify-center gap-2">Thanh toán <ArrowLeft className="w-4 h-4 rotate-180"/></button>
             </div>
           </div>
@@ -516,10 +544,10 @@ export default function CustomerShopPage() {
       {activeView === 'CHECKOUT' && (
         <div className="max-w-5xl mx-auto sm:p-6">
           <button onClick={() => setActiveView('CART')} className="flex items-center gap-2 text-slate-500 mb-6 font-medium"><ArrowLeft className="w-5 h-5"/> Quay lại Giỏ hàng</button>
-          
+
           <form onSubmit={handleCheckout} className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
-              
+
               {/* UI GIAO HÀNG */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h3 className="font-bold text-lg text-slate-800 border-b pb-2 mb-4">Giao hàng đến</h3>
@@ -532,7 +560,7 @@ export default function CustomerShopPage() {
                           <span className="text-sm text-slate-500">{checkoutForm.shipping_phone}</span>
                         </div>
                         <p className="text-sm text-slate-600 pr-4">{checkoutForm.shipping_address}</p>
-                        
+
                         {!checkoutForm.shipping_district_id && (
                           <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
                             ⚠️ Bấm 'Đổi địa chỉ khác' và Cập nhật lại để bổ sung Quận/Phường.
@@ -575,6 +603,19 @@ export default function CustomerShopPage() {
                     <input type="radio" value="VIETQR_SEPAY" checked={checkoutForm.payment_method === 'VIETQR_SEPAY'} onChange={e => setCheckoutForm({...checkoutForm, payment_method: e.target.value})} className="w-4 h-4 text-primary" />
                     <div className="flex-1"><h4 className="font-bold text-sm">Chuyển khoản VietQR</h4></div>
                   </label>
+                  {pointsInfo && (
+                    <label className={`flex items-center gap-3 p-4 border rounded-xl ${enoughPoints && shippingFee >= 0 ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'} ${payByPoints ? 'border-primary bg-primary/5' : 'border-slate-200'}`}>
+                      <input type="radio" value="POINTS" disabled={!enoughPoints} checked={payByPoints}
+                        onChange={() => { setCheckoutForm({ ...checkoutForm, payment_method: 'POINTS' }); setDiscountAmount(0); setAppliedVoucher(null); setVoucherCode(''); }} className="w-4 h-4 text-primary" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-sm">Điểm GlowSkin: {pointsNeeded.toLocaleString('vi-VN')} điểm</h4>
+                        <p className="text-xs text-slate-500">
+                          Bạn có {pointsInfo.balance.toLocaleString('vi-VN')} điểm.{' '}
+                          {enoughPoints ? 'Tính theo giá niêm yết (không áp giá khuyến mãi) + phí ship, không dùng kèm voucher.' : `Cần thêm ${(pointsNeeded - pointsInfo.balance).toLocaleString('vi-VN')} điểm để trả cả đơn.`}
+                        </p>
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -583,9 +624,9 @@ export default function CustomerShopPage() {
             <div>
               <div className="bg-slate-50 p-4 sm:p-6 rounded-2xl border border-slate-200 md:sticky md:top-24">
                  <h3 className="font-bold text-lg text-slate-800 mb-4">Tóm tắt đơn hàng</h3>
-                 
+
                  <div className="flex justify-between text-sm mb-2 text-slate-600"><span>Tiền hàng</span><span className="font-medium text-slate-800">{cartTotal.toLocaleString()} ₫</span></div>
-                 
+
                  <div className="flex justify-between text-sm mb-4 text-slate-600">
                    <span>Phí vận chuyển (GHN)</span>
                    <span className="font-medium text-slate-800">{shippingFee > 0 ? `${shippingFee.toLocaleString()} ₫` : (checkoutForm.shipping_district_id ? 'Miễn phí' : '---')}</span>
@@ -594,16 +635,16 @@ export default function CustomerShopPage() {
                  <div className="mb-4">
                     <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1"><Percent className="w-4 h-4"/> Voucher</label>
                     <div className="flex gap-2">
-                       <input type="text" placeholder="Nhập mã..." className="flex-1 p-2.5 border rounded-lg" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())} />
-                       <button type="button" onClick={handleApplyVoucher} className="px-4 py-2 bg-slate-800 text-white rounded-lg">Áp dụng</button>
+                       <input type="text" placeholder={payByPoints ? 'Không dùng khi trả bằng điểm' : 'Nhập mã...'} disabled={payByPoints} className="flex-1 p-2.5 border rounded-lg" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())} />
+                       <button type="button" disabled={payByPoints} onClick={handleApplyVoucher} className="px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50">Áp dụng</button>
                     </div>
                     {appliedVoucher && <p className="text-sm text-green-600 mt-2 font-bold">- Đã giảm: {appliedVoucher.amount.toLocaleString()} ₫</p>}
                  </div>
 
                  <hr className="border-slate-200 mb-4"/>
                  <div className="flex justify-between text-lg font-bold mb-6">
-                    <span>TỔNG CẦN THU</span>
-                    <span className="text-primary">{finalTotal.toLocaleString()} ₫</span>
+                    <span>{payByPoints ? 'TRẢ BẰNG ĐIỂM' : 'TỔNG CẦN THU'}</span>
+                    <span className="text-primary">{payByPoints ? `${pointsNeeded.toLocaleString('vi-VN')} điểm` : `${finalTotal.toLocaleString()} ₫`}</span>
                  </div>
                  <button type="submit" disabled={loading} className="w-full py-4 bg-primary text-white font-bold rounded-xl">{loading ? 'Đang xử lý...' : 'Xác nhận Đặt hàng'}</button>
               </div>
@@ -622,7 +663,7 @@ export default function CustomerShopPage() {
             <div className="space-y-4">
               <input type="text" placeholder="Tên người nhận" className="w-full p-2.5 border rounded-lg" value={modalForm.recipient_name} onChange={e => setModalForm({...modalForm, recipient_name: e.target.value})} />
               <input type="text" placeholder="Số điện thoại" className="w-full p-2.5 border rounded-lg" value={modalForm.phone} onChange={e => setModalForm({...modalForm, phone: e.target.value})} />
-              
+
               <select className="w-full p-2.5 border rounded-lg bg-white" onChange={handleProvinceChange} value={modalForm.province_id}>
                 <option value="">-- Chọn Tỉnh/Thành phố --</option>
                 {provinces.map(p => <option key={p.ProvinceID} value={p.ProvinceID}>{p.ProvinceName}</option>)}
@@ -655,24 +696,24 @@ export default function CustomerShopPage() {
             <h3 className="text-xl font-bold text-slate-800 text-center flex items-center justify-center gap-2 mb-4">
               <QrCode className="w-6 h-6 text-primary" /> Thanh Toán Đơn Hàng
             </h3>
-            
+
             <div className="text-center space-y-4">
               <p className="text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2">Vui lòng chuyển khoản trong 15 phút, quá thời gian đơn sẽ tự hủy.</p>
               <p className="text-sm font-medium text-slate-500">Mã đơn hàng: <b className="text-slate-800">#{currentOrder.id.slice(0,8).toUpperCase()}</b></p>
-              
+
               <div className="p-3 border-2 border-primary rounded-xl inline-block bg-white mx-auto shadow-sm">
-                <img 
-                  src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${currentOrder.finalTotal}&addInfo=SP ${currentOrder.id.slice(0,6).toUpperCase()}&accountName=${ACCOUNT_NAME}`} 
-                  alt="QR Code" 
+                <img
+                  src={`https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${currentOrder.finalTotal}&addInfo=SP ${currentOrder.id.slice(0,6).toUpperCase()}&accountName=${ACCOUNT_NAME}`}
+                  alt="QR Code"
                   className="w-56 h-56 object-cover"
                 />
               </div>
               <p className="text-xs text-slate-500">Sử dụng App Ngân hàng bất kỳ để quét mã</p>
-              
+
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-left text-sm space-y-2 mt-4">
                  <p className="flex justify-between"><span>Số tiền:</span> <b className="text-red-500 text-lg">{currentOrder.finalTotal.toLocaleString()} ₫</b></p>
                  <p className="flex justify-between items-center">
-                    <span>Nội dung CK:</span> 
+                    <span>Nội dung CK:</span>
                     <b className="text-primary font-mono bg-blue-50 px-2 py-1 rounded text-lg border border-blue-200">SP {currentOrder.id.slice(0,6).toUpperCase()}</b>
                  </p>
               </div>
@@ -682,15 +723,15 @@ export default function CustomerShopPage() {
                 <p className="text-xs font-medium animate-pulse text-center">Hệ thống đang chờ bạn quét mã...<br/>Trang sẽ tự động chuyển khi nhận được tiền.</p>
               </div>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => {
                 if(window.confirm('Bạn chưa thanh toán. Nếu hủy, đơn hàng sẽ nằm ở trạng thái Chờ duyệt. Bạn vẫn muốn thoát?')) {
                    setShowQRModal(false);
                    setCartItems([]);
                    setActiveView('SHOP');
                 }
-              }} 
+              }}
               className="mt-6 w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition"
             >
               Hủy thanh toán & Thoát

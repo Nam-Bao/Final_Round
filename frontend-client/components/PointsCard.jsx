@@ -1,4 +1,4 @@
-// Hồ sơ cá nhân: Điểm GlowSkin (số dư + lịch sử). Điểm có từ cọc của lịch hủy đúng hạn, dùng để trả cọc lần đặt sau.
+// Hồ sơ cá nhân: Điểm GlowSkin (số dư, điểm sắp hết hạn, lịch sử). Dùng trả cọc lịch khám / phí tư vấn, mua mỹ phẩm. Hạn dùng 12 tháng mỗi lần cộng.
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Coins } from 'lucide-react';
@@ -18,10 +18,15 @@ export default function PointsCard() {
     <div className="card bg-base-100 shadow-sm border border-base-200 p-4 sm:p-6">
       <h2 className="text-lg font-bold flex items-center gap-2 mb-2"><Coins className="text-amber-500" /> Điểm GlowSkin</h2>
       <p className="text-3xl font-extrabold text-amber-600">{data.balance.toLocaleString('vi-VN')} <span className="text-base font-semibold">điểm</span></p>
-      <p className="text-sm text-base-content/60 mb-3">Tương đương {data.balance_vnd.toLocaleString('vi-VN')}đ (1 điểm = {data.value_vnd}đ). Dùng để trả cọc lịch khám hoặc phí tư vấn chuyên gia, không đổi ra tiền mặt.</p>
+      <p className="text-sm text-base-content/60 mb-3">Tương đương {data.balance_vnd.toLocaleString('vi-VN')}đ (1 điểm = {data.value_vnd}đ). Dùng để trả cọc lịch khám, phí tư vấn chuyên gia hoặc mua mỹ phẩm (theo giá niêm yết), không đổi ra tiền mặt.</p>
+      {data.expiring_soon?.points > 0 && (
+        <div className="alert alert-warning py-2 text-sm mb-3"><span><b>{data.expiring_soon.points.toLocaleString('vi-VN')} điểm</b> sẽ hết hạn ngày {dayjs(data.expiring_soon.date).format('DD/MM/YYYY')}. Dùng trước ngày này để không bị mất.</span></div>
+      )}
       <ul className="text-xs text-base-content/60 list-disc pl-4 mb-3 space-y-0.5">
         <li>Tự hủy lịch trước giờ hẹn từ 24 giờ: tiền cọc đổi thành điểm.</li>
         <li>Phòng khám hủy lịch: chọn nhận lại tiền hoặc nhận điểm (cộng thêm {data.clinic_refund_bonus_percent}%).</li>
+        <li>Tự hủy đơn mỹ phẩm đã chuyển khoản (chưa giao cho GHN): chọn hoàn tiền hoặc hoàn điểm tương đương.</li>
+        <li>Mỗi lần cộng điểm có hạn {data.expire_months || 12} tháng; điểm sắp hết hạn được dùng trước.</li>
       </ul>
       {data.history.length === 0 ? (
         <p className="text-sm text-base-content/50 italic">Chưa có điểm nào.</p>
@@ -32,7 +37,7 @@ export default function PointsCard() {
               <li key={r.id} className="py-2 flex justify-between gap-3">
                 <span>
                   <span className="font-medium">{r.type_label}</span>
-                  <span className="block text-xs text-base-content/50">{dayjs(r.created_at).format('HH:mm DD/MM/YYYY')}{r.note ? ` · ${r.note}` : ''}</span>
+                  <span className="block text-xs text-base-content/50">{dayjs(r.created_at).format('HH:mm DD/MM/YYYY')}{r.note ? ` · ${r.note}` : ''}{r.expires_at ? ` · hạn ${dayjs(r.expires_at).format('DD/MM/YYYY')}` : ''}</span>
                 </span>
                 <span className={`font-bold whitespace-nowrap ${r.delta > 0 ? 'text-success' : 'text-error'}`}>{r.delta > 0 ? '+' : ''}{r.delta.toLocaleString('vi-VN')}</span>
               </li>

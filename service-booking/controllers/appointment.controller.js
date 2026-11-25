@@ -986,12 +986,15 @@ const cancelAppointment = async (req, res) => {
     const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, transaction: t, lock: t.LOCK.UPDATE });
     const depositPaid = getDepositPaid(invoice);
     const inTime = !dayjs().isAfter(start.subtract(RESCHEDULE_MIN_MINUTES, 'minute')) || apt.status === 'NEEDS_RESCHEDULE';
-    const deposit_outcome = depositPaid === 0 ? 'NONE' : initiator === 'CLINIC' ? 'REFUND_PENDING' : inTime ? 'POINTS' : 'FORFEITED';
+    // Cọc đã trả bằng điểm mà phòng khám hủy => hoàn lại bằng điểm ngay (+%), KHÔNG vào hàng chờ chuyển khoản (điểm không đổi ra tiền mặt)
+    const paidByPoints = invoice?.payment_method === 'POINTS';
+    const deposit_outcome = depositPaid === 0 ? 'NONE' : initiator === 'CLINIC' ? (paidByPoints ? 'POINTS' : 'REFUND_PENDING') : inTime ? 'POINTS' : 'FORFEITED';
+    const pointKind = initiator === 'CLINIC' ? 'CLINIC_REFUND' : 'CANCEL_REFUND';
     // Khách tự hủy trong vòng 24 giờ phải xác nhận đã biết sẽ mất cọc (giao diện hỏi lại trước khi gửi)
     if (isCustomer && deposit_outcome === 'FORFEITED' && req.body.accept_forfeit !== true) {
       throw new CancelError(`Hủy lịch trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ khám, bạn sẽ mất ${depositPaid.toLocaleString('vi-VN')}đ tiền cọc. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: depositPaid });
     }
-    const pointsAdded = deposit_outcome === 'POINTS' ? points.toPoints(depositPaid) : 0;
+    const pointsAdded = deposit_outcome !== 'POINTS' ? 0 : pointKind === 'CLINIC_REFUND' ? points.clinicRefundPoints(depositPaid) : points.toPoints(depositPaid);
     await AppointmentCancellation.create({
       appointment_id: apt.id,
       cancelled_by: req.user.id,
@@ -1005,7 +1008,10 @@ const cancelAppointment = async (req, res) => {
       ...(pointsAdded ? { refunded_by: req.user.id, refunded_at: new Date(), refund_note: `Đổi thành ${pointsAdded.toLocaleString('vi-VN')} điểm` } : {}),
     }, { transaction: t });
     if (pointsAdded) {
-      await points.credit({ customerId: apt.customer_id, points: pointsAdded, type: 'CANCEL_REFUND', referenceType: 'APPOINTMENT', referenceId: apt.id, note: `Hủy lịch khám ${apt.id.slice(0, 6).toUpperCase()} trước hạn`, createdBy: isCustomer ? null : req.user.id }, t);
+      await points.credit({
+        customerId: apt.customer_id, points: pointsAdded, type: pointKind, referenceType: 'APPOINTMENT', referenceId: apt.id, createdBy: isCustomer ? null : req.user.id,
+        note: pointKind === 'CLINIC_REFUND' ? `Phòng khám hủy lịch ${apt.id.slice(0, 6).toUpperCase()} (cọc đã trả bằng điểm), hoàn bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)` : `Hủy lịch khám ${apt.id.slice(0, 6).toUpperCase()} trước hạn`,
+      }, t);
     }
 
     // Hóa đơn cọc giữ nguyên "đã thu": mất cọc thì phòng khám giữ tiền; hoàn cọc thì chỉ chuyển REFUNDED khi CSKH đã chuyển khoản
@@ -1019,8 +1025,11 @@ const cancelAppointment = async (req, res) => {
       NONE: 'Hủy lịch thành công',
       FORFEITED: `Đã hủy lịch. Tiền cọc ${amount} không được hoàn vì hủy trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ khám.`,
       REFUND_PENDING: `Đã hủy lịch. Khách được hoàn ${amount} tiền cọc, vui lòng liên hệ khách để hoàn tiền.`,
-      POINTS: `Đã hủy lịch. Tiền cọc ${amount} đã đổi thành ${pointsAdded.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
+      POINTS: pointKind === 'CLINIC_REFUND'
+        ? `Đã hủy lịch. Cọc ${amount} khách trả bằng điểm được hoàn ${pointsAdded.toLocaleString('vi-VN')} Điểm GlowSkin (đã cộng ${points.CLINIC_REFUND_BONUS_PERCENT}%).`
+        : `Đã hủy lịch. Tiền cọc ${amount} đã đổi thành ${pointsAdded.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
     };
+    points.notifyCredit({ customerId: apt.customer_id, points: pointsAdded, kind: pointKind, source: 'APPOINTMENT', sourceId: apt.id, amountVnd: depositPaid }).catch(() => {});
     res.status(200).json({ message: messages[deposit_outcome], deposit_outcome, deposit_paid: depositPaid, points_added: pointsAdded });
   } catch (error) {
     await t.rollback();
@@ -1050,11 +1059,11 @@ const refundDepositAsPoints = async (req, res) => {
     const cancellation = await AppointmentCancellation.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
     if (!cancellation || cancellation.deposit_outcome !== 'REFUND_PENDING') throw new CancelError('Lịch này không có khoản cọc chờ hoàn');
     const apt = await Appointment.findByPk(req.params.id, { attributes: ['id', 'customer_id'], transaction: t });
-    const base = points.toPoints(cancellation.deposit_paid);
-    const added = base + Math.floor(base * points.CLINIC_REFUND_BONUS_PERCENT / 100);
+    const added = points.clinicRefundPoints(cancellation.deposit_paid);
     await points.credit({ customerId: apt.customer_id, points: added, type: 'CLINIC_REFUND', referenceType: 'APPOINTMENT', referenceId: apt.id, note: `Phòng khám hủy lịch ${apt.id.slice(0, 6).toUpperCase()}, hoàn cọc bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)`, createdBy: req.user.id }, t);
     await cancellation.update({ deposit_outcome: 'POINTS', refund_note: `Hoàn bằng ${added.toLocaleString('vi-VN')} điểm. ${String(req.body.note || '').trim().slice(0, 400)}`.trim(), refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
     await t.commit();
+    points.notifyCredit({ customerId: apt.customer_id, points: added, kind: 'CLINIC_REFUND', source: 'APPOINTMENT', sourceId: apt.id, amountVnd: cancellation.deposit_paid }).catch(() => {});
     res.status(200).json({ message: `Đã hoàn cọc bằng ${added.toLocaleString('vi-VN')} Điểm GlowSkin cho khách`, points_added: added });
   } catch (error) {
     await t.rollback();
@@ -1076,6 +1085,7 @@ const confirmDepositRefund = async (req, res) => {
     if (!cancellation || cancellation.deposit_outcome !== 'REFUND_PENDING') throw new CancelError('Lịch này không có khoản cọc chờ hoàn');
 
     const invoice = await Invoice.findOne({ where: { appointment_id: req.params.id }, transaction: t, lock: t.LOCK.UPDATE });
+    if (invoice?.payment_method === 'POINTS') throw new CancelError('Cọc lịch này khách trả bằng Điểm GlowSkin: chỉ hoàn bằng điểm, không chuyển khoản tiền mặt', 409);
     if (invoice) {
       invoice.payment_status = 'REFUNDED';
       await invoice.save({ transaction: t });

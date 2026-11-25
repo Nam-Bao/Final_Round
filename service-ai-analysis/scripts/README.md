@@ -25,6 +25,8 @@ Nguồn: bộ dữ liệu công khai trên Roboflow Universe (định dạng COC
 | `face_calibrate.js` | Đo xác thực ảnh chấm công trên thư mục ảnh theo từng người: tỉ lệ từ chối nhầm / chấp nhận nhầm theo ngưỡng, chọn `FACE_MATCH_THRESHOLD` / `FACE_REVIEW_THRESHOLD` (ảnh sinh trắc học: không đưa lên git, xoá sau khi đo) | Không |
 | `ensemble_eval.js` | So sánh / gộp model v1 với v4 từ cache (cần chạy `evaluate.js --model skin-problems-detection-jp4jv/1` trước) | Không |
 | `check_leakage.js`, `dataset_stats.js` | Tìm ảnh trùng giữa các tập; thống kê kích thước khung | Không |
+| `rag_eval.js` | Chatbot trước / sau RAG: bộ câu hỏi sinh từ dữ liệu đang chạy (giá, gói, sản phẩm, bác sĩ, chính sách) + câu ngoài phạm vi + câu hỏi dữ liệu riêng (đo luồng xin phép). Kết quả: `docs/DANH-GIA-CHATBOT-RAG.md` | Có (Gemini) |
+| `safety_rag_eval.js` | AI rà soát đơn kê trước / sau RAG: 10 ca mục kê viết bằng tên khác mà bảng quy tắc bỏ sót + 2 ca an toàn. Chạy sau `rag_eval.js` (ghi thêm vào cùng file) | Có (Gemini) |
 
 ```bash
 node scripts/evaluate-app.js --split valid --tune

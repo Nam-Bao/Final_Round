@@ -65,7 +65,7 @@ const counterOrderPrint = async (req, res) => {
           id: order.id, created_at: order.createdAt, status: order.status,
           returned: RETURNED.includes(order.status), refund_status: order.refund_status,
           // Đơn tại quầy: COD = khách trả tiền mặt tại quầy
-          payment_method: order.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR)' : 'Tiền mặt',
+          payment_method: order.payment_method === 'POINTS' ? `Điểm GlowSkin (${Number(order.points_used || 0).toLocaleString('vi-VN')} điểm)` : order.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR)' : 'Tiền mặt',
           note: order.note,
         },
         customer: { name: order.recipient_name, phone: order.shipping_phone, account_name: u[order.customer_id]?.full_name || null },

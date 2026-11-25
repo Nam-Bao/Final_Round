@@ -43,5 +43,7 @@ router.get('/', customerOnly, orderController.getCustomerOrders);
 
 // 5. Khách kiểm tra đơn của mình đã được thanh toán chưa (polling sau khi quét QR)
 router.get('/:id/check-payment', customerOnly, orderController.checkOrderPaymentStatus);
+// Khách tự hủy đơn chưa giao cho GHN (đã chuyển khoản: chọn hoàn tiền hoặc hoàn Điểm GlowSkin)
+router.put('/:id/cancel', customerOnly, orderController.customerCancelOrder);
 
 module.exports = router;

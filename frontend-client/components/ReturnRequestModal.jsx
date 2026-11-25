@@ -29,6 +29,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
   const isSale = (d) => !!d.is_sale || (d.Product?.price != null && Number(d.price) < Number(d.Product.price));
   const saleSelected = details.some((d) => (qty[d.id] || 0) > 0 && isSale(d));
   const refund = resolution === 'REFUND' && !saleSelected;
+  const paidPoints = order.payment_method === 'POINTS'; // đơn trả bằng điểm: hoàn bằng điểm, không cần tài khoản ngân hàng
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, maxImages - images.length);
@@ -58,7 +59,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
     if (!reason) return setError('Chọn lý do hoàn trả');
     if (description.trim().length < 20) return setError('Mô tả tình trạng sản phẩm ít nhất 20 ký tự');
     if (!images.length) return setError('Cần ít nhất 1 ảnh chụp sản phẩm làm bằng chứng');
-    if (refund && (!bank.bank_name.trim() || !bank.bank_holder.trim() || !/^\d{6,20}$/.test(bank.bank_account.replace(/\s/g, '')))) {
+    if (refund && !paidPoints && (!bank.bank_name.trim() || !bank.bank_holder.trim() || !/^\d{6,20}$/.test(bank.bank_account.replace(/\s/g, '')))) {
       return setError('Điền đủ thông tin nhận hoàn tiền (số tài khoản 6 - 20 chữ số)');
     }
     if (!agree) return setError('Bạn cần đồng ý với quy định hoàn trả');
@@ -67,7 +68,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
     try {
       await axios.post(`${API}/commerce/returns`, {
         order_id: order.id, items, reason, description: description.trim(), images, agree,
-        resolution: refund ? 'REFUND' : 'EXCHANGE', ...(refund ? bank : {}),
+        resolution: refund ? 'REFUND' : 'EXCHANGE', ...(refund && !paidPoints ? bank : {}),
       }, { headers: { Authorization: `Bearer ${token}` } });
       onCreated();
     } catch (err) {
@@ -97,7 +98,7 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
             <li>GlowSkin gửi GHN đến lấy hàng tại địa chỉ nhận hàng, phí vận chuyển do GlowSkin chịu.</li>
             <li>Mặc định GlowSkin <b>đổi sản phẩm</b> cho bạn sau khi kho nhận và kiểm tra đạt. Hết hàng thì nhân viên liên hệ để đổi sản phẩm khác có giá trị tương đương hoặc hoàn tiền.</li>
             <li>Chọn hoàn tiền: chuyển khoản sau khi kiểm tra đạt, gồm giá sản phẩm trả lại trừ phần voucher đã giảm; trả toàn bộ đơn được hoàn cả phí ship. Voucher đã dùng không được hoàn lại.</li>
-            <li><b>{policy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b></li>
+            <li><b>{policy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b> {policy?.sale_out_of_stock_rule || 'Hàng khuyến mãi lỗi mà hết hàng để đổi: đổi sản phẩm tương đương (không vượt giá đã trả) hoặc hoàn tiền nếu khách không đồng ý'}.</li>
             <li>Hàng nhận về không đúng mô tả hoặc không đạt điều kiện, yêu cầu sẽ bị từ chối.</li>
           </ul>
         </div>
@@ -156,13 +157,14 @@ export default function ReturnRequestModal({ order, token, onClose, onCreated })
               <input type="radio" className="radio radio-sm radio-primary" checked={!refund} onChange={() => setResolution('EXCHANGE')} /> Đổi sản phẩm (khuyên dùng)
             </label>
             <label className={`flex items-center gap-2 ${saleSelected ? 'opacity-50' : 'cursor-pointer'}`}>
-              <input type="radio" className="radio radio-sm radio-primary" disabled={saleSelected} checked={refund} onChange={() => setResolution('REFUND')} /> Hoàn tiền
+              <input type="radio" className="radio radio-sm radio-primary" disabled={saleSelected} checked={refund} onChange={() => setResolution('REFUND')} /> {paidPoints ? 'Hoàn điểm' : 'Hoàn tiền'}
             </label>
-            {saleSelected && <p className="text-xs text-amber-700">Có hàng khuyến mãi trong yêu cầu: chỉ được đổi sản phẩm, không hoàn tiền.</p>}
+            {saleSelected && <p className="text-xs text-amber-700">Có hàng khuyến mãi trong yêu cầu: chọn đổi sản phẩm. Nếu hết hàng để đổi, nhân viên sẽ liên hệ đổi sản phẩm tương đương hoặc hoàn tiền.</p>}
           </div>
         </div>
 
-        {refund && <div>
+        {refund && paidPoints && <p className="text-sm text-slate-600">Đơn trả bằng Điểm GlowSkin: khi hàng trả được kiểm tra đạt, bạn được hoàn lại điểm tương ứng (không hoàn tiền mặt).</p>}
+        {refund && !paidPoints && <div>
           <p className="font-semibold text-sm text-slate-700 mb-2">5. Tài khoản nhận hoàn tiền</p>
           <div className="grid grid-cols-2 gap-2">
             <input className="input input-bordered input-sm" placeholder="Ngân hàng" value={bank.bank_name} onChange={(e) => setBank({ ...bank, bank_name: e.target.value })} />
