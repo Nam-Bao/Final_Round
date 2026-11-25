@@ -37,6 +37,9 @@ export default function ProductDetailPage() {
   const token = useAuthStore((state) => state.token);
 
   const [product, setProduct] = useState(null);
+  // Giá theo Điểm GlowSkin = giá niêm yết / giá trị 1 điểm (không áp giá khuyến mãi)
+  const [pointValue, setPointValue] = useState(null);
+  useEffect(() => { axios.get('/api/booking/points/config').then((r) => setPointValue(r.data.data.value_vnd)).catch(() => {}); }, []);
   const [allProducts, setAllProducts] = useState([]);
   const [reviews, setReviews] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -243,8 +246,11 @@ export default function ProductDetailPage() {
               {isOnSale(product) && (
                 <>
                   <p className="text-xs text-red-600 font-medium mt-1">Giá ưu đãi khi mua online đến hết {dayjs(product.sale_end).format('HH:mm DD/MM/YYYY')}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Hàng khuyến mãi không hoàn tiền; nếu sản phẩm lỗi, giao sai hoặc hết hạn, GlowSkin đổi đúng sản phẩm này cho bạn.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Hàng khuyến mãi không hoàn tiền; nếu sản phẩm lỗi, giao sai hoặc hết hạn, GlowSkin đổi đúng sản phẩm này cho bạn (hết hàng thì đổi sản phẩm tương đương hoặc hoàn tiền).</p>
                 </>
+              )}
+              {pointValue && (
+                <p className="text-sm text-teal-700 mt-1">Hoặc trả bằng <b>{Math.ceil(Number(product.original_price || product.price) / pointValue).toLocaleString('vi-VN')} Điểm GlowSkin</b> (theo giá niêm yết{isOnSale(product) ? ', không áp giá khuyến mãi' : ''}).</p>
               )}
               <p className="text-xs text-slate-500 mt-1">Phí vận chuyển GHN được tính theo địa chỉ nhận hàng khi đặt.</p>
             </div>

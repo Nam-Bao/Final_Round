@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import ReviewModal from '../components/ReviewModal';
 import ReturnRequestModal from '../components/ReturnRequestModal';
+import CancelOrderModal from '../components/CancelOrderModal';
 
 // Khớp với luồng duyệt đơn của Nhân viên bán hàng (SaleOrderManagement):
 // Chờ duyệt (COD) / Đã thanh toán (chuyển khoản) -> Đã duyệt -> Đang đóng gói -> Đang giao -> Đã nhận
@@ -29,7 +30,9 @@ const STATUS_BADGE = {
   CANCELLED: 'bg-red-100 text-red-700',
 };
 
-const PAYMENT_LABEL = { COD: 'Thanh toán khi nhận hàng (COD)', VIETQR_SEPAY: 'Chuyển khoản VietQR' };
+const PAYMENT_LABEL = { COD: 'Thanh toán khi nhận hàng (COD)', VIETQR_SEPAY: 'Chuyển khoản VietQR', POINTS: 'Điểm GlowSkin' };
+// Khách tự hủy được đơn giao hàng chưa tạo vận đơn GHN
+const canCancel = (order) => ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING'].includes(order.status) && !order.tracking_code && !order.appointment_id && order.shipping_address !== 'Nhận tại quầy phòng khám GlowSkin';
 const COUNTER_PAYMENT_LABEL = 'Thanh toán tại phòng khám';
 const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin'; // địa chỉ server ghi cho đơn nhận tại quầy
 
@@ -96,6 +99,7 @@ function OrderProgress({ order, isCounterOrder, currentStep }) {
         <XCircle className="w-5 h-5 shrink-0" /> Đơn hàng đã bị hủy{order.cancel_reason ? `: ${order.cancel_reason}` : ''}
         {order.refund_status === 'PENDING' && <span className="font-normal">. Phòng khám sẽ hoàn {Number(order.refund_amount).toLocaleString('vi-VN')}đ, vui lòng liên hệ CSKH để cung cấp tài khoản nhận tiền.</span>}
         {order.refund_status === 'REFUNDED' && <span className="font-normal">. Đã hoàn {Number(order.refund_amount).toLocaleString('vi-VN')}đ, mã giao dịch {order.refund_ref}.</span>}
+        {order.refund_status === 'POINTS' && <span className="font-normal">. Đã hoàn bằng Điểm GlowSkin (xem ở Hồ sơ).</span>}
       </div>
     );
   }
@@ -147,6 +151,9 @@ export default function PharmacyOrdersPage() {
   const [reviewTarget, setReviewTarget] = useState(null); // { order_id, product_id, name }
   const [loading, setLoading] = useState(true);
   const [returnTarget, setReturnTarget] = useState(null); // đơn đang mở form hoàn trả
+  const [cancelTarget, setCancelTarget] = useState(null); // đơn đang mở hộp tự hủy
+  const [pointValue, setPointValue] = useState(100);
+  useEffect(() => { axios.get('/api/booking/points/config').then((r) => setPointValue(r.data.data.value_vnd)).catch(() => {}); }, []);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -294,13 +301,13 @@ export default function PharmacyOrdersPage() {
                   {!isCounterOrder && (
                     <div className="flex justify-between text-slate-600"><span>Phí vận chuyển</span><span>{shippingFee > 0 ? formatVnd(shippingFee) : 'Miễn phí'}</span></div>
                   )}
-                  <div className="flex justify-between font-bold text-teal-600 text-base"><span>Thành tiền</span><span>{formatVnd(finalAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-teal-600 text-base"><span>Thành tiền</span><span>{order.payment_method === 'POINTS' ? `${Number(order.points_used || 0).toLocaleString('vi-VN')} điểm` : formatVnd(finalAmount)}</span></div>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-2 text-sm text-slate-600">
                 <div className="flex gap-2"><MapPin className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" /><span><b>{order.recipient_name}</b> · {order.shipping_phone}<br />{order.shipping_address}</span></div>
-                <div className="flex gap-2"><CreditCard className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" /><span>{isCounterOrder ? COUNTER_PAYMENT_LABEL : PAYMENT_LABEL[order.payment_method] || order.payment_method}</span></div>
+                <div className="flex gap-2"><CreditCard className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" /><span>{order.payment_method === 'POINTS' ? `Điểm GlowSkin (${Number(order.points_used || 0).toLocaleString('vi-VN')} điểm)` : isCounterOrder ? COUNTER_PAYMENT_LABEL : PAYMENT_LABEL[order.payment_method] || order.payment_method}</span></div>
               </div>
 
               {/* Hoàn / trả hàng */}
@@ -319,6 +326,13 @@ export default function PharmacyOrdersPage() {
                   {ret.tracking_code && <p>Mã vận đơn GHN lấy hàng: <b>{ret.tracking_code}</b></p>}
                   {ret.status === 'REFUNDED' && ret.refund_ref && <p>Mã giao dịch hoàn tiền: <b>{ret.refund_ref}</b></p>}
                   {ret.status === 'REJECTED' && ret.reject_reason && <p>Lý do: {ret.reject_reason}</p>}
+                </div>
+              )}
+              {canCancel(order) && (
+                <div className="flex justify-end">
+                  <button onClick={() => setCancelTarget(order)} className="btn btn-sm btn-ghost text-red-500 gap-1">
+                    <XCircle className="w-4 h-4" /> Hủy đơn
+                  </button>
                 </div>
               )}
               {(canRequestReturn(order) || canDownloadInvoice(order) || (order.appointment_id && INVOICE_STATUSES.includes(order.status))) && (
@@ -343,6 +357,16 @@ export default function PharmacyOrdersPage() {
             </div>
           );
         })
+      )}
+
+      {cancelTarget && (
+        <CancelOrderModal
+          order={cancelTarget}
+          token={token}
+          pointValue={pointValue}
+          onClose={() => setCancelTarget(null)}
+          onDone={(msg) => { setCancelTarget(null); setReloadKey((k) => k + 1); alert(msg); }}
+        />
       )}
 
       {returnTarget && (

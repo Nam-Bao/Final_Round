@@ -39,6 +39,7 @@ import SafetyRuleReviewsPage from './pages/SafetyRuleReviewsPage';
 import SkinReviewsPage from './pages/SkinReviewsPage';
 import PrintPage from './pages/PrintPage';
 import EmailLogPage from './pages/EmailLogPage';
+import PointsReportPage from './pages/PointsReportPage';
 
 function App() {
   return (
@@ -56,6 +57,7 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/email-logs" element={<EmailLogPage />} />
+          <Route path="/points-report" element={<PointsReportPage />} />
           <Route path="/appointments" element={<div>Giao diện Lịch hẹn sẽ nằm ở đây</div>} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/materials" element={<MaterialsPage />} />

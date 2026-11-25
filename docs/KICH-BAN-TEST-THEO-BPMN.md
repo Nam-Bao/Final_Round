@@ -376,6 +376,61 @@ Chế độ `MAIL_MODE=log`: xem email trong `service-identity/mail-outbox/` ho�
 | 16.14 | Dọn mã OTP | Mã OTP hết hạn (cron 3h sáng) | Mã bị xóa khỏi tài khoản |
 | 16.15 | Gửi lại email lỗi | Email lỗi trong **Lịch sử email** → **Gửi lại** | Gửi lại được; email mã OTP lỗi không gửi lại được (không lưu mã), khách yêu cầu mã mới |
 
+## 17. Điểm GlowSkin và đổi hàng: các trường hợp đã vá
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 17.1 | Cọc trả bằng điểm, phòng khám hủy | Khách đặt lịch trả cọc bằng điểm → CSKH hủy, bên yêu cầu **Phòng khám** | Hoàn ngay bằng điểm +10% (VD 500 → 550 điểm), không vào mục **Chờ hoàn cọc**; ghi chuyển khoản tiền mặt cho lịch này bị chặn (điểm không đổi ra tiền) |
+| 17.2 | Tư vấn trả bằng điểm | Phòng khám hủy, hoặc chuyên gia không vào phòng | Tự hoàn điểm +10%, email "chuyên gia vắng" ghi số điểm hoàn |
+| 17.3 | Email cộng điểm | Khách hủy đúng hạn; CSKH bấm **Hoàn bằng điểm** | Email "Bạn vừa nhận X Điểm GlowSkin" (số điểm, số dư, cách dùng) |
+| 17.4 | Không đòi lại 2 lần | Đơn đã **đổi hàng xong** → khách gửi yêu cầu hoàn trả lần 2 | Bị chặn như đơn đã hoàn tiền / bị từ chối |
+| 17.5 | Hàng khuyến mãi lỗi, còn hàng | NVBH chọn đổi sản phẩm khác / chuyển sang hoàn tiền | Bị chặn: còn hàng thì chỉ đổi đúng sản phẩm |
+| 17.6 | Hàng khuyến mãi lỗi, hết hàng | Tồn kho sản phẩm = 0 → **Đạt - Đổi hàng** chọn sản phẩm tương đương; hoặc **Không còn hàng - Chuyển sang hoàn tiền** | Đổi được nếu tổng giá trị không vượt giá khách đã trả; khách không đồng ý thì chuyển hoàn tiền và ghi nhận hoàn theo giá đã trả |
+| 17.7 | Đổi sang hàng rẻ hơn | Trong hộp đổi hàng chọn sản phẩm rẻ hơn | Hiện "Còn X đ có thể chọn thêm", bấm **+ Thêm sản phẩm bù** để bù đủ giá trị |
+
+## 18. Điểm GlowSkin: mua mỹ phẩm, tự hủy đơn, hạn dùng, báo cáo
+
+1 điểm = 100đ (`POINT_VALUE_VND`), mỗi lần cộng điểm có hạn 12 tháng (`POINT_EXPIRE_MONTHS`), trong `service-booking/.env`.
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 18.1 | Giá theo điểm | Mở trang sản phẩm (cả sản phẩm đang giảm giá) | Dòng "Hoặc trả bằng X Điểm GlowSkin" tính theo **giá niêm yết** (không áp giá khuyến mãi) |
+| 18.2 | Thanh toán bằng điểm | Giỏ hàng → Thanh toán → chọn **Điểm GlowSkin: X điểm** | X = (giá niêm yết × SL + phí ship) / 100 làm tròn lên; ô voucher bị khóa; đặt xong đơn "Đã thanh toán, chờ duyệt", trừ điểm, email ghi "Điểm GlowSkin (X điểm)" |
+| 18.3 | Không đủ điểm | Số dư nhỏ hơn X | Lựa chọn bị mờ, ghi "Cần thêm ... điểm"; gọi thẳng API báo không đủ điểm, không tạo đơn |
+| 18.4 | NVBH bán bằng điểm | Quản lý đơn hàng → Tạo đơn → chọn khách → **Điểm GlowSkin (cần / có)** | Đơn tại quầy hoàn thành ngay, trừ điểm; hóa đơn in ghi "Điểm GlowSkin (x điểm)" |
+| 18.5 | Khách tự hủy (COD / chưa trả) | Đơn hàng mỹ phẩm → **Hủy đơn** khi đơn chưa giao GHN | Hủy ngay, hoàn kho, không phát sinh hoàn tiền |
+| 18.6 | Khách tự hủy (đã chuyển khoản) | **Hủy đơn** → chọn **Hoàn X Điểm** hoặc **Hoàn tiền về tài khoản** (nhập ngân hàng) | Điểm: cộng ngay 1:1 (không +%), email "Bạn vừa nhận điểm". Tiền: đơn "Chờ hoàn tiền", NVBH thấy tài khoản khách đã nhập |
+| 18.7 | Hủy đơn trả bằng điểm | Khách hoặc NVBH hủy | Tự hoàn lại đủ điểm; không có nút / không ghi được chuyển khoản tiền mặt |
+| 18.8 | Đơn đã giao GHN | Đơn đang giao | Không có nút Hủy đơn (liên hệ CSKH) |
+| 18.9 | Trả hàng đơn mua bằng điểm | Yêu cầu hoàn trả chọn **Hoàn điểm** (không cần tài khoản) → NVBH **Đạt - Hoàn điểm cho khách** | Cộng điểm theo giá trị hàng trả, không cần mã giao dịch |
+| 18.10 | Đổi sang hàng rẻ hơn | Đổi hàng chọn sản phẩm rẻ hơn, không thêm sản phẩm bù | Phần chênh cộng thành điểm, email đổi hàng ghi số điểm |
+| 18.11 | Hạn dùng | Khách có điểm cộng hơn 12 tháng | Bị trừ (dòng "Điểm hết hạn", cron 0h30 hoặc khi xem / tiêu điểm); điểm sắp hết hạn được dùng trước; Hồ sơ cảnh báo điểm hết hạn trong 30 ngày; email báo trước 30 ngày (cron 8h30) |
+| 18.12 | Báo cáo điểm | Quản lý: Báo cáo → **Điểm GlowSkin**, chọn khoảng ngày | Điểm phát ra / đã dùng / hết hạn trong kỳ, **đang lưu hành** (quy ra tiền = khoản nợ khách), theo loại, đơn trả bằng điểm (khách, sản phẩm, điểm, kênh), sổ điểm chi tiết, xuất Excel. NVBH / CSKH không xem được |
+
+## 19. Chatbot RAG và AI rà soát đơn có trích nguồn
+
+Kho kiến thức nạp tự động khi service-ai-analysis khởi động và mỗi 30 phút (log `📚 [RAG] Nạp kho kiến thức`). Quản lý nạp lại ngay: `POST /api/ai/knowledge/reindex`.
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 19.1 | Hỏi giá / chính sách | Chat AI: "Gói liệu trình trị mụn 6 buổi giá bao nhiêu?", "Hủy lịch trước 24 giờ thì sao?" | Trả đúng số liệu đang có trên web, cuối câu có [1], dưới tin nhắn có mục **Nguồn** bấm mở đúng trang |
+| 19.2 | Ngoài phạm vi | Hỏi dịch vụ / sản phẩm / bác sĩ không có (vd "cấy tóc giá bao nhiêu?") | Nói chưa có thông tin, mời gọi hotline / gặp CSKH; không đưa ra giá |
+| 19.3 | Dữ liệu đổi | Quản lý sửa giá một dịch vụ → gọi nạp lại (hoặc chờ 30 phút) → hỏi lại | Chatbot trả giá mới |
+| 19.4 | Hỏi dữ liệu riêng khi chưa đăng nhập | "Mình còn bao nhiêu điểm?" | Mời đăng nhập, không trả số liệu |
+| 19.5 | Xin phép trước khi xem | Đăng nhập → hỏi điểm / lịch hẹn / đơn hàng | Chatbot hỏi "...có đồng ý cho mình xem...?" với nút **Đồng ý cho xem / Không đồng ý**; chưa bấm thì không có số liệu |
+| 19.6 | Đồng ý | Bấm **Đồng ý cho xem** | Chatbot trả lời đúng số liệu của chính khách, ghi "Dữ liệu tài khoản đã xem"; dưới khung chat hiện "Chatbot đang được xem: ... Thu hồi" |
+| 19.7 | Từ chối / thu hồi | Bấm **Không đồng ý**, hoặc **Thu hồi** sau khi đã đồng ý | Không xem dữ liệu, có link tự xem trang tương ứng; hỏi lại thì chatbot xin phép lại |
+| 19.8 | Hết phiên | Tải lại trang / đăng xuất rồi đăng nhập lại | Phiên chat mới, phải đồng ý lại (đồng ý chỉ có hiệu lực trong phiên, tối đa 60 phút) |
+| 19.11 | Nút trả lời nhanh | Hỏi chatbot (vd "Kem trị mụn Megaduo giá bao nhiêu?", "Mình bị mụn viêm ở cằm nên làm gì?") | Dưới câu trả lời mới nhất có tối đa 3 nút: câu hỏi tiếp (bấm thì gửi như khách gõ), hoặc mở trang (Đặt lịch khám, Xem sản phẩm..., Gặp bộ phận CSKH). Khách chưa đăng nhập hỏi dữ liệu riêng có nút **Đăng nhập** |
+| 19.12 | Không bấm nút mà tự gõ | Gõ câu gần giống nút ("ok cho mình đặt lịch khám") hoặc hỏi chuyện khác | Nút cũ ẩn ngay; chatbot vẫn hiểu theo ngữ cảnh và trả lời, có thể đưa nút mới |
+| 19.13 | CSKH: gợi ý trả lời | CSKH đang chat với khách → bấm nút robot cạnh ô nhập | Hiện **Nháp AI** (đúng giá / chính sách, có Nguồn và lưu ý cho nhân viên); câu khách hỏi không có trong dữ liệu thì nháp hẹn kiểm tra lại, không bịa. **Dùng bản nháp** chỉ đưa vào ô nhập, nhân viên sửa rồi tự bấm gửi |
+| 19.14 | Soạn quy tắc: kiểm tra tương tự | Quản lý / bác sĩ soạn quy tắc (vd Mang thai + hoạt chất mới Retinal, Chống chỉ định) → **Kiểm tra quy tắc tương tự (AI)** | Liệt kê quy tắc đang áp dụng gần giống, gắn nhãn Trùng / Mâu thuẫn / Liên quan kèm lý do (vd Mâu thuẫn với Mang thai + Retinol mức Thận trọng). AI lỗi thì vẫn hiện danh sách theo độ tương đồng |
+| 19.15 | NVBH: gợi ý sản phẩm tại quầy | Quản lý đơn hàng → Tạo đơn mới → **Gợi ý sản phẩm theo nhu cầu (AI)** → nhập nhu cầu (vd "da dầu, mụn ẩn, cần sữa rửa mặt"), ngân sách, tình trạng khách → **Gợi ý** | Tối đa 3 sản phẩm còn hàng, không phải thuốc kê đơn, trong ngân sách, kèm lý do + cách dùng. Sản phẩm vướng **Chống chỉ định** với tình trạng đã chọn bị loại và ghi lý do; mức Thận trọng hiện cảnh báo. **Thêm vào đơn** điền vào dòng sản phẩm, đơn vẫn qua bước Sàng lọc an toàn như cũ |
+| 19.16 | Hỏi quy trình (ô chat sổ tay) | Nhân viên bất kỳ, ở trang nào cũng có nút **Hỏi quy trình** góc phải dưới (CSKH: phía trên nút chat với khách) → bấm câu gợi ý theo vai trò hoặc tự gõ (vd "Khách chuyển khoản thừa tiền cọc thì làm gì?") | Trả lời theo từng bước, có **Nguồn** (mục sổ tay / chính sách) mở xem được; dưới câu trả lời có 2-3 nút câu hỏi tiếp theo, bấm thì gửi như tự gõ, tự gõ câu khác thì nút ẩn. Chỉ tra phần sổ tay **đúng vai trò** (NVBH không thấy mục lương của quản lý). Câu không có trong sổ tay thì nói chưa có hướng dẫn, mời hỏi quản lý. Khách gọi API bị từ chối. Nội dung sổ tay: `service-ai-analysis/knowledge/so-tay/*.md` |
+| 19.17 | Hỏi quy trình theo chủ đề | Mở ô **Hỏi quy trình** → chọn một chủ đề (vd CSKH: **Đối soát tiền vào**) → bấm một câu hỏi thường gặp → sau câu trả lời bấm **Câu hỏi khác trong chủ đề** / **Chủ đề khác** | Mỗi vai trò có danh sách chủ đề riêng (CSKH 7, bác sĩ 4, KTV 3, NVBH 5, chuyên gia 1, quản lý 5, admin 2); chọn chủ đề hiện 3-5 câu hỏi thường gặp; trả lời có nguồn thuộc chủ đề và 1-3 câu hỏi tiếp theo (không lặp câu vừa hỏi). Không chọn chủ đề vẫn tự gõ hỏi được. Chủ đề, câu hỏi sửa ở `service-ai-analysis/knowledge/so-tay/chu-de.json` |
+| 19.9 | AI rà soát đơn có nguồn | Bác sĩ: khách "Đang mang thai", kê sản phẩm có Retinal / dịch vụ lăn kim → **Rà soát bằng AI** | Cảnh báo AI có khung **Quy tắc phòng khám** + nguồn y khoa (link); cảnh báo không dựa trên quy tắc ghi "AI nhận định theo thành phần / kiến thức chung" |
+| 19.10 | Đánh giá trước / sau | `cd service-ai-analysis && node scripts/rag_eval.js` rồi `node scripts/safety_rag_eval.js` | Ghi kết quả vào `docs/DANH-GIA-CHATBOT-RAG.md` |
+
 ## Ghi lại kết quả
 
 | Sơ đồ | Số ca | Đạt | Không đạt | Ghi chú |

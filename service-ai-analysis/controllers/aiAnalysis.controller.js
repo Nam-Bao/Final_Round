@@ -289,26 +289,3 @@ exports.analyzeFace = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Lỗi phân tích AI', error: errorMessage });
   }
 };
-/* ------------------------------------------------------------------ */
-/* Chatbot tư vấn (Gemini chạy ở server)                               */
-/* ------------------------------------------------------------------ */
-exports.chat = async (req, res) => {
-  const { contents } = req.body;
-  // Chỉ nhận tối đa 10 lượt gần nhất, mỗi lượt <= 2000 ký tự, đúng định dạng của Gemini
-  if (!Array.isArray(contents) || contents.length === 0 || contents.length > 10) {
-    return res.status(400).json({ success: false, message: 'Nội dung hội thoại không hợp lệ' });
-  }
-  const clean = contents.map((m) => ({
-    role: m?.role === 'model' ? 'model' : 'user',
-    parts: [{ text: String(m?.parts?.[0]?.text || '').slice(0, 2000) }],
-  }));
-
-  try {
-    const { chat } = require('../services/geminiChat');
-    const text = await chat(clean);
-    return res.status(200).json({ success: true, data: { text } });
-  } catch (error) {
-    console.error('[Gemini chat]', error.response?.data?.error?.message || error.message);
-    return res.status(503).json({ success: false, message: 'Hệ thống AI đang bận, vui lòng thử lại sau' });
-  }
-};

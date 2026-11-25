@@ -59,6 +59,21 @@ const releaseExpiredConsultHolds = async () => {
   if (n) console.log(`🧹 [TƯ VẤN] Đã giải phóng ${n} lịch tư vấn quá ${PAYMENT_HOLD_MINUTES} phút chưa cọc`);
 };
 
+// Chuyên gia vắng / không gửi kết quả (lỗi phòng khám): tiền mặt => chờ CSKH hoàn; trả bằng điểm => hoàn điểm ngay (+%), không đổi ra tiền mặt
+const expertAbsent = async (c, extra) => {
+  if (c.payment_method === 'POINTS') {
+    const added = points.clinicRefundPoints(c.deposit_amount);
+    await sequelize.transaction(async (t) => {
+      await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'POINTS', refunded_at: new Date(), ...extra }, { transaction: t });
+      await points.credit({ customerId: c.customer_id, points: added, type: 'CLINIC_REFUND', referenceType: 'CONSULTATION', referenceId: c.id, note: `Chuyên gia vắng lịch tư vấn ${c.id.slice(0, 6).toUpperCase()}, hoàn phí bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)` }, t);
+    });
+    sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, { ...consultMail(c), points: added });
+    return points.notifyCredit({ customerId: c.customer_id, points: added, kind: 'CLINIC_REFUND', source: 'CONSULTATION', sourceId: c.id, amountVnd: c.deposit_amount });
+  }
+  await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING', ...extra });
+  return sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, consultMail(c));
+};
+
 // Phòng đã đóng mà lịch vẫn CONFIRMED => có bên không vào phòng
 const settleFinishedConsultations = async () => {
   const list = await Consultation.findAll({ where: { status: 'CONFIRMED', appointment_date: { [Op.lte]: dayjs().format('YYYY-MM-DD') } } });
@@ -67,16 +82,14 @@ const settleFinishedConsultations = async () => {
     const closedAt = startOf(c).add(ROOM_CLOSE_AFTER_MINUTES, 'minute');
     if (now.isBefore(closedAt)) continue;
     if (!c.expert_joined_at) {
-      // Lỗi phía phòng khám => hoàn cọc cho khách
-      await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING' });
-      sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, consultMail(c));
+      // Lỗi phía phòng khám => hoàn cọc cho khách (trả bằng điểm thì hoàn điểm ngay)
+      await expertAbsent(c, {});
     } else if (!c.customer_joined_at) {
       // Chuyên gia có mặt, khách không vào => mất cọc
       await c.update({ status: 'NO_SHOW', deposit_outcome: 'FORFEITED' });
     } else if (!now.isBefore(closedAt.add(RESULT_DEADLINE_MINUTES, 'minute'))) {
       // Hai bên đã vào phòng nhưng quá hạn vẫn không có kết quả => khách không nhận được dịch vụ, hoàn cọc, không tính thù lao
-      await c.update({ status: 'EXPERT_ABSENT', deposit_outcome: 'REFUND_PENDING', cancel_reason: `Chuyên gia không gửi kết quả trong ${durationLabel(RESULT_DEADLINE_MINUTES)}` });
-      sendEmail('CONSULT_EXPERT_ABSENT', c.customer_id, `CONSULT_ABSENT:${c.id}`, consultMail(c));
+      await expertAbsent(c, { cancel_reason: `Chuyên gia không gửi kết quả trong ${durationLabel(RESULT_DEADLINE_MINUTES)}` });
     }
   }
 };
@@ -319,27 +332,35 @@ const cancelConsultation = async (req, res) => {
       }
       const deposit = Number(c.deposit_amount);
       const inTime = !dayjs().isAfter(startOf(c).subtract(RESCHEDULE_MIN_MINUTES, 'minute'));
-      const deposit_outcome = initiator === 'CLINIC' ? 'REFUND_PENDING' : inTime ? 'POINTS' : 'FORFEITED';
+      const pointKind = initiator === 'CLINIC' ? 'CLINIC_REFUND' : 'CANCEL_REFUND';
+      const deposit_outcome = initiator === 'CLINIC' ? (c.payment_method === 'POINTS' ? 'POINTS' : 'REFUND_PENDING') : inTime ? 'POINTS' : 'FORFEITED';
       if (isCustomer && deposit_outcome === 'FORFEITED' && req.body.accept_forfeit !== true) {
         throw new ConsultError(`Hủy lịch trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ hẹn, bạn sẽ mất ${money(deposit)} phí tư vấn. Vui lòng xác nhận để tiếp tục.`, 409, { code: 'CONFIRM_FORFEIT', deposit_paid: deposit });
       }
-      const pointsAdded = deposit_outcome === 'POINTS' ? points.toPoints(deposit) : 0;
+      const pointsAdded = deposit_outcome !== 'POINTS' ? 0 : pointKind === 'CLINIC_REFUND' ? points.clinicRefundPoints(deposit) : points.toPoints(deposit);
       await c.update({
         status: 'CANCELLED', cancel_initiator: initiator, cancel_reason: reason || null,
         cancelled_by: req.user.id, cancelled_at: new Date(), deposit_outcome,
         ...(pointsAdded ? { refunded_by: req.user.id, refunded_at: new Date() } : {}),
       }, { transaction: t });
       if (pointsAdded) {
-        await points.credit({ customerId: c.customer_id, points: pointsAdded, type: 'CANCEL_REFUND', referenceType: 'CONSULTATION', referenceId: c.id, note: `Hủy lịch tư vấn ${c.id.slice(0, 6).toUpperCase()} trước hạn`, createdBy: isCustomer ? null : req.user.id }, t);
+        await points.credit({
+          customerId: c.customer_id, points: pointsAdded, type: pointKind, referenceType: 'CONSULTATION', referenceId: c.id, createdBy: isCustomer ? null : req.user.id,
+          note: pointKind === 'CLINIC_REFUND' ? `Phòng khám hủy lịch tư vấn ${c.id.slice(0, 6).toUpperCase()} (phí đã trả bằng điểm), hoàn bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)` : `Hủy lịch tư vấn ${c.id.slice(0, 6).toUpperCase()} trước hạn`,
+        }, t);
       }
-      return { deposit_outcome, deposit, points_added: pointsAdded };
+      return { deposit_outcome, deposit, points_added: pointsAdded, kind: pointKind, customer_id: c.customer_id, id: c.id };
     });
     const messages = {
       FORFEITED: `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} không được hoàn vì hủy trong vòng ${durationLabel(RESCHEDULE_MIN_MINUTES)} trước giờ hẹn.`,
       REFUND_PENDING: `Đã hủy lịch tư vấn. Khách được hoàn ${money(result.deposit)} tiền cọc, vui lòng liên hệ khách để hoàn tiền.`,
-      POINTS: `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} đã đổi thành ${result.points_added.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
+      POINTS: result.kind === 'CLINIC_REFUND'
+        ? `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} khách trả bằng điểm được hoàn ${result.points_added.toLocaleString('vi-VN')} Điểm GlowSkin (đã cộng ${points.CLINIC_REFUND_BONUS_PERCENT}%).`
+        : `Đã hủy lịch tư vấn. Phí ${money(result.deposit)} đã đổi thành ${result.points_added.toLocaleString('vi-VN')} Điểm GlowSkin, dùng để trả cọc lần đặt sau.`,
     };
-    res.status(200).json({ message: messages[result.deposit_outcome], ...result });
+    points.notifyCredit({ customerId: result.customer_id, points: result.points_added, kind: result.kind, source: 'CONSULTATION', sourceId: result.id, amountVnd: result.deposit }).catch(() => {});
+    const { kind, customer_id: _c, id: _i, ...body } = result;
+    res.status(200).json({ message: messages[result.deposit_outcome], ...body });
   } catch (error) { sendError(res, error); }
 };
 
@@ -594,10 +615,12 @@ const refundConsultAsPoints = async (req, res) => {
     const result = await sequelize.transaction(async (t) => {
       const row = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
       if (!row || row.deposit_outcome !== 'REFUND_PENDING') throw new ConsultError('Lịch này không có khoản cọc chờ hoàn');
-      const base = points.toPoints(row.deposit_amount);
-      const added = base + Math.floor(base * points.CLINIC_REFUND_BONUS_PERCENT / 100);
+      const added = points.clinicRefundPoints(row.deposit_amount);
       await points.credit({ customerId: row.customer_id, points: added, type: 'CLINIC_REFUND', referenceType: 'CONSULTATION', referenceId: row.id, note: `Hoàn phí tư vấn ${row.id.slice(0, 6).toUpperCase()} bằng điểm (+${points.CLINIC_REFUND_BONUS_PERCENT}%)`, createdBy: req.user.id }, t);
       await row.update({ deposit_outcome: 'POINTS', refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
+      return { added, row };
+    }).then(({ added, row }) => {
+      points.notifyCredit({ customerId: row.customer_id, points: added, kind: 'CLINIC_REFUND', source: 'CONSULTATION', sourceId: row.id, amountVnd: row.deposit_amount }).catch(() => {});
       return added;
     });
     res.status(200).json({ message: `Đã hoàn bằng ${result.toLocaleString('vi-VN')} Điểm GlowSkin cho khách`, points_added: result });
@@ -614,6 +637,7 @@ const confirmConsultRefund = async (req, res) => {
     const c = await sequelize.transaction(async (t) => {
       const row = await Consultation.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
       if (!row || row.deposit_outcome !== 'REFUND_PENDING') throw new ConsultError('Lịch này không có khoản cọc chờ hoàn');
+      if (row.payment_method === 'POINTS') throw new ConsultError('Phí tư vấn này khách trả bằng Điểm GlowSkin: chỉ hoàn bằng điểm, không chuyển khoản tiền mặt', 409);
       await row.update({ deposit_outcome: 'REFUNDED', refund_ref, refunded_by: req.user.id, refunded_at: new Date() }, { transaction: t });
       return row;
     });

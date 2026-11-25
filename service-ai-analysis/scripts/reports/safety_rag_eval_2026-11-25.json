@@ -1,0 +1,288 @@
+[
+  {
+    "case": 1,
+    "flag": "Đang mang thai",
+    "item": "Serum Retinal 0.1%",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CONTRAINDICATED: Chống chỉ định dùng cho phụ nữ mang thai do chứa các dẫn xuất Vitamin A (Retinal, Hydroxypinacolone Retinoate) có nguy cơ gây dị tật thai nhi."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang mang thai + Retinol"
+      ],
+      "warnings": [
+        "CAUTION: Khách hàng đang mang thai, nên tránh sử dụng các retinoid bôi ngoài da như Retinal và Hydroxypinacolone Retinoate trong thai kỳ."
+      ]
+    }
+  },
+  {
+    "case": 2,
+    "flag": "Đang có kế hoạch mang thai",
+    "item": "Kem Aklief 0.005%",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CONTRAINDICATED: Khách hàng đang có kế hoạch mang thai không nên sử dụng Trifarotene (Retinoid thoa) do nguy cơ an toàn thai kỳ."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang có kế hoạch mang thai + Retinoid dạng thuốc (adapalene, tretinoin)"
+      ],
+      "warnings": [
+        "CONTRAINDICATED: Kem Aklief chứa Trifarotene (retinoid dạng thuốc thế hệ mới), không khuyến cáo sử dụng cho phụ nữ đang có kế hoạch mang thai."
+      ]
+    }
+  },
+  {
+    "case": 3,
+    "flag": "Đang mang thai",
+    "item": "Lăn kim tế bào gốc",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CAUTION: Phụ nữ mang thai có sự thay đổi nội tiết tố làm tăng nguy cơ bị tăng sắc tố sau viêm (PIH) khi thực hiện thủ thuật xâm lấn. Ngoài ra, cần lưu ý tính an toàn của thuốc tê bôi mặt và dưỡng chất tế bào gốc sử dụng trong quá trình thực hiện."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang mang thai + Vi kim"
+      ],
+      "warnings": [
+        "CAUTION: An toàn của thủ thuật vi kim/lăn kim trong thời kỳ mang thai chưa được xác lập, khuyến cáo nên hoãn dịch vụ cho tới sau khi sinh."
+      ]
+    }
+  },
+  {
+    "case": 4,
+    "flag": "Đang dùng hoặc vừa ngưng isotretinoin uống",
+    "item": "Thay da sinh học Jessner",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CONTRAINDICATED: Thay da sinh học (peel da) bị chống chỉ định hoặc cần hết sức hoãn ở bệnh nhân đang dùng hoặc mới ngưng Isotretinoin uống do nguy cơ cao gây bùng phát kích ứng, chậm lành vết thương và tạo sẹo."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang dùng hoặc vừa ngưng isotretinoin uống + Peel da"
+      ],
+      "warnings": [
+        "CAUTION: Khách hàng đang dùng hoặc vừa ngưng isotretinoin uống. Việc thực hiện peel da có nguy cơ gia tăng kích ứng da và ảnh hưởng quá trình hồi phục."
+      ]
+    }
+  },
+  {
+    "case": 5,
+    "flag": "Đang dùng thuốc chống đông / có rối loạn đông máu",
+    "item": "Tiêm vi điểm HA căng bóng",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CAUTION: Thủ thuật tiêm vi điểm xâm lấn trên khách hàng đang dùng thuốc chống đông hoặc có rối loạn đông máu có nguy cơ cao gây bầm tím diện rộng, chảy máu kéo dài hoặc tụ máu dưới da.",
+        "CAUTION: Cần kiểm tra kỹ vùng da tiêm; nếu khách hàng đang có mụn trứng cá viêm/mủ cấp tính, việc tiêm vi điểm toàn mặt có thể làm lây lan vi khuẩn và gia tăng nguy cơ nhiễm trùng."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang dùng thuốc chống đông / có rối loạn đông máu + Meso"
+      ],
+      "warnings": [
+        "CAUTION: Khách hàng có nguy cơ bị chảy máu kéo dài và tụ máu/bầm tím tại các vị trí tiêm vi điểm do đang dùng thuốc chống đông hoặc có rối loạn đông máu."
+      ]
+    }
+  },
+  {
+    "case": 6,
+    "flag": "Có máy tạo nhịp tim hoặc thiết bị điện cấy ghép",
+    "item": "Đẩy tinh chất bằng dòng galvanic",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CONTRAINDICATED: Chống chỉ định dùng phương pháp galvanic (dòng điện một chiều) cho khách hàng có máy tạo nhịp tim hoặc thiết bị điện tử cấy ghép do nguy cơ gây nhiễu và ảnh hưởng tới hoạt động của thiết bị."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Có máy tạo nhịp tim hoặc thiết bị điện cấy ghép + Điện di"
+      ],
+      "warnings": [
+        "CAUTION: Sử dụng dòng điện một chiều Galvanic (điện di) trên khách hàng có máy tạo nhịp tim hoặc thiết bị điện cấy ghép có thể gây nguy cơ ảnh hưởng hoạt động của thiết bị."
+      ]
+    }
+  },
+  {
+    "case": 7,
+    "flag": "Cơ địa sẹo lồi",
+    "item": "Dermapen trị sẹo rỗ",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CAUTION: Khách hàng có cơ địa sẹo lồi, việc thực hiện phi kim xâm lấn độ sâu 1.5mm có nguy cơ cao kích hoạt hình thành sẹo lồi mới tại vùng điều trị.",
+        "CAUTION: Chẩn đoán hiện tại là mụn trứng cá và thâm sau mụn (chưa ghi nhận sẹo rỗ). Phi kim trên vùng da đang có mụn hoạt động có thể làm lan rộng tổn thương và vi khuẩn."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Cơ địa sẹo lồi + Vi kim"
+      ],
+      "warnings": [
+        "CONTRAINDICATED: Thực hiện vi kim Dermapen có chống chỉ định tuyệt đối trên khách hàng có cơ địa sẹo lồi do nguy cơ kích thích hình thành sẹo lồi mới tại vùng điều trị."
+      ]
+    }
+  },
+  {
+    "case": 8,
+    "flag": "Đang cho con bú",
+    "item": "Thermage nâng cơ",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CAUTION: Dịch vụ Thermage nâng cơ tập trung vào trẻ hóa, làm chắc da, không phải là chỉ định điều trị mụn trứng cá và thâm sau mụn.",
+        "INFO: Thermage thường cần sử dụng kem ủ tê (như Lidocaine bôi ngoài da). Cần lưu ý chọn loại kem tê và diện tích bôi an toàn cho phụ nữ đang cho con bú."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang cho con bú + Sóng RF"
+      ],
+      "warnings": [
+        "CAUTION: Khách hàng đang cho con bú; nhà sản xuất thiết bị RF (Thermage) chưa nghiên cứu đầy đủ về độ an toàn trên đối tượng này.",
+        "INFO: Dịch vụ Thermage nâng cơ nhằm săn chắc da, không phải chỉ định điều trị chuẩn cho mụn trứng cá và thâm sau mụn."
+      ]
+    }
+  },
+  {
+    "case": 9,
+    "flag": "Đang mang thai",
+    "item": "Toner Betaine Salicylate 4%",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CAUTION: Betaine Salicylate là dẫn xuất của Salicylic Acid (BHA). Việc sử dụng BHA bôi ngoài da trong thai kỳ cần thận trọng do có thể có nguy cơ hấp thu toàn thân."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang mang thai + Salicylic acid"
+      ],
+      "warnings": [
+        "CAUTION: Khách đang mang thai, cần tránh bôi hoạt chất có gốc salicylic acid trên diện rộng hoặc kéo dài."
+      ]
+    }
+  },
+  {
+    "case": 10,
+    "flag": "Đang nhiễm trùng da / herpes ở vùng điều trị",
+    "item": "Tiêm Profhilo trẻ hóa",
+    "safe": false,
+    "before": {
+      "detected": true,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "CONTRAINDICATED: Không thực hiện các thủ thuật xâm lấn như tiêm thẩm mỹ khi vùng điều trị đang có nhiễm trùng hoặc tổn thương do herpes để tránh làm tình trạng viêm lan rộng."
+      ]
+    },
+    "after": {
+      "detected": true,
+      "cited_right": true,
+      "citations": [
+        "Quy tắc: Đang nhiễm trùng da / herpes ở vùng điều trị + Meso"
+      ],
+      "warnings": [
+        "CONTRAINDICATED: Chống chỉ định tiêm Profhilo (thủ thuật tiêm vi điểm/meso) khi đang có nhiễm trùng da hoặc herpes hoạt động tại vùng điều trị."
+      ]
+    }
+  },
+  {
+    "case": 11,
+    "flag": "Đang mang thai",
+    "item": "Kem chống nắng khoáng Anessa Mild",
+    "safe": true,
+    "before": {
+      "detected": false,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "INFO: Sản phẩm chống nắng vật lý chứa Zinc Oxide và Titanium Dioxide an toàn cho phụ nữ mang thai."
+      ]
+    },
+    "after": {
+      "detected": false,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "INFO: Sản phẩm chứa thành phần chống nắng vật lý (Zinc Oxide, Titanium Dioxide) an toàn cho phụ nữ mang thai, hỗ trợ bảo vệ da và hạn chế thâm mụn sậm màu."
+      ]
+    }
+  },
+  {
+    "case": 12,
+    "flag": null,
+    "item": "Sữa rửa mặt Cetaphil Gentle",
+    "safe": true,
+    "before": {
+      "detected": false,
+      "cited_right": false,
+      "citations": [],
+      "warnings": []
+    },
+    "after": {
+      "detected": false,
+      "cited_right": false,
+      "citations": [],
+      "warnings": [
+        "INFO: Sản phẩm giúp làm sạch dịu nhẹ và phục hồi da, tuy nhiên không chứa hoạt chất điều trị chuyên sâu cho mụn và thâm sau mụn."
+      ]
+    }
+  }
+]
