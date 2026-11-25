@@ -77,8 +77,9 @@ router.get('/patient/:patientProfileId', verifyToken, authorizeRoles('ADMIN', 'G
 // 2. CÁC ĐƯỜNG DẪN ĐỘNG (Có chứa /:id ở giữa)
 // ==========================================
 // Chứng từ in cho khách (A5): phiếu thanh toán sau khám, đơn thuốc / chỉ định điều trị
-const { printInvoice, printPrescription } = require('../controllers/print.controller.js');
+const { printInvoice, printPrescription, receiptPdf } = require('../controllers/print.controller.js');
 router.get('/:id/print/invoice', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER', 'ADMIN'), printInvoice);
+router.get('/:id/receipt.pdf', verifyToken, authorizeRoles('CUSTOMER'), receiptPdf); // khách tải phiếu thanh toán PDF
 router.get('/:id/print/prescription', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER', 'ADMIN'), printPrescription);
 
 // Khách kiểm tra trạng thái thanh toán

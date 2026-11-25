@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star, Sparkles } from 'lucide-react';
+import { ClipboardList, Calendar, Video, MapPin, CheckCircle, XCircle, Clock, FileText, X, HeartPulse, ShoppingBag, Star, Sparkles, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -194,6 +194,29 @@ export default function AppointmentHistoryPage() {
     setReschedulingApt(null);
   };
 
+  // Tải phiếu thanh toán (PDF) của lịch đã chốt bill: server sinh file, trình duyệt lưu về máy
+  const [downloadingId, setDownloadingId] = useState(null);
+  const downloadReceipt = async (apt) => {
+    setDownloadingId(apt.id);
+    try {
+      const res = await axios.get(`/api/booking/appointments/${apt.id}/receipt.pdf`, { headers: authHeaders, responseType: 'blob' });
+      const name = (res.headers['content-disposition'] || '').match(/filename="([^"]+)"/)?.[1] || `phieu-thanh-toan-${apt.id.slice(0, 6)}.pdf`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      // Lỗi trả về dạng blob => đọc lại thành chữ để hiện thông báo của server
+      const text = await err.response?.data?.text?.().catch(() => '');
+      let message = 'Không tải được phiếu thanh toán, vui lòng thử lại sau';
+      try { message = JSON.parse(text).message || message; } catch { /* giữ thông báo mặc định */ }
+      alert(message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const handleViewRecord = (apt) => {
     setSelectedApt(apt);
     setIsModalOpen(true);
@@ -299,6 +322,13 @@ export default function AppointmentHistoryPage() {
                       
                       {(hasData || apt.status === 'COMPLETED' || apt.status === 'WAITING_FOR_SALE') && (
                         <button onClick={() => handleViewRecord(apt)} className="btn btn-sm btn-primary flex-1 md:flex-none gap-1"><FileText className="w-4 h-4"/> Xem hồ sơ</button>
+                      )}
+
+                      {/* PHIẾU THANH TOÁN PDF: lịch đã chốt bill */}
+                      {apt.status === 'COMPLETED' && (
+                        <button onClick={() => downloadReceipt(apt)} disabled={downloadingId === apt.id} className="btn btn-sm btn-outline btn-primary flex-1 md:flex-none gap-1">
+                          {downloadingId === apt.id ? <span className="loading loading-spinner loading-xs" /> : <Download className="w-4 h-4"/>} Phiếu thanh toán (PDF)
+                        </button>
                       )}
 
                       {/* ĐÁNH GIÁ BÁC SĨ: chỉ khi buổi khám đã hoàn tất */}

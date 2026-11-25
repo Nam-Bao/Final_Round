@@ -169,4 +169,91 @@ const printPrescription = async (req, res) => {
   }
 };
 
-module.exports = { printInvoice, printPrescription, docNo };
+
+// ===== KHÁCH TẢI PHIẾU THANH TOÁN PDF (riêng phía khách) =====
+// Tên trong hồ sơ có thể đã kèm "BS." => bỏ đi khi in kèm học vị, tránh "BS BS. Nguyễn Văn A"
+const doctorName = (d) => (d?.title ? String(d.full_name || '').replace(/^(BS\.?|Bác sĩ)\s*/i, '') : d?.full_name);
+
+class PrintError extends Error { constructor(status, message) { super(message); this.status = status; } }
+
+// Dữ liệu phiếu thanh toán cho file PDF khách tải về (cùng cách tính với phiếu in A5 của nhân viên ở trên, nhưng tách riêng để không đụng chức năng in của nhân viên).
+// viewerId: người in / tải (ghi ở chân phiếu); authorization: token để hỏi thông tin mỹ phẩm của hóa đơn cũ
+const buildInvoiceData = async (apt, { viewerId, authorization }) => {
+    const invoice = await Invoice.findOne({ where: { appointment_id: apt.id }, include: [{ model: Transaction }], order: [[Transaction, 'createdAt', 'ASC']] });
+    if (apt.status !== 'COMPLETED' || !invoice) throw new PrintError(409, 'Lịch khám chưa chốt bill nên chưa có phiếu thanh toán');
+    const txs = invoice.Transactions || [];
+    const checkoutTx = txs.find((t) => t.transaction_type === 'INCOME' && String(t.note || '').startsWith('Thu phần còn lại'));
+    const b = invoice.breakdown || await legacyBreakdown(invoice, apt, checkoutTx);
+
+    const medicines = medicineList(apt.prescribed_medicines);
+    const [clinic, people, products] = await Promise.all([
+      clinicInfo(),
+      peopleInfo({ user_ids: [apt.customer_id, apt.doctor_id, b.cashier_id, viewerId].filter(Boolean), patient_ids: [apt.patient_profile_id].filter(Boolean) }),
+      b.product_items ? {} : productInfo(medicines.map((m) => m.product_id), authorization),
+    ]);
+    const u = people.users || {};
+    // Hóa đơn cũ không lưu đơn giá mỹ phẩm: in tên + số lượng, tiền mỹ phẩm in theo tổng nhóm
+    const productItems = b.product_items
+      ? b.product_items.map((p) => ({ name: p.name, quantity: p.quantity, price: p.price, amount: p.price * p.quantity }))
+      : medicines.map((m) => ({ name: products[m.product_id]?.name || 'Mỹ phẩm', quantity: m.quantity, price: null, amount: null }));
+    const gross = Number(b.exam_fee || 0) + Number(b.services || 0) + Number(b.packages || 0) + Number(b.products || 0);
+    const label = (t, i) => {
+      if (t.transaction_type === 'REFUND') return 'Hoàn tiền';
+      if (t === checkoutTx) return 'Thu khi thanh toán';
+      return i === 0 ? 'Đặt cọc / phí khám khi đặt lịch' : 'Đã thu';
+    };
+    const payments = txs.map((t, i) => ({ label: label(t, i), amount: Number(t.amount), at: t.createdAt }));
+    const paidTotal = payments.reduce((s, p) => s + p.amount, 0);
+    return {
+        doc_no: docNo('HD', b.checked_out_at || invoice.updatedAt, invoice.id),
+        clinic,
+        checked_out_at: b.checked_out_at || invoice.updatedAt,
+        status: invoice.payment_status, // REFUNDED => in dấu "ĐÃ HOÀN TIỀN"
+        payment_method: invoice.payment_method === 'VIETQR' ? 'Chuyển khoản (VietQR)' : invoice.payment_method === 'CASH' ? 'Tiền mặt' : 'Không rõ',
+        appointment: { id: apt.id, date: apt.appointment_date, time: String(apt.appointment_time).slice(0, 5), type: apt.type, source: apt.source },
+        patient: patientOf(people.patients?.[apt.patient_profile_id], u[apt.customer_id]),
+        account: person(u[apt.customer_id]),
+        doctor: u[apt.doctor_id] ? { name: doctorName(u[apt.doctor_id]), title: u[apt.doctor_id].title } : null,
+        cashier: u[b.cashier_id]?.full_name || null,
+        groups: [
+          { key: 'exam', label: 'Phí khám', items: Number(b.exam_fee) > 0 ? [{ name: 'Phí khám bác sĩ', quantity: 1, price: Number(b.exam_fee), amount: Number(b.exam_fee) }] : [] },
+          { key: 'services', label: 'Dịch vụ', items: (b.service_items || []).map((s) => ({ name: s.name, quantity: 1, price: s.price, amount: s.price })) },
+          { key: 'packages', label: 'Gói liệu trình', items: (b.package_items || []).map((p) => ({ name: p.sessions ? `${p.name} (${p.sessions} buổi)` : p.name, quantity: 1, price: p.price, amount: p.price })) },
+          { key: 'products', label: 'Mỹ phẩm', items: productItems, total: Number(b.products || 0) },
+        ].filter((g) => g.items.length),
+        totals: {
+          gross, discount: Number(b.discount || 0), voucher_code: b.voucher_code || null, consult_credit: Number(b.consult_credit || 0), total: Number(b.total ?? invoice.total_amount),
+          deposit_paid: b.deposit_paid ?? null, amount_due_now: b.amount_due_now ?? (checkoutTx ? Number(checkoutTx.amount) : null), paid_total: paidTotal,
+        },
+        payments,
+        legacy: !!b.derived,
+        printed_by: u[viewerId]?.full_name || null,
+        printed_at: new Date(),
+    };
+};
+
+const sendPrintError = (res, error) => (error instanceof PrintError
+  ? res.status(error.status).json({ message: error.message })
+  : res.status(500).json({ message: 'Lỗi server', error: error.message }));
+
+// [CUSTOMER] GET /appointments/:id/receipt.pdf — khách tải phiếu thanh toán (PDF) của lịch khám của mình
+const { renderReceiptPdf } = require('../utils/receiptPdf');
+const receiptPdf = async (req, res) => {
+  try {
+    const apt = await loadAppointment(req, res);
+    if (!apt) return;
+    // Lịch của người khác => trả 404 như không có, không để lộ lịch đó tồn tại
+    if (apt.customer_id !== req.user.id) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    const data = await buildInvoiceData(apt, { viewerId: null, authorization: req.headers.authorization });
+    const pdf = await renderReceiptPdf(data);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="phieu-thanh-toan-${data.doc_no}.pdf"`,
+      'Content-Length': pdf.length,
+      'Cache-Control': 'private, no-store',
+    });
+    res.send(pdf);
+  } catch (error) { sendPrintError(res, error); }
+};
+
+module.exports = { printInvoice, printPrescription, receiptPdf, docNo };
