@@ -53,9 +53,17 @@ const createShifts = async (req, res) => {
       currDate.setDate(currDate.getDate() + 1);
     }
 
-    // Lưu toàn bộ mảng xuống DB trong 1 lệnh duy nhất (Cực nhanh)
-    await WorkShift.bulkCreate(payload);
-    res.status(201).json({ message: 'Phân ca thành công!' });
+    // Bỏ các ca đã xếp (cùng người, cùng ngày, cùng ca): xếp lại không tạo ca trùng, khung giờ khám không bị nhân đôi
+    const existing = await WorkShift.findAll({
+      where: { employee_id, date: { [Op.between]: [startDate, endDate] }, shift_type: { [Op.in]: shift_types } },
+      attributes: ['date', 'shift_type'], raw: true,
+    });
+    const taken = new Set(existing.map((s) => `${s.date}|${s.shift_type}`));
+    const fresh = payload.filter((s) => !taken.has(`${s.date}|${s.shift_type}`));
+    if (fresh.length) await WorkShift.bulkCreate(fresh);
+    const skipped = payload.length - fresh.length;
+    if (!fresh.length) return res.status(200).json({ message: 'Các ca này đã được xếp trước đó, không tạo thêm', created: 0, skipped });
+    res.status(201).json({ message: skipped ? `Đã xếp ${fresh.length} ca, bỏ qua ${skipped} ca đã có` : 'Phân ca thành công!', created: fresh.length, skipped });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi phân ca', error: error.message });
   }

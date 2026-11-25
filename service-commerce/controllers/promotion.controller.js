@@ -145,6 +145,17 @@ exports.redeemPromotion = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const proof_url = requireProof(req.body.proof_url);
+    // Chốt lại cùng một lịch khám (lần trước lỗi ở bước sau) => trả về lượt đã ghi, không tính thêm lượt / không báo "đã dùng mã"
+    const reference_id = isUuid(req.body.reference_id) ? req.body.reference_id : null;
+    if (reference_id) {
+      await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', { replacements: { key: `redeem:${reference_id}` }, transaction: t });
+      const promoByCode = await Promotion.findOne({ where: { code: String(code || '').toUpperCase() }, transaction: t });
+      const previous = promoByCode && await PromotionUsage.findOne({ where: { customer_id, promotion_id: promoByCode.id, reference_id }, transaction: t });
+      if (previous) {
+        await t.commit();
+        return res.status(200).json({ data: { promotion_id: promoByCode.id, code: promoByCode.code, discount_amount: Number(previous.discount_amount) || 0, reused: true } });
+      }
+    }
     const { promo, discount } = await evaluatePromotion({ code, order_value, scope_values, customer_id, transaction: t, staff: true });
     await redeemPromotion({
       promo, customer_id, transaction: t,

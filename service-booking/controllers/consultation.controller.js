@@ -278,8 +278,9 @@ const abandonUnpaidConsultation = async (req, res) => {
     const c = await Consultation.findByPk(req.params.id);
     if (!c) return res.status(200).json({ message: 'Lịch giữ chỗ đã được giải phóng' });
     if (c.customer_id !== req.user.id) return res.status(403).json({ message: 'Bạn không có quyền với lịch tư vấn này' });
-    if (c.status !== 'PENDING_PAYMENT') return res.status(409).json({ message: 'Lịch tư vấn đã được đặt cọc' });
-    await c.destroy();
+    // Xóa có điều kiện: tiền vừa về (webhook đã chốt lịch) thì không xóa lịch đã cọc
+    const removed = await Consultation.destroy({ where: { id: c.id, status: 'PENDING_PAYMENT' } });
+    if (!removed) return res.status(409).json({ message: 'Lịch tư vấn đã được đặt cọc' });
     res.status(200).json({ message: 'Đã hủy giữ chỗ' });
   } catch (error) { sendError(res, error); }
 };
@@ -298,15 +299,22 @@ const handleConsultTransfer = async (content, transferAmount) => {
       reason: candidates.length ? 'Mã trùng nhiều lịch tư vấn' : 'Không còn lịch tư vấn chờ cọc (giữ chỗ đã hết hạn hoặc đã hủy)',
     };
   }
-  const c = candidates[0];
-  if (Number(transferAmount) >= Number(c.deposit_amount)) {
-    await c.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: 'VIETQR' });
+  if (Number(transferAmount) >= Number(candidates[0].deposit_amount)) {
+    // Khóa lịch và kiểm tra lại: việc dọn giữ chỗ hết hạn có thể vừa xóa lịch này => không báo "đã khớp" cho lịch không còn
+    const c = await sequelize.transaction(async (t) => {
+      const locked = await Consultation.findByPk(candidates[0].id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!locked || locked.status !== 'PENDING_PAYMENT') return null;
+      await locked.update({ status: 'CONFIRMED', paid_at: new Date(), payment_method: 'VIETQR' }, { transaction: t });
+      return locked;
+    });
+    if (!c) return { code_type: 'CONSULTATION', code, status: 'UNMATCHED', reason: 'Giữ chỗ vừa hết hạn trước khi tiền về, cần hoàn tiền cho khách' };
     sendEmail('CONSULT_BOOKED', c.customer_id, `CONSULT_BOOKED:${c.id}`, consultMail(c));
     const excess = Number(transferAmount) - Number(c.deposit_amount);
     return excess > 0
       ? { code_type: 'CONSULTATION', code, status: 'OVERPAID', matched_id: c.id, reason: `Chuyển thừa ${money(excess)}, cần hoàn phần dư` }
       : { code_type: 'CONSULTATION', code, status: 'MATCHED', matched_id: c.id };
   }
+  const c = candidates[0];
   return { code_type: 'CONSULTATION', code, status: 'PARTIAL', matched_id: c.id, reason: `Chuyển thiếu: cần ${money(c.deposit_amount)}` };
 };
 

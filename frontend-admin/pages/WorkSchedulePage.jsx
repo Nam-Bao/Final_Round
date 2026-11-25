@@ -120,7 +120,9 @@ export default function WorkSchedulePage() {
       });
       
       if (!res.ok) throw new Error();
-      message.success('Phân ca thành công!');
+      const result = await res.json().catch(() => ({}));
+      // Server bỏ qua ca đã xếp trước đó và báo lại số ca bị bỏ qua
+      (result.skipped ? message.info : message.success)(result.message || 'Phân ca thành công!');
       setIsModalVisible(false);
       form.resetFields();
       fetchShifts();

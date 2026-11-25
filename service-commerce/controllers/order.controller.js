@@ -741,11 +741,16 @@ exports.createCounterOrder = async(req, res) => {
         return res.status(400).json({ success: false, message: 'Thiếu khách hàng, lịch khám hoặc sản phẩm' });
     }
 
-    const existing = await Order.findOne({ where: { appointment_id } });
-    if (existing) return res.status(200).json({ success: true, data: existing, duplicated: true });
-
     const t = await sequelize.transaction();
     try {
+        // Khóa theo lịch khám rồi mới kiểm tra: 2 lần gọi đồng thời không tạo 2 đơn / trừ kho 2 lần
+        await sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', { replacements: { key: `counter-order:${appointment_id}` }, transaction: t });
+        const existing = await Order.findOne({ where: { appointment_id }, transaction: t });
+        if (existing) {
+            await t.commit();
+            return res.status(200).json({ success: true, data: existing, duplicated: true });
+        }
+
         const products = await Product.findAll({ where: { id: productIds }, transaction: t });
         if (products.length !== productIds.length) throw new Error('Có sản phẩm không tồn tại');
 
