@@ -110,6 +110,49 @@ const T = {
       };
     },
   },
+  POINTS_CREDITED: {
+    kind: 'transaction',
+    build: (ctx) => {
+      const d = ctx.data;
+      const what = d.source === 'CONSULTATION' ? 'lịch tư vấn chuyên gia' : 'lịch khám';
+      const pts = Number(d.points).toLocaleString('vi-VN');
+      const order = `#${code(d.order_id || d.source_id)}`;
+      const reason = {
+        CLINIC_REFUND: `Phòng khám đã hủy ${what} #${code(d.source_id)}. Khoản ${money(d.amount_vnd)} được hoàn bằng <b>${pts} điểm</b>${d.bonus_percent ? ` (đã cộng thêm ${d.bonus_percent}% vì lỗi từ phía phòng khám)` : ''}.`,
+        CANCEL_REFUND: `Bạn đã hủy ${what} #${code(d.source_id)} trước giờ hẹn từ 24 giờ. Khoản ${money(d.amount_vnd)} không bị mất mà được đổi thành <b>${pts} điểm</b>.`,
+        ORDER_CANCEL: `Đơn hàng ${order} đã hủy theo yêu cầu của bạn. Khoản ${money(d.amount_vnd)} đã thanh toán được hoàn bằng <b>${pts} điểm</b> như bạn chọn.`,
+        ORDER_REFUND: `Đơn hàng ${order} trả bằng Điểm GlowSkin đã bị hủy. Bạn được hoàn lại <b>${pts} điểm</b>.`,
+        RETURN_REFUND: `Yêu cầu hoàn trả của đơn ${order} đã được duyệt hoàn. Đơn trả bằng điểm nên khoản ${money(d.amount_vnd)} được hoàn bằng <b>${pts} điểm</b>.`,
+        EXCHANGE_DIFF: `Sản phẩm đổi cho đơn ${order} rẻ hơn hàng bạn trả lại. Phần chênh ${money(d.amount_vnd)} được cộng thành <b>${pts} điểm</b>.`,
+      }[d.kind] || `Bạn vừa được cộng <b>${pts} điểm</b>.`;
+      return {
+        subject: `Bạn vừa nhận ${pts} Điểm GlowSkin`,
+        title: 'Đã cộng Điểm GlowSkin',
+        lines: [
+          p(reason),
+          table([row('Điểm vừa cộng', `+${pts} điểm`), ...(d.balance != null ? [row('Số dư hiện tại', `${Number(d.balance).toLocaleString('vi-VN')} điểm`)] : []), row('Quy đổi', `1 điểm = ${money(d.value_vnd || 100)}`), row('Hạn dùng', `${d.expire_months || 12} tháng kể từ hôm nay`)]),
+          note('Dùng điểm để trả cọc lịch khám, phí tư vấn chuyên gia, hoặc mua mỹ phẩm theo giá niêm yết (cần đủ điểm cho toàn bộ khoản thanh toán). Điểm không đổi ra tiền mặt và không chuyển cho người khác.'),
+        ],
+        cta: { label: 'Xem Điểm GlowSkin', path: '/profile' },
+      };
+    },
+  },
+  POINTS_EXPIRING: {
+    kind: 'transaction',
+    build: (ctx) => {
+      const d = ctx.data;
+      const pts = Number(d.points).toLocaleString('vi-VN');
+      return {
+        subject: `${pts} Điểm GlowSkin của bạn sắp hết hạn ngày ${day(d.expires_at)}`,
+        title: 'Điểm sắp hết hạn',
+        lines: [
+          p(`Bạn có <b>${pts} điểm</b> (tương đương ${money(Number(d.points) * (d.value_vnd || 100))}) sẽ hết hạn vào <b>${day(d.expires_at)}</b>. Điểm hết hạn sẽ bị trừ khỏi tài khoản và không khôi phục được.`),
+          note('Dùng điểm để trả cọc lịch khám, phí tư vấn chuyên gia hoặc mua mỹ phẩm trước ngày hết hạn. Điểm cộng sớm hơn được dùng trước.'),
+        ],
+        cta: { label: 'Xem Điểm GlowSkin', path: '/profile' },
+      };
+    },
+  },
   CONSULT_BOOKED: {
     kind: 'transaction',
     build: (ctx) => {
@@ -152,7 +195,9 @@ const T = {
         title: 'Buổi tư vấn không diễn ra',
         lines: [
           p(`GlowSkin thành thật xin lỗi: buổi tư vấn với ${esc(d.expert_name || 'chuyên gia')} lúc ${hm(d.time)} ${day(d.date)} không diễn ra / chưa có kết quả do lỗi từ phía phòng khám.`),
-          p(`Bạn được <b>hoàn lại toàn bộ tiền cọc ${money(d.amount)}</b>. CSKH sẽ liên hệ để lấy thông tin tài khoản nhận hoàn và có thể sắp xếp buổi tư vấn khác nếu bạn muốn.`),
+          d.points
+            ? p(`Phí tư vấn bạn đã trả bằng Điểm GlowSkin được <b>hoàn lại ${Number(d.points).toLocaleString('vi-VN')} điểm</b> (đã cộng thêm vì lỗi từ phía phòng khám). CSKH có thể sắp xếp buổi tư vấn khác nếu bạn muốn.`)
+            : p(`Bạn được <b>hoàn lại toàn bộ tiền cọc ${money(d.amount)}</b>. CSKH sẽ liên hệ để lấy thông tin tài khoản nhận hoàn và có thể sắp xếp buổi tư vấn khác nếu bạn muốn.`),
         ],
         cta: { label: 'Xem lịch tư vấn', path: '/appointments' },
       };
@@ -173,7 +218,7 @@ const T = {
             ${Number(d.discount) > 0 ? `<tr><td style="padding:4px 8px 4px 0;color:#6b7280">Giảm giá</td><td style="text-align:right">-${money(d.discount)}</td></tr>` : ''}
             <tr><td style="padding:4px 8px 4px 0;color:#6b7280">Phí vận chuyển</td><td style="text-align:right">${money(d.shipping_fee)}</td></tr>
             <tr><td style="padding:6px 8px 4px 0;border-top:1px solid #e5e7eb"><b>Tổng thanh toán</b></td><td style="padding-top:6px;border-top:1px solid #e5e7eb;text-align:right"><b>${money(total)}</b></td></tr></table>`,
-          table([row('Thanh toán', d.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (đã thanh toán)' : 'Thanh toán khi nhận hàng (COD)'), row('Giao đến', esc(`${d.recipient_name} - ${d.shipping_phone}, ${d.shipping_address}`))]),
+          table([row('Thanh toán', d.payment_method === 'POINTS' ? `Điểm GlowSkin (${Number(d.points_used || 0).toLocaleString('vi-VN')} điểm)` : d.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (đã thanh toán)' : 'Thanh toán khi nhận hàng (COD)'), row('Giao đến', esc(`${d.recipient_name} - ${d.shipping_phone}, ${d.shipping_address}`))]),
           p('Bạn sẽ nhận email kèm mã vận đơn khi đơn được giao cho đơn vị vận chuyển.'),
         ],
         cta: { label: 'Xem đơn hàng', path: '/orders' },
@@ -205,6 +250,7 @@ const T = {
           p(`Đơn hàng #${code(d.order_id)} đã được hủy ${who}.`),
           ...(d.reason ? [table([row('Lý do', esc(d.reason))])] : []),
           ...(d.refund_pending ? [note(`Đơn đã thanh toán chuyển khoản <b>${money(d.refund_amount)}</b>: GlowSkin sẽ hoàn tiền cho bạn và gửi email kèm mã giao dịch khi đã chuyển.`)] : []),
+          ...(d.points_refunded ? [note(`Bạn được hoàn <b>${Number(d.points_refunded).toLocaleString('vi-VN')} Điểm GlowSkin</b> vào tài khoản.`)] : []),
           ...(d.voucher_returned ? [p('Mã giảm giá đã dùng cho đơn đã được trả lại vào ví voucher của bạn.')] : []),
         ],
         cta: { label: 'Xem đơn hàng', path: '/orders' },
@@ -230,8 +276,8 @@ const T = {
       const map = {
         APPROVED: ['Yêu cầu hoàn trả đã được duyệt', [p('Nhân viên đã duyệt yêu cầu hoàn trả. GHN sẽ liên hệ lấy hàng tại địa chỉ nhận hàng của đơn, <b>GlowSkin trả phí vận chuyển</b>. Vui lòng đóng gói đủ sản phẩm, hộp và tem.')]],
         REJECTED: ['Yêu cầu hoàn trả không được chấp nhận', [table([row('Lý do', esc(d.reason))]), p(`Cần trao đổi thêm, vui lòng gọi hotline ${esc(ctx.clinic.hotline)}.`)]],
-        REFUNDED: ['Đã hoàn tiền hàng trả lại', [table([row('Số tiền', money(d.amount)), row('Mã giao dịch', esc(d.ref))]), p('Tiền thường về tài khoản trong 1 - 3 ngày làm việc.')]],
-        EXCHANGED: ['Sản phẩm đổi đang được chuẩn bị', [table([row('Đơn giao hàng đổi', `#${code(d.exchange_order_id)}`)]), p('Hàng trả lại đã được kiểm tra đạt. GlowSkin giao sản phẩm đổi tới địa chỉ nhận hàng của đơn, bạn không trả thêm tiền.')]],
+        REFUNDED: d.points ? ['Đã hoàn điểm hàng trả lại', [table([row('Điểm hoàn', `+${Number(d.points).toLocaleString('vi-VN')} điểm`)]), p('Đơn trả bằng Điểm GlowSkin nên được hoàn lại bằng điểm, không hoàn tiền mặt.')]] : ['Đã hoàn tiền hàng trả lại', [table([row('Số tiền', money(d.amount)), row('Mã giao dịch', esc(d.ref))]), p('Tiền thường về tài khoản trong 1 - 3 ngày làm việc.')]],
+        EXCHANGED: ['Sản phẩm đổi đang được chuẩn bị', [table([row('Đơn giao hàng đổi', `#${code(d.exchange_order_id)}`)]), p('Hàng trả lại đã được kiểm tra đạt. GlowSkin giao sản phẩm đổi tới địa chỉ nhận hàng của đơn, bạn không trả thêm tiền.'), ...(d.diff_points ? [note(`Sản phẩm đổi rẻ hơn hàng bạn trả: phần chênh được cộng <b>${Number(d.diff_points).toLocaleString('vi-VN')} Điểm GlowSkin</b>.`)] : [])]],
       }[d.status];
       return {
         subject: `${map[0]} (đơn #${code(d.order_id)})`,

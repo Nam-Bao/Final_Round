@@ -1,0 +1,76 @@
+{
+  "_ghi_chu": "Chủ đề + câu hỏi thường gặp của ô chat Hỏi quy trình. sections: tên mục '## ' trong sổ tay, hoặc 'POLICY:<số mục>' cho chính sách khách hàng. Đã chọn chủ đề thì AI tìm trong các mục này trước. 'common' là chủ đề dùng chung, gắn vào vai trò qua tên.",
+  "common": {
+    "cham-cong": {
+      "label": "Chấm công, nghỉ phép & lương",
+      "sections": ["Ca làm việc và chấm công bằng mã QR", "Đến muộn, quên chấm công, giải trình", "Xin về sớm", "Đăng ký ảnh gốc khuôn mặt", "Lịch làm việc, xin nghỉ", "Lương và phiếu lương"],
+      "questions": ["Chấm công vào ca thế nào?", "Đến muộn thì giải trình thế nào?", "Quên chấm công ra ca thì sao?", "Xin nghỉ phép thế nào?", "Thưởng chuyên cần tính thế nào?"]
+    }
+  },
+  "roles": {
+    "CONSULTANT": [
+      { "id": "tiep-nhan", "label": "Tiếp nhận khách", "sections": ["Tiếp nhận khách đã đặt lịch hôm nay", "Tiếp nhận khách đến thẳng (không đặt lịch)", "Khách không đến"],
+        "questions": ["Tiếp nhận khách đã đặt lịch hôm nay thế nào?", "Khách đến thẳng không đặt lịch thì làm gì?", "Chưa xác nhận sàng lọc có chuyển khách được không?", "Quá giờ hẹn mà khách chưa đến thì sao?"] },
+      { "id": "huy-doi-lich", "label": "Hủy, đổi lịch & hoàn cọc", "sections": ["Hủy lịch, đổi lịch cho khách", "Hoàn cọc khi phòng khám hủy lịch", "POLICY:2"],
+        "questions": ["Khách hủy lịch trước 2 ngày thì cọc thế nào?", "Khách hủy sát giờ có được hoàn cọc không?", "Phòng khám hủy lịch thì hoàn cọc ra sao?", "Khách muốn đổi lịch lần thứ hai thì sao?"] },
+      { "id": "thu-tien", "label": "Thu tiền & voucher", "sections": ["Thu tiền và chốt hóa đơn sau khám", "POLICY:4", "POLICY:9"],
+        "questions": ["Số tiền khách phải trả tính thế nào?", "Áp voucher cho khách cần làm gì?", "Khách đã tư vấn chuyên gia đến khám được ưu đãi gì?"] },
+      { "id": "doi-soat", "label": "Đối soát tiền vào", "sections": ["Đối soát tiền vào"],
+        "questions": ["Khách chuyển khoản thừa tiền thì làm gì?", "Khách chuyển thiếu tiền cọc thì sao?", "Tiền về sau khi lịch đã hủy xử lý thế nào?", "Ghi nhận đã hoàn tiền cho khách thế nào?"] },
+      { "id": "cham-soc", "label": "Chat & chăm sóc khách", "sections": ["Chat với khách trên website", "Gọi chăm sóc khách", "Điểm GlowSkin của khách", "POLICY:11"],
+        "questions": ["Dùng nháp AI khi chat với khách thế nào?", "Khách gửi ảnh da qua chat thì làm gì?", "Ghi kết quả cuộc gọi chăm sóc thế nào?", "Điểm GlowSkin của khách dùng vào việc gì?"] },
+      { "id": "tu-van", "label": "Tư vấn chuyên gia", "sections": ["Buổi tư vấn online", "Khách vắng, chuyên gia vắng", "POLICY:10"],
+        "questions": ["Chuyên gia vắng thì hoàn phí cho khách thế nào?", "Khách không vào phòng tư vấn thì sao?", "Phí tư vấn chuyên gia là bao nhiêu?"] },
+      "cham-cong"
+    ],
+    "DOCTOR": [
+      { "id": "kham", "label": "Khám & kê đơn", "sections": ["Khám bệnh theo hàng chờ", "Cảnh báo chống chỉ định khi kê đơn", "Khám trực tuyến"],
+        "questions": ["Bắt đầu và hoàn tất khám thế nào?", "Kê đơn có cảnh báo chống chỉ định thì sao?", "Khách chưa sàng lọc hôm nay có kê đơn được không?", "Phòng khám trực tuyến mở lúc nào?"] },
+      { "id": "ai", "label": "AI rà soát đơn & soi da", "sections": ["Rà soát đơn bằng AI", "Xác nhận kết quả soi da AI"],
+        "questions": ["Dùng Rà soát bằng AI thế nào?", "Xác nhận soi da AI trong bao lâu?", "Hiệu chỉnh kết quả soi da AI thế nào?"] },
+      { "id": "quy-tac", "label": "Quy tắc an toàn & bài viết", "sections": ["Quy tắc an toàn: xem xét và đề xuất", "Viết bài chuyên môn"],
+        "questions": ["Xem xét quy tắc quản lý gửi thế nào?", "Đề xuất quy tắc an toàn mới thế nào?", "Đề xuất ngưng một quy tắc thế nào?", "Viết bài chuyên môn thế nào?"] },
+      "cham-cong"
+    ],
+    "TECHNICIAN": [
+      { "id": "dich-vu", "label": "Buổi dịch vụ & vật tư", "sections": ["Thực hiện buổi dịch vụ, buổi liệu trình", "Ghi nhận vật tư theo định mức"],
+        "questions": ["Hoàn thành buổi liệu trình thế nào?", "Dùng vật tư nhiều hơn định mức thì sao?", "Vật tư sắp hết thì có ai đặt hàng không?"] },
+      { "id": "an-toan", "label": "An toàn khi làm thủ thuật", "sections": ["An toàn khi làm thủ thuật"],
+        "questions": ["Cần xem gì trước khi làm thủ thuật?", "Khách có tình trạng mới chưa được hỏi thì làm gì?"] },
+      "cham-cong"
+    ],
+    "SALES": [
+      { "id": "don-online", "label": "Đơn hàng online", "sections": ["Xử lý đơn hàng online", "POLICY:6"],
+        "questions": ["Duyệt và gửi GHN đơn online thế nào?", "Đơn chuyển khoản khi nào vào chờ duyệt?", "Đơn trả bằng điểm giao hàng thế nào?"] },
+      { "id": "huy-don", "label": "Hủy đơn", "sections": ["Hủy đơn hàng", "POLICY:7"],
+        "questions": ["Hủy đơn đã chuyển khoản thì làm gì?", "Khi nào voucher được trả lại lượt?", "Khách tự hủy đơn trên web thì sao?", "GHN hoàn hàng về kho thì xử lý thế nào?"] },
+      { "id": "hoan-tra", "label": "Hoàn trả & đổi hàng", "sections": ["Hoàn / trả hàng và đổi hàng", "POLICY:8"],
+        "questions": ["Khách muốn trả hàng vì không thích thì sao?", "Hàng khuyến mãi bị lỗi xử lý thế nào?", "Hết hàng để đổi thì làm gì?", "Hoàn tiền cho yêu cầu trả hàng thế nào?"] },
+      { "id": "tai-quay", "label": "Bán tại quầy", "sections": ["Bán tại quầy", "Giá và điểm khi bán", "POLICY:9"],
+        "questions": ["Bán tại quầy có cần sàng lọc an toàn không?", "Khách trả bằng điểm tại quầy thế nào?", "Dùng gợi ý sản phẩm AI thế nào?", "Voucher có dùng chung giá khuyến mãi không?"] },
+      "cham-cong"
+    ],
+    "EXPERT": [
+      { "id": "tu-van", "label": "Buổi tư vấn online", "sections": ["Buổi tư vấn online", "Khách vắng, chuyên gia vắng", "POLICY:10"],
+        "questions": ["Được vào phòng tư vấn sớm bao lâu?", "Hạn gửi kết quả tư vấn là bao lâu?", "Khách không vào phòng thì sao?", "Khi nào được tính thù lao?"] }
+    ],
+    "GEN_MANAGER": [
+      { "id": "nhan-su", "label": "Phân ca & chấm công", "sections": ["Phân ca và duyệt đơn nghỉ", "Chấm công: duyệt giải trình và ảnh khuôn mặt"],
+        "questions": ["Duyệt đơn nghỉ của bác sĩ thì lịch khám ra sao?", "Ảnh chấm công bị gắn cờ không khớp thì làm gì?", "Kích hoạt máy chấm công ở đâu?"] },
+      { "id": "luong", "label": "Tính lương", "sections": ["Tính lương hàng tháng", "Lương và phiếu lương"],
+        "questions": ["Tính lương tháng gồm những bước nào?", "Còn việc treo thì có tạo bảng lương được không?", "Mở khóa bảng lương đã duyệt thế nào?"] },
+      { "id": "quy-tac", "label": "Quy tắc an toàn", "sections": ["Quy tắc an toàn (chống chỉ định)"],
+        "questions": ["Thêm quy tắc an toàn mới thế nào?", "Sửa quy tắc đang áp dụng thế nào?", "Hoạt chất có tên khác thì bảng quy tắc nhận ra sao?"] },
+      { "id": "tien", "label": "Đối chiếu hoàn tiền", "sections": ["Đối chiếu hoàn tiền", "Đối soát tiền vào"],
+        "questions": ["Hoàn tiền quá 24 giờ chưa khớp thì làm gì?", "Đối chiếu khoản hoàn tiền thế nào?"] },
+      { "id": "kho-bao-cao", "label": "Kho, khuyến mãi & báo cáo", "sections": ["Kho, vật tư, đề xuất nhập hàng", "Khuyến mãi và mã nội bộ", "Báo cáo", "Trợ lý AI và kho kiến thức"],
+        "questions": ["Duyệt đề xuất nhập hàng thế nào?", "Tạo mã giảm giá nội bộ thế nào?", "Báo cáo điểm GlowSkin xem được gì?", "Sửa giá xong thì AI cập nhật khi nào?"] }
+    ],
+    "ADMIN": [
+      { "id": "tien", "label": "Đối chiếu hoàn tiền", "sections": ["Đối chiếu hoàn tiền", "Đối soát tiền vào"],
+        "questions": ["Hoàn tiền quá 24 giờ chưa khớp thì làm gì?", "Đối chiếu khoản hoàn tiền thế nào?"] },
+      { "id": "kho-bao-cao", "label": "Kho, khuyến mãi & báo cáo", "sections": ["Kho, vật tư, đề xuất nhập hàng", "Khuyến mãi và mã nội bộ", "Báo cáo", "Trợ lý AI và kho kiến thức"],
+        "questions": ["Báo cáo điểm GlowSkin xem được gì?", "Xem lịch sử email gửi khách ở đâu?", "Sửa giá xong thì AI cập nhật khi nào?"] }
+    ]
+  }
+}

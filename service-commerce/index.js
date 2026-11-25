@@ -57,7 +57,14 @@ app.listen(PORT, async() => {
         // chế độ này có thể XÓA cột không còn trong model, chỉ bật khi cần và nên backup DB trước.
         const alter = process.env.DB_SYNC_ALTER === 'true';
         if (alter) console.warn('⚠️  DB_SYNC_ALTER=true: đang cập nhật cấu trúc bảng theo model');
+        // Điểm GlowSkin: trả đơn bằng điểm (payment_method = POINTS); khách tự hủy đơn chọn hoàn tiền thì lưu tài khoản nhận
+        await sequelize.query(`DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Orders_payment_method') THEN
+            ALTER TYPE "enum_Orders_payment_method" ADD VALUE IF NOT EXISTS 'POINTS';
+          END IF;
+        END $$;`);
         await sequelize.sync({ alter });
+        await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "points_used" INTEGER, ADD COLUMN IF NOT EXISTS "refund_account" VARCHAR(200)');
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
         // Đổi hàng / hàng khuyến mãi: yêu cầu cũ đều là hoàn tiền (REFUND); tài khoản ngân hàng chỉ bắt buộc khi hoàn tiền

@@ -13,7 +13,7 @@ const EXAM_FEE = 100000;           // service-booking appointment.controller EXA
 const OFFLINE_DEPOSIT = 50000;     // service-booking appointment.controller OFFLINE_DEPOSIT
 const BOOK_AHEAD_DAYS = 30;        // service-booking customerPackage.controller BOOK_AHEAD_DAYS
 const VIDEO_CLOSE_AFTER_HOURS = 2; // service-booking video.controller CLOSE_AFTER_MINUTES = 120
-const AI_DAILY_LIMIT = 5;          // service-ai-analysis AI_USER_DAILY_LIMIT (mặc định)
+const AI_DAILY_LIMIT = 3;          // service-ai-analysis AI_USER_DAILY_LIMIT (mặc định 3, middlewares/analysisQuota)
 const PRIVACY_EMAIL = 'privacy@glowskin.vn';
 const IMAGE_RETENTION = '2 năm kể từ ngày tải lên (bạn có thể tự xóa sớm hơn ở trang Lịch sử soi da)'; // khớp PhotoConsentModal + SCAN_RETENTION_DAYS
 
@@ -131,7 +131,7 @@ export default function PolicyPage() {
           <Section id="huy-lich">
             <Rules section="huy-lich" items={[
               <>Bạn tự hủy được lịch <b>chưa khám</b> (chờ xác nhận, đã xác nhận, cần xếp lại lịch) ngay trong mục Sổ lịch khám. Lịch khám trực tuyến đã thanh toán tự hủy được trước giờ khám.</>,
-              <>Hủy lịch đã đặt cọc <b>trước giờ khám ít nhất {durationLabel(timing().rescheduleMinMinutes)}</b> (tự hủy trên website hoặc nhờ CSKH hủy hộ): tiền cọc được <b>đổi thành Điểm GlowSkin</b> (1 điểm = 100đ), dùng để trả cọc lịch khám hoặc phí tư vấn lần sau. Điểm không đổi ra tiền mặt. Lịch đã được phòng khám chuyển sang "cần xếp lại lịch" thì hủy lúc nào cũng được đổi thành điểm.</>,
+              <>Hủy lịch đã đặt cọc <b>trước giờ khám ít nhất {durationLabel(timing().rescheduleMinMinutes)}</b> (tự hủy trên website hoặc nhờ CSKH hủy hộ): tiền cọc được <b>đổi thành Điểm GlowSkin</b> (1 điểm = 100đ), dùng để trả cọc lịch khám, phí tư vấn hoặc mua mỹ phẩm theo giá niêm yết (không áp giá khuyến mãi, không dùng kèm voucher, cần đủ điểm cho cả đơn gồm phí ship). Điểm <b>có hạn 12 tháng</b> kể từ lần được cộng (điểm sắp hết hạn được dùng trước, có email báo trước 30 ngày), không đổi ra tiền mặt, không chuyển cho người khác. Khoản trả bằng điểm khi bị hủy được hoàn lại bằng điểm. Lịch đã được phòng khám chuyển sang "cần xếp lại lịch" thì hủy lúc nào cũng được đổi thành điểm.</>,
               <>Hủy <b>trong vòng {durationLabel(timing().rescheduleMinMinutes)}</b> trước giờ khám thì <b>mất 100% tiền cọc</b>. Với lịch khám trực tuyến, khoản mất là toàn bộ phí khám {vnd(EXAM_FEE)} đã trả trước. Hệ thống yêu cầu bạn xác nhận số tiền cọc bị mất trước khi hủy.</>,
               <>Trường hợp <b>phòng khám chủ động hủy lịch</b> (bác sĩ vắng, sự cố...), bạn được hoàn <b>100% tiền cọc</b> theo lựa chọn của bạn: nhận lại tiền (cung cấp tài khoản cho CSKH, mã giao dịch hoàn tiền được cập nhật vào lịch) hoặc nhận Điểm GlowSkin <b>cộng thêm 10%</b>.</>,
               <>Lịch đã check-in, đang khám hoặc đã khám xong <b>không thể hủy</b>.</>,
@@ -179,7 +179,7 @@ export default function PolicyPage() {
           <Section id="mua-hang">
             <Rules section="mua-hang" items={[
               <><b>Thuốc kê đơn không bán trên website.</b> Thuốc chỉ được bác sĩ kê trong buổi khám và bán tại quầy theo đơn.</>,
-              <>Thanh toán: <b>khi nhận hàng (COD)</b> hoặc <b>chuyển khoản VietQR</b>. Đơn chuyển khoản chỉ được duyệt sau khi hệ thống nhận được tiền.</>,
+              <>Thanh toán: <b>khi nhận hàng (COD)</b>, <b>chuyển khoản VietQR</b> hoặc <b>Điểm GlowSkin</b>. Đơn chuyển khoản chỉ được duyệt sau khi hệ thống nhận được tiền. Trả bằng điểm: cần đủ điểm cho cả đơn theo giá niêm yết (không áp giá khuyến mãi) cộng phí ship, không dùng kèm voucher.</>,
               <>Phí vận chuyển do Giao Hàng Nhanh (GHN) tính theo địa chỉ và cân nặng đơn hàng, hệ thống tự tính lại khi đặt. Đơn COD: shipper thu tiền hàng sau giảm giá cộng phí vận chuyển.</>,
               <>Đơn hàng đi qua các bước: <b>Chờ duyệt → Đã duyệt → Đang đóng gói → Đang giao → Đã nhận</b>. Mã vận đơn GHN có khi đơn chuyển sang Đang giao.</>,
               <>Khi nhận hàng, bạn <b>được kiểm tra hàng nhưng không được dùng thử</b>. Nên quay video lúc mở hộp để làm bằng chứng nếu cần hoàn trả.</>,
@@ -189,7 +189,8 @@ export default function PolicyPage() {
 
           <Section id="huy-don">
             <Rules section="huy-don" items={[
-              <>Bạn không tự hủy đơn trên website. Liên hệ hotline / nhân viên bán hàng để được hủy.</>,
+              <>Bạn <b>tự hủy được đơn giao hàng trên website</b> (mục Đơn hàng mỹ phẩm) khi đơn <b>chưa giao cho đơn vị vận chuyển</b>. Đơn đã giao cho GHN, liên hệ hotline / nhân viên bán hàng.</>,
+              <>Tự hủy đơn <b>đã chuyển khoản</b>: bạn chọn <b>hoàn tiền về tài khoản</b> (CSKH chuyển khoản) hoặc <b>hoàn Điểm GlowSkin tương đương</b> (1 điểm = 100đ, nhận ngay, không cộng thêm). Đơn <b>trả bằng điểm</b> bị hủy thì được hoàn lại điểm.</>,
               <>Đơn chỉ hủy được khi <b>chưa giao thành công</b>. Đơn đang giao chỉ hủy được nếu GHN chấp nhận hủy vận đơn.</>,
               <>Đơn chuyển khoản không thanh toán trong <b>15 phút</b> sẽ tự hủy, sản phẩm được trả lại kho và <b>voucher đã dùng được trả lại lượt</b>. Nếu tiền về sau khi đơn đã hủy, CSKH sẽ hoàn lại cho bạn.</>,
               <>Đơn đã chuyển khoản khi bị hủy sẽ được hoàn tiền. Voucher đã dùng được <b>trả lại lượt</b> nếu việc hủy không do bạn: đơn tự hủy vì quá hạn thanh toán, phòng khám hủy, đơn vị vận chuyển hủy hoặc lỗi vận chuyển. Bạn yêu cầu hủy hoặc không nhận hàng thì không được trả lại lượt.</>,
@@ -206,7 +207,7 @@ export default function PolicyPage() {
               </>,
               <>Hồ sơ yêu cầu bắt buộc: chọn sản phẩm và số lượng trả (không vượt số đã mua), mô tả tình trạng ít nhất 20 ký tự, 1 - {returnPolicy?.max_images ?? 5} ảnh chụp sản phẩm, và chọn cách xử lý. Chọn hoàn tiền thì khai thêm tài khoản ngân hàng.</>,
               <>Cách xử lý mặc định là <b>đổi sản phẩm</b>: kho kiểm tra hàng trả đạt thì GlowSkin giao sản phẩm đổi cho bạn, bạn không trả thêm tiền. Sản phẩm hết hàng thì đổi sang sản phẩm khác có giá trị không vượt giá trị hàng trả, hoặc hoàn tiền nếu bạn đồng ý. Bạn cũng có thể chọn <b>hoàn tiền</b> ngay khi gửi yêu cầu.</>,
-              <><b>{returnPolicy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b> Hàng khuyến mãi là sản phẩm mua lúc đang có giá ưu đãi online.</>,
+              <><b>{returnPolicy?.sale_rule || 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó'}.</b> Hàng khuyến mãi là sản phẩm mua lúc đang có giá ưu đãi online. {returnPolicy?.sale_out_of_stock_rule || 'Hàng khuyến mãi lỗi mà hết hàng để đổi: đổi sản phẩm tương đương (không vượt giá đã trả) hoặc hoàn tiền nếu khách không đồng ý'}.</>,
               <>Sản phẩm trả phải còn đủ hộp, tem, phụ kiện và chưa qua sử dụng (trừ lỗi chỉ phát hiện được khi mở).</>,
               <><b>Mỗi đơn chỉ được yêu cầu hoàn trả một lần.</b> Yêu cầu bị từ chối không được gửi lại. Bạn được hủy yêu cầu khi nhân viên chưa duyệt, và gửi lại nếu còn trong thời hạn.</>,
               <>Quy trình: nhân viên duyệt hồ sơ (phản hồi trong 24 giờ làm việc) → GHN đến lấy hàng tại địa chỉ nhận hàng của đơn, <b>GlowSkin trả phí vận chuyển</b> → kho nhận và kiểm tra → giao sản phẩm đổi, hoặc hoàn tiền qua chuyển khoản.</>,
@@ -252,7 +253,8 @@ export default function PolicyPage() {
             <Rules section="bao-mat" items={[
               <><b>Dữ liệu thu thập:</b> thông tin tài khoản (email, họ tên, số điện thoại), hồ sơ người khám, lịch sử khám và ghi chú của bác sĩ, địa chỉ giao hàng, ảnh da bạn tải lên.</>,
               <><b>Mục đích:</b> đặt lịch, khám và điều trị, giao hàng, thanh toán, chăm sóc sau điều trị. GlowSkin không bán hoặc dùng dữ liệu của bạn cho mục đích quảng cáo của bên thứ ba.</>,
-              <><b>Bên xử lý được chia sẻ dữ liệu cần thiết:</b> Cloudinary (lưu ảnh), Roboflow (phân tích ảnh da), Giao Hàng Nhanh (họ tên, số điện thoại, địa chỉ nhận hàng), SePay (đối soát chuyển khoản).</>,
+              <><b>Bên xử lý được chia sẻ dữ liệu cần thiết:</b> Cloudinary (lưu ảnh), Roboflow (phân tích ảnh da), Google Gemini (chatbot tư vấn, nhận xét kết quả soi da), Giao Hàng Nhanh (họ tên, số điện thoại, địa chỉ nhận hàng), SePay (đối soát chuyển khoản).</>,
+              <><b>Chatbot AI:</b> trả lời theo thông tin công khai của phòng khám. Chatbot chỉ xem lịch hẹn, Điểm GlowSkin hoặc đơn hàng của bạn khi bạn đã đăng nhập và bấm <b>Đồng ý cho xem</b> với từng loại dữ liệu; quyền xem chỉ có hiệu lực trong phiên chat đó (tối đa 60 phút) và bạn bấm <b>Thu hồi</b> được bất cứ lúc nào.</>,
               <><b>Ảnh da cho sàng lọc AI:</b> chỉ phân tích khi bạn đồng ý chính sách sử dụng hình ảnh; hệ thống lưu phiên bản chính sách và thời điểm bạn đồng ý. Việc cho phép dùng ảnh để cải thiện mô hình là lựa chọn riêng, mặc định không cho phép; ảnh dùng cho việc này được làm mờ vùng mắt và bỏ thông tin định danh, và được gỡ khi bạn rút lại đồng ý hoặc xóa lượt soi. Ảnh và kết quả được lưu trong {IMAGE_RETENTION}, sau đó tự động xóa.</>,
               <>Kết quả sàng lọc AI <b>chỉ mang tính tham khảo</b>, không thay thế chẩn đoán của bác sĩ da liễu. Mỗi tài khoản được phân tích tối đa {AI_DAILY_LIMIT} lượt / ngày.</>,
               <>Hồ sơ khám và ảnh của bạn chỉ nhân sự được phân quyền (bác sĩ, tư vấn viên, kỹ thuật viên phụ trách) mới xem được.</>,

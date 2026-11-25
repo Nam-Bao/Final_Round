@@ -39,8 +39,10 @@ exports.getSalesReport = async (req, res) => {
     const days = {};
     const bump = (d, key, v) => { const k = day(d); days[k] = days[k] || { online_products: 0, store_products: 0, refunds: 0 }; days[k][key] += v; };
     const top = {};
+    let paidByPoints = 0; // phần doanh thu khách trả bằng Điểm GlowSkin (tiền đã thu từ trước, nay mới ghi nhận)
     orders.forEach((o) => {
       const value = Math.max(0, Number(o.total_amount) - Number(o.discount_amount || 0));
+      if (o.payment_method === 'POINTS') paidByPoints += value;
       // consultant_id = NVBH tạo đơn hộ (bán tại quầy / đặt hộ); không có = khách tự đặt online
       bump(o.createdAt, o.consultant_id ? 'store_products' : 'online_products', value);
       o.OrderDetails.forEach((d) => {
@@ -54,7 +56,7 @@ exports.getSalesReport = async (req, res) => {
     const series = Object.entries(days).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v }));
     const totals = ['online_products', 'store_products', 'refunds'].reduce((acc, k) => ({ ...acc, [k]: series.reduce((s, d) => s + d[k], 0) }), {});
     res.status(200).json({
-      series, totals,
+      series, totals: { ...totals, paid_by_points: paidByPoints },
       counts: { orders: orders.length, refunds: refunds.length },
       top_products: Object.values(top).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
     });
@@ -97,5 +99,29 @@ exports.getOverview = async (req, res) => {
     res.status(200).json({ data: { pending_orders: pendingOrders, product_alerts: productAlerts, pending_purchase: pendingPurchase, approved_not_received: approvedNotReceived } });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+
+// [ADMIN/GEN_MANAGER] GET /reports/points-orders?from&to — đơn mỹ phẩm khách trả bằng Điểm GlowSkin
+exports.getPointsOrders = async (req, res) => {
+  try {
+    const { from, to } = parseRange(req.query);
+    const orders = await Order.findAll({
+      where: { payment_method: 'POINTS', createdAt: { [Op.between]: [from, to] } },
+      include: [{ model: OrderDetail, include: [{ model: Product, attributes: ['name'] }] }],
+      order: [['createdAt', 'DESC']],
+    });
+    const PICKUP = 'Nhận tại quầy phòng khám GlowSkin';
+    res.status(200).json({
+      data: orders.map((o) => ({
+        id: o.id, created_at: o.createdAt, customer_id: o.customer_id, recipient_name: o.recipient_name, status: o.status,
+        channel: o.shipping_address === PICKUP ? 'COUNTER' : o.consultant_id ? 'STAFF_DELIVERY' : 'ONLINE',
+        points_used: o.points_used || 0, goods_vnd: Number(o.total_amount), shipping_fee: Number(o.shipping_fee || 0), refund_status: o.refund_status,
+        items: o.OrderDetails.map((d) => ({ name: d.Product?.name || 'Sản phẩm', quantity: d.quantity, price: Number(d.price) })),
+      })),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Lỗi server', error: error.message });
   }
 };

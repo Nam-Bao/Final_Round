@@ -1,0 +1,2304 @@
+{
+  "date": "2026-11-25",
+  "questions": 51,
+  "before": [
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Lấy nhân mụn chuẩn y khoa giá bao nhiêu?",
+      "expect": [
+        [
+          "300.000",
+          "300,000",
+          "300000",
+          "300k",
+          "300 nghin",
+          "300 ngan",
+          "300.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui vì được hỗ trợ anh/chị ngày hôm nay ạ! 🥰\n\nDịch vụ **Lấy nhân mụn chuẩn y khoa** bên em hiện có mức giá vô cùng hợp lý, chỉ từ **250.000đ - 450.000đ/lần** (tùy thuộc vào tình trạng mụn nhẹ, trung bình hay nặng của mình ạ). \n\nĐặc biệt, khi đến với GlowSkin O2O, quy trình lấy nhân mụn được thực hiện **100% bởi Bác sĩ da liễu hoặc KTV tay nghề cao**, tuân thủ nghiêm ngặt quy y tế với các ưu điểm vượt trội:\n1. **Khám & soi da miễn phí** trước khi làm để đánh giá đúng tình trạng mụn.\n2. **Dụng cụ tiệt trùng riêng biệt** cho từng khách hàng (cam kết không tái sử dụng).\n3. **Kỹ thuật nặn chuẩn y khoa**, lấy sạch gốc mụn, không gây sưng đỏ, hạn chế tối đa thâm sẹo.\n4. **Sử dụng công nghệ ánh sáng sinh học (máy O2O)** kháng khuẩn, giảm sưng viêm và làm dịu da ngay sau khi nặn.\n\nDạ không biết hiện tại tình trạng mụn của mình đang là mụn đầu đen, mụn ẩn hay mụn viêm nhiều không ạ? Anh/chị có thể chia sẻ thêm để em tư vấn kỹ hơn hoặc hỗ trợ mình đặt lịch hẹn sớm để được bác sĩ thăm khám trực tiếp nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2145,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Peel da sinh học mờ thâm giá bao nhiêu?",
+      "expect": [
+        [
+          "800.000",
+          "800,000",
+          "800000",
+          "800k",
+          "800 nghin",
+          "800 ngan",
+          "800.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui được hỗ trợ anh/chị ngày hôm nay ạ! 🥰\n\nDạ, về dịch vụ **Peel da sinh học mờ thâm**, mức giá tại GlowSkin O2O sẽ dao động tùy thuộc vào tình trạng da hiện tại của anh/chị (thâm mụn mới, thâm lâu năm, hay da dầu mụn kèm thâm...) để bác sĩ chỉ định nồng độ và hoạt chất phù hợp nhất ạ. \n\nHiện tại, chi phí cho một buổi Peel da sinh học bên em thường nằm trong khoảng từ **800.000đ đến 2.000.000đ/lần**. \n\nĐặc biệt, nếu anh/chị đặt lịch hẹn trước qua đây, bên em đang có **chương trình ưu đãi giảm giá đến 30%** cho lần trải nghiệm dịch vụ đầu tiên và được **bác sĩ da liễu trực tiếp thăm khám, soi da miễn phí** luôn ạ! 🎁\n\nĐể em tư vấn mức giá chính xác nhất và giữ ưu đãi cho mình, anh/chị có thể chia sẻ thêm cho em một chút về tình trạng thâm da hiện tại của mình được không ạ? (Ví dụ: da bị thâm do mụn, thâm sạm hay đã bị lâu chưa ạ?). \n\nAnh/chị có muốn em đặt lịch hẹn giúp mình ghé qua phòng khám không ạ?",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1627,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Điện di Ion Vitamin C giá bao nhiêu?",
+      "expect": [
+        [
+          "600.000",
+          "600,000",
+          "600000",
+          "600k",
+          "600 nghin",
+          "600 ngan",
+          "600.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày làm việc tràn đầy năng lượng nhé! 🌸\n\nEm rất vui vì anh/chị đã quan tâm đến dịch vụ **Điện di Ion Vitamin C** tại phòng khám da liễu **GlowSkin O2O**. \n\nHiện tại, liệu trình Điện di Vitamin C chuẩn y khoa bên em đang có mức giá rất ưu đãi là **[Điền giá, ví dụ: 390.000đ / buổi]** ạ. Ngoài ra, bên em đang có chương trình **[Điền ưu đãi nếu có, ví dụ: mua liệu trình 5 buổi tặng 1 buổi / hoặc giảm 20% cho khách hàng đặt lịch hẹn online lần đầu]**.\n\n**Liệu trình này sẽ mang lại cho mình những công dụng tuyệt vời như:**\n*   Làm mờ vết thâm mụn, dưỡng da trắng sáng, đều màu.\n*   Chống oxy hóa mạnh mẽ, kích thích tăng sinh Collagen giúp da săn chắc, đàn hồi.\n*   Ức chế sắc tố melanin, ngăn ngừa nám và tàn nhang.\n*   Cấp ẩm sâu, giúp da căng mướt và rạng rỡ tức thì mà không hề xâm lấn hay nghỉ dưỡng.\n\nKhông biết da dạo này của mình đang gặp tình trạng thâm mụn hay không đều màu thế nào ạ? Anh/chị có muốn em hỗ trợ **đặt lịch soi da và thăm khám miễn phí** với bác sĩ da liễu để biết chính xác tình trạng da hiện tại không ạ? \n\nEm rất mong có cơ hội được đón tiếp anh/chị tại GlowSkin O2O nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2121,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Chăm sóc da chuyên sâu cơ bản giá bao nhiêu?",
+      "expect": [
+        [
+          "350.000",
+          "350,000",
+          "350000",
+          "350k",
+          "350 nghin",
+          "350 ngan",
+          "350.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. \n\nEm rất vui vì anh/chị đã quan tâm đến dịch vụ của nhà GlowSkin ạ! 🌸\n\nDịch vụ **Chăm sóc da chuyên sâu cơ bản** tại phòng khám đang có mức giá cực kỳ yêu thương là **[Điền giá, ví dụ: 390.000đ / 500.000đ]** cho một liệu trình chuẩn y khoa gồm đầy đủ các bước:\n1. Tẩy trang và làm sạch sâu.\n2. Xông hơi, hút dầu thừa và bã nhờn.\n3. Tẩy tế bào chết lấy đi lớp sừng già cỗi.\n4. Lấy nhân mụn chuẩn y khoa (nếu có).\n5. Sát khuẩn và điện di dưỡng chất/thoa tinh chất dịu da.\n6. Massage thư giãn nhẹ nhàng.\n7. Đắp mặt nạ chuyên sâu và chiếu ánh sáng sinh học (màu tùy thuộc vào tình trạng da).\n8. Thoa kem dưỡng và kem chống nắng bảo vệ da.\n\nDạ không biết da hiện tại của mình đang gặp tình trạng gì (khô, dầu, mụn hay nhạy cảm...) để em tư vấn kỹ hơn và giữ ưu đãi này cho mình luôn nhé ạ? Anh/chị có thể cho em xin số điện thoại, em hỗ trợ mình đặt lịch hẹn sớm nhất nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1732,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Ánh sáng sinh học LED trị mụn giá bao nhiêu?",
+      "expect": [
+        [
+          "250.000",
+          "250,000",
+          "250000",
+          "250k",
+          "250 nghin",
+          "250 ngan",
+          "250.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui vì được hỗ trợ anh/chị ngày hôm nay ạ! 🥰\n\nVề dịch vụ **Ánh sáng sinh học LED trị mụn**, đây là một trong những phương pháp rất được yêu thích tại GlowSkin O2O vì tính an toàn, không đau, không xâm lấn nhưng mang lại hiệu quả cực kỳ tốt trong việc kháng viêm, diệt khuẩn mụn, kiểm soát bã nhờn và kích thích phục hồi da nhanh chóng.\n\nChi phí cho liệu trình này tại phòng khám hiện đang có mức giá rất ưu đãi như sau ạ:\n\n*   **Giá trải nghiệm lần đầu (Dùng thử):** Chỉ từ **199.000đ - 299.000đ/buổi** (tùy thuộc vào tình trạng da cụ thể).\n*   **Giá mua theo liệu trình (5-10 buổi):** Sẽ có các mức ưu đãi giảm từ **20% - 30%**, giúp anh/chị tiết kiệm chi phí rất nhiều mà da lại được chăm sóc chuyên sâu đều đặn.\n\nĐể em có thể tư vấn chính xác phác đồ số buổi và báo giá chi tiết nhất cho tình trạng da của mình, anh/chị có thể chia sẻ một chút với em được không ạ:\n1. Da mình hiện đang là mụn viêm đỏ, mụn ẩn hay mụn bọc ạ?\n2. Anh/chị đã từng đi điều trị mụn ở đâu trước đây chưa ạ?\n\nAnh/chị cứ nhắn lại, em tư vấn chi tiết và hỗ trợ mình đặt lịch hẹn ưu đãi nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1765,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Laser Toning trị nám giá bao nhiêu?",
+      "expect": [
+        [
+          "1.500.000",
+          "1,500,000",
+          "1500000",
+          "1500k",
+          "1500 nghin",
+          "1500 ngan",
+          "1500.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! 😍\n\nVề thắc mắc dịch vụ **Laser Toning trị nám** giá bao nhiêu, em xin phép được chia sẻ chi tiết với anh/chị như thế này ạ:\n\nCông nghệ Laser Toning tại GlowSkin O2O hiện đang là \"cứu tinh\" cho rất nhiều khách hàng gặp tình trạng nám sạm, tàn nhang hay đốm nâu nhờ ưu điểm không đau, không nghỉ dưỡng và đánh bay sắc tố cực kỳ hiệu quả.\n\nVề chi phí, mức giá sẽ dao động tùy thuộc vào **tình trạng nám thực tế** (nám mảng, nám chân sâu hay nám hỗn hợp) và **diện tích vùng da** cần điều trị của mình nữa ạ:\n\n*   **Giá lẻ mỗi buổi trải nghiệm:** Thường dao động từ **1.200.000đ - 2.500.000đ/buổi** (tùy tình trạng nhẹ hay nặng).\n*   **Liệu trình trọn gói (thường từ 5 - 10 buổi):** Sẽ tiết kiệm hơn rất nhiều và được cam kết hiệu quả bằng văn bản ạ. Đặc biệt, trong tháng này GlowSkin O2O đang có chương trình **ưu đãi giảm giá đến 40%** cho các liệu trình điều trị nám chuyên sâu đó ạ!\n\nAnh/chị ơi, để em có thể báo giá chính xác nhất cũng như tặng anh/chị **buổi soi da và bác sĩ da liễu thăm khám hoàn toàn MIỄN PHÍ**, anh/chị có thể dành chút thời gian ghé qua phòng khám, hoặc gửi giúp em hình ảnh cận cảnh vùng da bị nám qua đây được không ạ? \n\nAnh/chị cứ thoải mái chia sẻ, em hỗ trợ mình tận tình nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1984,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Lộ trình 8 bước có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "1 buoi",
+          "1 lan"
+        ],
+        [
+          "30.000",
+          "30,000",
+          "30000",
+          "30k",
+          "30 nghin",
+          "30 ngan",
+          "30.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui vì anh/chị đã quan tâm đến dịch vụ chăm sóc da chuyên sâu bên em ạ! 🥰\n\nEm xin phép được thông tin chi tiết về **Gói Lộ trình 8 bước** đang rất được yêu thích tại GlowSkin O2O như sau ạ:\n\n*   **Số buổi:** Gói liệu trình chuẩn được thiết kế gồm **10 buổi** (đây là số buổi tối ưu để da hấp dưỡng chất, phục hồi và tái tạo một cách toàn diện nhất).\n*   **Giá niêm yết:** **5.000.000 VNĐ / liệu trình 10 buổi** (tính ra chỉ 500k/buổi cho một quy trình chuẩn y khoa 8 bước cao cấp ạ).\n\n✨ **ĐẶC BIỆT:** Nếu anh/chị đăng ký trong ngày hôm nay, em xin phép được gửi tặng anh/chị chương trình ưu đãi đặc biệt giảm ngay **30%**, giá trọn gói chỉ còn **3.500.000 VNĐ** thôi ạ! \n\nKhông biết là da hiện tại của mình đang gặp tình trạng gì (mụn, thâm, khô sạm hay lỗ chân lông to...) để em tư vấn kỹ hơn xem liệu trình này có phù hợp nhất với da mình không, hoặc anh/chị có muốn em giữ suất ưu đãi này cho mình luôn không ạ? ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1686,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình trị mụn chuẩn y khoa 6 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "6 buoi",
+          "6 lan"
+        ],
+        [
+          "3.200.000",
+          "3,200,000",
+          "3200000",
+          "3200k",
+          "3200 nghin",
+          "3200 ngan",
+          "3200.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui vì được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nEm xin trả lời câu hỏi của anh/chị về gói dịch vụ bên em nhé:\n\n* **Số buổi:** Đúng như tên gọi của gói, **Liệu trình trị mụn chuẩn y khoa 6 buổi** sẽ bao gồm tổng cộng **6 buổi** điều trị chuyên sâu anh/chị nha. \n* **Về giá cả:** Hiện tại, gói liệu trình này tại GlowSkin O2O đang có mức giá niêm yết là **[Điền giá tiền vào đây, ví dụ: 3.500.000 VNĐ / hoặc em báo giá ưu đãi nếu có]**. \n\nĐặc biệt, trong tháng này bên em đang có chương trình ưu đãi dành riêng cho khách hàng đặt lịch online trước, nên chi phí sẽ tiết kiệm hơn rất nhiều và còn được tặng kèm sản phẩm chăm sóc da tại nhà nữa đó ạ!\n\nKhông biết hiện tại tình trạng mụn của mình đang gặp phải là mụn ẩn, mụn viêm hay mụn đầu đen nhiều, để em có thể tư vấn kỹ hơn xem liệu trình này có phù hợp nhất với da mình không, hoặc em giữ ưu đãi này cho anh/chị luôn nhé? 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1567,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình mờ nám Laser Toning 5 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "5 buoi",
+          "5 lan"
+        ],
+        [
+          "6.200.000",
+          "6,200,000",
+          "6200000",
+          "6200k",
+          "6200 nghin",
+          "6200 ngan",
+          "6200.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! 😍\n\nEm xin trả lời câu hỏi của anh/chị về Gói liệu trình mờ nám Laser Toning ạ:\n\n*   **Số buổi:** Gói liệu trình chuẩn của bên em gồm đúng **5 buổi** điều trị chuyên sâu anh/chị nha. \n*   **Về giá cả:** Hiện tại, liệu trình Laser Toning 5 buổi đang có mức giá niêm yết là **[Điền giá, ví dụ: 4.500.000đ / 6.000.000đ - tùy phòng khám]**. \n\n✨ *Đặc biệt:* Khi đăng ký trọn gói 5 buổi này, anh/chị sẽ tiết kiệm được rất nhiều chi phí so với làm lẻ từng buổi, đồng thời sẽ được bác sĩ da liễu trực tiếp thăm khám, lên phác đồ riêng biệt và tặng kèm các bước phục hồi da chuyên sâu sau laser nữa ạ.\n\nKhông biết là tình trạng nám hiện tại của mình là nám mảng, nám chân sâu hay nám hỗn hợp vậy ạ? Anh/chị có thể chia sẻ thêm để em tư vấn kỹ hơn xem liệu trình này phù hợp nhất với mình không nhé! \n\nAnh/chị có muốn em giữ ưu đãi này và đặt lịch hẹn gặp bác sĩ sớm nhất không ạ? ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1646,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình phục hồi da nhạy cảm 8 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "8 buoi",
+          "8 lan"
+        ],
+        [
+          "3.900.000",
+          "3,900,000",
+          "3900000",
+          "3900k",
+          "3900 nghin",
+          "3900 ngan",
+          "3900.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nAnh/chị hỏi rất đúng trọng tâm luôn ạ. Nghe tên gói là mình đã đoán được ngay đáp án rồi đúng không anh/chị? **Gói Liệu trình phục hồi da nhạy cảm 8 buổi** sẽ có đúng **8 buổi** điều trị chuyên sâu ạ. \n\nVề chi phí, liệu trình này hiện đang có mức giá niêm yết vô cùng ưu đãi là **[Điền giá, ví dụ: 4.800.000 VNĐ - bạn thay thế số tiền thực tế vào nhé]**, tính ra mỗi buổi chăm sóc da chuyên sâu chỉ dao động khoảng hơn 500k một chút thôi nhưng mang lại hiệu quả cực kỳ rõ rệt cho làn da mỏng yếu, dễ kích ứng đó ạ.\n\nĐặc biệt, khi đăng ký trọn gói 8 buổi này tại GlowSkin O2O, anh/chị sẽ được:\n*   Bác sĩ da liễu trực tiếp thăm khám và lên phác đồ riêng biệt.\n*   Sử dụng độc quyền các dòng dược mỹ phẩm lành tính, công nghệ Oxy tươi giúp dịu da tức thì.\n*   Cam kết cải thiện hàng rào bảo vệ da, giảm mẩn đỏ và kích ứng chỉ sau vài buổi đầu tiên.\n\nKhông biết da dạo này của mình đang gặp tình trạng cụ thể thế nào (như mẩn đỏ, ngứa, hay lộ mao mạch...), anh/chị có thể chia sẻ thêm để em tư vấn kỹ hơn, hoặc đặt lịch hẹn bác sĩ soi da miễn phí cho mình nha? 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1909,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem phục hồi La Roche-Posay Cicaplast Baume B5+ giá bao nhiêu?",
+      "expect": [
+        [
+          "450.000",
+          "450,000",
+          "450000",
+          "450k",
+          "450 nghin",
+          "450 ngan",
+          "450.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nKem phục hồi da **La Roche-Posay Cicaplast Baume B5+** (phiên bản cải tiến mới nhất) tại phòng khám GlowSkin O2O hiện đang có các dung tích và mức giá ưu đãi như sau ạ:\n\n*   **Tuýp 40ml:** Giá niêm yết khoảng **320.000đ - 350.000đ**\n*   **Tuýp 100ml:** Giá niêm yết khoảng **520.000đ - 550.000đ**\n\n*(Lưu ý: Mức giá có thể thay đổi nhẹ tùy theo các chương trình ưu đãi trong tuần của phòng khám. Anh/chị mua dung tích nào ạ?)*\n\n✨ **Bật mí nhỏ với anh/chị:** \nSản phẩm B5+ này cực kỳ đỉnh trong việc phục hồi da sau nặn mụn, da bị kích ứng, da khô đỏ hoặc đang treatment (Retinol, Tretinoin...) đó ạ. Khi mua tại GlowSkin O2O, anh/chị hoàn toàn yên tâm 100% là hàng chính hãng chuẩn dược mỹ phẩm, có tem nhãn đầy đủ. \n\nĐặc biệt, nếu anh/chị đang gặp vấn đề cụ thể nào về da, cứ nhắn để em gửi hình ảnh hoặc kết nối bác sĩ da liễu tư vấn miễn phí cho mình luôn nhé! \n\nAnh/chị có muốn em giữ lại 1 tuýp và lên đơn giao hàng tận nơi cho mình luôn không ạ?",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1906,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml giá bao nhiêu?",
+      "expect": [
+        [
+          "350.000",
+          "350,000",
+          "350000",
+          "350k",
+          "350 nghin",
+          "350 ngan",
+          "350.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày nhiều năng lượng và luôn rạng rỡ nha. 🥰\n\nSản phẩm **Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser dung tích 473ml** hiện đang có mặt tại phòng khám da liễu **GlowSkin O2O** bên em với giá niêm yết là **[Điền giá, ví dụ: 485.000đ / chai]** ạ. \n\n*(Lưu ý nhỏ: Nếu phòng khám mình đang có chương trình khuyến mãi, ví dụ: \"Nhưng đặc biệt hôm nay bên em đang có chương trình ưu đãi giảm xx% / tặng kèm... nên giá chỉ còn...\" thì bạn thêm vào đây để kích thích mua hàng nhé).*\n\nDòng này chứa Salicylic Acid (SA) cực kỳ lành tính, vừa giúp làm sạch sâu, tẩy tế bào chết nhẹ nhàng lại vừa hỗ trợ kiểm soát nhờn và ngăn ngừa mụn rất tốt mà không làm khô da đâu ạ. \n\nAnh/chị có muốn em giữ lại 1 chai cho mình ghé phòng khám lấy, hay em hỗ trợ ship đến tận nhà luôn cho tiện ạ? Anh/chị cho em xin tên và số điện thoại, nhà GlowSkin O2O sẽ lên đơn gửi đi liền cho mình nha! 🚚✨",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1715,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml giá bao nhiêu?",
+      "expect": [
+        [
+          "495.000",
+          "495,000",
+          "495000",
+          "495k",
+          "495 nghin",
+          "495 ngan",
+          "495.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nSạu chống nắng quốc dân **Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ (phiên bản 60ml)** hiện đang có giá niêm yết tại phòng khám GlowSkin O2O nhà em là **685.000 VNĐ / chai 60ml** ạ.\n\n*(Lưu ý nhỏ: Nếu anh/chị mua trong đợt chương trình ưu đãi trong tuần này của phòng khám, bên em thường có các mã giảm giá hoặc quà tặng kèm theo đấy ạ).*\n\nDòng Anessa \"vàng\" này thì nổi tiếng đỉnh khỏi bàn rồi, vừa chống nắng cực đỉnh (SPF50+ PA++++), kháng nước tốt lại còn kiêm luôn dưỡng da mịn màng, không sợ bị mốc nền khi trang điểm nữa. \n\nAnh/chị có đang gặp tình trạng da dầu hay da hỗn hợp không ạ? Hay anh/chị muốn em tư vấn thêm cách kết hợp sản phẩm này với routine skincare hàng ngày để da đạt hiệu quả bảo vệ tốt nhất thì cứ nhắn em nhé! \n\nEm gửi link đặt hàng hoặc anh/chị có muốn em giữ lại 1 sản phẩm cho mình ghé phòng khám lấy không ạ? 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1746,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem trị mụn Megaduo Gel giá bao nhiêu?",
+      "expect": [
+        [
+          "104.000",
+          "104,000",
+          "104000",
+          "104k",
+          "104 nghin",
+          "104 ngan",
+          "104.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Chào bạn! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O ạ. Rất vui được hỗ trợ bạn ngày hôm nay! ❤️\n\nKem dưỡng giảm mụn và mờ thâm **Megaduo Gel** hiện đang có giá niêm yết dao động từ **130.000đ đến 150.000đ / tuýp 15g** (tùy thuộc vào nhà thuốc hoặc cơ sở phân phối). \n\nTuy nhiên, em xin phép chia sẻ thêm một chút về tình trạng da để mình sử dụng sản phẩm đạt hiệu quả cao nhất nhé:\n* Megaduo rất hiệu quả với mụn ẩn nhẹ, mụn đầu đen và đặc biệt là làm mờ vết thâm sau mụn nhờ chứa AHA và Azelaic Acid.\n* Tuy nhiên, nếu tình trạng mụn của bạn là mụn viêm sưng đỏ, mụn bọc nặng, việc chỉ dùng Megaduo có thể chưa đủ đô đâu ạ.\n\nKhông biết hiện tại da bạn đang gặp vấn đề mụn như thế nào (mụn ẩn, mụn viêm hay thâm mụn)? Bạn có thể miêu tả sơ qua hoặc gửi hình ảnh tình trạng da để các bác sĩ bên GlowSkin O2O xem qua và hướng dẫn bạn cách skincare chuẩn nhất hoàn toàn miễn phí nhé! \n\nBạn cứ nhắn lại nha, em luôn sẵn sàng hỗ trợ mình ạ! 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1817,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Serum cấp ẩm Vichy Mineral 89 giá bao nhiêu?",
+      "expect": [
+        [
+          "650.000",
+          "650,000",
+          "650000",
+          "650k",
+          "650 nghin",
+          "650 ngan",
+          "650.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nVề sản phẩm **Serum cấp ẩm phục hồi da Vichy Mineral 89** mà anh/chị đang quan tâm, hiện tại mức giá chung trên thị trường cho dung tích phổ biến **50ml** thường dao động trong khoảng từ **850.000đ đến 980.000đ** (tùy thuộc vào chương trình ưu đãi của từng thời điểm ạ). \n\nTuy nhiên, em xin phép chia sẻ thêm một chút về tình trạng da: Vichy Mineral 89 là một dòng serum rất lành tính, chứa đến 89% là nước khoáng núi lửa cô đặc kết hợp với Hyaluronic Acid, cực kỳ phù hợp để cấp nước, phục hồi hàng rào bảo vệ da, đặc biệt là da nhạy cảm hoặc da sau các liệu trình điều trị (như peel da, laser...).\n\nKhông biết là da hiện tại của mình đang gặp tình trạng gì (khô ráp, dễ kích ứng hay thiếu nước) mà anh/chị lại quan tâm đến dòng serum này ạ? \n\nNếu anh/chị ghé qua **GlowSkin O2O**, các bác sĩ da liễu của bên em sẽ soi da miễn phí và tư vấn xem làn da của mình có thực sự hợp với Vichy Mineral 89 không, hoặc có phác đồ chăm sóc nào tối ưu hơn không nhé! \n\nAnh/chị cần em hỗ trợ thêm thông tin gì cứ nhắn cho em nha! Chúc anh/chị một ngày nhiều năng lượng ạ! ✨",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2262,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Gel rửa mặt La Roche-Posay Effaclar Purifying Foaming Gel 400ml giá bao nhiêu?",
+      "expect": [
+        [
+          "450.000",
+          "450,000",
+          "450000",
+          "450k",
+          "450 nghin",
+          "450 ngan",
+          "450.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới thật nhiều năng lượng và rạng rỡ nha! 🥰\n\nEm xin phép được trả lời câu hỏi của anh/chị về sản phẩm **Gel rửa mặt La Roche-Posay Effaclar Purifying Foaming Gel dung tích 400ml** (dòng chuyên biệt cho da dầu, mụn, nhạy cảm) đang có sẵn tại phòng khám da liễu **GlowSkin O2O** nhà mình nhé ạ:\n\nSản phẩm này hiện đang được bán với giá niêm yết chuẩn hãng là **525.000 VNĐ / chai 400ml**. \n\n✨ **Đặc biệt:** Vì anh/chị liên hệ qua kênh tư vấn hôm nay, em xin phép gửi tặng anh/chị mã ưu đãi giảm giá **10%**, giúp giá sản phẩm chỉ còn **472.000 VNĐ** thôi ạ! Chai 400ml này dùng rất tiết kiệm, tính ra dùng được khoảng 4 - 6 tháng lận đó anh/chị nha.\n\nNgoài ra, nếu da mình đang gặp các tình trạng như mụn ẩn, dầu thừa hay lỗ chân lông to, anh/chị có thể chia sẻ thêm với em để các bác sĩ bên GlowSkin O2O tư vấn kỹ hơn routine skincare hoàn toàn miễn phí cho mình nhé!\n\nAnh/chị có muốn em giữ lại 1 chai và lên đơn giao hàng tận nơi cho mình luôn không ạ? Em rất hân hạnh được hỗ trợ anh/chị! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1727,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml giá bao nhiêu?",
+      "expect": [
+        [
+          "465.000",
+          "465,000",
+          "465000",
+          "465k",
+          "465 nghin",
+          "465 ngan",
+          "465.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày nhiều năng lượng và luôn giữ được làn da rạng rỡ nhé! 😊\n\nEm xin giải đáp thắc mắc của anh/chị về sản phẩm **Kem giảm mụn La Roche-Posay Effaclar Duo+M dung tích 40ml** hiện đang có tại phòng khám da liễu **GlowSkin O2O** nhà mình nha:\n\nSản phẩm phiên bản nâng cấp mới nhất **Duo+M** (với công nghệ Microbiome mới giúp giảm mụn, ngừa thâm và tái phát hiệu quả hơn) đang được niêm yết với mức giá chính hãng là **525.000 VNĐ / tuýp 40ml**.\n\n💡 **Đặc biệt ưu đãi dành riêng cho khách hàng liên hệ qua hệ thống online của GlowSkin O2O:**\n*   Bên em đang có chương trình **freeship** cho đơn hàng từ 500k hoặc các voucher giảm giá trực tiếp khi anh/chị đặt lịch mua hàng qua đây ạ.\n*   Sản phẩm tại GlowSkin O2O cam kết **100% chính hãng** (có đầy đủ tem mác, hóa đơn), được các bác sĩ da liễu tại phòng khám khuyên dùng cho da mụn nên anh/chị hoàn toàn yên tâm về chất lượng nhé!\n\nKhông biết tình trạng da hiện tại của mình đang gặp vấn đề mụn ẩn, mụn viêm hay thâm mụn để em kết nối bác sĩ tư vấn thêm routine chăm sóc da phù hợp nhất cho anh/chị luôn ạ? ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1731,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Nước tẩy trang Bioderma Sensibio H2O 500ml giá bao nhiêu?",
+      "expect": [
+        [
+          "435.000",
+          "435,000",
+          "435000",
+          "435k",
+          "435 nghin",
+          "435 ngan",
+          "435.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ nhé! 🌸\n\nEm rất vui vì anh/chị đã quan tâm đến sản phẩm tại phòng khám da liễu **GlowSkin O2O**. \n\nDạ, **Nước tẩy trang Bioderma Sensibio H2O dung tích 500ml** (dành cho da nhạy cảm, nắp hồng quốc dân) hiện đang được bán tại GlowSkin O2O với mức giá niêm yết chính hãng là **525.000 VNĐ / chai 500ml** ạ. \n\n*(Lưu ý nhỏ: Nếu hôm nay anh/chị đặt lịch ghé qua phòng khám hoặc đặt hàng qua khung chat này, em có thể xin ý kiến bác sĩ/quản lý để gửi tặng mình mã ưu đãi giảm giá hoặc quà tặng kèm mini size đấy ạ!)* 🥰\n\nAnh/chị có muốn em giữ lại 1 chai 500ml này cho mình không ạ? Anh/chị cho em xin tên và số điện thoại, bên em sẽ hỗ trợ giao hàng tận nơi hoặc chuẩn bị sẵn tại quầy để anh/chị ghé lấy nhé!",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1908,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Kem phục hồi La Roche-Posay Cicaplast Baume B5+ bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "4.500",
+          "4500"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Chào mừng anh/chị đến với phòng khám da liễu GlowSkin O2O! 😍\n\nEm xin phép được giải đáp thắc mắc của anh/chị ngay đây ạ: \n\nĐể rinh ngay một tuýp **Kem phục hồi đa năng La Roche-Posay Cicaplast Baume B5+** (item \"must-have\" cứu tinh cho làn da nhạy cảm, kích ứng hoặc sau xâm lấn) bằng điểm tích lũy GlowSkin, anh/chị cần **500 Điểm GlowSkin** thôi ạ! 🎁✨\n\n*(Lưu ý nhỏ: Ưu đãi này áp dụng cho dung tích tiêu chuẩn và số lượng điểm có thể thay đổi tùy theo chương trình hội viên hiện hành tại phòng khám nha anh/chị).*\n\nAnh/chị hiện tại đã tích được bao nhiêu điểm rồi ạ? Để em kiểm tra giúp tài khoản và hướng dẫn anh/chị cách đổi quà nhanh nhất nhé! Hoặc nếu anh/chị cần tư vấn thêm về sản phẩm này thì cứ nhắn em nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1427,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "3.500",
+          "3500"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ chào bạn, em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O** đây ạ! Rất vui được hỗ trợ bạn ngày hôm nay. ❤️\n\nDạ, sản phẩm **Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser dung tích 473ml** hiện đang có mặt trong danh mục đổi quà/sản phẩm bằng điểm tích lũy của nhà GlowSkin. \n\nĐể sở hữu em này, bạn cần sử dụng **450 điểm GlowSkin** nhé ạ! \n\n*Lưu ý nhỏ:* Điểm tích lũy này có thể được quy đổi trực tiếp khi bạn mua sắm hoặc sử dụng dịch vụ tại phòng khám. \n\nKhông biết là hiện tại số điểm trong tài khoản của mình đã đủ chưa để em hỗ trợ bạn lên đơn đổi quà luôn ạ? Nếu bạn cần em check số dư điểm hoặc tư vấn thêm về bảng thành phần, công dụng của em Cetaphil SA Cleanser này thì cứ nhắn em nha! Chúc bạn một ngày mới thật rạng rỡ cùng làn da khỏe đẹp nhé! ✨",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1684,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "4.950",
+          "4950"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em xin chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ và tràn đầy năng lượng nha! 🥰\n\nEm rất vui vì anh/chị đã quan tâm đến sản phẩm **Sữa chống nắng quốc dân Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml** bên phòng khám da liễu GlowSkin O2O tụi em. \n\nĐể đổi em sữa chống nắng \"xịn sò\" này bằng điểm tích lũy GlowSkin, anh/chị sẽ cần **450 điểm GlowSkin** ạ. \n\n*(Bật mí nhỏ với anh/chị là mức quy đổi này siêu hời luôn đó ạ, vừa được bảo vệ da khỏi tia UV tối ưu, vừa dưỡng ẩm da mịn màng mà không tốn tiền mặt luôn nè!)*\n\nAnh/chị hiện tại đã kiểm tra tài khoản tích điểm của mình trên ứng dụng/thẻ thành viên của GlowSkin chưa ạ? Để em check nhanh số dư điểm hiện tại giúp anh/chị xem mình đã đủ điểm rước em ấy về chưa nhé! Hoặc nếu anh/chị cần em tư vấn thêm về cách tích điểm hay các ưu đãi khác thì cứ nhắn em nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1713,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Kem trị mụn Megaduo Gel bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "1.300",
+          "1300"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ cùng làn khỏe đẹp nhé! 🥰\n\nEm rất vui vì anh/chị đã quan tâm đến sản phẩm **Kem trị mụn Megaduo Gel** quốc dân bên phòng khám da liễu **GlowSkin O2O** nhà em ạ. \n\nĐể đổi em Megaduo Gel này bằng điểm tích lũy GlowSkin, anh/chị cần sử dụng **250 điểm** là mình rinh ngay em nó về tủ thuốc skincare rồi đó ạ! ✨\n\nKhông biết hiện tại tài khoản GlowSkin của anh/chị đã tích đủ số điểm này chưa ạ? Nếu anh/chị chưa nhớ rõ số điểm hiện tại của mình, cứ nhắn cho em xin **Họ tên và Số điện thoại**, em check điểm ngay hộ mình nha. \n\nNgoài ra, nếu anh/chị cần em tư vấn thêm về cách dùng Megaduo sao cho hiệu quả nhất hoặc các sản phẩm khác thì cứ thoải mái nói em nghe nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1553,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Mình đặt mua Gel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g) trên web được không?",
+      "expect": [
+        [
+          "ke don"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui vì được chị quan tâm đến sản phẩm của phòng khám nha! \n\nDạ chị ơi, **Gel Azaduo Medisun (15g)** là một sản phẩm trị mụn rất phổ biến và hiệu quả đối với tình trạng mụn trứng cá nhẹ đến vừa (với sự kết hợp của Adapalene và Benzoyl Peroxide). \n\nTuy nhiên, vì đây là dòng **dược mỹ phẩm/thuốc bôi ngoài da**, để đảm bảo an toàn tuyệt đối và mang lại hiệu quả điều trị cao nhất cho làn da của chị, em xin phép chia sẻ một vài điều thế này ạ:\n\n1. **Tình trạng da hiện tại:** Chị đã từng sử dụng qua các sản phẩm chứa Retinoids (như Adapalene) chưa ạ? Da chị thuộc loại da gì (da dầu, da khô, da nhạy cảm...) và hiện tại mụn của mình đang ở mức độ nào (có nhiều mụn viêm, mụn ẩn hay thâm đỏ không ạ)? \n2. **Cách đặt mua trên web:** Chị hoàn toàn có thể đặt hàng trực tiếp trên website của GlowSkin O2O nha chị. Hệ thống bên em luôn sẵn sản phẩm chính hãng 100% để phục vụ chị ạ.\n\n💡 **Lời khuyên chân thành từ em:** Trước khi chốt đơn, chị có thể gửi cho em xin **một vài tấm ảnh chụp cận cảnh tình trạng da mụn hiện tại** (không dùng app chỉnh sửa nhé ạ) qua khung chat này được không ạ? Các bác sĩ da liễu bên em sẽ xem qua và hướng dẫn chị cách dùng Gel Azaduo sao cho hiệu quả nhất, hạn chế tối đa tình trạng khô da, đỏ da hay bong tróc – những hiện tượng thường gặp khi mới dùng sản phẩm này đó ạ.\n\nChị cần em hỗ trợ thêm thông tin gì về cách chăm sóc da mụn hay cách đặt hàng thì cứ nhắn cho em ngay nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2104,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Trần Quốc Việt có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "11 nam"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ chào bạn! Chào mừng bạn đến với phòng khám da liễu GlowSkin O2O ạ! 🌸\n\nBác sĩ chuyên khoa II **Trần Quốc Việt** của bên em là một \"lão làng\" cực kỳ mát tay và dày dặn kinh nghiệm trong ngành da liễu - thẩm mỹ nội khoa với hơn **15 năm kinh nghiệm** đấy ạ! \n\nBác sĩ không chỉ có chuyên môn sâu rộng (Tốt nghiệp chuyên khoa II Da liễu, từng tu nghiệp tại nhiều quốc gia có nền thẩm mỹ phát triển như Hàn Quốc, Thái Lan...), mà còn cực kỳ tận tâm, luôn lắng nghe và đưa ra phác đồ điều trị chuẩn y tế \"cá nhân hóa\" riêng cho từng tình trạng da của khách hàng.\n\nKhông biết da dặn hiện tại của bạn đang gặp vấn đề gì (mụn, sẹo rỗ, nám, hay cần trẻ hóa...) mà lại quan tâm đến Bác sĩ Việt thế ạ? Bạn cứ chia sẻ để em tư vấn kỹ hơn hoặc hỗ trợ bạn đặt lịch hẹn gặp trực tiếp Bác sĩ nhé! 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1628,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Nguyễn Minh Khoa có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "15 nam"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới tràn đầy năng lượng nhé! 🌸\n\nAnh/chị đang quan tâm đến bác sĩ bên phòng khám mình đúng không ạ? Em xin phép được thông tin đến anh/chị nhé: \n\nBác sĩ **Nguyễn Minh Khoa** của phòng khám da liễu **GlowSkin O2O** nhà em là một chuyên gia rất giàu kinh nghiệm với **hơn 10 năm kinh nghiệm** trong lĩnh vực Da liễu - Thẩm mỹ nội khoa đó ạ. \n\nBác sĩ Khoa không chỉ có chuyên môn vững vàng, từng điều trị thành công cho hàng ngàn ca từ mụn, sẹo rỗ, nám tàn nhang đến trẻ hóa da, mà còn cực kỳ tận tâm và nhẹ nhàng với khách hàng nữa. Nên khi đến thăm khám, anh/chị cứ yên tâm tuyệt đối nha.\n\nKhông biết hiện tại da mình đang gặp vấn đề gì hay anh/chị có muốn đặt lịch hẹn khám trực tiếp với Bác sĩ Khoa không ạ? Em sẵn sàng hỗ trợ lịch trống sớm nhất cho mình nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1419,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Phạm Thị Ngọc Lan có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "10 nam"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ chào bạn, em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O ạ! \n\nEm xin phép được chia sẻ thông tin về Bác sĩ Phạm Thị Ngọc Lan - một trong những chuyên gia da liễu rất uy tín và được nhiều khách hàng tin yêu tại phòng khám chúng ta nhé ạ.\n\nBác sĩ Phạm Thị Ngọc Lan có **hơn 20 năm kinh nghiệm** trong lĩnh vực Da liễu - Thẩm mỹ nội khoa. Với bề dày kinh nghiệm lâu năm, bác sĩ đã điều trị thành công cho hàng ngàn ca từ mụn, sẹo rỗ, nám, tàn nhang cho đến các dịch vụ trẻ hóa da công nghệ cao. \n\nKhi đến với GlowSkin O2O, bạn sẽ được trực tiếp bác sĩ Lan thăm khám kỹ lưỡng và lên phác đồ điều trị cá nhân hóa chuẩn y khoa, đảm bảo an toàn và mang lại hiệu quả tối ưu nhất ạ.\n\nKhông biết hiện tại da mình đang gặp vấn đề gì cần bác sĩ Lan hỗ trợ không ạ? Em có thể giúp bạn đặt lịch hẹn thăm khám sớm nhất nhé!",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1232,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Chuyên gia",
+      "q": "Chuyên gia Nguyễn Hoàng Thảo Vy tư vấn về lĩnh vực gì?",
+      "expect": [
+        [
+          "my pham"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em xin chào anh/chị ạ! Chúc anh/chị một ngày mới tràn đầy năng lượng và luôn rạng rỡ nhé! 🌸\n\nEm xin phép được giải đáp thắc mắc của anh/chị về **Chuyên gia Nguyễn Hoàng Thảo Vy** tại phòng khám da liễu **GlowSkin O2O** nhà mình ạ:\n\nChuyên gia Nguyễn Hoàng Thảo Vy hiện là một trong những chuyên gia da liễu và thẩm mỹ da hàng đầu tại GlowSkin O2O. Chị chuyên sâu và có nhiều năm kinh nghiệm trong các lĩnh vực sau ạ:\n\n1. **Điều trị các bệnh lý về da:** Chuyên gia trực tiếp thăm khám và lên phác đồ điều trị cá nhân hóa cho các tình trạng như: mụn trứng cá (từ nhẹ đến nặng), thâm mụn, sẹo rỗ, nám da, tàn nhang, và các vấn đề tăng sắc tố da.\n2. **Trẻ hóa da & Chống lão hóa:** Tư vấn và thực hiện các liệu trình nâng cơ, xóa nhăn, phục hồi độ đàn hồi và trả lại làn da thanh xuân bằng các công nghệ cao tiên tiến nhất.\n3. **Phục hồi da nhạy cảm & Tổn thương:** Chuyên gia rất mát tay trong việc phục hồi những làn da bị tổn thương do corticoid, da nhiễm hóa chất hoặc bị kích ứng nặng do mỹ phẩm kém chất lượng.\n4. **Tư vấn chăm sóc da khoa học (Skincare Routine):** Hướng dẫn khách hàng xây dựng quy trình chăm sóc da chuẩn y khoa tại nhà, lựa chọn sản phẩm phù hợp nhất với \"tính cách\" riêng của làn da mình.\n\nVới sự tận tâm, tay nghề cao và gu thẩm mỹ tinh tế, chuyên gia Thảo Vy đã giúp hàng ngàn khách hàng lấy lại sự tự tin với làn da khỏe đẹp, rạng rỡ từ gốc đấy ạ! 🥰\n\nKhông biết hiện tại da mình đang gặp vấn đề gì hay anh/chị có muốn đặt lịch hẹn trực tiếp để được Chuyên gia Thảo Vy thăm khám 1-1 không ạ? Em sẵn sàng hỗ trợ giữ chỗ miễn phí cho mình nha! ✨",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 2187,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Chuyên gia",
+      "q": "Chuyên gia Đỗ Thị Hải Yến tư vấn về lĩnh vực gì?",
+      "expect": [
+        [
+          "dinh duong"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ và nhiều năng lượng nhé! ❤️\n\nEm rất vui được giải đáp thắc mắc cho anh/chị về đội ngũ chuyên gia nhà GlowSkin O2O ạ. \n\nTại phòng khám da liễu **GlowSkin O2O**, **Bác sĩ/Chuyên gia Đỗ Thị Hải Yến** là một trong những chuyên gia đầu ngành, rất mát tay và cực kỳ tận tâm với khách hàng. Chuyên gia Đỗ Thị Hải Yến chuyên sâu về các lĩnh vực sau ạ:\n\n1. **Điều trị da liễu thẩm mỹ công nghệ cao:** Chuyên điều trị các vấn đề \"cứng đầu\" về da như mụn trứng cá, thâm mụn, sẹo rỗ, nám, tàn nhang và sắc tố da bằng các phác đồ chuẩn y khoa kết hợp máy móc hiện đại.\n2. **Trẻ hóa và phục hồi da:** Tư vấn và thực hiện các liệu trình giúp phục hồi làn da hư tổn (do corticoid, kem trộn), trẻ hóa da toàn diện, nâng cơ và tăng độ đàn hồi giúp da săn chắc, căng bóng.\n3. **Chăm sóc và thiết kế phác đồ da cá nhân hóa:** Lên phác đồ điều trị và chăm sóc da độc quyền riêng cho từng tình trạng da và cơ địa của mỗi khách hàng để đạt hiệu quả tối ưu nhất.\n\nKhông chỉ có chuyên môn vững vàng, bác sĩ/chuyên gia Hải Yến còn cực kỳ nhẹ nhàng, lắng nghe tâm tư của khách hàng nên mọi người đến đây ai cũng yêu quý và tin tưởng tuyệt đối đó ạ! 😍\n\nKhông biết hiện tại da mình đang gặp vấn đề gì hay anh/chị có muốn đặt lịch hẹn gặp trực tiếp với chuyên gia Đỗ Thị Hải Yến không ạ? Em sẵn sàng hỗ trợ giữ lịch ưu đãi cho mình ngay nhé! ✨",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2051,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Phí khám bác sĩ là bao nhiêu?",
+      "expect": [
+        [
+          "100.000",
+          "100,000",
+          "100000",
+          "100k",
+          "100 nghin",
+          "100 ngan",
+          "100.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới thật nhiều năng lượng và rạng rỡ nha. 🥰\n\nEm xin phép được giải đáp thắc mắc của anh/chị về chi phí khám tại **Phòng khám da liễu GlowSkin O2O** như sau ạ:\n\nHiện tại, phòng khám đang áp dụng mức phí khám và soi da 1-1 trực tiếp với Bác sĩ chuyên khoa da liễu là **[Điền số tiền, ví dụ: 100.000đ - 200.000đ hoặc MIỄN PHÍ nếu có chương trình]** ạ. \n\nTrong buổi thăm khám này, Bác sĩ sẽ trực tiếp:\n*   Soi da và phân tích các vấn đề về da (mụn, nám, lão hóa, lỗ chân lông...).\n*   Tư vấn phác đồ điều trị cá nhân hóa chuẩn y khoa dành riêng cho tình trạng da của anh/chị.\n\nKhông biết hiện tại da mình đang gặp vấn đề gì (mụn, thâm, sẹo, hay da cần trẻ hóa...) để em note lại và sắp xếp lịch hẹn ưu tiên khám cùng Bác sĩ luôn cho mình nhé ạ? ❤️",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1444,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt lịch khám tại phòng khám phải cọc bao nhiêu tiền?",
+      "expect": [
+        [
+          "50.000",
+          "50,000",
+          "50000",
+          "50k",
+          "50 nghin",
+          "50 ngan",
+          "50.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ chào bạn, em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O ạ! \n\nEm rất vui vì bạn đã quan tâm và tin tưởng dịch vụ của phòng khám. \n\nVề câu hỏi của bạn, em xin phép được giải đáp như sau ạ: Tại GlowSkin O2O, khi bạn đặt lịch khám trước qua hệ thống online, **phòng khám hoàn toàn KHÔNG thu phí đặt cọc** hay bất kỳ khoản phí giữ chỗ nào đâu ạ! \n\nViệc đặt lịch trước chủ yếu giúp bên em chuẩn bị sẵn sàng bác sĩ chuyên khoa phù hợp, đồng thời giúp bạn chủ động thời gian, đến là được khám ngay mà không cần phải chờ đợi lâu đó ạ.\n\nDạ không biết là mình đang quan tâm đến dịch vụ chăm sóc da hay đang gặp vấn đề về da nào (như mụn, sẹo, nám, tàn nhang...) để em tư vấn kỹ hơn và hỗ trợ mình đặt lịch hẹn luôn nhé ạ?",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1275,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt lịch xong thì giữ chỗ trong bao lâu để chuyển khoản?",
+      "expect": [
+        [
+          "15 phut"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới nhiều năng lượng và rạng rỡ nha! ❤️\n\nEm xin phép giải đáp thắc mắc của anh/chị về thời gian giữ chỗ khi đặt lịch tại **GlowSkin O2O** như thế này ạ:\n\nSau khi anh/chị chốt lịch hẹn với bên em, hệ thống sẽ giữ chỗ cho anh/chị trong vòng **30 phút** để hoàn tất việc chuyển khoản đặt cọc (hoặc thanh toán). \n\n⏰ **Lưu ý nhỏ:** Vì lượng khách hàng đến phòng khám mỗi ngày khá đông và để đảm bảo quyền lợi cũng như khung giờ tốt nhất cho anh/chị, nếu qua thời gian trên mà chưa nhận được chuyển khoản hoặc phản hồi từ anh/chị, hệ thống xin phép được nhường khung giờ đó cho khách hàng khác ạ. \n\nNếu anh/chị cần chuyển khoản chậm hơn vì bận việc đột xuất, cứ nhắn ngay cho em để em hỗ trợ \"note\" giữ chỗ thêm cho mình nha anh/chị ơi!\n\nAnh/chị đã chọn được khung giờ ưng ý chưa ạ? Để em lên lịch và gửi thông tin chuyển khoản cho mình luôn nhé! 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1466,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Nếu mình hủy lịch khám trước 2 ngày thì tiền cọc xử lý thế nào?",
+      "expect": [
+        [
+          "diem"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, GlowSkin O2O xin chào bạn ạ! Rất cảm ơn bạn đã quan tâm đến dịch vụ của phòng khám bên mình nhé. 😊\n\nVề thắc mắc của bạn, em xin phép được giải đáp ngay ạ: Nếu bạn hủy lịch hẹn **trước 2 ngày (48 tiếng)** so với giờ khám đã đặt, **tiền cọc của bạn sẽ được hoàn lại 100%** hoặc được **bảo lưu** để dời sang một lịch hẹn mới tùy theo mong muốn của bạn mà không hề mất bất kỳ chi phí phát sinh nào đâu ạ! 🥰\n\nPhòng khám rất hiểu là đôi khi lịch trình cá nhân có thể thay đổi bất ngờ, nên GlowSkin O2O luôn cố gắng hỗ trợ khách hàng một cách linh hoạt nhất. \n\nKhông biết là bạn đang muốn đặt lịch vào ngày nào để em hỗ trợ giữ chỗ trước cho mình luôn không ạ? Nếu bạn cần thay đổi lịch hay cần tư vấn thêm dịch vụ gì, cứ nhắn cho em nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1454,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Hủy lịch khám sát giờ, trong vòng 24 giờ thì có được hoàn cọc không?",
+      "expect": [
+        [
+          "mat 100%",
+          "mat toan bo",
+          "mat tien coc",
+          "mat coc",
+          "khong duoc hoan"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào chị ạ! Em là Linh - tư vấn viên của phòng khám da liễu **GlowSkin O2O**. Rất vui được hỗ trợ chị ngày hôm nay ạ.\n\nDạ, về câu hỏi của chị về việc hủy lịch khám cận kề (trong vòng 24 giờ trước giờ hẹn), em xin phép được giải đáp chi tiết như sau để chị nắm rõ quyền lợi nhé ạ:\n\nTheo quy định của phòng khám GlowSkin O2O, do các khung giờ khám thường được khách hàng đặt trước khá đông và bác sĩ, phòng ốc đã được sắp xếp riêng cho lịch hẹn của mình, nên:\n\n1. **Trường hợp hủy lịch TRƯỚC 24 giờ:** Phòng khám hỗ trợ hoàn lại 100% tiền cọc hoặc hỗ trợ chị dời lịch sang một ngày khác hoàn toàn miễn phí ạ.\n2. **Trường hợp hủy lịch SÁT GIỜ (trong vòng 24 giờ):** Rất tiếc là phòng khám **không hỗ trợ hoàn lại tiền cọc** cho trường hợp này, mong chị thông cảm giúp em nhé ạ. \n\nTuy nhiên, nếu chị gặp phải **trường hợp bất khả kháng** (như vấn đề sức khỏe đột xuất, tai nạn,...), chị cứ nhắn lại sớm cho em. Em sẽ xin ý kiến Quản lý phòng khám để xem xét hỗ trợ **bảo lưu tiền cọc** cho mình dời sang một buổi hẹn khác trong thời gian sớm nhất có thể, để chị không bị mất quyền lợi nha chị!\n\nKhông biết là hiện tại mình đang gặp chút trở ngại gì về thời gian phải không ạ? Chị có muốn em hỗ trợ dời lịch sang ngày khác thuận tiện hơn cho mình không ạ?",
+      "sources": [],
+      "verdict": "ABSTAIN",
+      "ms": 1789,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Phòng khám hủy lịch của mình thì mình được bồi thường gì?",
+      "expect": [
+        [
+          "10%"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! \n\nTrước tiên, em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O, em phải gửi lời xin lỗi chân thành nhất đến anh/chị vì sự cố hủy lịch hẹn vừa rồi ạ. Em rất hiểu là thời gian của anh/chị rất quý báu và việc phải đổi/hủy lịch hẹn chắc chắn sẽ gây ra không ít phiền hà cho mình. Mong anh/chị thông cảm cho sự cố ngoài ý muốn này bên em nhé ạ!\n\nĐể khắc phục và đền bù cho sự bất tiện này, GlowSkin O2O xin gửi đến anh/chị chính sách hỗ trợ như sau ạ:\n\n1. **Ưu tiên xếp lịch hẹn mới** vào khung giờ theo yêu cầu của anh/chị (kể cả những khung giờ đông khách).\n2. **Tặng ngay 01 Voucher giảm giá 20%** cho dịch vụ tiếp theo tại phòng khám.\n3. **Miễn phí 01 buổi soi da và tư vấn phác đồ chuẩn y khoa** cùng Bác sĩ da liễu (trị giá 300.000đ) khi anh/chị quay lại phòng khám.\n\nEm rất mong anh/chị vẫn tiếp tục tin tưởng và cho GlowSkin O2O cơ hội được chăm sóc làn da của mình. \n\nAnh/chị cho em xin lại **Họ tên và Số điện thoại**, em sẽ lập tức kiểm tra hệ thống, gửi mã ưu đãi và hỗ trợ đặt lại lịch hẹn mới vào ngày giờ thuận tiện nhất cho anh/chị nha! Em cảm ơn anh/chị nhiều ạ! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1677,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Một buổi tư vấn chuyên gia online tốn bao nhiêu?",
+      "expect": [
+        [
+          "300.000",
+          "300,000",
+          "300000",
+          "300k",
+          "300 nghin",
+          "300 ngan",
+          "300.000"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O** đây ạ. Rất vui vì nhận được câu hỏi từ anh/chị! \n\nEm xin phép được chia sẻ tin vui này với anh/chị ngay nhé: Hiện tại tại GlowSkin O2O, buổi tư vấn 1-1 trực tuyến (online) với các bác sĩ da liễu chuyên môn cao bên em đang được **MIỄN PHÍ 100%** cho các khách hàng đặt lịch trước qua hệ thống online đấy ạ! 🌟\n\nKhi tham gia buổi tư vấn online này, anh/chị sẽ nhận được rất nhiều quyền lợi thiết thực không khác gì khi đến trực tiếp phòng khám đâu ạ:\n1. **Soi da và phân tích tình trạng da từ xa** qua hình ảnh/video chất lượng cao.\n2. **Bác sĩ trực tiếp thăm khám** và lắng nghe những \"tâm sự\" về làn da của anh/chị.\n3. **Lên phác đồ điều trị cá nhân hóa** phù hợp với tình trạng da, túi tiền và lối sống của riêng anh/chị.\n4. **Được hướng dẫn chi tiết** cách chăm sóc da khoa học tại nhà và cách chọn sản phẩm phù hợp.\n\nKhông biết là hiện tại anh/chị đang gặp vấn đề gì về da (như mụn, thâm, nám, lão hóa hay da nhạy cảm...) để em note lại và sắp xếp lịch hẹn sớm nhất với bác sĩ chuyên khoa phù hợp cho mình luôn nhé ạ? 🥰",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2078,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mua mỹ phẩm online thì được đổi trả trong bao nhiêu ngày?",
+      "expect": [
+        [
+          "7 ngay"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ chị ngày hôm nay nhé! ❤️\n\nDạ, về chính sách đổi trả mỹ phẩm online bên em, chị hoàn toàn có thể yên tâm mua sắm ạ:\n\n*   **Thời gian đổi trả:** Trong vòng **07 ngày** kể từ ngày chị nhận được hàng.\n*   **Điều kiện đổi trả:** \n    *   Sản phẩm còn nguyên tem, mác, niêm phong (seal) của hãng và của GlowSkin O2O.\n    *   Chưa qua sử dụng, không bị móp méo, biến dạng hay hư hỏng vỏ hộp.\n    *   Có kèm theo hóa đơn mua hàng (hoặc tin nhắn xác nhận đơn hàng) ạ.\n\nBên em áp dụng đổi trả trong các trường hợp như: sản phẩm bị lỗi từ nhà sản xuất, bị bể vỡ do vận chuyển, hoặc giao nhầm sản phẩm/màu sắc so với đơn đặt hàng của chị. \n\nKhông biết là chị đang quan tâm đến dòng sản phẩm nào hay đang gặp vấn đề gì về da cần em tư vấn thêm không ạ? Em rất sẵn sàng hỗ trợ chị nha! 🥰",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1411,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mình mua về không thích, đổi ý muốn trả hàng được không?",
+      "expect": [
+        [
+          "khong nhan tra hang vi doi y",
+          "khong duoc tra",
+          "khong nhan",
+          "khong ap dung",
+          "khong chap nhan"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. \n\nRất tiếc vì sản phẩm chưa mang lại sự hài lòng tuyệt đối cho anh/chị. Về việc đổi trả hàng, em xin phép thông tin cụ thể đến anh/chị như thế này ạ:\n\nPhòng khám rất sẵn sàng hỗ trợ anh/chị **đổi hoặc trả sản phẩm** trong vòng **7 ngày** kể từ ngày nhận hàng, với điều kiện:\n1. Sản phẩm còn nguyên tem mác, niêm phong (seal), chưa qua sử dụng và không bị hư hỏng hộp bên ngoài.\n2. Anh/chị còn giữ hóa đơn mua hàng hoặc tin nhắn xác nhận đơn hàng ạ.\n\nTuy nhiên, vì đây là dòng sản phẩm chăm sóc da (dược mỹ phẩm), để đảm bảo an toàn và vệ sinh tuyệt đối cho tất cả khách hàng, GlowSkin O2O xin phép **không nhận đổi trả** đối với những sản phẩm đã bóc seal, đã mở nắp hoặc đã qua sử dụng (trừ trường hợp sản phẩm bị lỗi từ nhà sản xuất hoặc gây kích ứng da có xác nhận từ bác sĩ của phòng khám).\n\nKhông biết là sản phẩm mình mua là loại nào và hiện tại hộp sản phẩm đã bị bóc ra chưa ạ? Anh/chị cứ chia sẻ thêm với em để em hỗ trợ mình cách giải quyết tốt nhất và nhanh nhất nhé! ❤️",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 4375,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "1 điểm GlowSkin bằng bao nhiêu tiền?",
+      "expect": [
+        [
+          "100",
+          "100",
+          "100"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em xin chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! 😍\n\nEm xin giải đáp thắc mắc của anh/chị về chương trình tích điểm thành viên tại GlowSkin như sau ạ:\n\nTại GlowSkin O2O, quy đổi điểm thưởng (GlowSkin Point) rất đơn giản và có lợi cho khách hàng:\n✨ **1 điểm GlowSkin = 1.000 VNĐ** ạ.\n\nSố điểm tích lũy này anh/chị có thể dùng để **trực tiếp trừ vào hóa đơn** cho các dịch vụ chăm sóc, điều trị da hoặc khi mua mỹ phẩm tại phòng khám trong những lần ghé tiếp theo giống như tiền mặt vậy đó ạ. \n\n*Ví dụ: Anh/chị tích được 500 điểm thì mình sẽ được trừ ngay 500.000 VNĐ vào hóa đơn nhé ạ!* 🥰\n\nKhông biết hiện tại anh/chị đã là thành viên của GlowSkin chưa ạ? Nếu chưa, em xin phép được hỗ trợ đăng ký tài khoản thành viên miễn phí ngay cho mình để bắt đầu tích điểm sau buổi liệu trình tới nha! \n\nAnh/chị có cần em tư vấn thêm về dịch vụ nào hay chương trình ưu đãi nào hiện tại không ạ?",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2101,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Điểm GlowSkin có hạn sử dụng không?",
+      "expect": [
+        [
+          "12 thang"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là Linh – tư vấn viên của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nCâu hỏi của anh/chị rất hay và đây cũng là thắc mắc của rất nhiều khách hàng khi tham gia tích điểm tại nhà GlowSkin chúng em. \n\nEm xin phép giải đáp luôn là: **Điểm tích lũy GlowSkin CÓ HẠN SỬ DỤNG anh/chị nha!** \n\nCụ thể quy định bên em như sau ạ:\n* **Thời hạn:** Điểm tích lũy sẽ có hiệu lực trong vòng **12 tháng** (tính từ ngày anh/chị phát sinh giao dịch tích điểm gần nhất).\n* Đến hết thời hạn này, hệ thống sẽ tự động reset lại số điểm cũ chưa sử dụng. Vì vậy, để không bỏ lỡ những quyền lợi hấp dẫn, anh/chị nhớ ghé GlowSkin làm đẹp và tranh thủ sử dụng điểm tích lũy trước thời hạn nhé ạ!\n\nAnh/chị hiện tại không biết mình đang có bao nhiêu điểm và điểm nào sắp hết hạn không ạ? Nếu anh/chị cung cấp giúp em số điện thoại, em sẽ kiểm tra ngay trên hệ thống giúp mình nha! \n\nGlowSkin dạo này đang có nhiều ưu đãi liệu trình chăm sóc da lắm ạ, anh/chị có muốn em tư vấn thêm không ạ? ✨",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1657,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt đơn chuyển khoản mà chưa trả tiền thì bao lâu đơn bị hủy?",
+      "expect": [
+        [
+          "15 phut"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu GlowSkin O2O đây ạ. Rất vui được hỗ trợ anh/chị ngày hôm nay! ❤️\n\nAnh/chị ơi, đối với các đơn hàng chọn hình thức thanh toán bằng chuyển khoản mà chưa thấy tiền về hệ thống, bên em sẽ giữ đơn cho mình trong vòng **24 giờ (1 ngày)** ạ. \n\nSau thời gian này, nếu chưa nhận được thanh toán và hệ thống không liên hệ được với anh/chị để xác nhận, đơn hàng sẽ tự động được hủy trên hệ thống để nhường sản phẩm/lịch hẹn cho khách hàng khác. \n\nKhông biết anh/chị đã chuyển khoản chưa hay đang gặp khó khăn gì trong quá trình thanh toán ạ? Nếu anh/chị đã chuyển rồi mà sợ đơn bị hủy, hoặc cần em hỗ trợ kiểm tra lại giao dịch, anh/chị cứ gửi cho em xin **mã đơn hàng** hoặc **bill chuyển khoản**, em kiểm tra lại ngay cho mình nha! \n\nAnh/chị cần em tư vấn thêm dịch vụ hay sản phẩm nào cứ nhắn em thoải mái nhé ạ! Chúc anh/chị một ngày nhiều năng lượng và luôn rạng rỡ nha! ✨",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1549,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Bác sĩ khám buổi sáng từ mấy giờ?",
+      "expect": [
+        [
+          "08:00",
+          "8:00",
+          "8 gio",
+          "8h"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới tốt lành nhé! ❤️\n\nPhòng khám da liễu **GlowSkin O2O** nhà em bắt đầu đón tiếp khách hàng vào khung giờ sáng từ **8h00 sáng đến 12h00 trưa**, từ Thứ Hai đến Chủ Nhật hàng tuần ạ. \n\nTuy nhiên, để mình không phải chờ đợi lâu và được bác sĩ chuyên khoa thăm khám kỹ lưỡng nhất, anh/chị có muốn em hỗ trợ đặt lịch hẹn trước vào khung giờ nào không ạ? \n\nAnh/chị có thể cho em xin **tên và số điện thoại**, em sẽ giữ lịch ưu đãi soi da miễn phí cho mình nhé! 🥰",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1128,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Số hotline của phòng khám là gì?",
+      "expect": [
+        [
+          "0869",
+          "086 9",
+          "0869 694 064",
+          "0869694064"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, phòng khám da liễu **GlowSkin O2O** chúng em có số hotline là: \n\n📞 **[Điền số hotline của bạn vào đây, ví dụ: 09xx xxx xxx]**\n\nDạ, không biết là tình trạng da hiện tại của anh/chị đang gặp vấn đề gì (ví dụ như mụn, thâm, sẹo hay lão hóa...) để em tư vấn sơ lược và hỗ trợ đặt lịch hẹn khám với bác sĩ chuyên khoa luôn cho mình ạ? Anh/chị cứ chia sẻ thoải mái với em nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1059,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mỗi buổi tư vấn chuyên gia kéo dài bao lâu?",
+      "expect": [
+        [
+          "45 phut"
+        ]
+      ],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ nhé! 🌸\n\nEm xin giải đáp thắc mắc của anh/chị về thời gian tư vấn tại **GlowSkin O2O** như sau ạ:\n\nMỗi buổi tư vấn chuyên sâu 1:1 với bác sĩ da liễu/chuyên gia tại phòng khám thường kéo dài từ **30 đến 45 phút**. \n\nThời gian này được thiết kế tối ưu để bác sĩ có thể:\n1. **Soi da và phân tích kỹ lưỡng** bằng công nghệ hiện đại.\n2. **Lắng nghe tình trạng da**, thói quen sinh hoạt và mong muốn của anh/chị.\n3. **Giải đáp mọi thắc mắc** một cách chi tiết.\n4. **Thiết kế phác đồ chăm sóc/điều trị** cá nhân hóa dành riêng cho làn da của anh/chị.\n\nAnh/chị mình đang quan tâm đến dịch vụ điều trị hay liệu trình chăm sóc da nào để em hỗ trợ đặt lịch hẹn trước với bác sĩ luôn nhé ạ? 🥰",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1379,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Phòng khám có dịch vụ cấy tóc không, giá bao nhiêu?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui được hỗ trợ anh/chị ngày hôm nay ạ! 🥰\n\nDạ, hiện tại phòng khám GlowSkin O2O của tụi em **có** cung cấp các giải pháp chuyên sâu về phục hồi tóc và da đầu, tuy nhiên về dịch vụ **cấy tóc tự thân (phẫu thuật)** thì hiện tại phòng khám chưa trực tiếp thực hiện. \n\nThay vào đó, GlowSkin O2O đang rất mạnh về các phương pháp **điều trị nội khoa và công nghệ cao không phẫu thuật** để kích thích mọc tóc, ngăn ngừa rụng tóc và nuôi dưỡng nang tóc rất hiệu quả, phù hợp cho các tình trạng:\n*   Rụng tóc từng mảng, rụng tóc do stress, sau sinh.\n*   Tóc thưa mỏng, hói nhẹ giai đoạn đầu.\n*   Da đầu yếu, nhiều gàu, viêm da tiết bã gây rụng tóc.\n\n**Các liệu trình phổ biến tại phòng khám gồm:**\n1. **Mesotherapy (Tiêm dưỡng chất):** Đưa trực tiếp các vitamin, peptides và yếu tố tăng trưởng vào sâu da đầu giúp nuôi dưỡng nang tóc khỏe mạnh, kích thích tóc con mọc dày lên.\n2. **Chiếu ánh sáng sinh học / Laser cấp độ thấp (LLLT):** Tăng tuần hoàn máu dưới da đầu, kích hoạt các nang tóc đang \"ngủ quên\".\n3. **Liệu pháp PRP (Huyết tương giàu tiểu cầu):** Sử dụng máu tự thân quay ly tâm để lấy dưỡng chất phục hồi nang tóc tối ưu.\n\n**Về chi phí:**\nChi phí sẽ dao động tùy thuộc vào tình trạng thực tế của anh/chị (mức độ rụng tóc nhiều hay ít, diện tích vùng cần điều trị) và phác đồ riêng biệt mà Bác sĩ da liễu sẽ chỉ định sau khi thăm khám ạ. \n*   Các buổi điều trị lẻ dao động từ **1.500.000đ - 3.500.000đ/buổi** (tùy công nghệ).\n*   Thường một liệu trình sẽ từ 4-6 buổi để thấy hiệu quả rõ rệt anh/chị nha.\n\nĐể em có thể tư vấn chính xác hơn hoặc đặt lịch soi da đầu **MIỄN PHÍ** với Bác sĩ chuyên khoa, anh/chị có thể cho em xin tình trạng tóc hiện tại (ví dụ: anh/chị bị rụng tóc lâu chưa, có bị lộ da đầu không ạ?) hoặc số điện thoại, em liên hệ hỗ trợ mình nhanh nhất nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2700,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Nâng mũi ở GlowSkin giá bao nhiêu?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu thẩm mỹ **GlowSkin O2O** rất vui được hỗ trợ anh/chị ngày hôm nay ạ. \n\nAnh/chị ơi, hiện tại GlowSkin O2O chúng em tập trung mạnh vào các dịch vụ **chăm sóc, điều trị da chuyên sâu, trẻ hóa da công nghệ cao và thẩm mỹ nội khoa (không phẫu thuật)**. \n\nTuy nhiên, đối với dịch vụ **phẫu thuật nâng mũi**, hiện tại phòng khám mình **chưa trực tiếp thực hiện** dịch vụ này. \n\nDạ, không biết là anh/chị đang quan tâm đến dáng mũi như thế nào ạ? Nếu anh/chị muốn cải thiện dáng mũi mà **không cần phẫu thuật, không đau và không mất thời gian nghỉ dưỡng**, bên em có dịch vụ **Nâng mũi bằng Filler (chất làm đầy)** hoặc **Chỉ thẩm mỹ** đang rất được ưa chuộng. Phương pháp này mang lại sống mũi cao thanh tú, tự nhiên ngay sau khi thực hiện luôn ạ.\n\nHoặc nếu anh/chị đang gặp các vấn đề về làn da (như mụn, sẹo, nám, tàn nhang, da không đều màu...) hoặc muốn trẻ hóa, nâng cơ mặt thì GlowSkin O2O luôn sẵn sàng đồng hành cùng anh/chị ạ.\n\nAnh/chị có muốn em tư vấn chi tiết hơn về phương pháp nâng mũi không phẫu thuật bằng Filler/Chỉ, hay mình đang quan tâm đến dịch vụ chăm sóc da nào khác tại GlowSkin không ạ? ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1768,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Tiêm botox xóa nhăn ở đây giá thế nào?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ chào anh/chị ạ! Em là nhân viên tư vấn của phòng khám da liễu **GlowSkin O2O**. Rất vui vì được hỗ trợ anh/chị ngày hôm nay ạ! 🥰\n\nVề dịch vụ **tiêm Botox xóa nhăn**, giá tại GlowSkin O2O sẽ phụ thuộc vào **vùng điều trị** (ví dụ như: vùng trán, vết chân chim khóe mắt, cau mày, hay cười hở lợi...) và **tình trạng nếp nhăn** thực tế của mình để bác sĩ tính toán liều lượng (unit) phù hợp nhất nhằm mang lại hiệu quả tự nhiên và an toàn tuyệt đối ạ. \n\nHiện tại, phòng khám đang sử dụng các dòng Botox chính hãng, cao cấp (như Botox Allergan của Mỹ, Neuronox của Hàn...) với mức giá dao động cực kỳ hợp lý:\n*   **Theo vùng nhỏ** (ví dụ: khóe mắt, cau mày): Khoảng từ **1.500.000đ - 2.500.000đ/vùng**.\n*   **Theo vùng lớn** (ví dụ: trán, thon gọn hàm): Khoảng từ **3.000.000đ - 5.000.000đ**.\n*   *Đặc biệt, nếu mình làm combo nhiều vùng, bên em luôn có các chương trình ưu đãi giảm giá sâu và quà tặng đi kèm ạ!*\n\nĐể em tư vấn chuẩn xác nhất chi phí cho trường hợp của mình, anh/chị có thể chia sẻ thêm cho em biết:\n1. Mình đang muốn xóa nhăn ở vùng nào trên mặt ạ?\n2. Trước đây mình đã từng tiêm Botox lần nào chưa ạ?\n\nAnh/chị cứ nhắn lại hoặc để lại số điện thoại, bác sĩ da liễu bên em sẽ thăm khám online miễn phí và em gửi bảng giá chi tiết cho mình tham khảo ngay nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 2143,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Kem dưỡng ẩm Lumiere Paris Hydra 50ml bên mình bán giá bao nhiêu?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ em chào anh/chị ạ! Chúc anh/chị một ngày mới thật rạng rỡ và tràn đầy năng lượng nhé! ✨\n\nEm xin phép được trả lời câu hỏi của anh/chị ạ: Sản phẩm **Kem dưỡng ẩm Lumiere Paris Hydra 50ml** đang được bán tại phòng khám da liễu **GlowSkin O2O** với giá niêm yết là **[Điền giá tiền vào đây, ví dụ: 650.000 VNĐ]** ạ.\n\nDòng kem dưỡng này cực kỳ lành tính và là \"cứu tinh\" cho làn da thiếu nước, giúp khóa ẩm sâu, phục hồi hàng rào bảo vệ da và mang lại cảm giác mướt mịn, căng bóng suốt cả ngày đấy ạ. \n\nAnh/chị không biết là da mình hiện đang thuộc tuప్ da nào (da khô, da dầu hay da nhạy cảm) để em tư vấn kỹ hơn xem sản phẩm này có phải là chân ái cho làn da của mình không nhé? \n\nNếu anh/chị cần đặt hàng hoặc giữ sản phẩm, cứ nhắn lại để em hỗ trợ mình ngay nha! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1542,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "GlowSkin có chi nhánh ở Hà Nội không, địa chỉ ở đâu?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới tràn đầy năng lượng và luôn rạng rỡ nhé! 🥰\n\nPhòng khám da liễu **GlowSkin O2O** rất vui khi nhận được sự quan tâm của anh/chị ạ. \n\nDạ, GlowSkin hoàn toàn **có chi nhánh tại Hà Nội** anh/chị nha. Để phục vụ nhu cầu làm đẹp chuẩn y khoa ngày càng cao của khách hàng thủ đô, phòng khám tụi em tọa lạc tại một vị trí rất trung tâm và dễ di chuyển:\n\n📍 **Địa chỉ:** [Anh/chị điền địa chỉ chi nhánh Hà Nội vào đây giúp em, ví dụ: Số 123 Phố Huế, Quận Hai Bà Trưng, Hà Nội]\n📞 **Hotline/Zalo:** [Số điện thoại liên hệ]\n⏰ **Giờ mở cửa:** 8:30 - 20:00 (Tất cả các ngày trong tuần, kể cả Thứ Bảy và Chủ Nhật ạ).\n\nKhông gian bên em được thiết kế theo tiêu chuẩn 5 sao, riêng tư, sang trọng và toàn bộ các bác sĩ da liễu đều có chuyên môn cao, trực tiếp thăm khám 1:1 nên anh/chị hoàn toàn yên tâm nha.\n\nKhông biết da mình hiện tại đang gặp vấn đề gì (mụn, thâm, sẹo, nám hay cần trẻ hóa,...) để em tư vấn kỹ hơn và đặt lịch hẹn ưu tiên gặp bác sĩ cho mình luôn không ạ? ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1733,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Bác sĩ Lê Văn Tèo có khám ở GlowSkin không?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới thật nhiều năng lượng và rạng rỡ nha! 🥰\n\nAnh/chị ơi, tại phòng khám da liễu **GlowSkin O2O** của tụi em hiện tại không có bác sĩ nào tên là **Lê Văn Tèo** đâu ạ. \n\nTuy nhiên, anh/chị đừng lo lắng nhé! Đội ngũ bác sĩ chuyên khoa da liễu đang công tác tại GlowSkin O2O đều là những chuyên gia **100% có chứng chỉ hành nghề, nhiều năm kinh nghiệm** trong điều trị mụn, sẹo, nám, trẻ hóa da và luôn tận tâm với khách hàng ạ. \n\nKhông biết là anh/chị đang gặp vấn đề gì về da cần được hỗ trợ hay mình đang muốn tìm bác sĩ chuyên khoa nào ạ? Anh/chị có thể chia sẻ thêm để em tư vấn kỹ hơn hoặc hỗ trợ mình đặt lịch hẹn thăm khám trực tiếp với bác sĩ bên em nhé! ❤️",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1300,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Phòng khám có nhận thanh toán bằng bảo hiểm y tế không?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chào mừng anh/chị đến với phòng khám da liễu **GlowSkin O2O**. \n\nVề câu hỏi của anh/chị, em xin phép giải đáp thế này ạ: Hiện tại, phòng khám GlowSkin O2O hoạt động theo mô hình phòng khám chuyên khoa da liễu chất lượng cao và chưa áp dụng thanh toán trực tiếp bằng Bảo hiểm Y tế (BHYT nhà nước). \n\nTuy nhiên, nếu gói BHYT thương mại (bảo hiểm bảo lãnh) mà anh/chị đang sử dụng có hỗ trợ chi phí khám và điều trị ngoại trú, bên em hoàn toàn có thể **hỗ trợ xuất hóa đơn đỏ (VAT) và cung cấp đầy đủ hồ sơ bệnh án, chứng từ cần thiết** để anh/chị mang về làm thủ tục thanh toán với công ty bảo hiểm của mình nhé ạ.\n\nKhông biết anh/chị đang quan tâm đến dịch vụ da liễu nào bên em để em tư vấn chi tiết hơn cho mình ạ?",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1337,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Gói triệt lông vĩnh viễn 10 buổi giá bao nhiêu?",
+      "expect": [],
+      "system": "TRUOC",
+      "answer": "Dạ, em chào anh/chị ạ! Chúc anh/chị một ngày mới thật nhiều năng lượng và rạng rỡ nha! 🥰\n\nEm rất vui vì anh/chị đã quan tâm đến dịch vụ **Triệt lông vĩnh viễn** tại phòng khám da liễu **GlowSkin O2O**. \n\nAnh/chị ơi, hiện tại GlowSkin O2O đang áp dụng công nghệ triệt lông thế hệ mới nhất, không đau, không rát, giúp bảo vệ làn da mịn màng và hỗ trợ trị viêm nang lông rất hiệu quả. \n\nVề chi phí cho gói **10 buổi**, mức giá sẽ phụ thuộc vào **vùng lông** mà mình muốn triệt (ví dụ như: mép, nách, tay, chân, bikini hay nguyên người...) ạ. \n\nĐể em có thể báo giá chính xác nhất và gửi kèm các **chương trình ưu đãi/giảm giá hấp dẫn trong tuần này** cho mình, anh/chị có thể cho em xin thông tin về vùng mình muốn triệt không ạ? \n\nHoặc anh/chị có thể để lại số điện thoại, chuyên viên bên em sẽ gọi điện tư vấn nhanh chóng và chi tiết nhất cho mình nhé! ❤️",
+      "sources": [],
+      "verdict": "WRONG",
+      "ms": 1467,
+      "model": "gemini-3.5-flash-lite"
+    }
+  ],
+  "after": [
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Lấy nhân mụn chuẩn y khoa giá bao nhiêu?",
+      "expect": [
+        [
+          "300.000",
+          "300,000",
+          "300000",
+          "300k",
+          "300 nghin",
+          "300 ngan",
+          "300.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, dịch vụ Lấy nhân mụn chuẩn y khoa tại phòng khám GlowSkin có giá 300.000đ và thời gian thực hiện khoảng 60 phút [1]. Dịch vụ này được thực hiện sau khi bác sĩ khám và chỉ định, vì vậy bạn nhớ đặt lịch khám trước nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Lấy nhân mụn chuẩn y khoa",
+          "url": "/services/77777777-7777-4777-a777-777777777777",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1172,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Peel da sinh học mờ thâm giá bao nhiêu?",
+      "expect": [
+        [
+          "800.000",
+          "800,000",
+          "800000",
+          "800k",
+          "800 nghin",
+          "800 ngan",
+          "800.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Dịch vụ Peel da sinh học mờ thâm tại phòng khám GlowSkin có giá 800.000đ và thời gian thực hiện khoảng 45 phút [1]. Dịch vụ này được thực hiện sau khi bác sĩ khám và chỉ định, vì vậy bạn vui lòng đặt lịch khám trước nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Peel da sinh học mờ thâm",
+          "url": "/services/88888888-8888-4888-a888-888888888888",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 2232,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Điện di Ion Vitamin C giá bao nhiêu?",
+      "expect": [
+        [
+          "600.000",
+          "600,000",
+          "600000",
+          "600k",
+          "600 nghin",
+          "600 ngan",
+          "600.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Dịch vụ Điện di Ion Vitamin C có giá 600.000đ và thời gian thực hiện khoảng 90 phút [1]. Dịch vụ này được thực hiện sau khi bác sĩ khám và chỉ định, vì vậy bạn vui lòng đặt lịch khám trước nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Điện di Ion Vitamin C",
+          "url": "/services/99999999-9999-4999-a999-999999999999",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1630,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Chăm sóc da chuyên sâu cơ bản giá bao nhiêu?",
+      "expect": [
+        [
+          "350.000",
+          "350,000",
+          "350000",
+          "350k",
+          "350 nghin",
+          "350 ngan",
+          "350.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Dịch vụ Chăm sóc da chuyên sâu cơ bản có giá 350.000đ [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Chăm sóc da chuyên sâu cơ bản",
+          "url": "/services/506b4b13-1955-4dca-b20c-40974501c2e3",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1185,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Ánh sáng sinh học LED trị mụn giá bao nhiêu?",
+      "expect": [
+        [
+          "250.000",
+          "250,000",
+          "250000",
+          "250k",
+          "250 nghin",
+          "250 ngan",
+          "250.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Dịch vụ Ánh sáng sinh học LED trị mụn có giá 250.000đ [1]. Bạn cần đặt lịch khám với bác sĩ trước khi thực hiện dịch vụ này nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Ánh sáng sinh học LED trị mụn",
+          "url": "/services/454c1e19-075e-4c2f-afc9-8d4530ce195b",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1240,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Dịch vụ",
+      "q": "Dịch vụ Laser Toning trị nám giá bao nhiêu?",
+      "expect": [
+        [
+          "1.500.000",
+          "1,500,000",
+          "1500000",
+          "1500k",
+          "1500 nghin",
+          "1500 ngan",
+          "1500.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Dịch vụ Laser Toning trị nám có giá 1.500.000đ [1]. Dịch vụ này được thực hiện sau khi bác sĩ khám và chỉ định, vì vậy bạn nhớ đặt lịch khám trước nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Dịch vụ: Laser Toning trị nám",
+          "url": "/services/07e6b573-05f8-48f0-8234-21834ef7af40",
+          "type": "SERVICE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1684,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Lộ trình 8 bước có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "1 buoi",
+          "1 lan"
+        ],
+        [
+          "30.000",
+          "30,000",
+          "30000",
+          "30k",
+          "30 nghin",
+          "30 ngan",
+          "30.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, gói Lộ trình 8 bước có thông tin như sau:\n\n- Số lượng: 1 buổi [1].\n- Giá gốc: 1.000.000đ, giá ưu đãi là 30.000đ [1].\n\nLưu ý rằng gói liệu trình này chỉ được bán sau khi bác sĩ khám và chỉ định bạn nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Gói liệu trình: Lộ trình 8 bước",
+          "url": "/goi-lieu-trinh",
+          "type": "PACKAGE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1286,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình trị mụn chuẩn y khoa 6 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "6 buoi",
+          "6 lan"
+        ],
+        [
+          "3.200.000",
+          "3,200,000",
+          "3200000",
+          "3200k",
+          "3200 nghin",
+          "3200 ngan",
+          "3200.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, gói Liệu trình trị mụn chuẩn y khoa 6 buổi có thông tin như sau:\n\n- Số lượng: 6 buổi (mỗi buổi cách nhau ít nhất 7 ngày, dùng trong 90 ngày kể từ ngày mua) [1].\n- Giá gốc: 3.600.000đ, giá ưu đãi: 3.200.000đ [1].\n\nLưu ý: Gói liệu trình này chỉ được bán sau khi bác sĩ khám và chỉ định [1]. Bạn cần đặt lịch khám trước nhé. Nếu cần hỗ trợ thêm, bạn vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" nha!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Gói liệu trình: Liệu trình trị mụn chuẩn y khoa 6 buổi",
+          "url": "/goi-lieu-trinh",
+          "type": "PACKAGE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1812,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình mờ nám Laser Toning 5 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "5 buoi",
+          "5 lan"
+        ],
+        [
+          "6.200.000",
+          "6,200,000",
+          "6200000",
+          "6200k",
+          "6200 nghin",
+          "6200 ngan",
+          "6200.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, gói Liệu trình mờ nám Laser Toning 5 buổi có 5 buổi. Giá niêm yết là 7.000.000đ và giá ưu đãi là 6.200.000đ [1]. Gói liệu trình này chỉ được bán sau khi bác sĩ khám và chỉ định [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Gói liệu trình: Liệu trình mờ nám Laser Toning 5 buổi",
+          "url": "/goi-lieu-trinh",
+          "type": "PACKAGE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1243,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Gói liệu trình",
+      "q": "Gói Liệu trình phục hồi da nhạy cảm 8 buổi có mấy buổi, giá bao nhiêu?",
+      "expect": [
+        [
+          "8 buoi",
+          "8 lan"
+        ],
+        [
+          "3.900.000",
+          "3,900,000",
+          "3900000",
+          "3900k",
+          "3900 nghin",
+          "3900 ngan",
+          "3900.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, gói Liệu trình phục hồi da nhạy cảm 8 buổi gồm có 8 buổi. Giá của gói là 4.400.000đ và đang có giá ưu đãi là 3.900.000đ [1]. Lưu ý gói liệu trình này chỉ được bán sau khi có sự khám và chỉ định của bác sĩ [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Gói liệu trình: Liệu trình phục hồi da nhạy cảm 8 buổi",
+          "url": "/goi-lieu-trinh",
+          "type": "PACKAGE"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1327,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem phục hồi La Roche-Posay Cicaplast Baume B5+ giá bao nhiêu?",
+      "expect": [
+        [
+          "450.000",
+          "450,000",
+          "450000",
+          "450k",
+          "450 nghin",
+          "450 ngan",
+          "450.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, sản phẩm Kem phục hồi La Roche-Posay Cicaplast Baume B5+ có giá 450.000đ (hoặc trả bằng 4.500 điểm GlowSkin) [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Kem phục hồi La Roche-Posay Cicaplast Baume B5+",
+          "url": "/shops/kem-phuc-hoi-b5-la-roche-posay",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 980,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml giá bao nhiêu?",
+      "expect": [
+        [
+          "350.000",
+          "350,000",
+          "350000",
+          "350k",
+          "350 nghin",
+          "350 ngan",
+          "350.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml có giá 350.000đ (hoặc trả bằng 3.500 điểm GlowSkin) [1]. Sản phẩm hiện đang còn hàng [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+          "url": "/shops/sua-rua-mat-cetaphil-473ml",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1177,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml giá bao nhiêu?",
+      "expect": [
+        [
+          "495.000",
+          "495,000",
+          "495000",
+          "495k",
+          "495 nghin",
+          "495 ngan",
+          "495.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml có giá 495.000đ hoặc trả bằng 4.950 Điểm GlowSkin [1]. Sản phẩm hiện đang còn hàng [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml",
+          "url": "/shops/kem-chong-nang-anessa",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1309,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem trị mụn Megaduo Gel giá bao nhiêu?",
+      "expect": [
+        [
+          "104.000",
+          "104,000",
+          "104000",
+          "104k",
+          "104 nghin",
+          "104 ngan",
+          "104.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, kem trị mụn Megaduo Gel có giá niêm yết là 130.000đ, hiện đang được giảm 20% còn 104.000đ đến hết ngày 28/11/2026, hoặc bạn có thể đổi bằng 1.300 điểm GlowSkin [1]. Sản phẩm hiện còn hàng tại phòng khám [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Kem trị mụn Megaduo Gel",
+          "url": "/shops/kem-tri-mun-megaduo-gel",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1260,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Serum cấp ẩm Vichy Mineral 89 giá bao nhiêu?",
+      "expect": [
+        [
+          "650.000",
+          "650,000",
+          "650000",
+          "650k",
+          "650 nghin",
+          "650 ngan",
+          "650.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Serum cấp ẩm Vichy Mineral 89 có giá 650.000đ hoặc bạn có thể trả bằng 6.500 Điểm GlowSkin [1]. Sản phẩm hiện đang có sẵn [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Serum cấp ẩm Vichy Mineral 89",
+          "url": "/shops/serum-cap-am-vichy-mineral-89",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1448,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Gel rửa mặt La Roche-Posay Effaclar Purifying Foaming Gel 400ml giá bao nhiêu?",
+      "expect": [
+        [
+          "450.000",
+          "450,000",
+          "450000",
+          "450k",
+          "450 nghin",
+          "450 ngan",
+          "450.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Gel rửa mặt La Roche-Posay Effaclar Purifying Foaming Gel 400ml có giá 450.000đ (hoặc trả bằng 4.500 Điểm GlowSkin) [1]. Sản phẩm hiện đang còn hàng [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Gel rửa mặt La Roche-Posay Effaclar Purifying Foaming Gel 400ml",
+          "url": "/shops/sua-rua-mat-la-roche-posay-400ml",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1310,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml giá bao nhiêu?",
+      "expect": [
+        [
+          "465.000",
+          "465,000",
+          "465000",
+          "465k",
+          "465 nghin",
+          "465 ngan",
+          "465.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, sản phẩm Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml có giá là 465.000đ (hoặc trả bằng 4.650 Điểm GlowSkin) [1]. Sản phẩm hiện đang có sẵn tại phòng khám [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml",
+          "url": "/shops/kem-giam-mun-la-roche-posay-effaclar-duo-40ml",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1093,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Nước tẩy trang Bioderma Sensibio H2O 500ml giá bao nhiêu?",
+      "expect": [
+        [
+          "435.000",
+          "435,000",
+          "435000",
+          "435k",
+          "435 nghin",
+          "435 ngan",
+          "435.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, sản phẩm Nước tẩy trang Bioderma Sensibio H2O 500ml có giá 435.000đ (hoặc trả bằng 4.350 điểm GlowSkin) [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Nước tẩy trang Bioderma Sensibio H2O 500ml",
+          "url": "/shops/nuoc-tay-trang-bioderma-sensibio-h2o-500ml",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1216,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Kem phục hồi La Roche-Posay Cicaplast Baume B5+ bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "4.500",
+          "4500"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, để mua kem phục hồi La Roche-Posay Cicaplast Baume B5+, bạn cần sử dụng 4.500 điểm GlowSkin [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Kem phục hồi La Roche-Posay Cicaplast Baume B5+",
+          "url": "/shops/kem-phuc-hoi-b5-la-roche-posay",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1732,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "3.500",
+          "3500"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, sản phẩm Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml có giá là 350.000đ và bạn cần dùng 3.500 Điểm GlowSkin để mua [1]. \n\nLưu ý khi thanh toán bằng Điểm GlowSkin, tài khoản của bạn cần có đủ điểm cho cả đơn hàng và phí vận chuyển theo giá niêm yết nhé [2]. Nếu bạn cần hỗ trợ thêm, hãy bấm \"Gặp bộ phận CSKH\" để được tư vấn cụ thể.",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+          "url": "/shops/sua-rua-mat-cetaphil-473ml",
+          "type": "PRODUCT"
+        },
+        {
+          "n": 2,
+          "title": "Chính sách mục 6. Mua hàng và giao hàng",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1569,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "4.950",
+          "4950"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, để mua Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml bằng Điểm GlowSkin, bạn cần dùng 4.950 điểm [1]. \n\nNếu bạn cần hỗ trợ thêm thông tin nào khác, vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml",
+          "url": "/shops/kem-chong-nang-anessa",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1441,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Giá theo điểm",
+      "q": "Mua Kem trị mụn Megaduo Gel bằng Điểm GlowSkin thì cần bao nhiêu điểm?",
+      "expect": [
+        [
+          "1.300",
+          "1300"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, khi mua Kem trị mụn Megaduo Gel bằng Điểm GlowSkin, bạn cần dùng 1.300 điểm (tính theo giá niêm yết) [1]. \n\nNếu bạn cần tư vấn thêm về sản phẩm hoặc cách chăm sóc da, hãy nhắn cho GlowSkin nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Kem trị mụn Megaduo Gel",
+          "url": "/shops/kem-tri-mun-megaduo-gel",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1333,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Sản phẩm",
+      "q": "Mình đặt mua Gel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g) trên web được không?",
+      "expect": [
+        [
+          "ke don"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, \n\nGel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g) là thuốc kê đơn nên không bán trên website. Sản phẩm chỉ được bác sĩ chỉ định sau khi thăm khám trực tiếp và được bán tại quầy theo đơn [1]. \n\nMời bạn đặt lịch hẹn khám tại phòng khám để bác sĩ tư vấn và kê đơn phù hợp nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Sản phẩm: Gel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g)",
+          "url": "/shops/gel-azaduo-medisun-dieu-tri-mun-trung-ca-nhe-den-vua-15g",
+          "type": "PRODUCT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1415,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Trần Quốc Việt có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "11 nam"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Bác sĩ CKI Trần Quốc Việt có 11 năm kinh nghiệm trong lĩnh vực Da liễu - Laser thẩm mỹ [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Bác sĩ: BS.CKI Trần Quốc Việt",
+          "url": "/doi-ngu-bac-si",
+          "type": "DOCTOR"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1138,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Nguyễn Minh Khoa có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "15 nam"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Bác sĩ Nguyễn Minh Khoa có 15 năm kinh nghiệm trong lĩnh vực khám và điều trị các bệnh da liễu [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Bác sĩ: BSCKII Nguyễn Minh Khoa",
+          "url": "/doi-ngu-bac-si",
+          "type": "DOCTOR"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1439,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Bác sĩ",
+      "q": "Bác sĩ Phạm Thị Ngọc Lan có bao nhiêu năm kinh nghiệm?",
+      "expect": [
+        [
+          "10 nam"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Bác sĩ Phạm Thị Ngọc Lan có 10 năm kinh nghiệm trong lĩnh vực da liễu [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Bác sĩ: ThS.BS Phạm Thị Ngọc Lan",
+          "url": "/doi-ngu-bac-si",
+          "type": "DOCTOR"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1248,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Chuyên gia",
+      "q": "Chuyên gia Nguyễn Hoàng Thảo Vy tư vấn về lĩnh vực gì?",
+      "expect": [
+        [
+          "my pham"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chuyên gia Nguyễn Hoàng Thảo Vy tư vấn về lĩnh vực mỹ phẩm [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chuyên gia tư vấn: DS.CKI Nguyễn Hoàng Thảo Vy",
+          "url": "/tu-van",
+          "type": "EXPERT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1278,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "FACT",
+      "topic": "Chuyên gia",
+      "q": "Chuyên gia Đỗ Thị Hải Yến tư vấn về lĩnh vực gì?",
+      "expect": [
+        [
+          "dinh duong"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chuyên gia Đỗ Thị Hải Yến tư vấn về lĩnh vực dinh dưỡng, giúp tư vấn chế độ ăn và sinh hoạt hỗ trợ làn da khỏe mạnh, đặc biệt cho người bị mụn và da nhạy cảm [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chuyên gia tư vấn: ThS.BS Đỗ Thị Hải Yến",
+          "url": "/tu-van",
+          "type": "EXPERT"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1324,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Phí khám bác sĩ là bao nhiêu?",
+      "expect": [
+        [
+          "100.000",
+          "100,000",
+          "100000",
+          "100k",
+          "100 nghin",
+          "100 ngan",
+          "100.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, phí khám bác sĩ tại phòng khám Da liễu GlowSkin là 100.000đ cho mỗi lần khám [1]. \n\nNếu bạn cần hỗ trợ thêm thông tin gì, vui lòng liên hệ hotline hoặc bấm \"Gặp bộ phận CSKH\" nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 1. Đặt lịch khám và tiền cọc",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1213,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt lịch khám tại phòng khám phải cọc bao nhiêu tiền?",
+      "expect": [
+        [
+          "50.000",
+          "50,000",
+          "50000",
+          "50k",
+          "50 nghin",
+          "50 ngan",
+          "50.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, khi đặt lịch khám trực tiếp tại phòng khám Da liễu GlowSkin, bạn cần đặt cọc 50.000đ [1]. Tiền cọc này sẽ được trừ trực tiếp vào phí khám khi bạn thanh toán hóa đơn sau buổi khám [1]. \n\nNếu bạn cần hỗ trợ thêm thông tin gì, đừng ngần ngại cho tôi biết nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 1. Đặt lịch khám và tiền cọc",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1253,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt lịch xong thì giữ chỗ trong bao lâu để chuyển khoản?",
+      "expect": [
+        [
+          "15 phut"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Sau khi bấm đặt lịch, khung giờ của bạn được giữ trong 15 phút để chuyển khoản [1]. Nếu quá thời gian này hoặc rời trang thanh toán mà chưa trả tiền, lịch sẽ bị hủy và khung giờ được trả lại [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 1. Đặt lịch khám và tiền cọc",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1314,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Nếu mình hủy lịch khám trước 2 ngày thì tiền cọc xử lý thế nào?",
+      "expect": [
+        [
+          "diem"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, khi bạn hủy lịch khám trước 2 ngày (tức là trước giờ khám ít nhất 24 giờ):\n\n- Nếu hủy lịch đã đặt cọc, tiền cọc sẽ được đổi thành Điểm GlowSkin với quy đổi 1 điểm = 100đ [1].\n- Nếu là lịch khám trực tuyến đã trả trước toàn bộ phí khám 100.000đ, chính sách hủy tương tự theo quy định hủy trước 24 giờ [1][2].\n\nBạn có thể chủ động hủy lịch trong mục Sổ lịch khám trên website nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 2. Hủy, đổi lịch khám",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        },
+        {
+          "n": 2,
+          "title": "Chính sách mục 1. Đặt lịch khám và tiền cọc",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1538,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Hủy lịch khám sát giờ, trong vòng 24 giờ thì có được hoàn cọc không?",
+      "expect": [
+        [
+          "mat 100%",
+          "mat toan bo",
+          "mat tien coc",
+          "mat coc",
+          "khong duoc hoan"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, khi bạn hủy lịch khám trong vòng 24 giờ trước giờ khám, bạn sẽ mất 100% tiền cọc [1]. Đối với lịch khám trực tuyến, bạn cũng sẽ mất toàn bộ phí khám 100.000đ đã trả trước [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 2. Hủy, đổi lịch khám",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 2124,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Phòng khám hủy lịch của mình thì mình được bồi thường gì?",
+      "expect": [
+        [
+          "10%"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, nếu phòng khám chủ động hủy lịch (do bác sĩ vắng hoặc sự cố), bạn sẽ được hoàn 100% tiền cọc [1]. \n\nBạn có thể chọn một trong các hình thức nhận lại:\n- Nhận lại tiền qua chuyển khoản [1].\n- Nhận Điểm GlowSkin được cộng thêm 10% giá trị [1]. \n- Nếu cọc đã trả bằng điểm, hệ thống sẽ tự động hoàn lại điểm và cộng thêm 10% [1].\n\nNếu bạn cần hỗ trợ thêm, vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 2. Hủy, đổi lịch khám",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 2338,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Một buổi tư vấn chuyên gia online tốn bao nhiêu?",
+      "expect": [
+        [
+          "300.000",
+          "300,000",
+          "300000",
+          "300k",
+          "300 nghin",
+          "300 ngan",
+          "300.000"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, phí cho mỗi buổi tư vấn chuyên gia online tại GlowSkin là 300.000đ [1]. Phí này được thanh toán trước khi xác nhận lịch qua VietQR hoặc Điểm GlowSkin và không trừ vào phí khám [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 10. Tư vấn chuyên gia",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1247,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mua mỹ phẩm online thì được đổi trả trong bao nhiêu ngày?",
+      "expect": [
+        [
+          "7 ngay"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, đối với đơn hàng mỹ phẩm giao qua GHN, bạn có thể gửi yêu cầu đổi trả trong vòng 7 ngày kể từ khi đơn hàng chuyển sang trạng thái Đã nhận [1]. \n\nNếu đơn mua tại quầy, bạn vui lòng mang sản phẩm trực tiếp đến phòng khám nhé [1]. Bạn cần hỗ trợ thêm thông tin gì cứ nhắn em nha!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 8. Hoàn / trả hàng",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1414,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mình mua về không thích, đổi ý muốn trả hàng được không?",
+      "expect": [
+        [
+          "khong nhan tra hang vi doi y",
+          "khong duoc tra",
+          "khong nhan",
+          "khong ap dung",
+          "khong chap nhan"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, phòng khám GlowSkin không nhận trả hàng vì lý do đổi ý bạn nhé [1]. \n\nChính sách hoàn/trả hàng chỉ áp dụng đối với các trường hợp:\n- Hàng bị móp, vỡ, rò rỉ khi vận chuyển.\n- Giao sai sản phẩm hoặc sai phân loại.\n- Sản phẩm lỗi (biến chất, đổi màu, mùi lạ, vòi bơm hỏng).\n- Sản phẩm hết hạn hoặc không có hạn sử dụng [1].\n\nNếu bạn cần hỗ trợ thêm, vui lòng liên hệ hotline hoặc bấm Gặp bộ phận CSKH nhé.",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 8. Hoàn / trả hàng",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1653,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "1 điểm GlowSkin bằng bao nhiêu tiền?",
+      "expect": [
+        [
+          "100",
+          "100",
+          "100"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, 1 điểm GlowSkin bằng 100 đồng [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 11. Điểm GlowSkin",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1210,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Điểm GlowSkin có hạn sử dụng không?",
+      "expect": [
+        [
+          "12 thang"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Điểm GlowSkin có hạn sử dụng là 12 tháng tính từ mỗi lần được cộng [1]. Khi sử dụng, hệ thống sẽ trừ điểm sắp hết hạn trước, và điểm quá hạn sẽ bị trừ tự động [1]. Bạn có thể xem số dư và hạn dùng tại trang Hồ sơ cá nhân [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 11. Điểm GlowSkin",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 3060,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Đặt đơn chuyển khoản mà chưa trả tiền thì bao lâu đơn bị hủy?",
+      "expect": [
+        [
+          "15 phut"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Đơn chuyển khoản không thanh toán trong 15 phút sẽ tự động hủy, sản phẩm được trả lại kho và voucher được trả lại lượt [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 7. Hủy đơn hàng",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1192,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Bác sĩ khám buổi sáng từ mấy giờ?",
+      "expect": [
+        [
+          "08:00",
+          "8:00",
+          "8 gio",
+          "8h"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, giờ khám bác sĩ buổi sáng tại phòng khám GlowSkin là từ 08:00 đến 11:30 [1]. \n\nNếu bạn cần hỗ trợ thêm thông tin gì, hãy cho tôi biết nhé!",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 1. Đặt lịch khám và tiền cọc",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1188,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Số hotline của phòng khám là gì?",
+      "expect": [
+        [
+          "0869",
+          "086 9",
+          "0869 694 064",
+          "0869694064"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Số hotline của Phòng khám Da liễu GlowSkin là 0869 694 064 [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Thông tin phòng khám",
+          "url": "/contact",
+          "type": "CLINIC"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1325,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "POLICY",
+      "topic": "Chính sách",
+      "q": "Mỗi buổi tư vấn chuyên gia kéo dài bao lâu?",
+      "expect": [
+        [
+          "45 phut"
+        ]
+      ],
+      "system": "SAU",
+      "answer": "Chào bạn, mỗi buổi tư vấn chuyên gia online tại GlowSkin kéo dài 45 phút, và phòng tư vấn sẽ đóng lại khi hết thời gian [1]. Bạn cần hỗ trợ thêm thông tin nào khác không ạ?",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Chính sách mục 10. Tư vấn chuyên gia",
+          "url": "/chinh-sach",
+          "type": "POLICY"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1756,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Phòng khám có dịch vụ cấy tóc không, giá bao nhiêu?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, hiện tại tôi chưa có thông tin về dịch vụ cấy tóc trong tài liệu của phòng khám. Bạn vui lòng gọi hotline 0869 694 064 hoặc bấm \"Gặp bộ phận CSKH\" để được nhân viên hỗ trợ chi tiết nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Thông tin phòng khám",
+          "url": "/contact",
+          "type": "CLINIC"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1501,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Nâng mũi ở GlowSkin giá bao nhiêu?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, hiện tại tôi chưa có thông tin về dịch vụ nâng mũi tại GlowSkin. Bạn vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" để được hỗ trợ chi tiết nhé.",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1373,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Tiêm botox xóa nhăn ở đây giá thế nào?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, hiện tại tôi chưa có thông tin về dịch vụ tiêm botox xóa nhăn tại GlowSkin. \n\nBạn vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" để được hỗ trợ chi tiết nhé!",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1280,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Kem dưỡng ẩm Lumiere Paris Hydra 50ml bên mình bán giá bao nhiêu?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, hiện tại phòng khám GlowSkin chưa có thông tin về sản phẩm Kem dưỡng ẩm Lumiere Paris Hydra 50ml. \n\nBạn vui lòng gọi vào hotline của phòng khám hoặc bấm \"Gặp bộ phận CSKH\" để được nhân viên hỗ trợ chi tiết nhé!",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1183,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "GlowSkin có chi nhánh ở Hà Nội không, địa chỉ ở đâu?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, hiện tại tôi chưa có thông tin cụ thể về chi nhánh GlowSkin tại Hà Nội trong tài liệu. Bạn vui lòng gọi hotline 0869 694 064 hoặc bấm \"Gặp bộ phận CSKH\" trên website để được hỗ trợ chi tiết nhé [1].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Thông tin phòng khám",
+          "url": "/contact",
+          "type": "CLINIC"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1406,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Bác sĩ Lê Văn Tèo có khám ở GlowSkin không?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, tôi chưa có thông tin về bác sĩ Lê Văn Tèo tại phòng khám GlowSkin [1]. \n\nĐội ngũ bác sĩ hiện tại của GlowSkin bao gồm BSCKII Nguyễn Minh Khoa [2] và BS.CKI Trần Quốc Việt [3]. \n\nBạn vui lòng gọi hotline 0869 694 064 hoặc bấm \"Gặp bộ phận CSKH\" để được hỗ trợ chi tiết hơn nhé [1][4].",
+      "sources": [
+        {
+          "n": 1,
+          "title": "Bài viết: Sự kiện Da Liễu: Khám và soi da công nghệ AI miễn phí cùng Chuyên gia",
+          "url": "/news/su-kien-soi-da-ai-cung-chuyen-gia",
+          "type": "ARTICLE"
+        },
+        {
+          "n": 2,
+          "title": "Bác sĩ: BSCKII Nguyễn Minh Khoa",
+          "url": "/doi-ngu-bac-si",
+          "type": "DOCTOR"
+        },
+        {
+          "n": 3,
+          "title": "Bác sĩ: BS.CKI Trần Quốc Việt",
+          "url": "/doi-ngu-bac-si",
+          "type": "DOCTOR"
+        },
+        {
+          "n": 4,
+          "title": "Thông tin phòng khám",
+          "url": "/contact",
+          "type": "CLINIC"
+        }
+      ],
+      "verdict": "CORRECT",
+      "ms": 1402,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Phòng khám có nhận thanh toán bằng bảo hiểm y tế không?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Chào bạn, tôi chưa có thông tin về việc phòng khám có nhận thanh toán bằng bảo hiểm y tế hay không. Bạn vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" để được tư vấn chi tiết nhé.",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1202,
+      "model": "gemini-3.5-flash-lite"
+    },
+    {
+      "kind": "OOS",
+      "topic": "Ngoài phạm vi",
+      "q": "Gói triệt lông vĩnh viễn 10 buổi giá bao nhiêu?",
+      "expect": [],
+      "system": "SAU",
+      "answer": "Dạ em chưa có thông tin về Gói triệt lông vĩnh viễn 10 buổi. Quý khách vui lòng gọi hotline hoặc bấm Gặp bộ phận CSKH để được nhân viên hỗ trợ tư vấn chi tiết nhé!",
+      "sources": [],
+      "verdict": "CORRECT",
+      "ms": 1543,
+      "model": "gemini-3.5-flash-lite"
+    }
+  ],
+  "personal": [
+    {
+      "scope": "POINTS",
+      "q": "Mình còn bao nhiêu điểm GlowSkin?",
+      "expect": [
+        [
+          "11.800",
+          "11800"
+        ]
+      ],
+      "asked_consent_first": true,
+      "leaked_before_consent": false,
+      "correct_after_consent": true,
+      "answer_before": "Để trả lời câu này, mình cần xem số dư và lịch sử Điểm GlowSkin của bạn. Bạn có đồng ý cho mình xem trong phiên chat này không?",
+      "answer_after": "Số dư Điểm GlowSkin hiện tại của bạn là 11.800 điểm (tương đương 1.180.000đ). Trong đó có 700 điểm sắp hết hạn vào ngày 03/12/2026 [1]. Bạn có thể xem thêm chi tiết và lịch sử cộng trừ điểm tại trang Hồ sơ cá nhân [1]."
+    },
+    {
+      "scope": "APPOINTMENTS",
+      "q": "Lịch khám gần nhất của mình là ngày nào?",
+      "expect": [
+        [
+          "06/11/2026",
+          "6/11"
+        ]
+      ],
+      "asked_consent_first": true,
+      "leaked_before_consent": false,
+      "correct_after_consent": true,
+      "answer_before": "Để trả lời câu này, mình cần xem lịch khám, lịch tư vấn và gói liệu trình của bạn. Bạn có đồng ý cho mình xem trong phiên chat này không?",
+      "answer_after": "Lịch khám gần nhất của bạn là ngày 06/11/2026 lúc 16:30 với BSCKII Nguyễn Minh Khoa (hình thức khám tại phòng khám, trạng thái: đã khám xong)."
+    },
+    {
+      "scope": "ORDERS",
+      "q": "Đơn hàng mã 6D18BEA4 của mình đang ở trạng thái nào?",
+      "expect": [
+        [
+          "da duyet"
+        ]
+      ],
+      "asked_consent_first": true,
+      "leaked_before_consent": false,
+      "correct_after_consent": true,
+      "answer_before": "Để trả lời câu này, mình cần xem đơn hàng mỹ phẩm của bạn. Bạn có đồng ý cho mình xem trong phiên chat này không?",
+      "answer_after": "Đơn hàng mã 6D18BEA4 của bạn hiện đang ở trạng thái đã duyệt."
+    },
+    {
+      "scope": "GUEST",
+      "q": "Mình còn bao nhiêu điểm GlowSkin? (chưa đăng nhập)",
+      "asked_login": true,
+      "answer_before": "Chào bạn, để xem số dư, lịch sử và hạn dùng của điểm GlowSkin, mời bạn đăng nhập vào tài khoản và kiểm tra tại trang Hồ sơ cá nhân [1]. \n\nNếu bạn đã đăng nhập mà vẫn cần hỗ trợ, vui lòng gọi hotline hoặc bấm \"Gặp bộ phận CSKH\" nhé!"
+    }
+  ]
+}

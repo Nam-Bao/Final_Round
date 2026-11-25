@@ -7,12 +7,13 @@ import {
   PercentageOutlined, DownOutlined, UpOutlined, SendOutlined, MessageOutlined, RollbackOutlined, FileTextOutlined, FieldTimeOutlined, MenuOutlined, WalletOutlined, AccountBookOutlined,
   SettingOutlined, ShopOutlined, HeartOutlined, InboxOutlined, NotificationOutlined, MedicineBoxOutlined, IdcardOutlined, CustomerServiceOutlined, ShoppingCartOutlined, VideoCameraOutlined,
   SafetyOutlined, AuditOutlined, ScanOutlined, PaperClipOutlined, FilePdfOutlined, LoadingOutlined,
-  MailOutlined,
+  MailOutlined, RobotOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { TaskProvider, NotificationBell, useTasks } from './Notifications';
+import HandbookChat from './HandbookChat';
 
 const { Header, Sider, Content } = Layout;
 
@@ -152,6 +153,8 @@ function AdminLayoutInner() {
   const [isChatMinimized, setIsChatMinimized] = useState(true); // thu gọn sẵn để không che màn hình làm việc, có tin mới thì tự mở
   const [isReady, setIsReady] = useState(true); 
   const messagesEndRef = useRef(null);
+  // Gợi ý trả lời bằng AI (RAG trên kho kiến thức): { sessionId, loading, data: { draft, notes, sources }, error }
+  const [replyDraft, setReplyDraft] = useState(null);
 
   useEffect(() => {
     if (role === 'CONSULTANT') {
@@ -216,6 +219,21 @@ function AdminLayoutInner() {
 
       chatSocket.emit('send_message', { sessionId: activeSessionId, content: chatInput });
       setChatInput('');
+      setReplyDraft(null);
+  };
+
+  // AI soạn nháp theo đoạn chat đang mở; nhân viên xem nguồn, sửa rồi tự bấm gửi (AI không gửi thay)
+  const handleSuggestReply = async () => {
+      const session = chatSessions.find(s => s.sessionId === activeSessionId);
+      if (!session) return;
+      const msgs = (session.messages || []).filter(m => m.text).map(m => ({ sender: m.sender === 'CONSULTANT' ? 'CONSULTANT' : 'CUSTOMER', text: m.text }));
+      setReplyDraft({ sessionId: activeSessionId, loading: true });
+      try {
+          const res = await axios.post('http://localhost:4000/api/ai/assist/reply-draft', { messages: msgs }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, timeout: 60000 });
+          setReplyDraft({ sessionId: activeSessionId, data: res.data.data });
+      } catch (err) {
+          setReplyDraft({ sessionId: activeSessionId, error: err.response?.data?.message || 'Không gợi ý được, vui lòng thử lại' });
+      }
   };
 
   // CSKH gửi ảnh / PDF cho khách (tải qua service-media rồi gửi URL qua socket)
@@ -283,6 +301,7 @@ function AdminLayoutInner() {
       ['Báo cáo', <LineChartOutlined />, [
         { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
         { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát & hoàn tiền' },
+        { key: '/points-report', icon: <WalletOutlined />, label: 'Điểm GlowSkin' },
       ]],
       ['Hệ thống', <SettingOutlined />, [
         { key: '/users', icon: <UserOutlined />, label: 'Quản lý người dùng' },
@@ -300,6 +319,7 @@ function AdminLayoutInner() {
       ['Báo cáo', <LineChartOutlined />, [
         { key: '/reports', icon: <LineChartOutlined />, label: 'Báo cáo doanh thu' },
         { key: '/bank-transactions', icon: <DollarOutlined />, label: 'Đối soát & hoàn tiền' },
+        { key: '/points-report', icon: <WalletOutlined />, label: 'Điểm GlowSkin' },
       ]],
       ['Nhân sự', <TeamOutlined />, [
         { key: '/schedule', icon: <ScheduleOutlined />, label: 'Lịch làm việc' },
@@ -543,7 +563,32 @@ function AdminLayoutInner() {
                                   ))}
                                   <div ref={messagesEndRef} />
                                </div>
+                               {replyDraft?.sessionId === activeSessionId && (
+                                  <div className="mx-3 mb-2 p-2 rounded-lg border border-indigo-200 bg-indigo-50 text-sm max-h-48 overflow-y-auto">
+                                     <div className="flex justify-between items-center mb-1">
+                                        <span className="font-semibold text-indigo-800 text-xs"><RobotOutlined /> Nháp AI (kiểm tra trước khi gửi)</span>
+                                        <Button size="small" type="text" icon={<CloseOutlined />} onClick={() => setReplyDraft(null)} />
+                                     </div>
+                                     {replyDraft.loading && <div className="text-xs text-gray-500"><LoadingOutlined /> Đang soạn nháp theo dữ liệu phòng khám...</div>}
+                                     {replyDraft.error && <div className="text-xs text-red-600">{replyDraft.error}</div>}
+                                     {replyDraft.data && (
+                                        <>
+                                           <div className="whitespace-pre-line">{replyDraft.data.draft}</div>
+                                           {replyDraft.data.notes?.length > 0 && (
+                                              <ul className="list-disc pl-4 mt-1 text-xs text-amber-700">{replyDraft.data.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                                           )}
+                                           {replyDraft.data.sources?.length > 0 && (
+                                              <div className="text-xs text-gray-500 mt-1">Nguồn: {replyDraft.data.sources.map((x) => x.title).join('; ')}</div>
+                                           )}
+                                           <Button size="small" type="primary" ghost className="mt-1" onClick={() => setChatInput(replyDraft.data.draft)}>Dùng bản nháp</Button>
+                                        </>
+                                     )}
+                                  </div>
+                               )}
                                <div className="p-3 border-t bg-gray-50 flex gap-2">
+                                  <Button shape="circle" title="Gợi ý trả lời bằng AI (theo giá, chính sách, sản phẩm của phòng khám)" icon={<RobotOutlined />}
+                                     loading={replyDraft?.sessionId === activeSessionId && replyDraft?.loading}
+                                     disabled={!(currentSession.messages || []).some(m => m.sender === 'CUSTOMER' && m.text)} onClick={handleSuggestReply} />
                                   <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple className="hidden" onChange={handleSendFiles} />
                                   <Button shape="circle" title="Gửi ảnh (tối đa 5MB) hoặc PDF (tối đa 10MB)" icon={chatUploading ? <LoadingOutlined /> : <PaperClipOutlined />} disabled={chatUploading} onClick={() => chatFileRef.current?.click()} />
                                   <Input 
@@ -569,6 +614,8 @@ function AdminLayoutInner() {
           )}
         </>
       )}
+      {/* Ô chat hỏi quy trình (sổ tay) cho mọi nhân viên; CSKH đặt góc trái vì góc phải là Trung tâm CSKH */}
+      <HandbookChat role={role} side={role === 'CONSULTANT' ? 'left' : 'right'} />
     </Layout>
   );
 }

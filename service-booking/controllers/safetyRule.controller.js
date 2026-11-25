@@ -517,7 +517,27 @@ const testRule = async (req, res) => {
   } catch (error) { fail(res, error); }
 };
 
+// [HỆ THỐNG] GET /safety-rules/internal/knowledge — quy tắc đang áp dụng kèm đối tượng và nguồn y khoa,
+// service-ai-analysis nạp vào kho kiến thức (RAG) để AI rà soát đơn kê trích dẫn đúng quy tắc / nguồn
+const internalKnowledge = async (req, res) => {
+  try {
+    const rows = await SafetyRule.findAll({ where: { status: 'ACTIVE' }, raw: true });
+    const targets = new Map((await SafetyTarget.findAll({ where: { id: [...new Set(rows.map((r) => r.target_id))] }, raw: true })).map((t) => [t.id, t]));
+    const sources = new Map((await SafetySource.findAll({ where: { id: [...new Set(rows.flatMap((r) => r.source_ids || []))] }, raw: true })).map((x) => [x.id, x]));
+    res.status(200).json({
+      data: rows.map((r) => {
+        const t = targets.get(r.target_id) || {};
+        return {
+          id: r.id, flag: r.flag, condition: rules.FLAGS[r.flag] || r.flag, severity: r.severity, severity_label: rules.SEVERITY[r.severity] || r.severity,
+          target_kind: t.kind, target_label: t.label || '', keywords: t.keywords || [], message: r.message,
+          sources: (r.source_ids || []).map((id) => sources.get(id)).filter(Boolean).map((x) => ({ label: x.label, url: x.url || null })),
+        };
+      }),
+    });
+  } catch (error) { fail(res, error); }
+};
+
 module.exports = {
   getMeta, listRules, myReviews, myProposals, getRule, createRule, reviseRule, updateRule, proposeRule, requestChanges,
-  submitRule, replaceReviewer, reviewRule, approveRule, rejectRule, previewTarget, testRule, STATUS_LABEL,
+  submitRule, replaceReviewer, reviewRule, approveRule, rejectRule, previewTarget, testRule, internalKnowledge, STATUS_LABEL,
 };

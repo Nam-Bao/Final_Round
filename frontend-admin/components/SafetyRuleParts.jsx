@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Divider, Form, Input, Modal, Radio, Select, Switch, Tag, Timeline, message } from 'antd';
-import { PlusOutlined, DeleteOutlined, ExperimentOutlined, LinkOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, ExperimentOutlined, LinkOutlined, RobotOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { SafetyWarnings } from './PatientSafetyPanel';
@@ -53,6 +53,55 @@ function TargetPreview({ kind, keywords, excludes, allOf }) {
 }
 
 // Form soạn / sửa quy tắc. mode 'MANAGER': lưu nháp. mode 'DOCTOR': lưu nháp hoặc gửi quản lý
+// Trước khi lưu: AI tìm quy tắc đang áp dụng gần giống (RAG trên kho quy tắc) và phân loại Trùng / Mâu thuẫn / Liên quan,
+// để không tạo quy tắc lặp (vd đối tượng viết tên khác) hoặc ngược mức độ với quy tắc đã có. Chỉ để tham khảo.
+const VERDICT_TAG = { TRUNG: 'red', MAU_THUAN: 'orange', LIEN_QUAN: 'blue' };
+function SimilarRulesCheck({ form, meta, rule, selectedTarget }) {
+  const [state, setState] = useState(null);
+  useEffect(() => { setState(null); }, [rule?.id]);
+  const run = async () => {
+    const v = form.getFieldsValue(['flag', 'target_mode', 'nt_label', 'nt_keywords', 'severity', 'message']);
+    const newTarget = v.target_mode === 'NEW';
+    const target_label = newTarget ? v.nt_label : selectedTarget?.label;
+    const condition = meta.flags.find((f) => f.value === v.flag)?.label;
+    if (!condition || !target_label) return message.warning('Chọn tình trạng và đối tượng trước khi kiểm tra');
+    setState({ loading: true });
+    try {
+      const res = await axios.post('http://localhost:4000/api/ai/assist/similar-rules', {
+        condition, target_label,
+        target_keywords: newTarget ? splitList(v.nt_keywords) : selectedTarget?.keywords || [],
+        severity_label: meta.severities.find((x) => x.value === v.severity)?.label, message: v.message,
+        exclude_ids: [rule?.id, rule?.replaces_rule_id].filter(Boolean),
+      }, { ...authHeaders(), timeout: 60000 });
+      setState({ data: res.data.data });
+    } catch (error) { setState({ error: error.response?.data?.message || 'Không kiểm tra được' }); }
+  };
+  const list = state?.data?.candidates || [];
+  return (
+    <div className="mb-3 p-2 rounded border border-indigo-200 bg-indigo-50">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-indigo-800">Kiểm tra quy tắc đang áp dụng có trùng / mâu thuẫn với quy tắc này không</span>
+        <Button size="small" icon={<RobotOutlined />} loading={state?.loading} onClick={run}>Kiểm tra quy tắc tương tự (AI)</Button>
+      </div>
+      {state?.error && <div className="text-xs text-red-600 mt-1">{state.error}</div>}
+      {state?.data && (
+        <div className="mt-2 space-y-1">
+          {state.data.ai_error && <div className="text-xs text-amber-700">{state.data.ai_error}</div>}
+          {list.length === 0 && <div className="text-xs text-green-700">Không thấy quy tắc đang áp dụng nào gần giống.</div>}
+          {list.map((c) => (
+            <div key={c.rule_id} className="text-xs bg-white rounded border p-1.5">
+              {c.verdict && <Tag color={VERDICT_TAG[c.verdict]}>{c.verdict_label}</Tag>}
+              <b>{c.title.replace(/^Quy tắc:\s*/, '')}</b>{c.severity_label ? ` (${c.severity_label})` : ''}
+              {c.reason && <div className="text-gray-600 mt-0.5">{c.reason}</div>}
+            </div>
+          ))}
+          {list.some((c) => c.verdict === 'TRUNG') && <div className="text-xs text-red-700">Có quy tắc trùng: nên sửa quy tắc cũ (Sửa / ngưng) thay vì tạo mới.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RuleFormModal({ open, meta, rule, mode = 'MANAGER', onClose, onSaved }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -156,6 +205,7 @@ export function RuleFormModal({ open, meta, rule, mode = 'MANAGER', onClose, onS
           <Form.Item name="message" label="Lời nhắc hiện cho bác sĩ / nhân viên" rules={[{ required: true, min: 10, message: 'Ít nhất 10 ký tự' }]}>
             <Input.TextArea rows={2} maxLength={500} showCount placeholder="VD: Hydroquinone chống chỉ định khi mang thai do thiếu dữ liệu an toàn." />
           </Form.Item>
+          <SimilarRulesCheck form={form} meta={meta} rule={rule} selectedTarget={selectedTarget} />
           {(doctor || rule?.change_type === 'EDIT') && (
             <Form.Item name="change_reason" label={rule?.change_type === 'EDIT' ? 'Lý do sửa' : 'Lý do đề xuất (gửi quản lý)'}>
               <Input.TextArea rows={2} maxLength={1000} placeholder="VD: Gặp ca khách mang thai dùng sản phẩm chứa hydroquinone, hệ thống chưa cảnh báo" />

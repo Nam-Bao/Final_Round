@@ -116,8 +116,12 @@ const start = () => {
   cron.schedule('0 8 * * *', safe('nhắc tái khám', remindFollowUps), opt('remind-follow-up'));
   cron.schedule('0 9 * * *', safe('nhắc gói liệu trình', remindPackages), opt('remind-package'));
   cron.schedule('*/5 * * * *', safe('lịch quá giờ chưa đến', watchOverdue), opt('overdue-arrivals'));
+  // Điểm GlowSkin hết hạn sau POINT_EXPIRE_MONTHS tháng: trừ điểm quá hạn mỗi đêm, báo trước 30 ngày mỗi sáng
+  const points = require('./points');
+  cron.schedule('30 0 * * *', safe('trừ điểm hết hạn', points.expireAll), opt('points-expire'));
+  cron.schedule('30 8 * * *', safe('báo điểm sắp hết hạn', points.notifyExpiring), opt('points-expiring'));
   safe('lịch quá giờ chưa đến', watchOverdue)();
-  console.log('⏰ Đã bật lịch chạy: nhắc lịch khám / tư vấn (10 phút), tái khám (8h), gói liệu trình (9h), lịch quá giờ chưa đến (5 phút)');
+  console.log('⏰ Đã bật lịch chạy: nhắc lịch khám / tư vấn (10 phút), tái khám (8h), gói liệu trình (9h), lịch quá giờ chưa đến (5 phút), điểm hết hạn (0h30) / sắp hết hạn (8h30)');
 };
 
 module.exports = { start, remindAppointments, remindConsultations, remindFollowUps, remindPackages, overdueArrivals };
