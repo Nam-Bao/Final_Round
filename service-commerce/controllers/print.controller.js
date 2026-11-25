@@ -83,4 +83,75 @@ const counterOrderPrint = async (req, res) => {
   }
 };
 
-module.exports = { productPrintInfo, counterOrderPrint };
+const docNo = (order) => `DH-${new Date(order.createdAt.getTime() + 7 * 3600000).toISOString().slice(0, 10).replace(/-/g, '')}-${order.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+const loadOrder = (id) => Order.findByPk(id, { include: [{ model: OrderDetail, include: [{ model: Product, attributes: ['name'], include: [{ model: ProductDetail, attributes: ['capacity'], required: false }] }] }] });
+// Đơn đổi hàng do phòng khám tạo khi khách trả hàng lỗi (return.controller): giảm đúng bằng tiền hàng, khách không trả thêm
+const isExchangeOrder = (order) => !order.promotion_id && String(order.note || '').startsWith('Đơn đổi hàng') && Number(order.discount_amount) >= Number(order.total_amount);
+
+// ===== KHÁCH TẢI HÓA ĐƠN PDF (riêng phía khách, không dùng chung với phiếu in A5 của nhân viên ở trên) =====
+// Dữ liệu hóa đơn bán lẻ cho PDF khách tải: đơn tại quầy + đơn giao hàng
+const buildOrderData = async (order, viewerId) => {
+  const [clinic, people, promo] = await Promise.all([
+    clinicInfo(),
+    peopleInfo([order.customer_id, order.consultant_id, viewerId].filter(Boolean)),
+    order.promotion_id ? Promotion.findByPk(order.promotion_id, { attributes: ['code'] }) : null,
+  ]);
+  const u = people.users || {};
+  const gross = Number(order.total_amount);
+  const discount = Number(order.discount_amount || 0);
+  const shippingFee = Number(order.shipping_fee || 0);
+  const pickup = order.shipping_address === PICKUP_ADDRESS;
+  const exchange = isExchangeOrder(order);
+  return {
+    // Số chứng từ: DH-ngày-6 ký tự đầu mã đơn (cùng cách với phiếu thanh toán / đơn thuốc bên booking)
+    doc_no: docNo(order),
+    clinic,
+    order: {
+      id: order.id, created_at: order.createdAt, status: order.status,
+      returned: RETURNED.includes(order.status), refund_status: order.refund_status,
+      // Đơn tại quầy: COD = khách trả tiền mặt tại quầy; đơn giao hàng: COD = trả khi nhận hàng
+      payment_method: order.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR)' : pickup ? 'Tiền mặt' : 'COD - trả khi nhận hàng',
+      note: order.note,
+    },
+    customer: { name: order.recipient_name, phone: order.shipping_phone, account_name: u[order.customer_id]?.full_name || null },
+    seller: u[order.consultant_id]?.full_name || null,
+    delivery: pickup ? null : { address: order.shipping_address, tracking_code: order.tracking_code || null },
+    items: order.OrderDetails.map((d) => ({ name: d.Product?.name || 'Sản phẩm', capacity: d.Product?.ProductDetail?.capacity || null, quantity: d.quantity, price: Number(d.price), amount: Number(d.price) * d.quantity, is_sale: !!d.is_sale })),
+    has_sale_item: order.OrderDetails.some((d) => d.is_sale),
+    exchange: exchange ? order.note : null,
+    totals: { gross, discount, voucher_code: promo?.code || null, shipping_fee: shippingFee, exchange, total: Math.max(0, gross - discount) + shippingFee },
+    // Lưu ý an toàn NVBH đã tư vấn khi bán (sàng lọc tại quầy)
+    safety: order.safety_screening?.warnings?.length ? order.safety_screening.warnings.map((w) => ({ severity: w.severity, label: w.severity_label, item: w.item, message: w.message })) : [],
+    printed_by: u[viewerId]?.full_name || null,
+    printed_at: new Date(),
+  };
+};
+
+// [CUSTOMER] GET /orders/:id/invoice.pdf — khách tải hóa đơn bán lẻ (PDF) của đơn đã nhận hàng
+const { renderOrderInvoicePdf } = require('../utils/orderInvoicePdf');
+const INVOICE_STATUSES = ['COMPLETED', ...RETURNED, 'RETURN_REJECTED'];
+const orderInvoicePdf = async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    const order = await loadOrder(req.params.id);
+    // Đơn của người khác => trả 404 như không có, không để lộ đơn đó tồn tại
+    if (!order || order.customer_id !== req.user.id) return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    if (order.appointment_id) return res.status(409).json({ code: 'IN_CLINIC_INVOICE', message: 'Mỹ phẩm mua sau buổi khám nằm trong phiếu thanh toán của lịch khám. Tải ở mục Sổ lịch khám.' });
+    if (!INVOICE_STATUSES.includes(order.status)) return res.status(409).json({ message: 'Đơn chưa giao thành công nên chưa có hóa đơn' });
+    const data = await buildOrderData(order, null);
+    data.stamp = order.status === 'RETURN_COMPLETED' ? 'ĐÃ TRẢ HÀNG' : null;
+    data.return_note = { RETURN_REQUESTED: 'Đơn đang có yêu cầu hoàn / trả hàng.', REFUND_PENDING: 'Đơn đã trả hàng, đang chờ hoàn tiền.' }[order.status] || null;
+    const pdf = await renderOrderInvoicePdf(data);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="hoa-don-${data.doc_no}.pdf"`,
+      'Content-Length': pdf.length,
+      'Cache-Control': 'private, no-store',
+    });
+    res.send(pdf);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+module.exports = { productPrintInfo, counterOrderPrint, orderInvoicePdf, buildOrderData };

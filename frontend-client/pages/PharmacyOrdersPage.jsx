@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Clock, PackageCheck, Truck, CheckCircle2, XCircle, MapPin, CreditCard, Star, Undo2 } from 'lucide-react';
+import { ShoppingBag, Clock, PackageCheck, Truck, CheckCircle2, XCircle, MapPin, CreditCard, Star, Undo2, Download } from 'lucide-react';
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import ReviewModal from '../components/ReviewModal';
@@ -48,6 +48,9 @@ const RETURN_STATUS = {
 const latestReturn = (order) => (order.OrderReturns || [])
   .filter((r) => r.status !== 'CANCELLED')
   .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+// Hóa đơn PDF: đơn đã nhận hàng (kể cả đã / đang hoàn trả); đơn mua sau khám dùng phiếu thanh toán của lịch khám
+const INVOICE_STATUSES = ['COMPLETED', 'RETURN_REQUESTED', 'RETURN_COMPLETED', 'RETURN_REJECTED', 'REFUND_PENDING'];
+const canDownloadInvoice = (order) => INVOICE_STATUSES.includes(order.status) && !order.appointment_id;
 const canRequestReturn = (order) => order.status === 'COMPLETED' && !!order.tracking_code && !latestReturn(order)
   && Date.now() <= new Date(order.updatedAt).getTime() + RETURN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
@@ -177,6 +180,29 @@ export default function PharmacyOrdersPage() {
     }
   };
 
+  // Tải hóa đơn bán lẻ (PDF) của đơn đã nhận hàng: server sinh file, trình duyệt lưu về máy
+  const [downloadingId, setDownloadingId] = useState(null);
+  const downloadInvoice = async (order) => {
+    setDownloadingId(order.id);
+    try {
+      const res = await axios.get(`/api/commerce/orders/${order.id}/invoice.pdf`, { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' });
+      const name = (res.headers['content-disposition'] || '').match(/filename="([^"]+)"/)?.[1] || `hoa-don-${order.id.slice(0, 8)}.pdf`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      // Lỗi trả về dạng blob => đọc lại thành chữ để hiện thông báo của server
+      const text = await err.response?.data?.text?.().catch(() => '');
+      let message = 'Không tải được hóa đơn, vui lòng thử lại sau';
+      try { message = JSON.parse(text).message || message; } catch { /* giữ thông báo mặc định */ }
+      alert(message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const handleSubmitReview = async ({ rating, comment }) => {
     const { order_id, product_id } = reviewTarget;
     const res = await axios.post('/api/commerce/reviews', { order_id, product_id, rating, comment }, {
@@ -295,11 +321,22 @@ export default function PharmacyOrdersPage() {
                   {ret.status === 'REJECTED' && ret.reject_reason && <p>Lý do: {ret.reject_reason}</p>}
                 </div>
               )}
-              {canRequestReturn(order) && (
-                <div className="flex justify-end">
-                  <button onClick={() => setReturnTarget(order)} className="btn btn-sm btn-outline gap-1">
-                    <Undo2 className="w-4 h-4" /> Yêu cầu hoàn / trả hàng
-                  </button>
+              {(canRequestReturn(order) || canDownloadInvoice(order) || (order.appointment_id && INVOICE_STATUSES.includes(order.status))) && (
+                <div className="flex flex-wrap justify-end items-center gap-2">
+                  {/* Mỹ phẩm mua sau buổi khám: đã nằm trong phiếu thanh toán của lịch khám */}
+                  {order.appointment_id && INVOICE_STATUSES.includes(order.status) && (
+                    <Link to="/appointments" className="text-xs text-slate-500 link">Hóa đơn nằm trong phiếu thanh toán ở Sổ lịch khám</Link>
+                  )}
+                  {canDownloadInvoice(order) && (
+                    <button onClick={() => downloadInvoice(order)} disabled={downloadingId === order.id} className="btn btn-sm btn-outline btn-primary gap-1">
+                      {downloadingId === order.id ? <span className="loading loading-spinner loading-xs" /> : <Download className="w-4 h-4" />} Hóa đơn (PDF)
+                    </button>
+                  )}
+                  {canRequestReturn(order) && (
+                    <button onClick={() => setReturnTarget(order)} className="btn btn-sm btn-outline gap-1">
+                      <Undo2 className="w-4 h-4" /> Yêu cầu hoàn / trả hàng
+                    </button>
+                  )}
                 </div>
               )}
 
