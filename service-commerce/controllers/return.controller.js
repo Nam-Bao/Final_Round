@@ -2,6 +2,9 @@ const { sequelize, Product, ProductDetail, Order, OrderDetail, OrderReturn } = r
 const { Op } = require('sequelize');
 const axios = require('axios');
 const { SALE_FIELDS, onlinePrice, activeSalePercent } = require('../utils/pricing');
+const pointsLib = require('../utils/points');
+// Đơn trả bằng Điểm GlowSkin: hoàn tiền = hoàn điểm (không cần tài khoản ngân hàng, không chuyển khoản tiền mặt)
+const paidByPoints = (order) => order?.payment_method === 'POINTS';
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const { sendRefundClaim } = require('../utils/refundClaim');
 
@@ -21,6 +24,9 @@ const PACKAGING_WEIGHT = 300; // gram, khớp với đơn giao đi
 // Hàng khuyến mãi: không hoàn tiền, lỗi / giao sai thì chỉ đổi đúng sản phẩm đó.
 const RESOLUTIONS = { EXCHANGE: 'Đổi sản phẩm', REFUND: 'Hoàn tiền' };
 const SALE_RULE = 'Hàng khuyến mãi không hoàn tiền, nếu lỗi chỉ đổi đúng sản phẩm đó';
+// Hàng khuyến mãi lỗi mà hết hàng để đổi: không để khách bị kẹt => đổi sản phẩm tương đương (không vượt giá thực trả),
+// khách không đồng ý thì hoàn tiền theo giá thực trả. Server tự kiểm tra tồn kho, nhân viên không tự bỏ qua được.
+const SALE_OUT_OF_STOCK_RULE = 'Hàng khuyến mãi lỗi mà hết hàng để đổi: đổi sản phẩm tương đương (không vượt giá đã trả) hoặc hoàn tiền nếu khách không đồng ý';
 // Mua lúc đang khuyến mãi: cờ is_sale ghi lúc đặt hàng; đơn cũ trước khi có cờ => giá mua thấp hơn giá niêm yết
 const isSaleDetail = (detail) => !!detail.is_sale || (detail.Product && Number(detail.price) < Number(detail.Product.price));
 const hasSaleItem = (ret) => (ret.items || []).some((i) => i.is_sale);
@@ -35,9 +41,19 @@ const isEvidenceUrl = (url) => typeof url === 'string' && /^https:\/\/res\.cloud
 
 const ACTIVE_STATUSES = ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED'];
 // Đã có 1 yêu cầu ở các trạng thái này thì đơn không được yêu cầu hoàn trả lần nữa
-const BLOCKING_STATUSES = [...ACTIVE_STATUSES, 'REFUNDED', 'REJECTED'];
+// EXCHANGED (đã đổi hàng): khách đã nhận hàng thay thế, không được gửi thêm yêu cầu cho đơn gốc (trước đây thiếu => đổi xong vẫn đòi hoàn tiền được)
+const BLOCKING_STATUSES = [...ACTIVE_STATUSES, 'REFUNDED', 'REJECTED', 'EXCHANGED'];
 
 class ReturnError extends Error {}
+
+// Hàng khuyến mãi trong yêu cầu đang hết hàng (tồn kho < số lượng khách trả) => [tên sản phẩm]. Rỗng: còn đủ hàng để đổi đúng sản phẩm.
+const saleShortage = async (ret, transaction) => {
+  const sale = (ret.items || []).filter((i) => i.is_sale);
+  if (!sale.length) return [];
+  const stock = Object.fromEntries((await Product.findAll({ where: { id: sale.map((i) => i.product_id) }, attributes: ['id', 'stock_quantity'], transaction, raw: true }))
+    .map((p) => [p.id, Number(p.stock_quantity || 0)]));
+  return sale.filter((i) => (stock[i.product_id] || 0) < i.quantity).map((i) => i.name);
+};
 
 // Đơn COMPLETED không còn bị sửa gì sau đó, nên updatedAt chính là thời điểm khách nhận hàng
 const returnDeadline = (order) => new Date(new Date(order.updatedAt).getTime() + RETURN_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -62,13 +78,14 @@ exports.refundGoodsValue = refundGoodsValue;
 
 const sendError = (res, error, fallback) => {
   if (error instanceof ReturnError) return res.status(400).json({ success: false, message: error.message });
+  if (error instanceof pointsLib.PointsError) return res.status(error.status).json({ success: false, message: error.message });
   console.error(fallback, error.response?.data || error.message);
   return res.status(500).json({ success: false, message: fallback });
 };
 
 // [PUBLIC] Quy định hoàn trả để frontend hiển thị
 exports.getReturnPolicy = (req, res) => {
-  res.status(200).json({ data: { window_days: RETURN_WINDOW_DAYS, reasons: RETURN_REASONS, max_images: MAX_IMAGES, resolutions: RESOLUTIONS, sale_rule: SALE_RULE } });
+  res.status(200).json({ data: { window_days: RETURN_WINDOW_DAYS, reasons: RETURN_REASONS, max_images: MAX_IMAGES, resolutions: RESOLUTIONS, sale_rule: SALE_RULE, sale_out_of_stock_rule: SALE_OUT_OF_STOCK_RULE } });
 };
 
 // ==========================================
@@ -91,7 +108,6 @@ exports.createReturn = async (req, res) => {
   if (images.length < 1 || images.length > MAX_IMAGES || !images.every(isEvidenceUrl)) {
     return res.status(400).json({ success: false, message: `Cần 1 - ${MAX_IMAGES} ảnh bằng chứng tải lên từ hệ thống` });
   }
-  if (resolution === 'REFUND' && bankError(bank)) return res.status(400).json({ success: false, message: bankError(bank) });
   if (agree !== true) return res.status(400).json({ success: false, message: 'Bạn cần xác nhận đồng ý với quy định hoàn trả' });
 
   const t = await sequelize.transaction();
@@ -100,6 +116,8 @@ exports.createReturn = async (req, res) => {
     const order = await Order.findOne({ where: { id: order_id, customer_id }, transaction: t, lock: t.LOCK.UPDATE });
     if (!order) throw new ReturnError('Không tìm thấy đơn hàng');
     assertOrderReturnable(order);
+    if (resolution === 'REFUND' && !paidByPoints(order) && bankError(bank)) throw new ReturnError(bankError(bank));
+    if (paidByPoints(order)) Object.assign(bank, { bank_name: null, bank_account: null, bank_holder: null });
 
     const existed = await OrderReturn.findOne({ where: { order_id, status: BLOCKING_STATUSES }, transaction: t });
     if (existed) throw new ReturnError('Đơn này đã có yêu cầu hoàn trả, mỗi đơn chỉ được yêu cầu một lần');
@@ -276,13 +294,22 @@ exports.receiveReturn = (req, res) => withReturn(req, res, ['PICKING'], async (r
 // [SALES] Kiểm tra hàng đạt => ghi nhận đã chuyển khoản hoàn tiền; tùy chọn nhập lại kho nếu hàng còn bán được
 exports.refundReturn = (req, res) => {
   const refund_ref = String(req.body.refund_ref || '').trim();
-  if (refund_ref.length < 4 || refund_ref.length > 50) {
-    return res.status(400).json({ success: false, message: 'Nhập mã giao dịch chuyển khoản hoàn tiền (4 - 50 ký tự)' });
-  }
   const restock = req.body.restock === true;
   return withReturn(req, res, ['RECEIVED'], async (ret, t) => {
-    if (hasSaleItem(ret)) throw new ReturnError(`${SALE_RULE}. Hãy chọn "Đạt - Đổi hàng"`);
+    if (ret.resolution !== 'REFUND' && hasSaleItem(ret)) throw new ReturnError(`${SALE_RULE}. Hãy chọn "Đạt - Đổi hàng"`);
     if (ret.resolution !== 'REFUND') throw new ReturnError('Khách chọn đổi sản phẩm. Hãy chọn "Đạt - Đổi hàng", hoặc chuyển sang hoàn tiền nếu không còn hàng để đổi');
+    const order = await Order.findByPk(ret.order_id, { transaction: t });
+    if (paidByPoints(order)) {
+      // Đơn trả bằng điểm: hoàn điểm theo giá trị hàng trả (1:1), không chuyển khoản
+      const { value_vnd: valueVnd } = await pointsLib.balance(ret.customer_id);
+      const pts = pointsLib.toPointsFloor(ret.refund_amount, valueVnd);
+      if (restock) for (const item of ret.items) await Product.increment('stock_quantity', { by: item.quantity, where: { id: item.product_id }, transaction: t });
+      await pointsLib.credit({ customerId: ret.customer_id, points: pts, type: 'RETURN_REFUND', referenceType: 'RETURN', referenceId: ret.id, note: `Hoàn điểm hàng trả lại đơn #${String(order.id).slice(0, 8).toUpperCase()}`, amountVnd: Number(ret.refund_amount), orderId: order.id });
+      Object.assign(ret, { status: 'REFUNDED', refund_ref: `POINTS:${pts}`, restocked: restock, refunded_at: new Date(), handled_by: req.user.id });
+      t.afterCommit(() => returnUpdate(ret, { status: 'REFUNDED', points: pts }));
+      return;
+    }
+    if (refund_ref.length < 4 || refund_ref.length > 50) throw new ReturnError('Nhập mã giao dịch chuyển khoản hoàn tiền (4 - 50 ký tự)');
     // Tài khoản nhận hoàn là tài khoản khách khai khi gửi yêu cầu; ghi khoản hoàn để quản lý đối chiếu tiền ra
     t.afterCommit(() => sendRefundClaim({
       source: 'RETURN', source_id: ret.id, customer_id: ret.customer_id, amount: Number(ret.refund_amount), bank_ref: refund_ref,
@@ -318,7 +345,8 @@ exports.exchangeReturn = (req, res) => {
     for (const i of ret.items) returnedQty[i.product_id] = (returnedQty[i.product_id] || 0) + i.quantity;
     if (hasSaleItem(ret)) {
       const same = Object.keys(want).length === Object.keys(returnedQty).length && Object.entries(returnedQty).every(([p, q]) => want[p] === q);
-      if (!same) throw new ReturnError(`${SALE_RULE}: chỉ đổi đúng sản phẩm và số lượng khách đã trả`);
+      // Hết hàng khuyến mãi để đổi => cho đổi sản phẩm tương đương, tổng giá trị không vượt giá khách thực trả (kiểm tra ở dưới)
+      if (!same && !(await saleShortage(ret, t)).length) throw new ReturnError(`${SALE_RULE}: chỉ đổi đúng sản phẩm và số lượng khách đã trả (sản phẩm còn hàng)`);
     }
 
     const products = await Product.findAll({ where: { id: Object.keys(want), type: 'PRODUCT' }, include: [{ model: ProductDetail, attributes: SALE_FIELDS }], transaction: t });
@@ -344,17 +372,27 @@ exports.exchangeReturn = (req, res) => {
       status: 'CONFIRMED', payment_method: 'COD',
     }, { transaction: t });
     await OrderDetail.bulkCreate(lines.map((l) => ({ order_id: exchangeOrder.id, product_id: l.product.id, quantity: l.quantity, price: l.price, weight: l.product.weight || 200, is_sale: l.is_sale })), { transaction: t });
+    // Đổi sang sản phẩm rẻ hơn (kể cả đã thêm sản phẩm bù): phần chênh còn lại cộng thành Điểm GlowSkin, khách không bị thiệt
+    let diffPoints = 0;
+    if (returnedValue - value > 0) {
+      const { value_vnd: valueVnd } = await pointsLib.balance(ret.customer_id);
+      diffPoints = pointsLib.toPointsFloor(returnedValue - value, valueVnd);
+      await pointsLib.credit({ customerId: ret.customer_id, points: diffPoints, type: 'EXCHANGE_DIFF', referenceType: 'RETURN', referenceId: ret.id, note: `Chênh lệch đổi hàng đơn #${String(order.id).slice(0, 8).toUpperCase()}`, amountVnd: returnedValue - value, orderId: order.id });
+    }
     Object.assign(ret, { status: 'EXCHANGED', exchange_order_id: exchangeOrder.id, restocked: restock, handled_by: req.user.id });
-    t.afterCommit(() => returnUpdate(ret, { status: 'EXCHANGED', exchange_order_id: exchangeOrder.id }));
+    t.afterCommit(() => returnUpdate(ret, { status: 'EXCHANGED', exchange_order_id: exchangeOrder.id, diff_points: diffPoints }));
   }, 'Đã tạo đơn giao hàng đổi, hãy đóng gói và tạo vận đơn GHN như đơn thường');
 };
 
 // [SALES] PUT /returns/admin/:id/to-refund { bank_name, bank_account, bank_holder } — không còn hàng để đổi, khách đồng ý nhận tiền
 exports.switchToRefund = (req, res) => {
   const bank = bankInfo(req.body);
-  if (bankError(bank)) return res.status(400).json({ success: false, message: bankError(bank) });
-  return withReturn(req, res, ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED'], async (ret) => {
-    if (hasSaleItem(ret)) throw new ReturnError(SALE_RULE);
+  return withReturn(req, res, ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED'], async (ret, t) => {
+    const order = await Order.findByPk(ret.order_id, { attributes: ['payment_method'], transaction: t });
+    if (paidByPoints(order)) Object.assign(bank, { bank_name: null, bank_account: null, bank_holder: null });
+    else if (bankError(bank)) throw new ReturnError(bankError(bank));
+    // Hàng khuyến mãi: chỉ chuyển sang hoàn tiền khi hết hàng để đổi (khách không nhận sản phẩm tương đương)
+    if (hasSaleItem(ret) && !(await saleShortage(ret, t)).length) throw new ReturnError(`${SALE_RULE}. Sản phẩm còn hàng, hãy đổi đúng sản phẩm`);
     if (ret.resolution === 'REFUND') throw new ReturnError('Yêu cầu này đã là hoàn tiền');
     Object.assign(ret, { resolution: 'REFUND', ...bank, handled_by: req.user.id });
   }, 'Đã chuyển yêu cầu sang hoàn tiền');

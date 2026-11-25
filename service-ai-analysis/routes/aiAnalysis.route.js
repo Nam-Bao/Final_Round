@@ -3,7 +3,7 @@ const router = express.Router();
 const aiAnalysisController = require('../controllers/aiAnalysis.controller');
 const analysisReview = require('../controllers/analysisReview.controller');
 const queue = require('../controllers/skinReviewQueue.controller');
-const { consultChat } = require('../controllers/consultChat.controller');
+const chatbot = require('../controllers/chatbot.controller');
 const { verifyToken, optionalAuth, authorizeRoles, systemOnly } = require('../middlewares/auth.middleware.js');
 const clinic = require('../controllers/clinicScan.controller');
 const face = require('../controllers/face.controller');
@@ -58,8 +58,24 @@ router.get('/quota', optionalAuth, async (req, res) => {
   try { res.status(200).json({ success: true, data: await getQuota(req) }); }
   catch (err) { res.status(503).json({ success: false, message: 'Không kiểm tra được hạn mức' }); }
 });
-// Chatbot tư vấn trên web khách (gateway: POST /api/ai/chat) - trả lời dạng stream
-router.post('/chat', optionalAuth, chatLimiter, consultChat);
+// Chatbot tư vấn trên web khách (gateway: POST /api/ai/chat): RAG trên kho kiến thức, trả JSON kèm nguồn trích dẫn.
+// Dữ liệu riêng (lịch hẹn, điểm, đơn hàng) chỉ xem khi khách đồng ý trong phiên chat (/chat/consent)
+router.post('/chat', optionalAuth, chatLimiter, chatbot.chat);
+const customerOnly = [verifyToken, authorizeRoles('CUSTOMER')];
+router.get('/chat/consent', customerOnly, chatbot.listConsent);
+router.post('/chat/consent', customerOnly, chatbot.grantConsent);
+router.delete('/chat/consent', customerOnly, chatbot.revokeConsent);
+// Kho kiến thức RAG (chatbot + AI rà soát đơn): quản lý xem tình trạng, nạp lại ngay
+router.get('/knowledge/status', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN'), chatbot.knowledgeStatus);
+router.post('/knowledge/reindex', verifyToken, authorizeRoles('GEN_MANAGER', 'ADMIN'), chatbot.reindex);
+// Trợ lý AI cho nhân viên (RAG): CSKH gợi ý câu trả lời khi chat với khách; soạn quy tắc an toàn thì tìm quy tắc trùng / mâu thuẫn
+const assistLimiter = rateLimit({ windowMs: 60 * 60 * 1000, guestMax: 0, userMax: 120, message: 'Đã dùng trợ lý AI quá nhiều lần, vui lòng thử lại sau' });
+router.post('/assist/reply-draft', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), assistLimiter, chatbot.draftReply);
+router.post('/assist/similar-rules', verifyToken, authorizeRoles('GEN_MANAGER', 'DOCTOR'), assistLimiter, chatbot.similarRules);
+const staffAll = authorizeRoles('DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES', 'EXPERT', 'GEN_MANAGER', 'ADMIN');
+router.post('/assist/handbook', verifyToken, staffAll, assistLimiter, chatbot.handbookAsk); // sổ tay quy trình nội bộ
+router.get('/assist/handbook/topics', verifyToken, staffAll, chatbot.handbookTopics);
+router.post('/assist/product-advice', verifyToken, authorizeRoles('SALES', 'GEN_MANAGER', 'ADMIN'), assistLimiter, chatbot.productAdvice); // NVBH tư vấn tại quầy
 
 // Endpoint: POST /api/ai/safety-review — service-booking gửi dữ liệu ca khám đã gom, AI rà soát đơn kê (bác sĩ tham khảo)
 const safetyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, guestMax: 0, userMax: 60, message: 'Đã dùng AI rà soát quá nhiều lần, vui lòng thử lại sau' });

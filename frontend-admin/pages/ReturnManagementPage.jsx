@@ -29,6 +29,8 @@ const REASONS = {
 // Bước cuối theo cách xử lý khách chọn: đổi hàng (mặc định) hoặc hoàn tiền
 const stepsOf = (r) => ['PENDING', 'APPROVED', 'PICKING', 'RECEIVED', r?.resolution === 'REFUND' ? 'REFUNDED' : 'EXCHANGED'];
 const hasSale = (r) => (r?.items || []).some((i) => i.is_sale);
+// Đơn khách trả bằng Điểm GlowSkin: "hoàn tiền" = hoàn điểm (không chuyển khoản, không cần tài khoản)
+const paidPoints = (r) => r?.Order?.payment_method === 'POINTS';
 const FILTERS = [
   { value: 'TODO', label: 'Cần xử lý' },
   { value: 'ALL', label: 'Tất cả' },
@@ -199,13 +201,13 @@ export default function ReturnManagementPage() {
                   {selected.resolution === 'REFUND' ? (
                     <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: chuyển khoản {vnd(selected.refund_amount)} cho khách rồi ghi nhận mã giao dịch. Không đạt: từ chối và liên hệ gửi trả hàng cho khách.</p>
                   ) : (
-                    <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: tạo đơn giao hàng đổi (0đ), rồi đóng gói và tạo vận đơn ở Quản lý đơn hàng như đơn thường. {hasSale(selected) ? 'Hàng khuyến mãi: chỉ đổi đúng sản phẩm, không hoàn tiền.' : 'Hết hàng: đổi sản phẩm khác không vượt giá trị hàng trả, hoặc chuyển sang hoàn tiền nếu khách đồng ý.'}</p>
+                    <p className="text-xs text-slate-500">Kiểm tra sản phẩm nhận về đúng mô tả, đủ số lượng. Đạt: tạo đơn giao hàng đổi (0đ), rồi đóng gói và tạo vận đơn ở Quản lý đơn hàng như đơn thường. {hasSale(selected) ? 'Hàng khuyến mãi: còn hàng thì chỉ đổi đúng sản phẩm. Hết hàng: đổi sản phẩm tương đương (không vượt giá khách đã trả), khách không đồng ý thì chuyển sang hoàn tiền.' : 'Hết hàng: đổi sản phẩm khác không vượt giá trị hàng trả (thiếu thì chọn thêm sản phẩm bù), hoặc chuyển sang hoàn tiền nếu khách đồng ý.'}</p>
                   )}
                   <Space wrap>
                     {selected.resolution === 'REFUND'
-                      ? <Button type="primary" onClick={() => { setRefundRef(''); setRestock(selected.reason === 'WRONG_ITEM'); setRefundOpen(true); }}>Đạt - Ghi nhận hoàn tiền</Button>
+                      ? <Button type="primary" onClick={() => { setRefundRef(''); setRestock(selected.reason === 'WRONG_ITEM'); setRefundOpen(true); }}>{paidPoints(selected) ? 'Đạt - Hoàn điểm cho khách' : 'Đạt - Ghi nhận hoàn tiền'}</Button>
                       : <Button type="primary" onClick={openExchange}>Đạt - Đổi hàng</Button>}
-                    {selected.resolution !== 'REFUND' && !hasSale(selected) && (
+                    {selected.resolution !== 'REFUND' && (
                       <Button onClick={() => { setBank({ bank_name: '', bank_account: '', bank_holder: '' }); setToRefundOpen(true); }}>Không còn hàng - Chuyển sang hoàn tiền</Button>
                     )}
                     <Button danger onClick={() => { setRejectReason(''); setRejectOpen(true); }}>Không đạt - Từ chối</Button>
@@ -226,9 +228,17 @@ export default function ReturnManagementPage() {
         <Input.TextArea rows={3} maxLength={500} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
       </Modal>
 
-      <Modal title="Ghi nhận hoàn tiền" open={refundOpen} onCancel={() => setRefundOpen(false)} okText="Xác nhận đã hoàn tiền" okButtonProps={{ loading: acting }}
+      <Modal title={paidPoints(selected) ? 'Hoàn điểm cho khách' : 'Ghi nhận hoàn tiền'} open={refundOpen} onCancel={() => setRefundOpen(false)} okText={paidPoints(selected) ? 'Hoàn điểm' : 'Xác nhận đã hoàn tiền'} okButtonProps={{ loading: acting }}
         onOk={async () => { if (await act('refund', { refund_ref: refundRef, restock })) setRefundOpen(false); }}>
-        {selected && (
+        {selected && paidPoints(selected) && (
+          <div className="space-y-3">
+            <p className="text-sm">Đơn khách trả bằng Điểm GlowSkin: hệ thống cộng lại điểm tương ứng {vnd(selected.refund_amount)} (1:1), không chuyển khoản tiền mặt.</p>
+            <Checkbox checked={restock} onChange={(e) => setRestock(e.target.checked)}>
+              Nhập lại kho (chỉ chọn khi sản phẩm còn nguyên vẹn, bán lại được)
+            </Checkbox>
+          </div>
+        )}
+        {selected && !paidPoints(selected) && (
           <div className="space-y-3">
             <RefundTransferNote sourceId={selected.id} amount={selected.refund_amount} />
             <p className="text-sm">Tài khoản khách: <b>{selected.bank_name} · {selected.bank_account} · {selected.bank_holder}</b></p>
@@ -245,22 +255,30 @@ export default function ReturnManagementPage() {
         {selected && (
           <div className="space-y-3">
             <p className="text-sm text-slate-500">
-              {hasSale(selected) ? 'Hàng khuyến mãi: chỉ đổi đúng sản phẩm và số lượng khách đã trả.' : 'Mặc định đổi đúng sản phẩm. Hết hàng thì chọn sản phẩm khác, tổng giá trị không vượt giá trị hàng trả.'}
+              {hasSale(selected)
+                ? 'Hàng khuyến mãi: còn hàng thì đổi đúng sản phẩm, đúng số lượng. Chỉ khi hết hàng mới được chọn sản phẩm tương đương (hệ thống kiểm tra tồn kho).'
+                : 'Mặc định đổi đúng sản phẩm. Hết hàng thì chọn sản phẩm khác, tổng giá trị không vượt giá trị hàng trả. Chọn sản phẩm rẻ hơn thì thêm sản phẩm bù để khách không bị thiệt.'}
             </p>
             {exchangeLines.map((l, idx) => (
               <Space key={idx} className="w-full" align="center">
-                <select className="border rounded px-2 py-1 text-sm" style={{ width: 330 }} disabled={hasSale(selected)} value={l.product_id}
+                <select className="border rounded px-2 py-1 text-sm" style={{ width: 330 }} value={l.product_id}
                   onChange={(e) => setExchangeLines(exchangeLines.map((x, i) => (i === idx ? { ...x, product_id: e.target.value } : x)))}>
                   {[...selected.items.map((i) => ({ id: i.product_id, name: i.name })), ...products.filter((p) => !selected.items.some((i) => i.product_id === p.id))]
                     .map((p) => <option key={p.id} value={p.id}>{p.name}{p.stock_quantity != null ? ` (còn ${p.stock_quantity})` : ''}</option>)}
                 </select>
-                <Input type="number" min={1} style={{ width: 70 }} disabled={hasSale(selected)} value={l.quantity}
+                <Input type="number" min={1} style={{ width: 70 }} value={l.quantity}
                   onChange={(e) => setExchangeLines(exchangeLines.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) } : x)))} />
+                {exchangeLines.length > 1 && <Button size="small" danger type="text" onClick={() => setExchangeLines(exchangeLines.filter((_, i) => i !== idx))}>Bỏ</Button>}
               </Space>
             ))}
+            {/* Đổi sang sản phẩm rẻ hơn: thêm sản phẩm bù cho đủ giá trị, khách không bị thiệt phần chênh */}
+            <Button size="small" type="dashed" onClick={() => setExchangeLines([...exchangeLines, { product_id: products[0]?.id || selected.items[0].product_id, quantity: 1 }])}>+ Thêm sản phẩm bù</Button>
             <p className={`text-sm ${exchangeValue > returnedValue ? 'text-red-600' : 'text-slate-600'}`}>
               Giá trị hàng đổi: <b>{vnd(exchangeValue)}</b> / hàng khách trả: <b>{vnd(returnedValue)}</b>{exchangeValue > returnedValue ? ' (vượt, hãy chọn lại)' : ''}
             </p>
+            {exchangeValue < returnedValue && (
+              <p className="text-sm text-amber-700 -mt-2">Còn <b>{vnd(returnedValue - exchangeValue)}</b>: chọn thêm sản phẩm bù, hoặc phần chênh còn lại sẽ được <b>cộng thành Điểm GlowSkin</b> cho khách.</p>
+            )}
             <Checkbox checked={restock} onChange={(e) => setRestock(e.target.checked)}>
               Nhập lại kho hàng khách trả (chỉ chọn khi còn nguyên vẹn, bán lại được)
             </Checkbox>
@@ -270,8 +288,8 @@ export default function ReturnManagementPage() {
 
       <Modal title="Chuyển sang hoàn tiền" open={toRefundOpen} onCancel={() => setToRefundOpen(false)} okText="Chuyển sang hoàn tiền" okButtonProps={{ loading: acting }}
         onOk={async () => { if (await act('to-refund', bank)) setToRefundOpen(false); }}>
-        <p className="text-sm text-slate-500 mb-2">Chỉ dùng khi không còn hàng để đổi và khách đồng ý nhận tiền. Nhập tài khoản khách cung cấp.</p>
-        <div className="space-y-2">
+        <p className="text-sm text-slate-500 mb-2">{paidPoints(selected) ? 'Chỉ dùng khi không còn hàng để đổi. Đơn trả bằng điểm: khách được hoàn lại điểm, không cần tài khoản.' : 'Chỉ dùng khi không còn hàng để đổi và khách đồng ý nhận tiền. Nhập tài khoản khách cung cấp.'}</p>
+        <div className={`space-y-2 ${paidPoints(selected) ? 'hidden' : ''}`}>
           <Input placeholder="Ngân hàng" value={bank.bank_name} onChange={(e) => setBank({ ...bank, bank_name: e.target.value })} />
           <Input placeholder="Số tài khoản" value={bank.bank_account} onChange={(e) => setBank({ ...bank, bank_account: e.target.value })} />
           <Input placeholder="Tên chủ tài khoản" value={bank.bank_holder} onChange={(e) => setBank({ ...bank, bank_holder: e.target.value })} />

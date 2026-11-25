@@ -170,7 +170,14 @@ const aiReview = async (req, res) => {
       .map((w) => ({ ...w, item: names.find((n) => n.toLowerCase() === String(w.item || '').trim().toLowerCase()) }))
       .filter((w) => AI_SEVERITY[w.severity] && w.item)
       .slice(0, 8)
-      .map((w) => ({ item: w.item, severity: w.severity, severity_label: AI_SEVERITY[w.severity], message: clip(w.message, 500), basis: clip(w.basis, 300) }));
+      .map((w) => ({
+        item: w.item, severity: w.severity, severity_label: AI_SEVERITY[w.severity], message: clip(w.message, 500), basis: clip(w.basis, 300),
+        // Quy tắc của phòng khám (có nguồn y khoa) mà AI dựa vào, do service AI tìm trong kho kiến thức (RAG)
+        citations: (Array.isArray(w.citations) ? w.citations : []).slice(0, 3).map((c) => ({
+          ref: clip(c.ref, 10), title: clip(c.title, 300), severity_label: clip(c.severity_label, 40),
+          sources: (Array.isArray(c.sources) ? c.sources : []).slice(0, 3).map((x) => ({ label: clip(x?.label, 300), url: /^https?:\/\//i.test(String(x?.url || '')) ? clip(x.url, 1000) : null })),
+        })),
+      }));
     // Sản phẩm AI cảnh báo thêm (mức Thận trọng / Chống chỉ định) cũng được tìm sản phẩm thay thế theo quy tắc
     const aiFlagged = new Set(warnings.filter((w) => w.severity !== 'INFO' && !flaggedNames.has(w.item)).map((w) => w.item));
     if (aiFlagged.size) alternatives.push(...alternativesFor(aiFlagged, alternatives.map((x) => x.product_id)));

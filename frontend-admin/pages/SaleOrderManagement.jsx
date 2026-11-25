@@ -57,7 +57,7 @@ export default function SaleOrderManagement() {
   const [refunding, setRefunding] = useState(null); // { order, account, ref }
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  
+
   // State quản lý việc bấm nút test Webhook
   const [isSimulating, setIsSimulating] = useState(false);
 
@@ -66,7 +66,7 @@ export default function SaleOrderManagement() {
       const res = await axios.get('http://localhost:4000/api/commerce/orders/admin', authConfig());
       const data = res.data.data || [];
       setOrders(data);
-      
+
       // Nếu đang mở 1 đơn hàng, cập nhật lại dữ liệu mới nhất cho đơn đó
       if (selectedOrder) {
         const updatedSelected = data.find(o => o.id === selectedOrder.id);
@@ -141,11 +141,11 @@ export default function SaleOrderManagement() {
         OrderCode: trackingCode,
         Status: 'delivered' // Giả lập trạng thái Shipper giao thành công
       };
-      
+
       // Bắn trực tiếp vào API Webhook của backend
       // Webhook nhận nhân viên đã đăng nhập (giả lập) hoặc khoá GHN_WEBHOOK_SECRET (GHN gọi thật)
       await axios.post('http://localhost:4000/api/commerce/orders/ghn-webhook', payload, authConfig());
-      
+
       alert('Tín hiệu Webhook đã được nhận thành công! Đơn hàng sẽ tự nhảy sang Hoàn Thành.');
       fetchOrders(); // Tải lại danh sách
     } catch (error) {
@@ -167,7 +167,7 @@ export default function SaleOrderManagement() {
 
   return (
     <div className="w-full p-6 flex flex-col lg:flex-row gap-6 min-h-screen bg-slate-50">
-      
+
       {/* CỘT TRÁI: DANH SÁCH ĐƠN HÀNG */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center justify-between gap-3 mb-4">
@@ -294,7 +294,7 @@ export default function SaleOrderManagement() {
                     <span className="text-slate-700 leading-snug">{selectedOrder.shipping_address}</span>
                   </p>
                 </div>
-                
+
                 {/* KHỐI HIỂN THỊ MÃ VẬN ĐƠN (chỉ có từ bước Đang giao) */}
                 {selectedOrder.tracking_code && (
                   <div className="mt-3 bg-blue-50/80 border border-blue-200 p-4 rounded-xl flex items-center justify-between">
@@ -314,8 +314,9 @@ export default function SaleOrderManagement() {
                 <div className="bg-slate-50 p-4 rounded-xl text-sm border border-slate-100 flex items-center justify-between gap-2">
                   <span className="font-bold text-slate-800">
                     {isCounterOrder(selectedOrder)
-                      ? `Thanh toán tại quầy (${selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'chuyển khoản' : 'tiền mặt'})`
-                      : selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR - SePay)' : 'Thanh toán khi nhận hàng (COD)'}
+                      ? `Thanh toán tại quầy (${selectedOrder.payment_method === 'POINTS' ? `${Number(selectedOrder.points_used || 0).toLocaleString('vi-VN')} Điểm GlowSkin` : selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'chuyển khoản' : 'tiền mặt'})`
+                      : selectedOrder.payment_method === 'POINTS' ? `Điểm GlowSkin (${Number(selectedOrder.points_used || 0).toLocaleString('vi-VN')} điểm, đã thanh toán)`
+                        : selectedOrder.payment_method === 'VIETQR_SEPAY' ? 'Chuyển khoản (VietQR - SePay)' : 'Thanh toán khi nhận hàng (COD)'}
                   </span>
                   {isCounterOrder(selectedOrder) ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">Đã thu tiền</span>
@@ -428,8 +429,14 @@ export default function SaleOrderManagement() {
                   </div>
                 </div>
               )}
+              {selectedOrder.refund_status === 'PENDING' && selectedOrder.refund_account && (
+                <p className="text-sm text-slate-700 bg-rose-50 border border-rose-100 p-3 rounded-xl">Khách tự hủy, tài khoản nhận hoàn: <b>{selectedOrder.refund_account}</b></p>
+              )}
+              {selectedOrder.refund_status === 'POINTS' && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 p-3 rounded-xl">Đã hoàn bằng Điểm GlowSkin cho khách (không chuyển khoản).</p>
+              )}
               {selectedOrder.refund_status === 'PENDING' && (
-                <button onClick={() => setRefunding({ order: selectedOrder, account: '', ref: '' })} className="w-full py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700">
+                <button onClick={() => setRefunding({ order: selectedOrder, account: selectedOrder.refund_account || '', ref: '' })} className="w-full py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700">
                   Đã hoàn {Number(selectedOrder.refund_amount).toLocaleString('vi-VN')} ₫ cho khách
                 </button>
               )}

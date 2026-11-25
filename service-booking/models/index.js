@@ -662,11 +662,12 @@ const PointTransaction = sequelize.define('PointTransaction', {
     customer_id: { type: DataTypes.UUID, allowNull: false },
     delta: { type: DataTypes.INTEGER, allowNull: false },               // + cộng điểm, - trừ điểm
     type: { type: DataTypes.STRING(30), allowNull: false },
-    reference_type: { type: DataTypes.STRING(20) },                    // APPOINTMENT | CONSULTATION
+    reference_type: { type: DataTypes.STRING(20) },                    // APPOINTMENT | CONSULTATION | ORDER | RETURN | POINT (dòng EXPIRE trỏ tới lần cộng điểm)
     reference_id: { type: DataTypes.UUID },
     value_vnd: { type: DataTypes.INTEGER },                            // số tiền tương ứng lúc ghi (để đối chiếu nếu tỷ lệ đổi sau này)
     note: { type: DataTypes.STRING(500) },
     created_by: { type: DataTypes.UUID },                              // null = khách tự thao tác
+    expires_at: { type: DataTypes.DATE },                              // hạn dùng của lần cộng điểm (null ở dữ liệu cũ = ngày tạo + POINT_EXPIRE_MONTHS)
 }, {
     // Mỗi lịch chỉ hoàn điểm 1 lần, chỉ trừ điểm 1 lần
     indexes: [{ fields: ['customer_id'] }, { unique: true, fields: ['type', 'reference_id'] }],
@@ -676,7 +677,7 @@ const PointTransaction = sequelize.define('PointTransaction', {
 const addMissingColumns = async () => {
     const qi = sequelize.getQueryInterface();
     const added = [];
-    for (const model of [AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog, BankTransaction, PatientSafety, SafetyRule, SafetyTarget, SafetySource, SafetyRuleReview]) {
+    for (const model of [PointTransaction, AttendanceRecord, Consultation, Appointment, Payroll, FollowUpLog, BankTransaction, PatientSafety, SafetyRule, SafetyTarget, SafetySource, SafetyRuleReview]) {
         const table = model.getTableName();
         const existing = await qi.describeTable(table);
         for (const [name, attr] of Object.entries(model.getAttributes())) {

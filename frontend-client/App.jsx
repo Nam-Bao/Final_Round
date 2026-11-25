@@ -44,33 +44,53 @@ import ContactButtons from './components/ContactButtons';
 // ====== CHATBOT AI ======
 // Gemini chạy ở service-ai-analysis, frontend không giữ API key. Chưa đăng nhập vẫn chat với AI được
 // (chat với CSKH mới bắt buộc đăng nhập)
-async function streamConsultReply(messages, token, onText) {
+// Trả JSON { text, sources, consent_request?, personal_used }. session_id: mỗi lần mở trang một phiên chat,
+// khách đồng ý cho chatbot xem dữ liệu riêng chỉ có hiệu lực trong phiên đó
+async function askChatbot(messages, sessionId, token) {
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, session_id: sessionId }),
   });
   if (token && (res.status === 401 || res.status === 403)) {
     useAuthStore.getState().logout();
     throw new Error('Phiên đăng nhập đã hết hạn');
   }
-  if (!res.ok || !res.body) {
-    const body = await res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
     const err = new Error(body.message || `Chatbot lỗi ${res.status}`);
     err.serverMessage = body.message;
     throw err;
   }
+  return body.data;
+}
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let fullText = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    fullText += decoder.decode(value, { stream: true });
-    onText(fullText);
-  }
-  return fullText;
+// Khách đồng ý (POST) / thu hồi (DELETE) cho chatbot xem lịch hẹn, điểm, đơn hàng trong phiên chat
+async function chatConsent(method, sessionId, token, scopes) {
+  const res = await fetch('/api/ai/chat/consent', {
+    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ session_id: sessionId, scopes }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message || 'Không lưu được lựa chọn');
+  return body.data || [];
+}
+
+const newChatSession = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+// Nguồn chatbot trích dẫn [n]: bấm để mở trang tương ứng
+const PERSONAL_LABEL = { APPOINTMENTS: 'lịch hẹn', POINTS: 'Điểm GlowSkin', ORDERS: 'đơn hàng' };
+function ChatSources({ sources, personal, onNavigate }) {
+  if (!sources?.length && !personal?.length) return null;
+  return (
+    <div className="mt-1.5 pt-1.5 border-t border-white/30 text-xs space-y-0.5">
+      {personal?.length > 0 && <div className="opacity-90">Dữ liệu tài khoản đã xem: {personal.map((p) => PERSONAL_LABEL[p] || p).join(', ')}</div>}
+      {sources?.length > 0 && <div className="opacity-80">Nguồn:</div>}
+      {sources.map((s) => (
+        <Link key={s.n} to={s.url || '/'} onClick={onNavigate} className="block underline underline-offset-2 opacity-95 hover:opacity-100">[{s.n}] {s.title}</Link>
+      ))}
+    </div>
+  );
 }
 
 // Chưa đăng nhập -> sang trang đăng nhập, đăng nhập xong quay lại đúng trang đang mở
@@ -116,9 +136,18 @@ function App() {
   const user = useAuthStore((state) => state.user); 
   const token = useAuthStore((state) => state.token);
 
+  // Phiên chat AI: đổi khi đăng nhập / đăng xuất. consents: loại dữ liệu khách đã cho chatbot xem trong phiên
+  const chatSessionRef = useRef(newChatSession());
+  const [consents, setConsents] = useState([]);
+
   const [messages, setMessages] = useState([
     { id: 1, sender: 'cs', text: 'Chào bạn! Kỹ thuật viên GlowSkin có thể giúp gì cho bạn hôm nay?' }
   ]);
+
+  useEffect(() => {
+    chatSessionRef.current = newChatSession();
+    setConsents([]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -225,13 +254,14 @@ function App() {
     socket.emit('send_message', { sessionId: currentSessionId, content: '', attachments });
   };
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  // preset: nội dung nút trả lời nhanh (gửi y như khách tự gõ); không có thì lấy ô nhập
+  const handleSendMessage = async (preset) => {
+    const userText = (typeof preset === 'string' ? preset : inputValue).trim();
+    if (!userText || isLoading) return;
 
-    const userText = inputValue.trim();
     const newMessages = [...messages, { id: Date.now(), sender: 'user', text: userText }];
     setMessages(newMessages);
-    setInputValue('');
+    if (typeof preset !== 'string') setInputValue('');
 
     if (outOfOffice) setOutOfOffice(false);
 
@@ -240,33 +270,62 @@ function App() {
         sessionId: currentSessionId, content: userText 
       });
     } else {
-      setIsLoading(true);
-      try {
-        const history = newMessages.filter((m) => m.id !== 1 && !m.isError && !m.isSystem).slice(-6).map((m) => ({
-          role: m.sender === 'user' ? 'user' : 'model',
-          text: m.text,
-        }));
+      await askAi(newMessages);
+    }
+  };
 
-        const aiId = Date.now() + 1;
-        let started = false;
-        await streamConsultReply(history, token, (fullText) => {
-          if (!started) {
-            started = true;
-            setIsLoading(false);
-            setMessages((prev) => [...prev, { id: aiId, sender: 'cs', text: fullText }]);
-          } else {
-            setMessages((prev) => prev.map((m) => (m.id === aiId ? { ...m, text: fullText } : m)));
-          }
-        });
-      } catch (error) {
-        setMessages((prev) => [...prev, {
-          id: Date.now() + 2, sender: 'cs', isError: true,
-          // 429 = vượt giới hạn lượt gọi của server, hiển thị đúng thông báo server trả về
-          text: error.serverMessage || error.response?.data?.message || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
-        }]);
-      } finally {
-        setIsLoading(false);
-      }
+  // Gửi hội thoại cho chatbot (bỏ tin hệ thống, tin lỗi và câu xin phép xem dữ liệu)
+  const askAi = async (list) => {
+    setIsLoading(true);
+    try {
+      const history = list.filter((m) => m.id !== 1 && !m.isError && !m.isSystem && !m.consentRequest).slice(-8).map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        text: m.text,
+      }));
+      const data = await askChatbot(history, chatSessionRef.current, token);
+      setMessages((prev) => [...prev, {
+        id: Date.now() + 1, sender: 'cs', text: data.text, sources: data.sources, personal: data.personal_used, quickReplies: data.quick_replies || [],
+        consentRequest: data.consent_request || null,
+      }]);
+    } catch (error) {
+      setMessages((prev) => [...prev, {
+        id: Date.now() + 2, sender: 'cs', isError: true,
+        // 429 = vượt giới hạn lượt gọi của server, hiển thị đúng thông báo server trả về
+        text: error.serverMessage || 'Hệ thống AI đang bận quá tải, vui lòng thử lại sau giây lát!',
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Khách trả lời câu xin phép: đồng ý => lưu đồng ý rồi hỏi lại đúng câu đó; không đồng ý => chỉ chỗ tự xem
+  const answerConsent = async (msg, agree) => {
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, consentAnswered: agree ? 'yes' : 'no' } : m)));
+    const scopes = msg.consentRequest.scopes;
+    if (!agree) {
+      setMessages((prev) => [...prev, {
+        id: Date.now(), sender: 'cs', isSystem: true,
+        text: `Mình sẽ không xem dữ liệu của bạn. Bạn có thể tự xem ${scopes.map((s) => s.label).join(', ')} trên website.`,
+        links: scopes.map((s) => ({ to: s.link, label: s.label })),
+      }]);
+      return;
+    }
+    try {
+      setConsents(await chatConsent('POST', chatSessionRef.current, token, scopes.map((s) => s.scope)));
+      const upTo = messages.slice(0, messages.findIndex((m) => m.id === msg.id));
+      await askAi(upTo);
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: Date.now(), sender: 'cs', isError: true, text: err.message }]);
+    }
+  };
+
+  const revokeConsents = async () => {
+    try {
+      await chatConsent('DELETE', chatSessionRef.current, token, []);
+      setConsents([]);
+      setMessages((prev) => [...prev, { id: Date.now(), sender: 'cs', isSystem: true, text: 'Đã thu hồi quyền xem dữ liệu. Chatbot sẽ hỏi lại nếu cần.' }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: Date.now(), sender: 'cs', isError: true, text: err.message }]);
     }
   };
 
@@ -334,13 +393,35 @@ function App() {
               </div>
 
               <div className="p-4 flex-1 min-h-0 sm:flex-none sm:h-80 overflow-y-auto bg-base-200 flex flex-col gap-3">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`chat ${msg.sender === 'user' ? 'chat-end' : 'chat-start'}`}>
-                    <div className={`chat-bubble text-sm shadow-sm break-words ${msg.sender === 'user' ? 'bg-base-100 text-base-content' : 'chat-bubble-primary text-white'}`}>
+                {messages.map((msg, idx) => (
+                  <React.Fragment key={msg.id}>
+                  <div className={`chat ${msg.sender === 'user' ? 'chat-end' : 'chat-start'}`}>
+                    <div className={`chat-bubble text-sm shadow-sm break-words whitespace-pre-line ${msg.sender === 'user' ? 'bg-base-100 text-base-content' : 'chat-bubble-primary text-white'}`}>
                       {msg.text}
                       <ChatAttachments files={msg.attachments} />
+                      <ChatSources sources={msg.sources} personal={msg.personal} onNavigate={() => setIsChatOpen(false)} />
+                      {msg.links?.map((l) => <Link key={l.to} to={l.to} onClick={() => setIsChatOpen(false)} className="block underline text-xs mt-1">Mở trang {l.label}</Link>)}
+                      {msg.consentRequest && !msg.consentAnswered && (
+                        <div className="flex gap-2 mt-2">
+                          <button className="btn btn-xs bg-white text-primary border-0" onClick={() => answerConsent(msg, true)}>Đồng ý cho xem</button>
+                          <button className="btn btn-xs btn-ghost text-white border border-white/50" onClick={() => answerConsent(msg, false)}>Không đồng ý</button>
+                        </div>
+                      )}
+                      {msg.consentAnswered && <div className="text-xs opacity-80 mt-1">{msg.consentAnswered === 'yes' ? 'Bạn đã đồng ý.' : 'Bạn đã từ chối.'}</div>}
                     </div>
                   </div>
+                  {/* Nút trả lời nhanh: chỉ dưới câu trả lời AI mới nhất; khách gõ câu khác thì nút tự ẩn */}
+                  {idx === messages.length - 1 && msg.sender === 'cs' && msg.quickReplies?.length > 0 && !isLoading && chatMode !== 'HUMAN' && (
+                    <div className="flex flex-wrap gap-1.5 -mt-1 ml-1">
+                      {msg.quickReplies.map((q) => (q.type === 'link' ? (
+                        <Link key={q.label} to={q.url} onClick={() => setIsChatOpen(false)} className="quick-reply btn btn-xs btn-outline btn-primary rounded-full normal-case font-medium">{q.label}</Link>
+                      ) : (
+                        <button key={q.label} className="quick-reply btn btn-xs btn-outline btn-primary rounded-full normal-case font-medium"
+                          onClick={() => (q.type === 'human' ? handleSwitchToHuman() : handleSendMessage(q.text))}>{q.label}</button>
+                      )))}
+                    </div>
+                  )}
+                  </React.Fragment>
                 ))}
                 
                 {outOfOffice && (
@@ -371,6 +452,12 @@ function App() {
                   <button onClick={handleSwitchToHuman} className="btn btn-xs btn-outline btn-primary self-start">
                     <User className="w-3 h-3 mr-1"/> Gặp bộ phận CSKH
                   </button>
+                )}
+                {consents.length > 0 && chatMode !== 'HUMAN' && (
+                  <div className="text-xs text-slate-500 self-start flex flex-wrap items-center gap-1">
+                    Chatbot đang được xem: {consents.map((c) => c.label).join(', ')}.
+                    <button className="link link-primary" onClick={revokeConsents}>Thu hồi</button>
+                  </div>
                 )}
                 {chatMode === 'WAITING' && (
                   <div className="badge badge-warning gap-1 self-start mb-2 text-xs"><Clock className="w-3 h-3"/> Đang chờ CSKH... (Bạn vẫn có thể hỏi AI)</div>

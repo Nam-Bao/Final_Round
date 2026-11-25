@@ -114,7 +114,10 @@ const Order = sequelize.define('Order', {
     ), 
     defaultValue: 'UNPAID' 
   },
-  payment_method: { type: DataTypes.ENUM('COD', 'VIETQR_SEPAY'), defaultValue: 'COD', allowNull: false },
+  // POINTS: trả toàn bộ đơn (giá niêm yết + phí ship) bằng Điểm GlowSkin, không thu hộ, không dùng voucher
+  payment_method: { type: DataTypes.ENUM('COD', 'VIETQR_SEPAY', 'POINTS'), defaultValue: 'COD', allowNull: false },
+  points_used: { type: DataTypes.INTEGER },          // số điểm đã trừ khi trả bằng điểm
+  refund_account: { type: DataTypes.STRING(200) },   // khách tự hủy đơn đã chuyển khoản, chọn hoàn tiền: tài khoản nhận hoàn
   // Đơn chuyển khoản đã nhận tiền mà bị hủy: PENDING chờ hoàn -> REFUNDED đã hoàn
   refund_status: { type: DataTypes.STRING(20) },
   refund_amount: { type: DataTypes.DECIMAL(12, 2) },
