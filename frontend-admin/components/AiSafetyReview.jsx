@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Button, Tag, Typography, message } from 'antd';
 import { RobotOutlined, SwapOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 const { Text } = Typography;
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
@@ -19,7 +20,7 @@ export default function AiSafetyReview({ patientProfileId, appointmentId, form, 
     const v = form.getFieldsValue(['spa_services', 'treatment_package', 'prescriptions', 'diagnosis', 'symptoms']);
     setLoading(true);
     try {
-      const res = await axios.post('http://localhost:4000/api/booking/safety/ai-review', {
+      const res = await axios.post(`${API_BASE}/api/booking/safety/ai-review`, {
         patient_profile_id: patientProfileId, appointment_id: appointmentId,
         spa_services: v.spa_services || [], treatment_package: v.treatment_package,
         prescriptions: (v.prescriptions || []).filter((p) => p?.product_id), diagnosis: v.diagnosis, symptoms: v.symptoms,

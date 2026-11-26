@@ -46,4 +46,4 @@ Quy trình của quản lý chung.
 
 ## Trợ lý AI và kho kiến thức
 - Chatbot khách, trợ lý nhân viên và AI rà soát đơn trả lời theo kho kiến thức tự nạp từ dữ liệu hệ thống (dịch vụ, gói, sản phẩm, bài viết, chính sách, quy tắc an toàn, sổ tay quy trình) mỗi 30 phút.
-- Vừa sửa giá, sản phẩm, quy tắc mà cần AI cập nhật ngay: nạp lại kho kiến thức (API POST /api/ai/knowledge/reindex).
+- Vừa sửa giá, sản phẩm, quy tắc mà cần AI cập nhật ngay: vào Quản lý trang → tab Kho kiến thức AI → bấm Nạp lại ngay (xem được số đoạn và lần nạp gần nhất của từng kho).

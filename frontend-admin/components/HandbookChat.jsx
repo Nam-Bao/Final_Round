@@ -6,8 +6,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Collapse, Input, Spin, message } from 'antd';
 import { BookOutlined, CloseOutlined, SendOutlined, DeleteOutlined, LeftOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/ai/assist/handbook';
+const API = `${API_BASE}/api/ai/assist/handbook`;
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const chip = 'handbook-quick text-xs px-2.5 py-1 rounded-full border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 text-left';
 

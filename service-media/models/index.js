@@ -6,7 +6,8 @@ const sequelize = new Sequelize(process.env.DB_NAME || 'media_db', process.env.D
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 5436),
   dialect: 'postgres',
-  logging: false
+  logging: false,
+  dialectOptions: process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {}
 });
 
 // Nội dung bài viết (content) là văn bản có cú pháp đơn giản, hiển thị bằng React (không chèn HTML thô):

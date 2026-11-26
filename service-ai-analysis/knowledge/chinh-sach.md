@@ -93,4 +93,5 @@ Mỗi mục "## " là 1 đoạn trong kho; chatbot trích dẫn theo tên mục.
 13.1. Dữ liệu thu thập: thông tin tài khoản, hồ sơ người khám, lịch sử khám, địa chỉ giao hàng, ảnh da tải lên. Dùng để đặt lịch, khám, giao hàng, thanh toán, chăm sóc sau điều trị; không dùng cho quảng cáo của bên thứ ba.
 13.2. Kết quả sàng lọc da bằng AI chỉ mang tính tham khảo, không thay thế chẩn đoán của bác sĩ. Mỗi tài khoản phân tích tối đa {{AI_DAILY_LIMIT}} lượt mỗi ngày. Ảnh và kết quả lưu 2 năm rồi tự xóa.
 13.3. Chatbot AI chỉ xem lịch hẹn, điểm hoặc đơn hàng của khách đã đăng nhập khi khách bấm đồng ý cho từng loại dữ liệu trong phiên chat đó; khách thu hồi được bất cứ lúc nào.
-13.4. Khách có quyền yêu cầu xem, sửa, xóa dữ liệu cá nhân qua email privacy@glowskin.vn.
+13.4. AI tóm tắt hồ sơ khám cho bác sĩ chỉ khi khách đồng ý (nhân viên hỏi lúc tiếp nhận); bệnh án gửi cho AI đã bỏ họ tên, số điện thoại, ngày sinh, ảnh. Khách rút lại đồng ý bằng cách báo nhân viên.
+13.5. Khách có quyền yêu cầu xem, sửa, xóa dữ liệu cá nhân qua email privacy@glowskin.vn.

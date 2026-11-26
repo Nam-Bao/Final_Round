@@ -4,8 +4,9 @@ import { Undo2 } from 'lucide-react';
 import axios from 'axios';
 import RefundTransferNote from '../components/RefundTransferNote';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/commerce/returns';
+const API = `${API_BASE}/api/commerce/returns`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleString('vi-VN') : '');
@@ -61,7 +62,7 @@ export default function ReturnManagementPage() {
     setRestock(selected.reason === 'WRONG_ITEM');
     setExchangeOpen(true);
     if (!products.length) {
-      axios.get('http://localhost:4000/api/commerce/products/shop').then((r) => setProducts(r.data.data || [])).catch(() => {});
+      axios.get(`${API_BASE}/api/commerce/products/shop`).then((r) => setProducts(r.data.data || [])).catch(() => {});
     }
   };
   const fetchReturns = async () => {

@@ -7,9 +7,10 @@ import ConsultResultDrawer from '../components/ConsultResultDrawer';
 import { openVideoCall } from '../utils/videoCall';
 import { useTiming } from '../utils/timing';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Text, Paragraph } = Typography;
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 
 const STATUS = {

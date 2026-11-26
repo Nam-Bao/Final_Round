@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import VoucherProofUpload from '../components/VoucherProofUpload';
 import { useLiveRefresh } from '../components/Notifications';
 import { openPrint } from '../utils/print';
+import { API_BASE } from '../config';
 
 const FIELD = { DERMATOLOGY: 'Da liễu', NUTRITION: 'Dinh dưỡng', COSMETICS: 'Mỹ phẩm' };
 
@@ -35,11 +36,11 @@ export default function ConsultantCheckoutPage() {
   const fetchData = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      fetch('http://localhost:4000/api/booking/packages').then(res => res.json()).then(data => setPackages(data.data || []));
-      fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
-      fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
+      fetch(`${API_BASE}/api/booking/packages`).then(res => res.json()).then(data => setPackages(data.data || []));
+      fetch(`${API_BASE}/api/booking/spa-services`).then(res => res.json()).then(data => setSpaServices(data.data || []));
+      fetch(`${API_BASE}/api/commerce/products`).then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
       
-      const res = await axios.get('http://localhost:4000/api/booking/appointments/consultant-queues', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await axios.get(`${API_BASE}/api/booking/appointments/consultant-queues`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.data.data) setHotLeads(res.data.data.hotLeads || []);
     } catch (error) { console.error('Lỗi tải dữ liệu', error); }
   };
@@ -67,7 +68,7 @@ export default function ConsultantCheckoutPage() {
     setPaymentMethod('CASH');
     setConsultHistory([]);
     // Lịch sử tư vấn chuyên gia: CSKH đối chiếu với lịch sử khách cho xem để áp voucher ưu đãi khám sau tư vấn
-    axios.get('http://localhost:4000/api/booking/consultations', { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, params: { customer_id: customer.customer_id } })
+    axios.get(`${API_BASE}/api/booking/consultations`, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, params: { customer_id: customer.customer_id } })
       .then((res) => setConsultHistory((res.data.data || []).filter((c) => c.status === 'COMPLETED')))
       .catch(() => {});
     setSelectedItems({
@@ -100,7 +101,7 @@ export default function ConsultantCheckoutPage() {
     if (!voucherCode.trim()) return;
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.post('http://localhost:4000/api/commerce/promotions/apply', {
+      const res = await axios.post(`${API_BASE}/api/commerce/promotions/apply`, {
         code: voucherCode,
         order_value: getSubtotal(),
         scope_values: getScopeValues(),
@@ -123,7 +124,7 @@ export default function ConsultantCheckoutPage() {
     try {
       const token = sessionStorage.getItem('admin_token');
       // Server tự tính lại tổng tiền và kiểm tra lại voucher, không gửi số tiền lên
-      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/checkout`, {
+      const res = await axios.put(`${API_BASE}/api/booking/appointments/${selectedCustomer.id}/checkout`, {
         selected_services: selectedItems.services,
         selected_packages: selectedItems.packages,
         selected_medicines: selectedItems.medicines,

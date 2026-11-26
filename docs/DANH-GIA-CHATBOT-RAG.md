@@ -211,3 +211,28 @@ Ngày chạy: 2026-11-25. Script: `service-ai-analysis/scripts/safety_rag_eval.j
 | 12 | Không có | Sữa rửa mặt Cetaphil Gentle | Không | Không | - |
 
 Nhận xét: không có RAG, AI vẫn phát hiện được các rủi ro này nhờ kiến thức chung, nhưng chỉ nêu nhận định, bác sĩ không biết căn cứ. Có RAG, mọi cảnh báo đều chỉ ra đúng quy tắc của phòng khám kèm nguồn y khoa để bác sĩ kiểm chứng, và vẫn không có báo động giả. Bộ ca nhỏ (12 ca, tự dựng), cần thêm ca thật để kết luận chắc chắn.
+
+## AI tóm tắt hồ sơ khám cho bác sĩ
+
+Ngày chạy: 2026-11-26. Script: `service-ai-analysis/scripts/summary_eval.js`. 12 hồ sơ có lịch sử (lần khám, buổi dịch vụ, soi da...) trên bản sao dữ liệu demo.
+
+| Chỉ số | Kết quả |
+|---|---|
+| Dữ liệu gửi AI lộ họ tên / SĐT / email / ngày sinh | 0/12 hồ sơ |
+| Ý tóm tắt có căn cứ hợp lệ (trỏ đúng bản ghi) | 61/61 (100%) |
+| Tên sản phẩm / dịch vụ / gói bịa (không có trong hồ sơ) | 0/26 tên được nhắc |
+| Con số không có trong dữ liệu | 0/50 con số |
+| Nhắc chẩn đoán gần nhất | 10/12 hồ sơ (2 hồ sơ còn lại có chẩn đoán là chữ gõ thử vô nghĩa trong dữ liệu demo, vd "fsdfsd", AI bỏ qua là đúng) |
+| Nhắc dị ứng (hồ sơ có dị ứng) | 12/12 hồ sơ |
+| Số ý trung bình / hồ sơ | 5.1 |
+
+Ví dụ (hồ sơ đầu tiên):
+
+- Lý do khám lần này: E2E_SOYBA. [V]
+- Chẩn đoán qua các lần: Mụn trứng cá mức độ nhẹ, ưu thế nhân mụn (15/09/2026, 27/10/2026); Mụn trứng cá nội tiết ở phụ nữ trưởng thành (13/10/2026). [E3,E7,E12]
+- Thuốc, sản phẩm đã dùng: Gel trị mụn Klenzit C, Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser, Kem giảm mụn La Roche-Posay Effaclar Duo+M. [E2,E11]
+- Liệu trình đang làm: Gói Liệu trình trị mụn chuẩn y khoa 6 buổi còn 4/6 buổi (ACTIVE); gói trước đó đã hoàn thành 0/6 buổi. [P1,P2]
+- Sàng lọc an toàn: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]
+- Tư vấn chuyên gia ngày 11/09/2026: Da hỗn hợp thiên dầu, lỗ chân lông to vùng chữ T, có vài mụn viêm nhẹ; quy trình nhiều bước dễ kích ứng, được khuyên rút gọn quy trình và đi khám. [E14]
+
+Giới hạn: kiểm tra bịa tên / số liệu bằng so khớp chữ; chưa đánh giá độ hữu ích với bác sĩ thật.

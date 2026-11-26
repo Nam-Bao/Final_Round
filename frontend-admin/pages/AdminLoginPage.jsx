@@ -1,13 +1,14 @@
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE } from '../config';
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
 
   const onFinish = async (values) => {
     try {
-      const response = await fetch('http://localhost:4000/api/identity/auth/login', {
+      const response = await fetch(`${API_BASE}/api/identity/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values)

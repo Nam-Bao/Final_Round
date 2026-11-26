@@ -1,9 +1,10 @@
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
 // Doanh thu toàn hệ thống = phòng khám (service-booking) + mỹ phẩm online / bán tại quầy (service-commerce).
 // Đơn mỹ phẩm kê sau buổi khám đã nằm trong hoá đơn khám nên chỉ tính 1 lần (clinic_products).
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 
 // Nguồn chi tiết (bảng) theo thứ tự hiển thị
@@ -48,6 +49,8 @@ export async function fetchRevenue(from, to) {
   days.forEach((d) => SOURCES.forEach((s) => { totals[s.key] += d[s.key]; }));
   return {
     days, totals, total: sumRow(totals),
+    // Phần doanh thu mỹ phẩm khách trả bằng Điểm GlowSkin (đã nằm trong doanh thu mỹ phẩm, tách riêng để quản lý biết)
+    paid_by_points: Number(sales.data.totals?.paid_by_points || 0),
     counts: { ...clinic.data.counts, orders: sales.data.counts.orders, refunds: sales.data.counts.refunds },
     top_services: clinic.data.top_services, top_packages: clinic.data.top_packages, top_products: sales.data.top_products,
   };

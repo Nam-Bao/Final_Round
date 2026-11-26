@@ -73,6 +73,7 @@ const assistLimiter = rateLimit({ windowMs: 60 * 60 * 1000, guestMax: 0, userMax
 router.post('/assist/reply-draft', verifyToken, authorizeRoles('CONSULTANT', 'GEN_MANAGER'), assistLimiter, chatbot.draftReply);
 router.post('/assist/similar-rules', verifyToken, authorizeRoles('GEN_MANAGER', 'DOCTOR'), assistLimiter, chatbot.similarRules);
 const staffAll = authorizeRoles('DOCTOR', 'CONSULTANT', 'TECHNICIAN', 'SALES', 'EXPERT', 'GEN_MANAGER', 'ADMIN');
+router.post('/patient-summary/:profileId', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER', 'ADMIN'), assistLimiter, chatbot.patientSummary); // tóm tắt hồ sơ cho bác sĩ
 router.post('/assist/handbook', verifyToken, staffAll, assistLimiter, chatbot.handbookAsk); // sổ tay quy trình nội bộ
 router.get('/assist/handbook/topics', verifyToken, staffAll, chatbot.handbookTopics);
 router.post('/assist/product-advice', verifyToken, authorizeRoles('SALES', 'GEN_MANAGER', 'ADMIN'), assistLimiter, chatbot.productAdvice); // NVBH tư vấn tại quầy

@@ -1,9 +1,11 @@
 import axios from 'axios';
 import { message } from 'antd';
+import { API_BASE } from '../../config';
 
 // API của service-media (tin tức, bài nghiên cứu, banner, popup, tải ảnh / video)
-export const MEDIA_API = 'http://localhost:4000/api/media';
-export const CLIENT_URL = 'http://localhost:3001';
+export const MEDIA_API = `${API_BASE}/api/media`;
+// Địa chỉ web khách (link xem trang, in chứng từ), đọc từ VITE_CLIENT_URL
+export const CLIENT_URL = String(import.meta.env.VITE_CLIENT_URL || 'http://localhost:3001').replace(/\/+$/, '');
 
 export const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 export const errorText = (err, fallback) => err.response?.data?.message || fallback;

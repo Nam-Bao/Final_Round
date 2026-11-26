@@ -4,7 +4,7 @@
 //    cho AI rà soát đơn kê.
 // 2. Chia đoạn, tạo embedding Gemini. Chỉ tạo lại embedding cho đoạn mới / đổi nội dung (so hash), xóa đoạn không còn.
 // 3. Tìm kiếm: cosine giữa vector câu hỏi và vector đoạn, cộng điểm khớp từ khóa (không dấu) để bắt đúng tên riêng.
-// Nạp lại khi service khởi động, định kỳ KNOWLEDGE_REFRESH_MINUTES (mặc định 30) và khi quản lý gọi POST /api/ai/knowledge/reindex.
+// Nạp lại khi service khởi động, định kỳ KNOWLEDGE_REFRESH_MINUTES (mặc định 30) và khi quản lý bấm "Nạp lại ngay" (Quản lý trang → Kho kiến thức AI).
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -332,10 +332,29 @@ const search = async (ns, query, { k = 6, minScore = 0.45, filter = null } = {})
 let timer = null;
 const start = () => {
   const minutes = Number(process.env.KNOWLEDGE_REFRESH_MINUTES) || 30;
-  const run = () => reindexAll().then((r) => console.log('📚 [RAG] Nạp kho kiến thức:', r.map((x) => (x.error ? `${x.ns} lỗi ${x.error}` : `${x.ns} ${x.total} đoạn (+${x.added} ~${x.updated} -${x.removed})${x.failed_sources.length ? ` | lỗi: ${x.failed_sources.join(', ')}` : ''}`)).join(' | '))).catch((e) => console.warn('[RAG] Lỗi nạp kho:', e.message));
+  // Nguồn lỗi (thường gặp lúc vừa bật máy: booking / commerce / media chưa khởi động xong, gateway trả 504)
+  // => giữ dữ liệu cũ và thử lại sau 1 phút, tối đa 5 lần, thay vì đợi tới lượt 30 phút sau.
+  let retries = 0;
+  const run = () => reindexAll().then((r) => {
+    const failed = r.some((x) => x.error || x.failed_sources?.length);
+    console.log(`📚 [RAG] Nạp kho kiến thức${retries ? ` (thử lại lần ${retries})` : ''}:`, r.map((x) => (x.error ? `${x.ns} lỗi ${x.error}` : `${x.ns} ${x.total} đoạn (+${x.added} ~${x.updated} -${x.removed})${x.failed_sources.length ? ` | lỗi: ${x.failed_sources.join(', ')}` : ''}`)).join(' | '));
+    if (failed && retries < 5) {
+      retries += 1;
+      console.log('📚 [RAG] Có nguồn chưa lấy được (service khác có thể chưa khởi động xong), giữ dữ liệu cũ, thử lại sau 1 phút');
+      setTimeout(run, 60 * 1000).unref();
+    } else retries = 0;
+  }).catch((e) => console.warn('[RAG] Lỗi nạp kho:', e.message));
   setTimeout(run, 5000); // đợi các service khác khởi động
   timer = setInterval(run, minutes * 60 * 1000);
   timer.unref();
 };
 
-module.exports = { reindex, reindexAll, search, start, status: () => status, fold };
+// Độ liên quan cao nhất (cosine) của từng câu với kho: dùng để bỏ nút gợi ý mà kho không trả lời được. 1 lần gọi embedding cho cả lô
+const bestScores = async (ns, texts, filter = null) => {
+  if (!texts.length) return [];
+  const rows = (cache[ns] || await load(ns)).filter((r) => !filter || filter(r));
+  const vecs = await gemini.embed(texts, 'RETRIEVAL_QUERY');
+  return vecs.map((q) => rows.reduce((best, r) => { let dot = 0; for (let i = 0; i < q.length; i++) dot += q[i] * (r.embedding[i] || 0); return Math.max(best, dot); }, 0));
+};
+
+module.exports = { reindex, reindexAll, search, bestScores, start, status: () => status, fold };

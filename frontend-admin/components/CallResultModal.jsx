@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Checkbox, Col, DatePicker, Form, Input, message, Modal, Radio, Rate, Row, Select, Switch } from 'antd';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
-export const BOOKING_API = 'http://localhost:4000/api/booking';
+export const BOOKING_API = `${API_BASE}/api/booking`;
 export const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 
 export const SKIN_STATUS = { MUCH_BETTER: 'Cải thiện rõ', BETTER: 'Cải thiện ít', SAME: 'Không thay đổi', WORSE: 'Nặng hơn' };

@@ -5,9 +5,10 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import SkinScanReview, { ReviewModal } from '../components/SkinScanReview';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
-const API = 'http://localhost:4000/api/ai';
+const API = `${API_BASE}/api/ai`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const SEV_COLOR = { 'Nhẹ': 'green', 'Trung bình': 'orange', 'Nặng': 'red', 'Không thấy mụn viêm': 'cyan' };
 const me = () => { try { return JSON.parse(sessionStorage.getItem('admin_user') || '{}'); } catch { return {}; } };
@@ -45,7 +46,7 @@ export default function SkinReviewsPage() {
   };
   useEffect(() => { load(); }, [status, dateField, range, q, doctorId, source, page]);
   useEffect(() => {
-    axios.get('http://localhost:4000/api/identity/users/doctors', { headers: headers() })
+    axios.get(`${API_BASE}/api/identity/users/doctors`, { headers: headers() })
       .then((r) => setDoctors((r.data.data || r.data || []).map((d) => ({ value: d.id, label: d.Profile?.full_name || d.full_name || d.email }))))
       .catch(() => setDoctors([]));
   }, []);

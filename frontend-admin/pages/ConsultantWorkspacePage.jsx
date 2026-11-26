@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import WalkInModal from '../components/WalkInModal';
 import PatientSafetyPanel from '../components/PatientSafetyPanel';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
 const { Search } = Input; // THÊM COMPONENT SEARCH
@@ -38,14 +39,14 @@ export default function ConsultantWorkspacePage() {
   const fetchQueues = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.get('http://localhost:4000/api/booking/appointments/consultant-queues', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await axios.get(`${API_BASE}/api/booking/appointments/consultant-queues`, { headers: { 'Authorization': `Bearer ${token}` } });
       
       if (res.data.data) {
          const rawQueues = res.data.data;
          rawQueues.checkIn = rawQueues.checkIn.filter(apt => !apt.pre_notes?.includes('[ONLINE]'));
          setQueues(rawQueues);
       }
-      const docRes = await axios.get('http://localhost:4000/api/identity/users/doctors', { headers: { 'Authorization': `Bearer ${token}` } });
+      const docRes = await axios.get(`${API_BASE}/api/identity/users/doctors`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (docRes.data.data) setDoctors(docRes.data.data);
     } catch (error) { console.error('Lỗi tải dữ liệu:', error); }
   };
@@ -53,7 +54,7 @@ export default function ConsultantWorkspacePage() {
   useEffect(() => { fetchQueues(); }, []);
   useLiveRefresh(['appointments'], fetchQueues);
 
-  const fetchDoctorBoard = () => axios.get('http://localhost:4000/api/booking/appointments/walk-in/doctor-board', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } })
+  const fetchDoctorBoard = () => axios.get(`${API_BASE}/api/booking/appointments/walk-in/doctor-board`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } })
     .then((res) => setDoctorBoard(res.data.data || []))
     .catch(() => message.error('Không tải được tình trạng bác sĩ'));
 
@@ -61,7 +62,7 @@ export default function ConsultantWorkspacePage() {
   const inviteWalkIn = async (payload, confirm_warnings = false) => {
     const invited = () => { message.success('Đã mời khách vào phòng khám!'); setSelectedCustomer(null); fetchQueues(); };
     try {
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/invite`, { ...payload, confirm_warnings }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+      await axios.put(`${API_BASE}/api/booking/appointments/${selectedCustomer.id}/invite`, { ...payload, confirm_warnings }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
       invited();
     } catch (error) {
       const data = error.response?.data;
@@ -85,7 +86,7 @@ export default function ConsultantWorkspacePage() {
     setWebScan(null);
     if (customer.patient_profile_id) {
       // Khách đã tự soi da trên web trong 14 ngày: nhắc CSKH vẫn chụp tại quầy (ảnh chuẩn hơn, đúng buổi khám)
-      axios.get(`http://localhost:4000/api/ai/analyses/profile/${customer.patient_profile_id}`, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } })
+      axios.get(`${API_BASE}/api/ai/analyses/profile/${customer.patient_profile_id}`, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } })
         .then((res) => setWebScan((res.data.data || []).find((x) => x.source !== 'clinic' && dayjs().diff(dayjs(x.created_at), 'day') <= 14) || null))
         .catch(() => setWebScan(null));
     }
@@ -110,14 +111,14 @@ export default function ConsultantWorkspacePage() {
       const token = sessionStorage.getItem('admin_token');
       
       if (activeTab === 'reschedule') {
-        await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/reschedule`, {
+        await axios.put(`${API_BASE}/api/booking/appointments/${selectedCustomer.id}/reschedule`, {
           doctor_id: values.doctor_id, appointment_date: values.appointment_date.format('YYYY-MM-DD'), appointment_time: values.appointment_time, note: values.note
         }, { headers: { 'Authorization': `Bearer ${token}` } });
         message.success('Đã dời lịch & chốt Bác sĩ mới thành công!');
       }
       else if (activeTab === 'checkIn') {
         const payload = { ...values, ai_consent: values.ai_consent === true, pre_exam_images: uploadedImages };
-        await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/pre-check`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
+        await axios.put(`${API_BASE}/api/booking/appointments/${selectedCustomer.id}/pre-check`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
         message.success('Đã chuyển hồ sơ cho bác sĩ. Khách chờ tới lượt trong hàng chờ của bác sĩ.');
       } 
       else if (activeTab === 'walkIn') {
@@ -137,7 +138,7 @@ export default function ConsultantWorkspacePage() {
     okText: 'Khách đã rời đi', okButtonProps: { danger: true }, cancelText: 'Đóng',
     onOk: async () => {
       try {
-        await axios.put(`http://localhost:4000/api/booking/appointments/${selectedCustomer.id}/cancel`, { initiator: 'CUSTOMER', reason: 'Khách đến thẳng đã rời đi, chưa khám' }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        await axios.put(`${API_BASE}/api/booking/appointments/${selectedCustomer.id}/cancel`, { initiator: 'CUSTOMER', reason: 'Khách đến thẳng đã rời đi, chưa khám' }, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
         setSelectedCustomer(null);
         fetchQueues();
       } catch (error) { message.error(error.response?.data?.message || 'Không ghi nhận được'); }
@@ -151,7 +152,7 @@ export default function ConsultantWorkspacePage() {
       const formData = new FormData();
       formData.append('image', file);
       
-      const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+      const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
         method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
       });
       const uploadData = await uploadRes.json();

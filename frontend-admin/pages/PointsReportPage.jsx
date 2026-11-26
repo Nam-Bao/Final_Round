@@ -5,8 +5,9 @@ import { Card, DatePicker, Table, Tag, Tabs, Button, Space, Statistic, Row, Col,
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const num = (n) => Number(n || 0).toLocaleString('vi-VN');
 const vnd = (n) => `${num(n)} ₫`;

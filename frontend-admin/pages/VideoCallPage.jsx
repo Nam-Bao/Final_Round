@@ -4,6 +4,7 @@ import { VideoCameraOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
+import { API_BASE } from '../config';
 
 // Phòng video phía bác sĩ / chuyên gia, chạy ở tab riêng (mở bằng utils/videoCall.js).
 // kind=appointment: phòng khám theo lịch hẹn; kind=consultation: phòng tư vấn của chuyên gia
@@ -30,7 +31,7 @@ export default function VideoCallPage() {
 
     const joinRoom = async () => {
       try {
-        const res = await axios.get(`http://localhost:4000/api/booking/${isConsult ? 'consultations' : 'appointments'}/${id}/video-token`, {
+        const res = await axios.get(`${API_BASE}/api/booking/${isConsult ? 'consultations' : 'appointments'}/${id}/video-token`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cancelled) return;

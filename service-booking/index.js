@@ -10,7 +10,7 @@ const spaServiceRoute = require('./routes/spaService.route.js');
 const reviewRoutes = require('./routes/review.route');
 
 const app = express();
-const PORT = 4002;
+const PORT = Number(process.env.PORT) || 4002;
 
 
 
@@ -30,6 +30,7 @@ app.use('/payroll', require('./routes/payroll.route')); // lương
 app.use('/bank-transactions', require('./routes/bankTransaction.route')); // đối soát tiền vào
 app.use('/follow-ups', require('./routes/followUp.route')); // CSKH gọi chăm sóc khách
 app.use('/safety', require('./routes/safety.route')); // sàng lọc an toàn, cảnh báo chống chỉ định
+app.use('/patient-record', require('./routes/patientRecord.route')); // sổ y bạ đầy đủ của 1 hồ sơ (bác sĩ, quản lý; AI tóm tắt dùng lại)
 app.use('/safety-rules', require('./routes/safetyRule.route')); // quản lý quy tắc: quản lý soạn -> bác sĩ xem xét -> quản lý duyệt
 app.use('/tasks', require('./routes/task.route')); // việc đang chờ (chuông thông báo)
 app.use('/points', require('./routes/points.route')); // Điểm GlowSkin: hoàn cọc bằng điểm, trả cọc bằng điểm

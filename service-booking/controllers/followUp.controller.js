@@ -2,10 +2,11 @@ const { Op } = require('sequelize');
 const dayjs = require('dayjs');
 const axios = require('axios');
 const { Appointment, FollowUpLog } = require('../models');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // CSKH gọi chăm sóc khách: nhắc lịch hẹn, nhắc tái khám, thăm hỏi sau khám.
 // Đổi lịch / hủy / đặt lịch tái khám đi qua API lịch hẹn sẵn có (giữ khóa chống trùng giờ và quy tắc cọc), ở đây chỉ lập danh sách và lưu nhật ký.
-const IDENTITY_API = 'http://localhost:4000/api/identity';
+const IDENTITY_API = `${GATEWAY_URL}/api/identity`;
 const REMIND_DAYS = 3;      // nhắc trước ngày hẹn
 const AFTERCARE_DAYS = 14;  // thăm hỏi trong vòng 14 ngày sau khám
 

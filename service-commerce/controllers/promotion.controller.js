@@ -5,6 +5,7 @@ const VISIBILITY = ['PUBLIC', 'INTERNAL'];
 const STAFF_CHANNELS = ['CLINIC', 'COUNTER'];
 const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const { Op } = require('sequelize');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // [PUBLIC] Lấy danh sách mã khuyến mãi đang hoạt động cho trang Khách hàng (/promotions)
 exports.getActivePromotions = async (req, res) => {
@@ -218,7 +219,7 @@ exports.getPromotionUsages = async (req, res) => {
     const where = isUuid(req.query.promotion_id) ? { promotion_id: req.query.promotion_id } : {};
     const rows = await PromotionUsage.findAll({ where, order: [['createdAt', 'DESC']], limit: 300, raw: true });
     const promos = await Promotion.findAll({ where: { id: [...new Set(rows.map((r) => r.promotion_id))] }, attributes: ['id', 'code', 'visibility'], raw: true });
-    const get = (path) => axios.get(`http://localhost:4000/api/identity/users/${path}`, { headers: { Authorization: req.headers.authorization } })
+    const get = (path) => axios.get(`${GATEWAY_URL}/api/identity/users/${path}`, { headers: { Authorization: req.headers.authorization } })
       .then((r) => r.data.data || []).catch(() => []);
     const [customers, employees] = await Promise.all([get('customers'), get('employees')]);
     const people = {};

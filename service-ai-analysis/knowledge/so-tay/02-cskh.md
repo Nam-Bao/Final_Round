@@ -7,6 +7,7 @@ Quy trình của Chăm sóc khách hàng (CSKH).
 - Vào Không gian tư vấn, tab Khách đặt hôm nay, chọn khách.
 - Hỏi khách từng câu ở khung Sàng lọc an toàn (mang thai, cho con bú, isotretinoin, thuốc chống đông, sẹo lồi...) và dị ứng, rồi bấm "Xác nhận đã hỏi khách". Phải hỏi lại mỗi lần khám. Chưa xác nhận thì nút chuyển khách vào phòng bị khóa.
 - Nhập lý do khám, thói quen chăm sóc da; chụp ảnh da nếu khách đồng ý (tick đồng ý phân tích AI thì ảnh được quét AI cho bác sĩ).
+- Hỏi khách có đồng ý cho AI tóm tắt hồ sơ khám không (bệnh án gửi AI đã bỏ tên, SĐT, ngày sinh, ảnh). Đồng ý thì tick "Khách đồng ý cho AI tóm tắt hồ sơ" ở khung Sàng lọc an toàn; khách rút lại thì bỏ tick. Không bắt buộc.
 - Bấm Lưu hồ sơ & chuyển phòng khám: khách vào hàng chờ của bác sĩ đã đặt.
 
 ## Tiếp nhận khách đến thẳng (không đặt lịch)
@@ -57,8 +58,9 @@ Quy trình của Chăm sóc khách hàng (CSKH).
 - Đóng phiên khi xong. Ngoài giờ 08:00 - 17:00 khách chỉ chat được với chatbot AI.
 
 ## Gọi chăm sóc khách
-- Trang Gọi chăm sóc khách: danh sách khách cần nhắc lịch, tái khám, thăm hỏi sau điều trị.
-- Ghi kết quả mỗi cuộc gọi: thành công, khách khiếu nại hoặc không nghe máy, kèm ghi chú.
+- Trang Gọi chăm sóc khách có 3 loại cuộc gọi: nhắc lịch hẹn, nhắc tái khám, thăm hỏi sau khám.
+- Gọi xong ghi kết quả: Đến được, Không đến được, Đã đổi lịch, Đã hủy (với cuộc nhắc lịch / tái khám), Đã thăm hỏi (thăm hỏi sau khám), hoặc Không nghe máy; kèm ghi chú.
+- Thăm hỏi sau khám: ghi thêm tình trạng da (Cải thiện rõ, Cải thiện ít, Không thay đổi, Nặng hơn), việc dùng thuốc theo đơn, mức hài lòng, triệu chứng và khách có phàn nàn không. Da nặng hơn hoặc khách phàn nàn thì bắt buộc ghi rõ lý do, cuộc gọi được gắn nhãn "Cần lưu ý" trong tab Lịch sử cuộc gọi.
 
 ## Điểm GlowSkin của khách
 - Xem số dư điểm của khách khi tư vấn, thu tiền (khung điểm trong hồ sơ khách).

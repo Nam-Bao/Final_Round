@@ -192,7 +192,8 @@ function App() {
 
     setChatMode('WAITING'); 
     // Gửi token để server biết khách là ai (server từ chối kết nối nếu chưa đăng nhập)
-    const newSocket = io({ auth: { token } });
+    // Dev: cùng địa chỉ trang (Vite chuyển tiếp /socket.io). Máy chủ: VITE_SOCKET_URL = địa chỉ service identity
+    const newSocket = import.meta.env.VITE_SOCKET_URL ? io(import.meta.env.VITE_SOCKET_URL, { auth: { token } }) : io({ auth: { token } });
     setSocket(newSocket);
     
     setMessages(prev => [...prev, { id: Date.now(), sender: 'cs', text: 'Đang xếp hàng kết nối với nhân viên CSKH...' }]);

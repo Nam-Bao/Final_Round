@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { Op } = require('sequelize');
 const { sequelize, Product, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, InventoryRequest } = require('../models');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // ==========================================
 // VẬT TƯ NỘI BỘ: định mức theo dịch vụ / gói, KTV ghi số thực dùng => tự trừ kho,
@@ -33,7 +34,7 @@ const toItem = (p) => ({
 // Số buổi đã đặt trong N ngày tới theo dịch vụ / gói (service-booking). Lỗi thì coi như chưa có lịch.
 const fetchUpcomingDemand = async (authorization) => {
   try {
-    const r = await axios.get('http://localhost:4000/api/booking/sessions/upcoming-demand', {
+    const r = await axios.get(`${GATEWAY_URL}/api/booking/sessions/upcoming-demand`, {
       params: { days: DEMAND_DAYS }, headers: { Authorization: authorization }, timeout: 5000,
     });
     return r.data.data || { SERVICE: {}, PACKAGE: {} };
@@ -356,7 +357,7 @@ exports.listUsage = async (req, res) => {
     // Tên KTV (service-identity); lỗi thì để trống
     let names = {};
     try {
-      const r = await axios.get('http://localhost:4000/api/identity/users/employees', { headers: { Authorization: req.headers.authorization }, timeout: 5000 });
+      const r = await axios.get(`${GATEWAY_URL}/api/identity/users/employees`, { headers: { Authorization: req.headers.authorization }, timeout: 5000 });
       names = Object.fromEntries((r.data.data || []).map((u) => [u.id, u.Profile?.full_name || u.full_name || u.email]));
     } catch { /* bỏ qua */ }
 

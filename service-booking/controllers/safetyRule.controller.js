@@ -9,6 +9,7 @@ const axios = require('axios');
 const { Op } = require('sequelize');
 const { sequelize, SafetySource, SafetyTarget, SafetyRule, SafetyRuleReview, SafetyRuleEvent, SpaService, TreatmentPackage } = require('../models');
 const rules = require('../utils/safetyRules');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 const MANAGER = 'GEN_MANAGER';
 const SEVERITIES = Object.keys(rules.SEVERITY);
@@ -32,11 +33,11 @@ const isOwner = (rule, req) => rule.created_by === req.user.id;
 const staffInfo = async (ids, authorization) => {
   const list = [...new Set(ids.filter(isUuid))];
   if (!list.length) return {};
-  const res = await axios.get('http://localhost:4000/api/identity/users/staff-names', { params: { ids: list.join(',') }, headers: { Authorization: authorization } }).catch(() => null);
+  const res = await axios.get(`${GATEWAY_URL}/api/identity/users/staff-names`, { params: { ids: list.join(',') }, headers: { Authorization: authorization } }).catch(() => null);
   return Object.fromEntries((res?.data?.data || []).map((u) => [u.id, u]));
 };
 const activeDoctors = async (authorization) => {
-  const res = await axios.get('http://localhost:4000/api/identity/users/doctors', { headers: { Authorization: authorization } }).catch(() => null);
+  const res = await axios.get(`${GATEWAY_URL}/api/identity/users/doctors`, { headers: { Authorization: authorization } }).catch(() => null);
   return (res?.data?.data || []).map((d) => ({ id: d.id, name: d.Profile?.full_name || d.email }));
 };
 const personLabel = (info, id) => {
@@ -478,7 +479,7 @@ const previewTarget = async (req, res) => {
     if (!t.keywords.length) return res.status(200).json({ data: { products: [], services: [], total_products: 0 } });
     const match = rules.compileTarget(t);
     if (kind === 'INGREDIENT') {
-      const catalog = (await axios.get('http://localhost:4000/api/commerce/products/safety-catalog', { headers: { Authorization: req.headers.authorization } })).data.data || [];
+      const catalog = (await axios.get(`${GATEWAY_URL}/api/commerce/products/safety-catalog`, { headers: { Authorization: req.headers.authorization } })).data.data || [];
       return res.status(200).json({ data: { products: catalog.filter((p) => match(`${p.name} ${p.ingredients}`)).map((p) => ({ id: p.id, name: p.name, prescription: p.prescription })), total_products: catalog.length, services: [] } });
     }
     const [svc, pkg] = await Promise.all([SpaService.findAll({ attributes: ['id', 'name'], raw: true }), TreatmentPackage.findAll({ attributes: ['id', 'name', 'description'], raw: true })]);
@@ -502,7 +503,7 @@ const testRule = async (req, res) => {
     const flags = (Array.isArray(sc.flags) ? sc.flags : []).filter((f) => rules.FLAGS[f]);
     const ids = (list) => (Array.isArray(list) ? list : []).filter(isUuid).slice(0, 20);
     const [products, svc, pkg] = await Promise.all([
-      ids(sc.product_ids).length ? axios.get('http://localhost:4000/api/commerce/products/safety-info', { params: { ids: ids(sc.product_ids).join(',') }, headers: { Authorization: req.headers.authorization } }).then((x) => x.data.data || []) : [],
+      ids(sc.product_ids).length ? axios.get(`${GATEWAY_URL}/api/commerce/products/safety-info`, { params: { ids: ids(sc.product_ids).join(',') }, headers: { Authorization: req.headers.authorization } }).then((x) => x.data.data || []) : [],
       ids(sc.service_ids).length ? SpaService.findAll({ where: { id: ids(sc.service_ids) }, attributes: ['name'], raw: true }) : [],
       ids(sc.package_ids).length ? TreatmentPackage.findAll({ where: { id: ids(sc.package_ids) }, attributes: ['name', 'description'], raw: true }) : [],
     ]);

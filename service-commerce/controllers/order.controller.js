@@ -9,6 +9,7 @@ const axios = require('axios');
 require('dotenv').config();
 const orderMail = require('../utils/orderMail');
 const pointsLib = require('../utils/points');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 const code6 = (id) => String(id).replace(/-/g, '').slice(0, 6).toUpperCase();
 // Lỗi trả về cho khách / NVBH: lỗi điểm giữ đúng mã lỗi (409 không đủ điểm, 503 không gọi được booking)
 const pointsFail = (res, error, fallbackStatus, fallback) => (error instanceof pointsLib.PointsError
@@ -650,7 +651,7 @@ exports.confirmOrderRefund = async (req, res) => {
 };
 
 // Ghi kết quả đối soát vào sổ giao dịch chung bên service-booking; lỗi ghi sổ không được làm hỏng việc nhận tiền
-const logBankTransaction = (body, entry) => axios.post('http://localhost:4000/api/booking/bank-transactions/order-log', {
+const logBankTransaction = (body, entry) => axios.post(`${GATEWAY_URL}/api/booking/bank-transactions/order-log`, {
   externalId: body.id, amount: Number(body.transferAmount), content: body.content, receivedAt: body.transactionDate, referenceCode: body.referenceCode, ...entry,
 }, { headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY } })
   .catch((e) => console.error('❌ [SEPAY WEBHOOK] Không ghi được sổ giao dịch:', body.id, e.message));
@@ -830,7 +831,7 @@ exports.createStaffOrder = async (req, res) => {
         // Không kiểm tra được thì không bán (an toàn trước), NVBH thử lại.
         const answers = req.body.safety_screening;
         try {
-            const check = (await axios.post('http://localhost:4000/api/booking/safety/counter-check',
+            const check = (await axios.post(`${GATEWAY_URL}/api/booking/safety/counter-check`,
                 { customer_id, product_ids: productIds, ...(answers ? { answers } : {}) },
                 { headers: { Authorization: req.headers.authorization }, timeout: 15000 })).data.data;
             if (check.needs_screening) {
@@ -935,7 +936,7 @@ exports.createStaffOrder = async (req, res) => {
         if (isDelivery && ['COD', 'POINTS'].includes(payment_method)) orderMail.orderPlaced(order.id).catch(() => {});
         // Ghi câu trả lời vào hồ sơ "Bản thân" của khách: lần mua sau điền sẵn, CSKH thấy khi khách đến khám
         if (safetyScreening?.patient_profile_id) {
-            axios.post('http://localhost:4000/api/booking/safety/counter-report', {
+            axios.post(`${GATEWAY_URL}/api/booking/safety/counter-report`, {
                 patient_profile_id: safetyScreening.patient_profile_id, flags: safetyScreening.flags, allergies: safetyScreening.allergies,
                 order_id: order.id, reported_by: req.user.id,
             }, { headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY } })
@@ -1024,4 +1025,29 @@ exports.customerCancelOrder = async (req, res) => {
     if (error instanceof pointsLib.PointsError) return pointsFail(res, error, 503, '');
     return res.status(error.status || 500).json({ success: false, message: error.message, ...(error.code ? { code: error.code } : {}) });
   }
+};
+
+// [HỆ THỐNG] GET /orders/internal/customer/:id — đơn mỹ phẩm (kèm yêu cầu trả hàng) của 1 khách, booking gom vào sổ y bạ cho bác sĩ
+// (biết khách đã dùng sản phẩm gì, có trả hàng vì lỗi / kích ứng không). Chỉ token hệ thống gọi được.
+const RETURN_REASON = { DAMAGED: 'Móp, vỡ, rò rỉ', WRONG_ITEM: 'Giao sai', DEFECTIVE: 'Sản phẩm lỗi', EXPIRED: 'Hết hạn' };
+exports.internalCustomerOrders = async (req, res) => {
+  try {
+    const payload = require('jsonwebtoken').verify(String(req.header('Authorization') || '').replace('Bearer ', ''), process.env.JWT_SECRET);
+    if (payload.sys !== true) return res.status(403).json({ message: 'Forbidden' });
+  } catch { return res.status(401).json({ message: 'Unauthorized' }); }
+  try {
+    const orders = await Order.findAll({
+      where: { customer_id: req.params.id }, order: [['createdAt', 'DESC']], limit: 30,
+      include: [{ model: OrderDetail, include: [{ model: Product, attributes: ['name'] }] }],
+    });
+    const returns = await OrderReturn.findAll({ where: { order_id: orders.map((o) => o.id) }, raw: true });
+    res.status(200).json({
+      data: orders.map((o) => ({
+        id: o.id, created_at: o.createdAt, status: o.status,
+        channel: o.shipping_address === 'Nhận tại quầy phòng khám GlowSkin' ? 'COUNTER' : 'ONLINE',
+        items: (o.OrderDetails || []).map((d) => `${d.Product?.name || 'Sản phẩm'} x${d.quantity}`),
+        returns: returns.filter((r) => r.order_id === o.id).map((r) => ({ reason: RETURN_REASON[r.reason] || r.reason, description: r.description, status: r.status })),
+      })),
+    });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };

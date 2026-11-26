@@ -1,0 +1,96 @@
+CẬP NHẬT AI (RAG) VÀ SỔ Y BẠ - GLOWSKIN
+Viết cho: các bạn trong nhóm, cập nhật ngày 26/11/2026
+Tính từ nhánh nam sau commit deaacbf.
+
+==================================================
+TÓM TẮT
+==================================================
+  1. Chatbot khách trả lời theo kho kiến thức (RAG), có trích nguồn [1] [2], nút trả lời nhanh.
+     Xem lịch hẹn / điểm / đơn hàng của khách CHỈ khi khách bấm đồng ý trong phiên chat.
+  2. AI rà soát đơn kê trích đúng quy tắc an toàn đang áp dụng.
+  3. Trợ lý cho nhân viên:
+       - Nháp trả lời tin nhắn khách (CSKH)
+       - Gợi ý sản phẩm theo nhu cầu (NVBH)
+       - Kiểm tra quy tắc tương tự khi soạn quy tắc an toàn (quản lý, bác sĩ)
+       - Ô chat "Hỏi quy trình" theo chủ đề, thay trang Sổ tay quy trình cũ
+  4. Sổ y bạ đầy đủ ở Không gian bác sĩ + Tóm tắt hồ sơ bằng AI (cần khách đồng ý, đã bỏ tên,
+     số điện thoại, email, ngày sinh, ảnh trước khi gửi AI).
+  5. Báo cáo doanh thu ghi chú phần đơn trả bằng điểm; tab "Kho kiến thức AI" ở Quản lý trang
+     để nạp lại kho ngay.
+
+==================================================
+VIỆC CẦN LÀM SAU KHI PULL
+==================================================
+1. Không cần chạy migrate. Khi khởi động, các service tự thêm:
+     - booking: 3 cột PatientSafeties.ai_summary_consent, ai_summary_consent_at,
+       ai_summary_consent_by
+     - ai-analysis (Mongo): 3 collection knowledgechunks, chatconsents, patientsummaries
+2. Biến .env mới (đều có mặc định, để trống cũng chạy được). Đã ghi trong .env.example:
+     service-commerce/.env    GATEWAY_URL=http://localhost:4000
+                              (commerce gọi booking để cộng / trừ điểm, in hóa đơn.
+                               Máy bạn chạy gateway cổng khác thì BẮT BUỘC sửa)
+     service-ai-analysis/.env EMBED_MODEL=            (mặc định gemini-embedding-001)
+                              EMBED_DIM=              (mặc định 768)
+                              KNOWLEDGE_REFRESH_MINUTES= (mặc định 30)
+                              CHAT_CONSENT_MINUTES=   (mặc định 60)
+                              ANSWERABLE_SCORE=       (mặc định 0.69)
+   GEMINI_API_KEY bắt buộc phải có (embedding và trả lời đều dùng key này).
+3. Khởi động lại: identity, booking, commerce, ai-analysis, gateway. Frontend admin và client
+   build lại (npm run dev là đủ).
+4. Lần đầu khởi động ai-analysis sẽ nạp kho kiến thức (khoảng 1 - 2 phút, log có dòng
+   "📚 [RAG] Nạp kho kiến thức"). Gói Gemini miễn phí hay báo 429, service tự chờ và thử lại.
+
+==================================================
+ẢNH HƯỞNG TỚI CODE CỦA BẠN
+==================================================
+  - Đã XÓA: service-ai-analysis/services/consultChat.js, geminiChat.js,
+    controllers/consultChat.controller.js (chatbot cũ). Ai còn import thì đổi sang
+    services/chatbot.js.
+  - Trang admin HandbookPage bỏ, thay bằng ô chat Hỏi quy trình (components/HandbookChat.jsx).
+  - Không gian bác sĩ: drawer lịch sử khám cũ thay bằng components/PatientRecordDrawer.jsx.
+  - Sửa quy trình nghiệp vụ thì sửa cả sổ tay: service-ai-analysis/knowledge/so-tay/*.md
+    (mỗi "## " là một đoạn, dòng vai-tro quy định ai được xem). Câu hỏi gợi ý theo chủ đề ở
+    so-tay/chu-de.json. Chính sách khách hàng: knowledge/chinh-sach.md, phải khớp
+    frontend-client/pages/PolicyPage.jsx.
+
+==================================================
+API MỚI
+==================================================
+  ai-analysis (qua gateway /api/ai):
+    POST /chat                            chatbot khách (có hoặc không đăng nhập)
+    GET/POST /chat/consent                khách xem / đồng ý / thu hồi quyền xem dữ liệu
+    POST /assist/reply-draft              nháp trả lời (CONSULTANT, GEN_MANAGER)
+    POST /assist/product-advice           gợi ý sản phẩm (SALES, GEN_MANAGER, ADMIN)
+    POST /assist/similar-rules            quy tắc tương tự (GEN_MANAGER, DOCTOR)
+    POST /assist/handbook, GET /assist/handbook/topics   Hỏi quy trình
+    POST /patient-summary/:profileId      tóm tắt hồ sơ (DOCTOR, GEN_MANAGER, ADMIN)
+    GET  /knowledge/status, POST /knowledge/reindex      kho kiến thức (GEN_MANAGER, ADMIN)
+  booking:
+    GET  /patient-record/:profileId       sổ y bạ (bác sĩ phải từng có lịch với hồ sơ này)
+    PUT  /safety/patients/:id/ai-summary-consent   ghi đồng ý tóm tắt AI (CONSULTANT, DOCTOR)
+  commerce:
+    GET  /orders/internal/customer/:id    chỉ JWT hệ thống, dùng cho sổ y bạ
+
+==================================================
+KIỂM TRA NHANH
+==================================================
+  - Web khách: mở chatbot, hỏi "giá peel bao nhiêu", câu trả lời phải có [1] và nguồn bên dưới.
+    Hỏi "lịch hẹn của tôi" khi đã đăng nhập: chatbot phải hỏi đồng ý trước.
+  - Admin (CSKH): ô Hỏi quy trình góc trái, chọn chủ đề → câu hỏi thường gặp → trả lời.
+  - Admin (bác sĩ): Không gian bác sĩ → mở hồ sơ khách → Sổ y bạ → Tóm tắt bằng AI.
+  - Bộ đánh giá: service-ai-analysis/scripts/rag_eval.js, safety_rag_eval.js, summary_eval.js.
+    Kết quả trong docs/DANH-GIA-CHATBOT-RAG.md. Chạy trên DB bản sao, không chạy trên DB thật.
+
+==================================================
+ĐỊA CHỈ ĐÃ ĐƯA SANG .env (chuẩn bị triển khai)
+==================================================
+Không cần làm gì nếu chạy trên máy cá nhân: để trống thì mọi giá trị vẫn là localhost như cũ.
+  - Backend: mọi lời gọi http://localhost:4000 dùng GATEWAY_URL; cổng đọc PORT; Postgres có thêm
+    DB_SSL=true cho database trên cloud.
+  - api-gateway: IDENTITY_URL, BOOKING_URL, COMMERCE_URL, AI_URL, MEDIA_URL, CORS_ORIGINS, PORT
+    (gateway tự đọc file api-gateway/.env nếu có, không cần cài thêm thư viện).
+  - service-identity: CORS_ORIGINS cho Socket.IO.
+  - frontend-admin: VITE_API_URL, VITE_SOCKET_URL, VITE_CLIENT_URL (file mới frontend-admin/config.js).
+    Code mới gọi API thì dùng `${API_BASE}/api/...`, KHÔNG viết http://localhost:4000.
+  - frontend-client: VITE_API_URL, VITE_SOCKET_URL (để trống khi chạy dev, vẫn đi qua proxy Vite).
+Danh sách đầy đủ và giải thích trong các file .env.example.

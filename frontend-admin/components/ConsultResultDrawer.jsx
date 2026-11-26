@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Drawer, Form, Input, InputNumber, Checkbox, Select, Button, Alert, message, Typography } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 const { Text } = Typography;
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 const MAX_PRODUCTS = 10; // khớp server

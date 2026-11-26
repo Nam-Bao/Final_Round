@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import axios from 'axios'
 import App from './App'
+import { API_BASE } from './config'
 import './styles/index.css'
 
 // Phiên đăng nhập nhân viên lưu trong sessionStorage: đóng trình duyệt / tab là phải đăng nhập lại.
@@ -49,10 +50,11 @@ axios.interceptors.response.use(undefined, (error) => {
 
 // Tự gắn token nhân viên (sessionStorage) vào mọi request axios gửi tới API Gateway (các API quản lý đơn, khuyến mãi...
 // giờ bắt buộc đăng nhập). Không gắn cho domain khác để không lộ token ra ngoài.
-const GATEWAY_URL = 'http://localhost:4000';
+const GATEWAY_URL = API_BASE; // VITE_API_URL trong .env, mặc định http://localhost:4000
 // Mở admin từ điện thoại trong mạng LAN (npm run dev:mobile, để chấm công bằng camera): "localhost" trên điện thoại
-// là chính điện thoại => gọi API cùng địa chỉ trang, Vite chuyển tiếp /api sang gateway (xem vite.config.js)
-const viaDevProxy = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+// là chính điện thoại => gọi API cùng địa chỉ trang, Vite chuyển tiếp /api sang gateway (xem vite.config.js).
+// Chỉ áp dụng khi chạy dev với gateway ở máy này; bản build đưa lên máy chủ gọi thẳng VITE_API_URL.
+const viaDevProxy = import.meta.env.DEV && /^https?:\/\/localhost(:\d+)?$/.test(GATEWAY_URL) && !['localhost', '127.0.0.1'].includes(window.location.hostname);
 const toProxy = (url) => (viaDevProxy && typeof url === 'string' && url.startsWith(GATEWAY_URL) ? url.slice(GATEWAY_URL.length) : url);
 
 axios.interceptors.request.use((config) => {

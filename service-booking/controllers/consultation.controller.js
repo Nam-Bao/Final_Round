@@ -1,3 +1,4 @@
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 const dayjs = require('dayjs');
 const axios = require('axios');
 const { Op } = require('sequelize');
@@ -27,7 +28,7 @@ const RESULT_DEADLINE_MINUTES = TIMING.consultResultDeadlineMinutes;  // hạn g
 const RESCHEDULE_MIN_MINUTES = TIMING.rescheduleMinMinutes;   // khách tự đổi lịch trước giờ hẹn ít nhất 24 giờ
 const MAX_RESULT_PRODUCTS = 10;
 const STAFF_ROLES = ['ADMIN', 'GEN_MANAGER', 'CONSULTANT'];
-const IDENTITY = 'http://localhost:4000/api/identity';
+const IDENTITY = `${GATEWAY_URL}/api/identity`;
 
 const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) && dayjs(v).format('YYYY-MM-DD') === v;
@@ -453,7 +454,7 @@ const parseResultProducts = async (items) => {
   const list = Array.isArray(items) ? items : [];
   if (list.length > MAX_RESULT_PRODUCTS) throw new ConsultError(`Tối đa ${MAX_RESULT_PRODUCTS} sản phẩm`);
   if (!list.length) return [];
-  const r = await axios.get('http://localhost:4000/api/commerce/products/shop').catch(() => null);
+  const r = await axios.get(`${GATEWAY_URL}/api/commerce/products/shop`).catch(() => null);
   if (!r) throw new ConsultError('Không kiểm tra được sản phẩm, vui lòng thử lại', 503);
   const shop = Object.fromEntries((r.data?.data || []).map((p) => [p.id, p]));
   return list.map((i) => {

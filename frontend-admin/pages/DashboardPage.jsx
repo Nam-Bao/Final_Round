@@ -7,8 +7,9 @@ import dayjs from 'dayjs';
 import StackedBarChart from '../components/StackedBarChart';
 import { fetchRevenue, toChartData, GROUPS, vnd } from '../utils/revenue';
 import { ARTICLE_TYPES } from '../components/content/contentApi';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const MATERIAL_STATUS = { OUT: 'Hết hàng', LOW: 'Dưới tồn tối thiểu', SHORT: 'Không đủ cho lịch 14 ngày' };
 

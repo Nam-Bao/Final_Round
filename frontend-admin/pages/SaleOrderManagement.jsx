@@ -5,6 +5,7 @@ import CreateOrderModal from '../components/CreateOrderModal';
 import { refundCode } from '../components/RefundTransferNote';
 import { useLiveRefresh } from '../components/Notifications';
 import { openPrint } from '../utils/print';
+import { API_BASE } from '../config';
 
 // Đơn tại quầy: CSKH chốt sau buổi khám (có lịch khám) hoặc NVBH bán tại quầy (địa chỉ nhận tại quầy)
 const PICKUP_ADDRESS = 'Nhận tại quầy phòng khám GlowSkin';
@@ -63,7 +64,7 @@ export default function SaleOrderManagement() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/commerce/orders/admin', authConfig());
+      const res = await axios.get(`${API_BASE}/api/commerce/orders/admin`, authConfig());
       const data = res.data.data || [];
       setOrders(data);
 
@@ -85,7 +86,7 @@ export default function SaleOrderManagement() {
   const handleUpdateStatus = async (orderId, newStatus, confirmText) => {
     if (!window.confirm(confirmText || `Bạn muốn chuyển đơn hàng sang trạng thái: ${STATUS_MAP[newStatus].label}?`)) return;
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${orderId}/status`, { status: newStatus }, authConfig());
+      const res = await axios.put(`${API_BASE}/api/commerce/orders/admin/${orderId}/status`, { status: newStatus }, authConfig());
       alert(res.data?.message || 'Cập nhật trạng thái thành công!'); // chuyển Đang giao sẽ kèm mã vận đơn GHN
       fetchOrders();
     } catch (error) {
@@ -96,7 +97,7 @@ export default function SaleOrderManagement() {
   // Đơn chuyển khoản đã trả tiền bị hủy: chuyển khoản trả khách rồi nhập mã giao dịch
   const handleReturnCause = async (order, cause) => {
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/return-cause`, { cause }, authConfig());
+      const res = await axios.put(`${API_BASE}/api/commerce/orders/admin/${order.id}/return-cause`, { cause }, authConfig());
       alert(res.data?.message);
       setSelectedOrder(null);
       fetchOrders();
@@ -108,7 +109,7 @@ export default function SaleOrderManagement() {
   const handleConfirmRefund = async () => {
     try {
       const { order, account, ref } = refunding;
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${order.id}/refund`, { refund_ref: ref.trim(), account: account.trim() }, authConfig());
+      const res = await axios.put(`${API_BASE}/api/commerce/orders/admin/${order.id}/refund`, { refund_ref: ref.trim(), account: account.trim() }, authConfig());
       alert(res.data?.message);
       setRefunding(null);
       setSelectedOrder(null);
@@ -121,7 +122,7 @@ export default function SaleOrderManagement() {
   // Bên yêu cầu hủy quyết định voucher: phòng khám hủy thì khách được trả lại lượt
   const handleCancelOrder = async () => {
     try {
-      const res = await axios.put(`http://localhost:4000/api/commerce/orders/admin/${cancelling.id}/cancel`, { initiator: cancelling.initiator, reason: cancelling.reason }, authConfig());
+      const res = await axios.put(`${API_BASE}/api/commerce/orders/admin/${cancelling.id}/cancel`, { initiator: cancelling.initiator, reason: cancelling.reason }, authConfig());
       alert(res.data?.message || 'Đã hủy đơn và hoàn kho!'); // có nhắc hoàn tiền nếu đơn đã chuyển khoản
       setCancelling(null);
       setSelectedOrder(null);
@@ -144,7 +145,7 @@ export default function SaleOrderManagement() {
 
       // Bắn trực tiếp vào API Webhook của backend
       // Webhook nhận nhân viên đã đăng nhập (giả lập) hoặc khoá GHN_WEBHOOK_SECRET (GHN gọi thật)
-      await axios.post('http://localhost:4000/api/commerce/orders/ghn-webhook', payload, authConfig());
+      await axios.post(`${API_BASE}/api/commerce/orders/ghn-webhook`, payload, authConfig());
 
       alert('Tín hiệu Webhook đã được nhận thành công! Đơn hàng sẽ tự nhảy sang Hoàn Thành.');
       fetchOrders(); // Tải lại danh sách

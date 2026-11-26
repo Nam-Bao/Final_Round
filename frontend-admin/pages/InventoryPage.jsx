@@ -3,6 +3,7 @@ import { Table, Tag, Space, Button, message, Modal, Form, Input, InputNumber, Se
 import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, GlobalOutlined } from '@ant-design/icons';
 import ProductWebInfoModal from '../components/ProductWebInfoModal';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
 // ==========================================
 // TAB 1: COMPONENT QUẢN LÝ DANH MỤC
@@ -20,7 +21,7 @@ const CategoriesTab = () => {
   const fetchCategories = async () => { 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/commerce/categories');
+      const res = await fetch(`${API_BASE}/api/commerce/categories`);
       const data = await res.json();
       setCategories(data.data || []);
     } catch (error) { 
@@ -40,7 +41,7 @@ const CategoriesTab = () => {
     try {
       const token = sessionStorage.getItem('admin_token');
       const isUpdate = !!editingItem;
-      const url = isUpdate ? `http://localhost:4000/api/commerce/categories/${editingItem.id}` : 'http://localhost:4000/api/commerce/categories';
+      const url = isUpdate ? `${API_BASE}/api/commerce/categories/${editingItem.id}` : `${API_BASE}/api/commerce/categories`;
       const res = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST', 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
@@ -61,7 +62,7 @@ const CategoriesTab = () => {
   const handleDelete = async (id) => { 
     try {
       const token = sessionStorage.getItem('admin_token');
-      await fetch(`http://localhost:4000/api/commerce/categories/${id}`, { 
+      await fetch(`${API_BASE}/api/commerce/categories/${id}`, { 
         method: 'DELETE', 
         headers: { 'Authorization': `Bearer ${token}` } 
       });
@@ -143,7 +144,7 @@ const ProductsTab = () => {
     setLoading(true);
     try {
       // /admin: lấy cả vật tư nội bộ (API công khai chỉ còn trả mỹ phẩm bán cho khách)
-      const res = await fetch('http://localhost:4000/api/commerce/products/admin', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+      const res = await fetch(`${API_BASE}/api/commerce/products/admin`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
       const data = await res.json();
       setProducts(data.data || []);
     } catch (error) { 
@@ -155,7 +156,7 @@ const ProductsTab = () => {
 
   const fetchCategories = async () => { 
     try {
-      const res = await fetch('http://localhost:4000/api/commerce/categories');
+      const res = await fetch(`${API_BASE}/api/commerce/categories`);
       const data = await res.json();
       if(data.data) {
         setCategories(data.data.filter(c => c.status === 'ACTIVE' || !c.status));
@@ -210,7 +211,7 @@ const ProductsTab = () => {
           const formData = new FormData();
           formData.append('image', file.originFileObj || file);
           
-          const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+          const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
@@ -229,8 +230,8 @@ const ProductsTab = () => {
 
       const isUpdate = !!editingItem;
       const url = isUpdate 
-        ? `http://localhost:4000/api/commerce/products/${editingItem.id}` 
-        : 'http://localhost:4000/api/commerce/products';
+        ? `${API_BASE}/api/commerce/products/${editingItem.id}` 
+        : `${API_BASE}/api/commerce/products`;
       
       const payload = {
         ...values,
@@ -272,7 +273,7 @@ const ProductsTab = () => {
   const handleDelete = async (id) => { 
     try {
       const token = sessionStorage.getItem('admin_token');
-      await fetch(`http://localhost:4000/api/commerce/products/${id}`, { 
+      await fetch(`${API_BASE}/api/commerce/products/${id}`, { 
         method: 'DELETE', 
         headers: { 'Authorization': `Bearer ${token}` } 
       });
@@ -450,7 +451,7 @@ const ExpiringProductsTab = () => {
   const fetchExpiringProducts = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/commerce/products/admin', { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
+      const res = await fetch(`${API_BASE}/api/commerce/products/admin`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
       const data = await res.json();
 
       const today = dayjs();

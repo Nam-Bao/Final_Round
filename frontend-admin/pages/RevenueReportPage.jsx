@@ -131,6 +131,11 @@ export default function RevenueReportPage() {
                     {data.counts.invoices} hoá đơn khám • {data.counts.orders} đơn mỹ phẩm • {data.counts.consultations} buổi tư vấn • {data.counts.forfeited} lịch huỷ giữ cọc.
                     Giảm giá đã được trừ vào từng nguồn; phí ship GHN không tính vào doanh thu.
                   </p>
+                  {data.paid_by_points > 0 && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Trong doanh thu mỹ phẩm có <b>{vnd(data.paid_by_points)}</b> khách trả bằng Điểm GlowSkin (không thu thêm tiền mặt; điểm là khoản cọc / hoàn tiền khách đã có từ trước). Xem chi tiết ở Báo cáo → Điểm GlowSkin.
+                    </p>
+                  )}
                 </Card>
               </Col>
               <Col xs={24} lg={12}>

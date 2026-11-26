@@ -8,8 +8,9 @@ import { PrinterOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { CLIENT_URL } from '../components/content/contentApi';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const SOURCES = {
   invoice: { url: (id) => `${API}/booking/appointments/${id}/print/invoice`, title: 'Phiếu thanh toán' },
   prescription: { url: (id) => `${API}/booking/appointments/${id}/print/prescription`, title: 'Đơn thuốc' },

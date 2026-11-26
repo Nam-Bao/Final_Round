@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, DatePicker, Select, Switch, Row, Col, Alert, Tabs, message, Spin } from 'antd';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
+import { CLIENT_URL } from './content/contentApi';
 
-const API = 'http://localhost:4000/api/commerce/products';
+const API = `${API_BASE}/api/commerce/products`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
-const SHOP_URL = 'http://localhost:3001/shops/';
+const SHOP_URL = `${CLIENT_URL}/shops/`;
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 
 // Thông tin hiển thị trên trang sản phẩm của khách + bật / tắt bán trên web.

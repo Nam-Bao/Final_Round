@@ -114,3 +114,13 @@ exports.handbookTopics = (req, res) => {
   try { res.status(200).json({ data: assist.handbookTopics(req.user.role) }); }
   catch (error) { res.status(500).json({ message: 'Không tải được chủ đề' }); }
 };
+// Bác sĩ / quản lý: AI tóm tắt hồ sơ khám (chỉ khi khách đã đồng ý, dữ liệu đã bỏ định danh). body: { refresh }
+const patientSummary = require('../services/patientSummary');
+exports.patientSummary = async (req, res) => {
+  try { res.status(200).json({ data: await patientSummary.summarize(req.params.profileId, req.user, req.header('Authorization'), { refresh: req.body?.refresh === true }) }); }
+  catch (error) {
+    if (error instanceof patientSummary.SummaryError) return res.status(error.status).json({ message: error.message, code: error.code });
+    console.error('[AI tóm tắt hồ sơ]', error.response?.data?.error?.message || error.message);
+    res.status(503).json({ message: 'AI đang bận, vui lòng thử lại sau' });
+  }
+};

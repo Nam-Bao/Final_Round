@@ -4,8 +4,9 @@ import { Card, Table, Tag, Select, Input, Button, Space, Alert, Tooltip, message
 import { MailOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/identity/emails';
+const API = `${API_BASE}/api/identity/emails`;
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const STATUS = {
   SENT: { color: 'green', label: 'Đã gửi' }, FAILED: { color: 'red', label: 'Lỗi' },

@@ -4,6 +4,7 @@ import { FileTextOutlined, AlertOutlined, InfoCircleOutlined, CalendarOutlined, 
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'; 
 import isoWeek from 'dayjs/plugin/isoWeek'; 
+import { API_BASE } from '../config';
 
 dayjs.extend(isSameOrAfter); 
 dayjs.extend(isoWeek);
@@ -33,7 +34,7 @@ export default function MySchedulePage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/booking/shifts/my-shifts', {
+      const res = await fetch(`${API_BASE}/api/booking/shifts/my-shifts`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -50,7 +51,7 @@ export default function MySchedulePage() {
   const fetchMyRequests = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/booking/shifts/my-requests', {
+      const res = await fetch(`${API_BASE}/api/booking/shifts/my-requests`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -96,7 +97,7 @@ export default function MySchedulePage() {
         ? `[KHẨN CẤP - Đã có khách] ${values.reason}` 
         : values.reason;
 
-      const res = await fetch('http://localhost:4000/api/booking/shifts/request-off', {
+      const res = await fetch(`${API_BASE}/api/booking/shifts/request-off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({

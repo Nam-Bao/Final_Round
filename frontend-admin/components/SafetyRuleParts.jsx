@@ -5,8 +5,9 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { SafetyWarnings } from './PatientSafetyPanel';
 import VoucherProofUpload from './VoucherProofUpload';
+import { API_BASE } from '../config';
 
-export const RULE_API = 'http://localhost:4000/api/booking/safety-rules';
+export const RULE_API = `${API_BASE}/api/booking/safety-rules`;
 export const authHeaders = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 export const SEVERITY_COLOR = { CONTRAINDICATED: 'red', CAUTION: 'orange', INFO: 'blue' };
 export const STATUS_COLOR = {
@@ -67,7 +68,7 @@ function SimilarRulesCheck({ form, meta, rule, selectedTarget }) {
     if (!condition || !target_label) return message.warning('Chọn tình trạng và đối tượng trước khi kiểm tra');
     setState({ loading: true });
     try {
-      const res = await axios.post('http://localhost:4000/api/ai/assist/similar-rules', {
+      const res = await axios.post(`${API_BASE}/api/ai/assist/similar-rules`, {
         condition, target_label,
         target_keywords: newTarget ? splitList(v.nt_keywords) : selectedTarget?.keywords || [],
         severity_label: meta.severities.find((x) => x.value === v.severity)?.label, message: v.message,
@@ -272,9 +273,9 @@ export function RuleTester({ meta, rule }) {
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     Promise.allSettled([
-      axios.get('http://localhost:4000/api/commerce/products'),
-      axios.get('http://localhost:4000/api/booking/spa-services'),
-      axios.get('http://localhost:4000/api/booking/packages'),
+      axios.get(`${API_BASE}/api/commerce/products`),
+      axios.get(`${API_BASE}/api/booking/spa-services`),
+      axios.get(`${API_BASE}/api/booking/packages`),
     ]).then(([p, s, k]) => setCatalog({
       products: p.status === 'fulfilled' ? p.value.data.data || [] : [],
       services: s.status === 'fulfilled' ? s.value.data.data || s.value.data || [] : [],

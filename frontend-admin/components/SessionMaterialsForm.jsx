@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Table, Input, InputNumber, Select, Button, Tag, Alert, Spin, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/commerce/materials';
+const API = `${API_BASE}/api/commerce/materials`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 
 // Vật tư dùng trong 1 buổi: điền sẵn theo định mức của dịch vụ / gói, KTV sửa số thực dùng hoặc thêm vật tư khác.

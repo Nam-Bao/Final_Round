@@ -14,8 +14,10 @@ Số liệu phải khớp code (service-booking/utils/timing.js, attendanceRules
 - Ảnh khuôn mặt được so với ảnh gốc đã được quản lý duyệt. Không khớp thì vẫn ghi nhận nhưng gắn cờ để quản lý xem lại; nếu quản lý xác định không phải nhân viên đó thì ca bị tính vắng và vi phạm nghiêm trọng.
 
 ## Đến muộn, quên chấm công, giải trình
-- Vào ca sau khi khung quét mã đã đóng (quá 10 phút sau giờ vào ca) là đến muộn, tính vi phạm.
-- Nhân viên gửi giải trình ở trang Chấm công của tôi, hạn 24 giờ sau khi hết ca. Lý do: sự cố giao thông; sức khỏe (cần ảnh minh chứng); việc gia đình khẩn cấp; được giao việc khác (cần người xác nhận); có mặt đúng giờ nhưng quên chấm công (cần người xác nhận); lỗi hệ thống / máy chấm công (cần ảnh và người xác nhận); lý do khác (cần ảnh).
+- Quét mã sau giờ vào ca (trong 10 phút khung còn mở) là đến trễ, hệ thống ghi số phút trễ và tính vi phạm.
+- Quá 10 phút sau giờ vào ca thì khung quét mã đã đóng, không chấm công tại máy được nữa: gửi giải trình ở trang Chấm công của tôi, nhập giờ có mặt thực tế (sau khi khung đóng, trong vòng 24 giờ sau khi hết ca).
+- Đã có mặt trước khi khung đóng mà chưa quét được (quên, máy lỗi): chọn lý do "quên chấm công" hoặc "lỗi hệ thống". Mô tả giải trình cần ít nhất 80 ký tự, 15 từ, nêu rõ chuyện gì, lúc nào, ở đâu, và tick cam kết đúng sự thật. Mỗi ca chỉ giải trình một lần.
+- Lý do giải trình: sự cố giao thông; sức khỏe (cần ảnh minh chứng); việc gia đình khẩn cấp; được giao việc khác (cần người xác nhận); có mặt đúng giờ nhưng quên chấm công (cần người xác nhận); lỗi hệ thống / máy chấm công (cần ảnh và người xác nhận); lý do khác (cần ảnh).
 - Quản lý duyệt thì không tính vi phạm; từ chối thì giữ vi phạm và tính vào lương.
 - Hết ca không chấm công và không giải trình trong 24 giờ: hệ thống tự ghi vắng.
 - Quên chấm ra ca: gửi giải trình "quên chấm ra ca" trong 24 giờ để quản lý duyệt.

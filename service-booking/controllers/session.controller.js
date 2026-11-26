@@ -2,6 +2,7 @@ const { TreatmentSession, ServiceSession, CustomerPackage, TreatmentPackage, Spa
 const axios = require('axios');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 const getTechnicianQueues = async (req, res) => {
   try {
@@ -27,7 +28,7 @@ const getTechnicianQueues = async (req, res) => {
 
     let allUsers = [];
     try {
-      const identityRes = await axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': token } });
+      const identityRes = await axios.get(`${GATEWAY_URL}/api/identity/users/customers`, { headers: { 'Authorization': token } });
       allUsers = identityRes.data.data;
     } catch (err) { console.warn("Không gọi được identity"); }
 
@@ -121,7 +122,7 @@ const updateSessionStatus = async (req, res) => {
         target_name = (await SpaService.findByPk(session.spa_service_id, { attributes: ['name'] }))?.name || '';
       }
       try {
-        const r = await axios.post('http://localhost:4000/api/commerce/materials/usage', {
+        const r = await axios.post(`${GATEWAY_URL}/api/commerce/materials/usage`, {
           reference_type: isPackage ? 'TREATMENT_SESSION' : 'SERVICE_SESSION', reference_id: session.id,
           target_type: isPackage ? 'PACKAGE' : 'SERVICE', target_id, target_name,
           items: Array.isArray(req.body.materials) ? req.body.materials : [],

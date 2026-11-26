@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, Radio, Upload } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { API_BASE } from '../config';
 
 // Danh mục hiển thị ở trang Dịch vụ của khách (khám online đặt ở trang Đặt lịch, không phải dịch vụ spa)
 const CATEGORIES = ['Trị mụn', 'Trị nám và tàn nhang', 'Trẻ hóa da', 'Phục hồi da', 'Chăm sóc da cơ bản'];
@@ -34,7 +35,7 @@ export default function SpaServicesPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/booking/spa-services/admin', {
+      const res = await fetch(`${API_BASE}/api/booking/spa-services/admin`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -74,7 +75,7 @@ export default function SpaServicesPage() {
         // Dùng phép OR: Lấy originFileObj nếu có, nếu không có thì lấy thẳng file gốc
         formData.append('image', fileList[0].originFileObj || fileList[0]);
         
-        const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+        const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -93,8 +94,8 @@ export default function SpaServicesPage() {
 
       const isUpdate = !!editingItem;
       const url = isUpdate 
-        ? `http://localhost:4000/api/booking/spa-services/${editingItem.id}` 
-        : 'http://localhost:4000/api/booking/spa-services';
+        ? `${API_BASE}/api/booking/spa-services/${editingItem.id}` 
+        : `${API_BASE}/api/booking/spa-services`;
 
       const res = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST',
@@ -116,7 +117,7 @@ export default function SpaServicesPage() {
   const handleDelete = async (id) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:4000/api/booking/spa-services/${id}`, {
+      const res = await fetch(`${API_BASE}/api/booking/spa-services/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

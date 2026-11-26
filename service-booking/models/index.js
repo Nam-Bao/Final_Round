@@ -4,7 +4,7 @@ const sequelize = new Sequelize(
     process.env.DB_NAME || 'booking_db',
     process.env.DB_USER || 'postgres',
     process.env.DB_PASSWORD || 'password',
-    { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5433), dialect: 'postgres' }
+    { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5433), dialect: 'postgres', dialectOptions: process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {} }
 );
 
 const TreatmentPackage = sequelize.define('TreatmentPackage', {
@@ -309,6 +309,10 @@ const PatientSafety = sequelize.define('PatientSafety', {
     counter_reported_at: { type: DataTypes.DATE },
     counter_reported_by: { type: DataTypes.UUID },
     counter_order_id: { type: DataTypes.UUID },
+    // Khách đồng ý cho AI tóm tắt hồ sơ khám (gửi bệnh án đã bỏ thông tin định danh sang Gemini). CSKH / bác sĩ hỏi và ghi nhận
+    ai_summary_consent: { type: DataTypes.BOOLEAN },
+    ai_summary_consent_at: { type: DataTypes.DATE },
+    ai_summary_consent_by: { type: DataTypes.UUID },
 });
 
 // ===== QUY TẮC CHỐNG CHỈ ĐỊNH (quản lý soạn -> bác sĩ xem xét -> quản lý duyệt), xem utils/safetyRules.js

@@ -20,7 +20,7 @@ const DISCIPLINE_ACTIONS = { REMINDER: 'Nhắc nhở', REPRIMAND: 'Khiển trác
 
 // Danh sách nhân viên (tên, vai trò) từ service-identity, dùng token của quản lý đang gọi
 const fetchEmployees = async (req) => {
-  const base = (process.env.IDENTITY_SERVICE_URL || 'http://localhost:4001').replace(/\/+$/, '');
+  const base = (process.env.IDENTITY_SERVICE_URL || process.env.IDENTITY_URL || 'http://localhost:4001').replace(/\/+$/, '');
   const res = await fetch(`${base}/users/employees`, { headers: { Authorization: req.header('Authorization') }, signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw httpError(502, 'Không lấy được danh sách nhân viên từ service-identity');
   const { data } = await res.json();

@@ -4,8 +4,9 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { ATT_API, authConfig, errorText, fmtDateTime } from './attendanceApi';
 import { useLiveRefresh } from '../Notifications';
+import { API_BASE } from '../../config';
 
-const FACE_API = 'http://localhost:4000/api/ai/faces';
+const FACE_API = `${API_BASE}/api/ai/faces`;
 // Kết quả so ảnh chấm công với ảnh gốc
 export const FACE_STATUS = {
   MATCH: { color: 'green', label: 'Khớp ảnh gốc' },

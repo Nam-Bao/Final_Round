@@ -1,3 +1,4 @@
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 const { SafetyOverride, sequelize, Appointment, AppointmentCancellation, WorkShift, Invoice, Transaction, CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, SpaService, Consultation } = require('../models');
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
@@ -47,8 +48,8 @@ const calculateDeposit = async (customer_id, profile, preNotes) => {
 // Trả về hồ sơ (null nếu không thuộc tài khoản); không gọi được identity => ném lỗi để trả 503.
 const findPatientProfile = async (req, customer_id, patient_profile_id) => {
   const url = req.user.role === 'CUSTOMER'
-    ? 'http://localhost:4000/api/identity/profile/patients'
-    : `http://localhost:4000/api/identity/profile/patients/user/${encodeURIComponent(customer_id)}`;
+    ? `${GATEWAY_URL}/api/identity/profile/patients`
+    : `${GATEWAY_URL}/api/identity/profile/patients/user/${encodeURIComponent(customer_id)}`;
   // identity trả lỗi (không có quyền / không tìm thấy) -> coi như hồ sơ không hợp lệ
   const profRes = await axios.get(url, { headers: { Authorization: req.headers.authorization } })
     .catch(err => { if (err.response) return { data: { data: [] } }; throw err; });
@@ -165,7 +166,7 @@ const calculateCheckoutBill = async ({ invoice, selected_services, selected_pack
   const [services, packages, productsRes] = await Promise.all([
     selected_services.length ? SpaService.findAll({ where: { id: selected_services }, raw: true }) : [],
     selected_packages.length ? TreatmentPackage.findAll({ where: { id: selected_packages }, raw: true }) : [],
-    selected_medicines.length ? axios.get('http://localhost:4000/api/commerce/products') : { data: { data: [] } },
+    selected_medicines.length ? axios.get(`${GATEWAY_URL}/api/commerce/products`) : { data: { data: [] } },
   ]);
   const catalog = productsRes.data.data || [];
   const productLines = selected_medicines.map((m) => {
@@ -262,7 +263,7 @@ const getMyTodayAppointments = async (req, res) => {
     const token = req.headers.authorization; 
     let allUsers = [];
     try {
-      const identityResponse = await axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': token } });
+      const identityResponse = await axios.get(`${GATEWAY_URL}/api/identity/users/customers`, { headers: { 'Authorization': token } });
       allUsers = identityResponse.data.data;
     } catch (identityError) {
       console.warn("Không thể gọi sang service-identity:", identityError.message);
@@ -586,7 +587,7 @@ const getConsultantQueues = async (req, res) => {
     const token = req.headers.authorization;
     let allUsers = [];
     try {
-      allUsers = (await axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': token } })).data.data;
+      allUsers = (await axios.get(`${GATEWAY_URL}/api/identity/users/customers`, { headers: { 'Authorization': token } })).data.data;
     } catch (error) {}
 
     const queues = { checkIn: [], walkIn: [], hotLeads: [], reschedule: [] };
@@ -778,7 +779,7 @@ const finishExam = async (req, res) => {
     }
 
     try {
-      await axios.post('http://localhost:4000/api/identity/medical-records', {
+      await axios.post(`${GATEWAY_URL}/api/identity/medical-records`, {
         patient_profile_id: apt.patient_profile_id, 
         doctor_id: apt.doctor_id, 
         appointment_id: apt.id,
@@ -1120,7 +1121,7 @@ const getAvailableDoctors = async (req, res) => {
     const shifts = await WorkShift.findAll({ where: { date, status: { [Op.in]: WORKING_SHIFT_STATUSES } }, raw: true });
     const employeeIds = [...new Set(shifts.map(s => s.employee_id))];
     if (employeeIds.length === 0) return res.status(200).json({ data: [] });
-    const resDoc = await axios.get('http://localhost:4000/api/identity/users/doctors', { headers: { 'Authorization': req.headers.authorization } });
+    const resDoc = await axios.get(`${GATEWAY_URL}/api/identity/users/doctors`, { headers: { 'Authorization': req.headers.authorization } });
     const availableDoctors = resDoc.data.data.filter(doc => employeeIds.includes(doc.id));
     res.status(200).json({ data: availableDoctors });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
@@ -1150,7 +1151,7 @@ const getAvailableSlots = async (req, res) => {
 const SHIFT_ENDING_WARNING_MINUTES = 30;
 
 const fetchDoctors = async (req) => {
-  const r = await axios.get('http://localhost:4000/api/identity/users/doctors', { headers: { Authorization: req.headers.authorization } }).catch(() => null);
+  const r = await axios.get(`${GATEWAY_URL}/api/identity/users/doctors`, { headers: { Authorization: req.headers.authorization } }).catch(() => null);
   if (!r) throw new WalkInError('Không lấy được danh sách bác sĩ, vui lòng thử lại', 503);
   return r.data?.data || [];
 };
@@ -1162,7 +1163,7 @@ const doctorBoard = async (req, today, transaction) => {
   const [shifts, apts, customers] = await Promise.all([
     WorkShift.findAll({ where: { employee_id: { [Op.in]: ids }, date: today, status: { [Op.in]: WORKING_SHIFT_STATUSES } }, raw: true, transaction }),
     Appointment.findAll({ where: { doctor_id: { [Op.in]: ids }, appointment_date: today, status: { [Op.in]: ['PENDING', 'CONFIRMED', 'WAITING', 'IN_PROGRESS'] } }, raw: true, transaction }),
-    axios.get('http://localhost:4000/api/identity/users/customers', { headers: { Authorization: req.headers.authorization } }).then((r) => r.data?.data || []).catch(() => []),
+    axios.get(`${GATEWAY_URL}/api/identity/users/customers`, { headers: { Authorization: req.headers.authorization } }).then((r) => r.data?.data || []).catch(() => []),
   ]);
   const nameOf = (a) => {
     const customer = customers.find((u) => u.id === a.customer_id);
@@ -1332,7 +1333,7 @@ const checkoutAppointment = async (req, res) => {
     let discountAmount = 0;
     if (voucher_code) {
       try {
-        const redeemRes = await axios.post('http://localhost:4000/api/commerce/promotions/redeem', {
+        const redeemRes = await axios.post(`${GATEWAY_URL}/api/commerce/promotions/redeem`, {
           code: voucher_code,
           customer_id: apt.customer_id,
           order_value: bill.gross,
@@ -1356,12 +1357,12 @@ const checkoutAppointment = async (req, res) => {
     // để khách xem lại trong "Đơn hàng Mỹ phẩm" và đánh giá được sản phẩm
     if (selected_medicines.length > 0) {
       const headers = { Authorization: req.headers.authorization };
-      const customersRes = await axios.get('http://localhost:4000/api/identity/users/customers', { headers }).catch(() => null);
+      const customersRes = await axios.get(`${GATEWAY_URL}/api/identity/users/customers`, { headers }).catch(() => null);
       const customer = (customersRes?.data?.data || []).find(u => u.id === apt.customer_id);
       // Đơn ghi theo hồ sơ người được khám (có thể là người thân), không theo chủ tài khoản
       const patientProfile = customer?.PatientProfiles?.find(p => p.id === apt.patient_profile_id);
       try {
-        await axios.post('http://localhost:4000/api/commerce/orders/counter', {
+        await axios.post(`${GATEWAY_URL}/api/commerce/orders/counter`, {
           customer_id: apt.customer_id,
           appointment_id: apt.id,
           items: selected_medicines,
@@ -1382,7 +1383,7 @@ const checkoutAppointment = async (req, res) => {
     let chosenTechnicianId = null;
     if (scheduledEmployeeIds.length > 0) {
         try {
-            const resUsers = await axios.get('http://localhost:4000/api/identity/users', { headers: { 'Authorization': req.headers.authorization } });
+            const resUsers = await axios.get(`${GATEWAY_URL}/api/identity/users`, { headers: { 'Authorization': req.headers.authorization } });
             const availableKTVs = resUsers.data.data.filter(u => u.role === 'TECHNICIAN' && scheduledEmployeeIds.includes(u.id));
 
             let minLoad = Infinity;

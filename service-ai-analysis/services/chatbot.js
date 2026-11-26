@@ -186,7 +186,7 @@ const answer = async ({ messages, user, authorization, sessionId, useRag = true 
   const used = [];
   for (let round = 0; round < 3; round++) {
     const r = await gemini.generate({ system: systemPrompt({ docs, customer, loggedIn: !!user }), contents, tools });
-    if (!r.functionCalls.length) return finish(r.text, docs, used, r.model, { customer, loggedIn: !!user });
+    if (!r.functionCalls.length) return keepAnswerable(finish(r.text, docs, used, r.model, { customer, loggedIn: !!user }));
 
     // Cần dữ liệu riêng: kiểm tra đồng ý cho từng loại
     const calls = r.functionCalls.filter((c) => toolByName[c.name]);
@@ -244,6 +244,19 @@ const quickRepliesOf = (line, docs, ctx) => {
   }
   // Bỏ trùng (cùng link / cùng câu)
   return out.filter((q, i) => out.findIndex((x) => (x.url || x.text || x.type) === (q.url || q.text || q.type)) === i);
+};
+
+// Bỏ nút câu hỏi tiếp mà kho kiến thức không trả lời được (độ liên quan cao nhất < ANSWERABLE_SCORE).
+// Ngưỡng đo trên dữ liệu thật: câu trả lời được >= 0.70, câu không có dữ liệu (đậu ô tô, trả góp...) <= 0.68. Lỗi đo thì giữ nguyên nút.
+const ANSWERABLE_SCORE = Number(process.env.ANSWERABLE_SCORE) || 0.69;
+const keepAnswerable = async (out) => {
+  const asks = (out.quick_replies || []).filter((q) => q.type === 'ask');
+  if (!asks.length) return out;
+  try {
+    const scores = await knowledge.bestScores('CHAT', asks.map((q) => q.text));
+    const drop = new Set(asks.filter((q, i) => scores[i] < ANSWERABLE_SCORE).map((q) => q.text));
+    return { ...out, quick_replies: out.quick_replies.filter((q) => q.type !== 'ask' || !drop.has(q.text)) };
+  } catch { return out; }
 };
 
 // Chỉ giữ nguồn được trích [n]; đánh số lại theo thứ tự xuất hiện

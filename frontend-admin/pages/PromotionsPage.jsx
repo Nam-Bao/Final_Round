@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, InputNumber, Select, Popconfirm, Row, Col, DatePicker, Radio, Upload, Image } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, HistoryOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
 const VISIBILITY = {
   PUBLIC: { color: 'blue', text: 'Website khách' },
@@ -31,7 +32,7 @@ export default function PromotionsPage() {
     setUsageLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:4000/api/commerce/promotions/admin/usages${promo ? `?promotion_id=${promo.id}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/api/commerce/promotions/admin/usages${promo ? `?promotion_id=${promo.id}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const result = await res.json();
       if (!res.ok) throw new Error(result.message);
       setUsages(result.data || []);
@@ -50,7 +51,7 @@ export default function PromotionsPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/commerce/promotions/admin', {
+      const res = await fetch(`${API_BASE}/api/commerce/promotions/admin`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -91,7 +92,7 @@ export default function PromotionsPage() {
         // Dùng phép OR: Lấy originFileObj nếu có, nếu không có thì lấy thẳng file gốc
         formData.append('image', fileList[0].originFileObj || fileList[0]);
         
-        const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+        const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }, // Không set Content-Type
           body: formData
@@ -112,8 +113,8 @@ export default function PromotionsPage() {
 
       const isUpdate = !!editingItem;
       const url = isUpdate 
-        ? `http://localhost:4000/api/commerce/promotions/${editingItem.id}` 
-        : 'http://localhost:4000/api/commerce/promotions';
+        ? `${API_BASE}/api/commerce/promotions/${editingItem.id}` 
+        : `${API_BASE}/api/commerce/promotions`;
 
       const res = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST',
@@ -135,7 +136,7 @@ export default function PromotionsPage() {
   const handleDelete = async (id) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:4000/api/commerce/promotions/${id}`, {
+      const res = await fetch(`${API_BASE}/api/commerce/promotions/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
