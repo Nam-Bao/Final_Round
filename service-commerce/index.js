@@ -72,6 +72,10 @@ app.listen(PORT, async() => {
         await sequelize.query('ALTER TABLE "Products" ALTER COLUMN "start_date" DROP NOT NULL, ALTER COLUMN "end_date" DROP NOT NULL');
         await sequelize.query('ALTER TABLE "MaterialLots" ADD COLUMN IF NOT EXISTS "manufacture_date" DATE, ADD COLUMN IF NOT EXISTS "purchase_order_id" UUID, ADD COLUMN IF NOT EXISTS "receipt_id" UUID, ADD COLUMN IF NOT EXISTS "supplier_id" UUID, ADD COLUMN IF NOT EXISTS "hold_reason" VARCHAR(20), ADD COLUMN IF NOT EXISTS "hold_at" TIMESTAMPTZ');
         await sequelize.query('ALTER TABLE "OrderDetails" ADD COLUMN IF NOT EXISTS "lot_allocations" JSONB');
+        await sequelize.query('ALTER TABLE "InventoryRequests" ADD COLUMN IF NOT EXISTS "self_approved" BOOLEAN DEFAULT false');
+        // Đề xuất cũ đã ghi "đã đặt hàng" theo cách cũ mà chưa nhận hàng và chưa có đơn đặt hàng => về "đã duyệt, chưa đặt" để tạo đơn đặt hàng mới
+        const [, legacy] = await sequelize.query(`UPDATE "InventoryRequests" r SET ordered_at = NULL, ordered_by = NULL WHERE r.type = 'PURCHASE_ORDER' AND r.status = 'APPROVED' AND r.ordered_at IS NOT NULL AND r.received_at IS NULL AND NOT EXISTS (SELECT 1 FROM "PurchaseOrders" p WHERE p.request_id = r.id)`);
+        if (legacy?.rowCount) console.log(`🧾 ${legacy.rowCount} đề xuất cũ đã đặt hàng (cách cũ) chuyển về chờ tạo đơn đặt hàng`);
         await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "points_used" INTEGER, ADD COLUMN IF NOT EXISTS "refund_account" VARCHAR(200)');
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');

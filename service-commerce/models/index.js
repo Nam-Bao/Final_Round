@@ -159,6 +159,7 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
   supplier: { type: DataTypes.STRING(200) },
   expected_date: { type: DataTypes.DATEONLY },
   receive_note: { type: DataTypes.TEXT }, // ghi chú khi nhận hàng (vd nhà cung cấp giao thiếu)
+  self_approved: { type: DataTypes.BOOLEAN, defaultValue: false }, // quản lý tự duyệt đề xuất do chính mình tạo (bắt buộc ghi lý do)
 });
 
 // Lô vật tư: xuất theo nguyên tắc hết hạn trước dùng trước; lô đã hết hạn không được xuất cho buổi trị liệu

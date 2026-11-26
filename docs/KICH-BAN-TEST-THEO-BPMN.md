@@ -445,7 +445,7 @@ Trang **Nhập hàng & Kiểm kho** (quản lý) / **Kho mỹ phẩm** (NVBH). E
 | 20.4 | Khách không thấy lô | Web khách → chi tiết sản phẩm, API `/products/shop` | Không có số lô / NSX / HSD; chỉ "N tháng kể từ ngày sản xuất" |
 | 20.5 | Nhà cung cấp | Tab Nhà cung cấp → thêm (email sai / đúng); NVBH thử thêm | Email sai bị chặn; NVBH không thêm được |
 | 20.6 | NVBH đề xuất | NVBH → Đề xuất nhập → chọn mỹ phẩm; thử chọn vật tư (API) | Đề xuất chờ duyệt; vật tư bị từ chối "NVBH chỉ đề xuất nhập mỹ phẩm" |
-| 20.7 | Không tự duyệt | Quản lý tạo đề xuất rồi tự bấm Duyệt | Báo "Không tự duyệt đề xuất của chính mình"; quản lý / admin khác duyệt được |
+| 20.7 | Quản lý tự duyệt | Quản lý tạo đề xuất rồi tự bấm Duyệt: không ghi lý do / ghi lý do ≥ 10 ký tự | Không lý do: bị chặn; có lý do: duyệt được, đề xuất gắn nhãn "Quản lý tự đề xuất & duyệt". Đề xuất của NVBH / hệ thống duyệt bình thường |
 | 20.8 | Tự đề xuất | Đặt tồn tối thiểu 5 cho 1 mỹ phẩm còn 6 → bán 1 | Có đề xuất "Tự động: ... (sau đơn #...)", người đề xuất "Hệ thống" |
 | 20.9 | Đặt hàng | Đề xuất đã duyệt → Đặt hàng → chọn NCC, đơn giá, ngày giao | Đơn `PO-ddmmyy-nnn` "Đã gửi, chờ hàng", email PO_SENT kèm PDF; tải PDF được; không tạo đơn 2 lần cho 1 đề xuất |
 | 20.10 | Hủy đơn đặt hàng | Đơn chưa nhận hàng → Hủy (ghi lý do) | Email báo hủy cho NCC; đề xuất quay về "Đã duyệt, chưa đặt hàng" |

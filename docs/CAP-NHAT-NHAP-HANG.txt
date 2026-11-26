@@ -15,7 +15,8 @@ TÓM TẮT
      Khớp: nhập kho ngay. Lệch / lỗi: quản lý kiểm tra thực tế, quyết định nhận / trả / hủy / giao bù.
   4. Kiểm kho mỹ phẩm hàng tuần: NVBH đếm không thấy số hệ thống; lệch dù 1 sản phẩm thì quản lý
      đếm lại và chốt.
-  5. Không tự duyệt: đề xuất, biên bản, phiếu kiểm kho đều không do chính người tạo duyệt.
+  5. Biên bản nhận hàng, phiếu kiểm kho không do chính người tạo duyệt. Quản lý tự duyệt được đề xuất
+     của mình nhưng phải ghi lý do, đề xuất gắn nhãn "Quản lý tự đề xuất & duyệt".
      Đề xuất tự động ghi người đề xuất là "Hệ thống".
   6. Kho & Sản phẩm: bỏ ô tồn kho / NSX / HSD, thêm "Tồn tối thiểu", cột "Lô đang bán", danh sách lô.
 

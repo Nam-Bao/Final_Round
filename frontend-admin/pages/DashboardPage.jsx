@@ -80,12 +80,12 @@ function ManagerDashboard() {
         <Col xs={12} lg={6}><Tile icon={<DollarOutlined />} title="Doanh thu hôm nay" value={vnd(state.revenueToday)} sub={`Tháng này: ${vnd(state.revenueMonth)}`} onClick={() => navigate('/reports')} /></Col>
         <Col xs={12} lg={6}><Tile icon={<CalendarOutlined />} title="Lịch hẹn hôm nay" value={today.appointments_today} sub={`${today.waiting_checkout} khách chờ thu tiền`} /></Col>
         <Col xs={12} lg={6}><Tile icon={<ShoppingCartOutlined />} title="Đơn mỹ phẩm cần xử lý" value={overview.pending_orders} sub="Chờ thanh toán / duyệt / đóng gói" /></Col>
-        <Col xs={12} lg={6}><Tile icon={<InboxOutlined />} title="Đề xuất nhập hàng chờ duyệt" value={overview.pending_purchase} sub={`${overview.approved_not_received} đã duyệt, chờ hàng về`} onClick={() => navigate('/materials?tab=purchase')} /></Col>
+        <Col xs={12} lg={6}><Tile icon={<InboxOutlined />} title="Đề xuất nhập hàng chờ duyệt" value={overview.pending_purchase} sub={`${overview.approved_not_received} đã duyệt, chờ hàng về`} onClick={() => navigate('/purchasing?tab=requests')} /></Col>
       </Row>
 
       {stockAlerts.length > 0 ? (
         <Card size="small" title={<span className="text-red-600"><WarningOutlined /> Sắp hết hàng – cần nhập ({stockAlerts.length})</span>}
-          extra={<Button size="small" type="primary" onClick={() => navigate('/materials?tab=purchase')}>Xem đề xuất nhập</Button>}>
+          extra={<Button size="small" type="primary" onClick={() => navigate('/purchasing?tab=requests')}>Xem đề xuất nhập</Button>}>
           <List size="small" dataSource={stockAlerts}
             renderItem={(a) => (
               <List.Item>

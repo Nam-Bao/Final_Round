@@ -33,7 +33,7 @@ Quy trình của quản lý chung.
 
 ## Kho, vật tư, đề xuất nhập hàng
 - Vật tư & Định mức: định mức vật tư cho từng dịch vụ; lịch sử xuất theo buổi.
-- Đề xuất nhập: hệ thống tự tạo khi vật tư / mỹ phẩm xuống tới tồn tối thiểu (ghi "Hệ thống"), hoặc NVBH (mỹ phẩm), KTV (vật tư), quản lý tạo. Nhập hàng & Kiểm kho → tab Đề xuất nhập → Duyệt (chỉnh số lượng được) hoặc Từ chối (ghi lý do). Không tự duyệt đề xuất của chính mình (nhờ quản lý / admin khác).
+- Đề xuất nhập: hệ thống tự tạo khi vật tư / mỹ phẩm xuống tới tồn tối thiểu (ghi "Hệ thống"), hoặc NVBH (mỹ phẩm), KTV (vật tư), quản lý tạo. Nhập hàng & Kiểm kho → tab Đề xuất nhập → Duyệt (chỉnh số lượng được) hoặc Từ chối (ghi lý do). Đề xuất do chính quản lý tạo vẫn tự duyệt được nhưng bắt buộc ghi lý do (ít nhất 10 ký tự); đề xuất được gắn nhãn "Quản lý tự đề xuất & duyệt" để đối chiếu. Người nhận hàng / người đếm kho vẫn không tự duyệt biên bản / phiếu của mình.
 - Tồn tối thiểu của mỹ phẩm đặt ở Kho & Sản phẩm → Sửa (0 = không tự đề xuất).
 
 ## Nhà cung cấp và đơn đặt hàng
