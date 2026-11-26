@@ -84,6 +84,17 @@ const handleProxyReq = (proxyReq, req, res) => {
 
 // 2. Định tuyến (Routing) đến các Microservices
 
+// Socket.IO (chat CSKH, thông báo nhân viên) của service identity đi chung địa chỉ gateway:
+// web chỉ cần 1 địa chỉ backend (VITE_API_URL). Cả polling (HTTP) lẫn WebSocket đều chuyển tiếp.
+const socketProxy = createProxyMiddleware({
+    target: TARGETS.identity,
+    changeOrigin: true,
+    ws: true,
+    xfwd: true,
+    pathFilter: '/socket.io',
+});
+app.use(socketProxy);
+
 // Tuyến Identity: Nhận request /api/identity/* -> chuyển sang service-identity
 app.use('/api/identity', createProxyMiddleware({
     target: TARGETS.identity,
@@ -135,7 +146,9 @@ app.get('/', (req, res) => {
 });
 
 // 3. Khởi động Gateway
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`🌍 [API Gateway] đang chạy tại cổng ${PORT}`);
     Object.entries(TARGETS).forEach(([k, url]) => console.log(`🚦 Tuyến /api/${k} -> ${url}`));
 });
+// WebSocket không đi qua middleware của Express => chuyển tiếp yêu cầu nâng cấp kết nối sang identity
+server.on('upgrade', socketProxy.upgrade);
