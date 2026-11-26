@@ -23,10 +23,11 @@ router.post('/usage', verifyToken, authorizeRoles('TECHNICIAN'), c.recordUsage);
 router.get('/usage', ...managers, c.listUsage);
 
 // Đề xuất nhập hàng
-router.get('/purchase-requests', ...managers, c.listPurchaseRequests);
-router.post('/purchase-requests', ...managers, c.createPurchaseRequest);
+// Đề xuất nhập hàng: quản lý, NVBH (mỹ phẩm), KTV (vật tư) tạo; quản lý duyệt (không tự duyệt đề xuất của mình).
+// Đặt hàng + nhận hàng chuyển sang /purchasing (đơn đặt hàng gửi nhà cung cấp, biên bản nhận hàng)
+const proposers = [verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'SALES', 'TECHNICIAN')];
+router.get('/purchase-requests', ...proposers, c.listPurchaseRequests);
+router.post('/purchase-requests', ...proposers, c.createPurchaseRequest);
 router.put('/purchase-requests/:id/decision', ...managers, c.decidePurchaseRequest);
-router.put('/purchase-requests/:id/ordered', ...managers, c.markPurchaseOrdered);
-router.put('/purchase-requests/:id/receive', ...managers, c.receivePurchaseRequest);
 
 module.exports = router;

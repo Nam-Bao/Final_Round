@@ -9,6 +9,9 @@ const axios = require('axios');
 require('dotenv').config();
 const orderMail = require('../utils/orderMail');
 const pointsLib = require('../utils/points');
+const { takeStock, restoreOrderStock } = require('../utils/stockLots');
+// Sau khi bán: mỹ phẩm xuống dưới tồn tối thiểu => tự tạo đề xuất nhập (không chờ, lỗi không ảnh hưởng đơn)
+const autoPurchase = (productIds, trigger) => require('./material.controller').autoPurchaseRequests(productIds, trigger).catch((e) => console.warn('[Đề xuất nhập] lỗi:', e.message));
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 const code6 = (id) => String(id).replace(/-/g, '').slice(0, 6).toUpperCase();
 // Lỗi trả về cho khách / NVBH: lỗi điểm giữ đúng mã lỗi (409 không đủ điểm, 503 không gọi được booking)
@@ -173,15 +176,12 @@ exports.checkout = async (req, res) => {
         product_id: item.Product.id, quantity: item.quantity, price: unitPrice,
         weight: item.Product.weight || DEFAULT_ITEM_WEIGHT, // để cân nặng gửi GHN lúc tạo vận đơn khớp với lúc báo giá
         is_sale: onSale, // hàng khuyến mãi: không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
+        // Trừ tồn kho CÓ ĐIỀU KIỆN (2 khách đặt cùng lúc thì người sau không trừ được, tồn kho không âm),
+        // xuất lô hết hạn trước bán trước và ghi lại lô đã xuất
+        lot_allocations: await takeStock(item.Product, item.quantity, t).catch((e) => {
+          throw new Error(e.status ? `${e.message}, vui lòng cập nhật giỏ` : e.message);
+        }),
       });
-
-      // Trừ tồn kho CÓ ĐIỀU KIỆN (stock >= số lượng) ngay trong câu UPDATE: 2 khách đặt cùng lúc
-      // thì người sau sẽ không trừ được (0 dòng bị ảnh hưởng) thay vì làm tồn kho bị âm
-      const [affected] = await Product.update(
-        { stock_quantity: sequelize.literal(`stock_quantity - ${Number(item.quantity)}`) },
-        { where: { id: item.Product.id, stock_quantity: { [Op.gte]: item.quantity } }, transaction: t }
-      );
-      if (affected === 0) throw new Error(`Sản phẩm ${item.Product.name} vừa hết hàng, vui lòng cập nhật giỏ`);
     }
 
     // TÍNH VOUCHER & TĂNG LƯỢT DÙNG
@@ -244,6 +244,7 @@ exports.checkout = async (req, res) => {
       throw error;
     }
     if (validPaymentMethod !== 'VIETQR_SEPAY') orderMail.orderPlaced(newOrder.id).catch(() => {});
+    autoPurchase(orderDetailsData.map((d) => d.product_id), `đơn #${code6(newOrder.id)}`);
     return res.status(201).json({ success: true, data: newOrder });
 
   } catch (error) {
@@ -433,12 +434,8 @@ const CUSTOMER_CANCELLABLE = ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING'];
 
 const CANCELLABLE_ORDER_STATUSES = ['UNPAID', 'PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPING'];
 
-// Cộng lại tồn kho cho các dòng của đơn bị hủy/hoàn
-const restoreStock = async (orderDetails, transaction) => {
-  for (const detail of orderDetails) {
-    await Product.increment('stock_quantity', { by: detail.quantity, where: { id: detail.product_id }, transaction });
-  }
-};
+// Cộng lại tồn kho cho các dòng của đơn bị hủy/hoàn: trả về đúng lô đã xuất
+const restoreStock = (orderDetails, transaction) => restoreOrderStock(orderDetails, transaction);
 
 // [SALE/ADMIN] Hủy đơn hàng và Hoàn lại tồn kho
 // Bên yêu cầu hủy quyết định voucher: lỗi không phải của khách thì khách được trả lại lượt
@@ -756,14 +753,11 @@ exports.createCounterOrder = async(req, res) => {
         if (products.length !== productIds.length) throw new Error('Có sản phẩm không tồn tại');
 
         let total_amount = 0;
+        const allocations = {};
         for (const product of products) {
             const quantity = qtyByProduct[product.id];
-            // Trừ kho có điều kiện: chỉ trừ khi còn đủ, tránh tồn kho âm khi nhiều quầy bán cùng lúc
-            const [updated] = await Product.update(
-                { stock_quantity: sequelize.literal(`stock_quantity - ${quantity}`) },
-                { where: { id: product.id, stock_quantity: { [Op.gte]: quantity } }, transaction: t }
-            );
-            if (!updated) throw new Error(`Sản phẩm ${product.name} không đủ hàng trong kho (còn ${product.stock_quantity || 0})`);
+            // Trừ kho có điều kiện (không âm khi nhiều quầy bán cùng lúc), xuất lô hết hạn trước bán trước
+            allocations[product.id] = await takeStock(product, quantity, t);
             total_amount += Number(product.price) * quantity;
         }
 
@@ -785,10 +779,12 @@ exports.createCounterOrder = async(req, res) => {
             order_id: order.id,
             product_id: product.id,
             quantity: qtyByProduct[product.id],
-            price: product.price
+            price: product.price,
+            lot_allocations: allocations[product.id],
         })), { transaction: t });
 
         await t.commit();
+        autoPurchase(productIds, `đơn tại quầy #${code6(order.id)}`);
         return res.status(201).json({ success: true, data: order });
     } catch (error) {
         await t.rollback();
@@ -880,14 +876,11 @@ exports.createStaffOrder = async (req, res) => {
     const t = await sequelize.transaction();
     try {
         let total_amount = 0;
+        const allocations = {};
         for (const product of products) {
             const quantity = qtyByProduct[product.id];
-            // Trừ kho có điều kiện để không bị âm khi nhiều nơi bán cùng lúc
-            const [updated] = await Product.update(
-                { stock_quantity: sequelize.literal(`stock_quantity - ${quantity}`) },
-                { where: { id: product.id, stock_quantity: { [Op.gte]: quantity } }, transaction: t }
-            );
-            if (!updated) throw new Error(`Sản phẩm ${product.name} không đủ hàng trong kho (còn ${product.stock_quantity || 0})`);
+            // Trừ kho có điều kiện để không bị âm khi nhiều nơi bán cùng lúc, xuất lô hết hạn trước bán trước
+            allocations[product.id] = await takeStock(product, quantity, t);
             total_amount += Number(product.price) * quantity;
         }
 
@@ -928,7 +921,8 @@ exports.createStaffOrder = async (req, res) => {
             product_id: product.id,
             quantity: qtyByProduct[product.id],
             price: product.price,
-            weight: product.weight || DEFAULT_ITEM_WEIGHT
+            weight: product.weight || DEFAULT_ITEM_WEIGHT,
+            lot_allocations: allocations[product.id],
         })), { transaction: t });
 
         if (usePoints) await pointsLib.spend({ customerId: customer_id, points: pointsNeeded, orderId: order.id, note: `Mua mỹ phẩm ${isDelivery ? 'giao hàng' : 'tại quầy'} đơn #${code6(order.id)}` });
@@ -939,6 +933,7 @@ exports.createStaffOrder = async (req, res) => {
             throw error;
         }
         if (isDelivery && ['COD', 'POINTS'].includes(payment_method)) orderMail.orderPlaced(order.id).catch(() => {});
+        autoPurchase(products.map((p) => p.id), `đơn #${code6(order.id)}`);
         // Ghi câu trả lời vào hồ sơ "Bản thân" của khách: lần mua sau điền sẵn, CSKH thấy khi khách đến khám
         if (safetyScreening?.patient_profile_id) {
             axios.post(`${GATEWAY_URL}/api/booking/safety/counter-report`, {

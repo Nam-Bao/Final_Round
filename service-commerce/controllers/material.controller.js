@@ -2,6 +2,7 @@ const axios = require('axios');
 const { Op } = require('sequelize');
 const { sequelize, Product, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, InventoryRequest } = require('../models');
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
+const { SYSTEM_USER } = require('../utils/stockLots');
 
 // ==========================================
 // VẬT TƯ NỘI BỘ: định mức theo dịch vụ / gói, KTV ghi số thực dùng => tự trừ kho,
@@ -255,22 +256,24 @@ exports.saveNorms = async (req, res) => {
   } catch (error) { await t.rollback(); fail(res, error); }
 };
 
-// Tự tạo đề xuất nhập hàng cho vật tư đã xuống dưới tồn tối thiểu (mỗi vật tư chỉ 1 đề xuất chờ duyệt / chờ hàng về)
-const autoPurchaseRequests = async (productIds, requesterId) => {
-  const products = await Product.findAll({ where: { id: productIds, type: 'MATERIAL' }, include: materialInclude });
+// Tự tạo đề xuất nhập hàng khi vật tư / mỹ phẩm xuống dưới tồn tối thiểu (mỗi mặt hàng chỉ 1 đề xuất chờ duyệt / chờ hàng về).
+// Người đề xuất ghi là "Hệ thống" (SYSTEM_USER); reason ghi việc đã làm tồn kho tụt (buổi làm / đơn bán).
+// Mỹ phẩm: tồn kho đã là số còn bán được (lô hết hạn tách riêng); chỉ tự đề xuất khi quản lý đặt tồn tối thiểu > 0.
+const autoPurchaseRequests = async (productIds, trigger = '') => {
+  const products = await Product.findAll({ where: { id: productIds }, include: materialInclude });
   const lots = await lotStatus(productIds);
-  const low = products.map(toItem)
-    .map((m) => ({ ...m, stock: Math.max(m.stock - (lots[m.id]?.expired_qty || 0), 0) }))
-    .filter((m) => m.stock <= m.min_stock);
+  const low = products.map((p) => ({ ...toItem(p), type: p.type, unit: p.MaterialSpec?.unit || 'sản phẩm', pack_label: p.MaterialSpec?.pack_label || '1 sản phẩm' }))
+    .map((m) => ({ ...m, stock: m.type === 'MATERIAL' ? Math.max(m.stock - (lots[m.id]?.expired_qty || 0), 0) : m.stock }))
+    .filter((m) => (m.type === 'MATERIAL' || m.min_stock > 0) && m.stock <= m.min_stock);
   if (!low.length) return [];
   const pending = await pendingPurchaseProducts();
   const fresh = low.filter((m) => !pending.has(m.id));
   if (!fresh.length) return low;
   await InventoryRequest.create({
-    requester_id: requesterId,
+    requester_id: SYSTEM_USER,
     type: 'PURCHASE_ORDER',
     status: 'PENDING',
-    reason: `Tự động: ${fresh.length} vật tư xuống dưới mức tồn tối thiểu`,
+    reason: `Tự động: ${fresh.length} mặt hàng xuống dưới mức tồn tối thiểu${trigger ? ` (sau ${trigger})` : ''}`.slice(0, 255),
     items: fresh.map((m) => {
       const packs = Math.max(1, Math.ceil((m.min_stock * 2 - m.stock) / (m.pack_size || 1)));
       return { product_id: m.id, name: m.name, unit: m.unit, stock: m.stock, min_stock: m.min_stock, pack_label: m.pack_label, pack_size: m.pack_size, packs, quantity: packs * (m.pack_size || 1), auto: true };
@@ -331,7 +334,7 @@ exports.recordUsage = async (req, res) => {
     }, { transaction: t });
     await t.commit();
 
-    const low = await autoPurchaseRequests(ids, req.user.id).catch((e) => { console.error('Lỗi tạo đề xuất nhập:', e.message); return []; });
+    const low = await autoPurchaseRequests(ids, 'buổi làm dịch vụ').catch((e) => { console.error('Lỗi tạo đề xuất nhập:', e.message); return []; });
     const shortages = items.filter((i) => i.shortage > 0);
     res.status(201).json({
       message: shortages.length ? 'Đã ghi vật tư; một số vật tư không đủ trong kho, quản lý cần kiểm kê' : 'Đã ghi vật tư và trừ kho',
@@ -380,17 +383,25 @@ exports.listUsage = async (req, res) => {
 };
 
 // [ADMIN/GEN_MANAGER] Đề xuất nhập hàng (tự động khi xuống dưới tồn tối thiểu hoặc do quản lý tạo)
+// NVBH / KTV chỉ xem đề xuất của chính mình
 exports.listPurchaseRequests = async (req, res) => {
   try {
-    const rows = await InventoryRequest.findAll({ where: { type: 'PURCHASE_ORDER' }, order: [['createdAt', 'DESC']], limit: 200 });
-    res.status(200).json({ data: rows });
+    const where = { type: 'PURCHASE_ORDER' };
+    if (!['ADMIN', 'GEN_MANAGER'].includes(req.user.role)) where.requester_id = req.user.id;
+    const rows = await InventoryRequest.findAll({ where, order: [['createdAt', 'DESC']], limit: 200 });
+    // Tên người đề xuất / người duyệt; đề xuất tự động ghi "Hệ thống"
+    const ids = [...new Set(rows.flatMap((r) => [r.requester_id, r.approver_id]).filter((x) => x && x !== SYSTEM_USER))];
+    const names = ids.length ? await axios.get(`${GATEWAY_URL}/api/identity/users/staff-names`, { params: { ids: ids.join(',') }, headers: { Authorization: req.headers.authorization }, timeout: 5000 })
+      .then((r) => Object.fromEntries((r.data.data || []).map((u) => [u.id, `${u.name} (${u.role_label})`]))).catch(() => ({})) : {};
+    res.status(200).json({ data: rows.map((r) => ({ ...r.toJSON(), requester_name: r.requester_id === SYSTEM_USER ? 'Hệ thống (tự động)' : names[r.requester_id] || null, approver_name: names[r.approver_id] || null })) });
   } catch (error) { fail(res, error); }
 };
 
-// [ADMIN/GEN_MANAGER] Tạo đề xuất nhập hàng thủ công (vd từ cảnh báo "không đủ cho lịch 14 ngày tới")
+// [ADMIN/GEN_MANAGER/SALES/TECHNICIAN] Tạo đề xuất nhập hàng thủ công (vd từ cảnh báo "không đủ cho lịch 14 ngày tới",
+// NVBH thấy mỹ phẩm sắp hết, KTV thấy vật tư sắp hết). NVBH chỉ đề xuất mỹ phẩm, KTV chỉ đề xuất vật tư.
 exports.createPurchaseRequest = async (req, res) => {
   try {
-    const reason = String(req.body.reason || '').trim().slice(0, 255) || 'Đề xuất nhập vật tư';
+    const reason = String(req.body.reason || '').trim().slice(0, 255) || 'Đề xuất nhập hàng';
     const packs = {};
     for (const i of (Array.isArray(req.body.items) ? req.body.items : [])) {
       const n = Number(i?.packs);
@@ -401,6 +412,8 @@ exports.createPurchaseRequest = async (req, res) => {
     if (!ids.length) throw bad('Chưa chọn vật tư cần nhập');
     const products = await Product.findAll({ where: { id: ids }, include: materialInclude });
     if (products.length !== ids.length) throw bad('Có sản phẩm / vật tư không tồn tại');
+    const allowedType = { SALES: 'PRODUCT', TECHNICIAN: 'MATERIAL' }[req.user.role];
+    if (allowedType && products.some((p) => p.type !== allowedType)) throw bad(allowedType === 'PRODUCT' ? 'Nhân viên bán hàng chỉ đề xuất nhập mỹ phẩm' : 'Kỹ thuật viên chỉ đề xuất nhập vật tư', 403);
     const pending = await pendingPurchaseProducts();
     const duplicate = products.find((p) => pending.has(p.id));
     const STATE_TEXT = { PENDING: 'đang chờ duyệt', TO_ORDER: 'đã duyệt, chưa đặt hàng', INCOMING: 'đã đặt hàng, đang chờ về' };
@@ -430,6 +443,7 @@ exports.decidePurchaseRequest = async (req, res) => {
   try {
     const row = await findRequest(req.params.id, t);
     if (row.status !== 'PENDING') throw bad('Đề xuất đã được xử lý', 409);
+    if (row.requester_id === req.user.id) throw bad('Không tự duyệt đề xuất của chính mình, nhờ quản lý khác duyệt', 403);
     const approve = req.body.decision === 'APPROVE';
     if (!approve && req.body.decision !== 'REJECT') throw bad('Quyết định không hợp lệ');
     const note = String(req.body.note || '').trim().slice(0, 1000);
@@ -450,70 +464,7 @@ exports.decidePurchaseRequest = async (req, res) => {
   } catch (error) { await t.rollback(); fail(res, error); }
 };
 
-// [ADMIN/GEN_MANAGER] Ghi nhận đã đặt hàng nhà cung cấp { supplier, expected_date } => chuyển sang chờ hàng về
-exports.markPurchaseOrdered = async (req, res) => {
-  const t = await sequelize.transaction();
-  try {
-    const row = await findRequest(req.params.id, t);
-    if (row.status !== 'APPROVED') throw bad('Chỉ đặt hàng cho đề xuất đã duyệt', 409);
-    if (row.ordered_at) throw bad('Đề xuất này đã đặt hàng', 409);
-    const supplier = String(req.body.supplier || '').trim().slice(0, 200);
-    if (supplier.length < 2) throw bad('Nhập nhà cung cấp');
-    const expected_date = req.body.expected_date || null;
-    if (expected_date && !isDate(expected_date)) throw bad('Ngày dự kiến giao không hợp lệ');
-    await row.update({ ordered_at: new Date(), ordered_by: req.user.id, supplier, expected_date }, { transaction: t });
-    await t.commit();
-    res.status(200).json({ message: 'Đã ghi nhận đặt hàng', data: row });
-  } catch (error) { await t.rollback(); fail(res, error); }
-};
-
-// [ADMIN/GEN_MANAGER] Xác nhận hàng đã về kho theo số thực nhận (chỉ 1 lần).
-// items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }]; vật tư phải có số lô + hạn dùng; giao thiếu phải ghi chú
-exports.receivePurchaseRequest = async (req, res) => {
-  const t = await sequelize.transaction();
-  try {
-    const row = await findRequest(req.params.id, t);
-    if (row.status !== 'APPROVED') throw bad('Chỉ nhận hàng cho đề xuất đã duyệt', 409);
-    if (row.received_at) throw bad('Đề xuất này đã nhập kho', 409);
-    if (!row.ordered_at) throw bad('Chưa ghi nhận đặt hàng nhà cung cấp', 409);
-    const note = String(req.body.note || '').trim().slice(0, 1000);
-    const input = Object.fromEntries((Array.isArray(req.body.items) ? req.body.items : []).map((i) => [i?.product_id, i]));
-    const products = await Product.findAll({ where: { id: (row.items || []).map((i) => i.product_id) }, transaction: t, lock: t.LOCK.UPDATE });
-    const productOf = Object.fromEntries(products.map((p) => [p.id, p]));
-    await syncOpeningLots(products.filter((p) => p.type === 'MATERIAL'), t);
-
-    const items = (row.items || []).map((i) => {
-      const d = input[i.product_id];
-      if (!d) throw bad(`Thiếu số liệu nhận hàng của ${i.name}`);
-      const received = Number(d.received_quantity);
-      if (!Number.isInteger(received) || received < 0 || received > Number(i.quantity)) throw bad(`${i.name}: số thực nhận từ 0 đến ${i.quantity}`);
-      if (!received) return { ...i, received_quantity: 0 };
-      const unitCost = Number(d.unit_cost);
-      if (d.unit_cost === '' || d.unit_cost == null || !Number.isInteger(unitCost) || unitCost < 0 || unitCost > 1000000000) throw bad(`${i.name}: nhập giá nhập trên mỗi ${i.unit || 'đơn vị'}`);
-      const lotNo = String(d.lot_no || '').trim();
-      if (productOf[i.product_id]?.type === 'MATERIAL') {
-        if (lotNo.length < 1 || lotNo.length > 50) throw bad(`${i.name}: nhập số lô`);
-        if (!isDate(d.expiry_date)) throw bad(`${i.name}: nhập hạn dùng`);
-        if (d.expiry_date <= vnDate()) throw bad(`${i.name}: lô này đã hết hạn, không nhập kho`);
-      }
-      return { ...i, received_quantity: received, unit_cost: unitCost, lot_no: lotNo || null, expiry_date: d.expiry_date || null };
-    });
-    if (!items.some((i) => i.received_quantity > 0)) throw bad('Chưa có hàng nào về kho');
-    if (items.some((i) => i.received_quantity < Number(i.quantity)) && note.length < MIN_NOTE_LENGTH) throw bad('Giao thiếu so với số đã duyệt, vui lòng ghi chú lý do');
-
-    for (const i of items.filter((x) => x.received_quantity > 0)) {
-      await Product.increment('stock_quantity', { by: i.received_quantity, where: { id: i.product_id }, transaction: t });
-      if (productOf[i.product_id]?.type !== 'MATERIAL') continue;
-      await MaterialLot.create({
-        product_id: i.product_id, lot_no: i.lot_no, expiry_date: i.expiry_date, quantity_received: i.received_quantity,
-        quantity_left: i.received_quantity, unit_cost: i.unit_cost, purchase_request_id: row.id,
-      }, { transaction: t });
-    }
-    await row.update({ items, received_at: new Date(), received_by: req.user.id, receive_note: note || null }, { transaction: t });
-    await t.commit();
-    res.status(200).json({ message: 'Đã nhập kho', data: row });
-  } catch (error) { await t.rollback(); fail(res, error); }
-};
+// Đặt hàng nhà cung cấp và nhận hàng: xem controllers/purchasing.controller.js (đơn đặt hàng, biên bản nhận hàng)
 
 // [ADMIN/GEN_MANAGER] Các lô còn hàng của 1 vật tư + lịch sử kiểm kê
 exports.getLots = async (req, res) => {
@@ -561,3 +512,5 @@ exports.countStock = async (req, res) => {
     res.status(200).json({ message: 'Đã lưu kiểm kê' });
   } catch (error) { await t.rollback(); fail(res, error); }
 };
+
+exports.autoPurchaseRequests = autoPurchaseRequests;

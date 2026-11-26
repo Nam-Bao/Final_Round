@@ -433,6 +433,38 @@ Kho kiến thức nạp tự động khi service-ai-analysis khởi động và 
 | 19.9 | AI rà soát đơn có nguồn | Bác sĩ: khách "Đang mang thai", kê sản phẩm có Retinal / dịch vụ lăn kim → **Rà soát bằng AI** | Cảnh báo AI có khung **Quy tắc phòng khám** + nguồn y khoa (link); cảnh báo không dựa trên quy tắc ghi "AI nhận định theo thành phần / kiến thức chung" |
 | 19.10 | Đánh giá trước / sau | `cd service-ai-analysis && node scripts/rag_eval.js` rồi `node scripts/safety_rag_eval.js` | Ghi kết quả vào `docs/DANH-GIA-CHATBOT-RAG.md` |
 
+## 20. Nhập hàng theo lô, nhà cung cấp, kiểm kho tuần (sơ đồ 12, 13)
+
+Trang **Nhập hàng & Kiểm kho** (quản lý) / **Kho mỹ phẩm** (NVBH). Email nhà cung cấp: khi demo để `MAIL_MODE=log` (email + PDF ghi vào `service-identity/mail-outbox`).
+
+| # | Nhánh | Thao tác | Kết quả mong đợi |
+|---|---|---|---|
+| 20.1 | Lô tồn đầu kỳ | Khởi động commerce lần đầu sau khi cập nhật | Mỹ phẩm có tồn kho được gom vào lô `TON-DAU-KY` (NSX / HSD lấy theo dữ liệu cũ); lô đã hết hạn tách khỏi hàng bán, tồn kho bán = tổng lô còn hạn |
+| 20.2 | Sản phẩm không sửa tồn kho | Kho & Sản phẩm → Sửa | Không còn ô Tồn kho, NSX, HSD; có Tồn tối thiểu. Gửi API sửa `stock_quantity` không có tác dụng |
+| 20.3 | Lô đang bán | Kho & Sản phẩm | Cột **Lô đang bán** (lô hết hạn sớm nhất còn hàng, ghi "Bán web và tại quầy"); mở dòng xem tất cả lô (NSX, HSD, còn lại, giá nhập) |
+| 20.4 | Khách không thấy lô | Web khách → chi tiết sản phẩm, API `/products/shop` | Không có số lô / NSX / HSD; chỉ "N tháng kể từ ngày sản xuất" |
+| 20.5 | Nhà cung cấp | Tab Nhà cung cấp → thêm (email sai / đúng); NVBH thử thêm | Email sai bị chặn; NVBH không thêm được |
+| 20.6 | NVBH đề xuất | NVBH → Đề xuất nhập → chọn mỹ phẩm; thử chọn vật tư (API) | Đề xuất chờ duyệt; vật tư bị từ chối "NVBH chỉ đề xuất nhập mỹ phẩm" |
+| 20.7 | Không tự duyệt | Quản lý tạo đề xuất rồi tự bấm Duyệt | Báo "Không tự duyệt đề xuất của chính mình"; quản lý / admin khác duyệt được |
+| 20.8 | Tự đề xuất | Đặt tồn tối thiểu 5 cho 1 mỹ phẩm còn 6 → bán 1 | Có đề xuất "Tự động: ... (sau đơn #...)", người đề xuất "Hệ thống" |
+| 20.9 | Đặt hàng | Đề xuất đã duyệt → Đặt hàng → chọn NCC, đơn giá, ngày giao | Đơn `PO-ddmmyy-nnn` "Đã gửi, chờ hàng", email PO_SENT kèm PDF; tải PDF được; không tạo đơn 2 lần cho 1 đề xuất |
+| 20.10 | Hủy đơn đặt hàng | Đơn chưa nhận hàng → Hủy (ghi lý do) | Email báo hủy cho NCC; đề xuất quay về "Đã duyệt, chưa đặt hàng" |
+| 20.11 | Nhận hàng khớp | NVBH → Nhận hàng → đếm đủ, nhập lô, NSX, HSD | Biên bản "Khớp, đã nhập kho"; lô mới có NSX / HSD / NCC / giá nhập; đơn "Đã nhận xong"; email xác nhận gửi NCC |
+| 20.12 | Lô hết hạn | Nhập HSD đã qua | Bị chặn, không nhận hàng |
+| 20.13 | Hàng lỗi thiếu ảnh | Chọn tình trạng Móp / vỡ, không chụp ảnh | Bị chặn "chụp ảnh sản phẩm lỗi" |
+| 20.14 | Nhận hàng có lệch | 2 sản phẩm: A khớp, B giao thiếu 3 + 1 hộp móp (có ảnh, ghi chú) | A nhập kho ngay; B chưa nhập; biên bản "Chờ quản lý kiểm tra"; chuông + email RECEIPT_REVIEW cho quản lý; đơn không nhận tiếp được tới khi quản lý xử lý |
+| 20.15 | Quản lý kiểm tra | Tab Biên bản → Kiểm tra: không tick "đã kiểm tra thực tế" / tick, nhận 6, trả 1, giao bù 4 | Không tick bị chặn; tick: nhập kho 6, email PO_ISSUE cho NCC (trả 1, giao bù 4), đơn "Nhận một phần, chờ giao bù" |
+| 20.16 | NVBH không duyệt | NVBH gọi API duyệt biên bản / phiếu kiểm kho | 403 |
+| 20.17 | Giao bù | NCC giao 4 → NVBH nhận | Biên bản khớp, đơn hoàn tất |
+| 20.18 | Bán theo lô | Bán tại quầy / web 2 sản phẩm có nhiều lô | Xuất lô HSD sớm nhất; dòng đơn ghi lô đã xuất |
+| 20.19 | Hủy đơn trả đúng lô | NVBH tạo đơn giao hàng 3 sản phẩm → hủy | Tồn kho và số còn lại của đúng lô đó trở về như trước |
+| 20.20 | Kiểm kho mù | NVBH → Kiểm kho tuần → Bắt đầu | Không có cột số hệ thống; phải nhập đủ các lô |
+| 20.21 | Kiểm kho lệch 1 | Đếm 1 lô thiếu 1 | Phiếu "Lệch, chờ quản lý"; chuông + email STOCK_COUNT_REVIEW; NVBH xem lại phiếu không thấy số hệ thống |
+| 20.22 | Quản lý chốt kiểm kho | Đếm lại & chốt: nhập số chốt, ghi nguyên nhân, tick | Lô và tồn kho điều chỉnh theo chênh lệch, có phiếu điều chỉnh "Kiểm kho KK-..." |
+| 20.23 | Kiểm kho khớp | Đếm đúng tất cả | Phiếu tự hoàn tất "Khớp hệ thống" |
+| 20.24 | Hàng hết hạn | Lô mỹ phẩm qua HSD | Tự ngừng bán (trừ tồn bán); tab Lô đến hạn / hết hạn → Hủy hàng (ghi lý do) => lô về 0, có phiếu điều chỉnh |
+| 20.25 | Chuông việc | NVBH / quản lý mở chuông | NVBH: Đơn đặt hàng chờ nhận hàng, Kiểm kho tuần này; quản lý: đề xuất chờ duyệt / chờ đặt hàng, biên bản / kiểm kho cần kiểm tra, lô hết hạn chờ hủy |
+
 ## Ghi lại kết quả
 
 | Sơ đồ | Số ca | Đạt | Không đạt | Ghi chú |

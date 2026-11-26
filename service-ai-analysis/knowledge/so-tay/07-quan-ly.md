@@ -33,7 +33,23 @@ Quy trình của quản lý chung.
 
 ## Kho, vật tư, đề xuất nhập hàng
 - Vật tư & Định mức: định mức vật tư cho từng dịch vụ; lịch sử xuất theo buổi.
-- Đề xuất nhập hàng tự tạo khi tồn kho dưới mức tối thiểu. Duyệt (ghi nhà cung cấp, ngày dự kiến) → Đã đặt hàng → Nhận hàng (nhập số lô, hạn dùng, giá nhập). Lô đã hết hạn không cho nhập. Hoặc Từ chối.
+- Đề xuất nhập: hệ thống tự tạo khi vật tư / mỹ phẩm xuống tới tồn tối thiểu (ghi "Hệ thống"), hoặc NVBH (mỹ phẩm), KTV (vật tư), quản lý tạo. Nhập hàng & Kiểm kho → tab Đề xuất nhập → Duyệt (chỉnh số lượng được) hoặc Từ chối (ghi lý do). Không tự duyệt đề xuất của chính mình (nhờ quản lý / admin khác).
+- Tồn tối thiểu của mỹ phẩm đặt ở Kho & Sản phẩm → Sửa (0 = không tự đề xuất).
+
+## Nhà cung cấp và đơn đặt hàng
+- Tab Nhà cung cấp: tên, mã số thuế, người liên hệ, điện thoại, email nhận đơn (bắt buộc), địa chỉ; ngừng hợp tác thì tắt.
+- Đề xuất đã duyệt → Đặt hàng: chọn nhà cung cấp, đơn giá dự kiến, ngày giao mong muốn, ghi chú. Hệ thống tạo đơn PO-..., gửi email kèm PDF đơn đặt hàng cho nhà cung cấp.
+- Tab Đơn đặt hàng: xem số đã nhận / số đặt, tải PDF, Gửi lại email (khi email lỗi), Hủy đơn chưa nhận hàng (ghi lý do, hệ thống email báo hủy, đề xuất quay về đã duyệt để đặt nhà cung cấp khác).
+
+## Kiểm tra biên bản nhận hàng và kiểm kho
+- NVBH nhận hàng và lập biên bản. Dòng lệch / lỗi chờ quản lý (chuông + email "Biên bản nhận hàng cần kiểm tra"). Tab Biên bản nhận hàng → Kiểm tra: xem ảnh, ghi chú, đếm lại thực tế.
+- Với từng dòng: số nhận vào kho (theo lô NVBH ghi); phần không nhận chọn Trả nhà cung cấp hoặc Hủy; phần thiếu chọn Yêu cầu giao bù (đơn chờ giao bù, NVBH nhận tiếp) hoặc Chốt thiếu. Ghi kết quả kiểm tra, tick đã kiểm tra thực tế. Hệ thống email cho nhà cung cấp (chênh lệch / giao bù / hàng trả lại); nhận đủ thì email xác nhận đã nhận hàng.
+- Kiểm kho tuần: phiếu lệch dù 1 sản phẩm hoặc có hàng lỗi chờ quản lý (chuông + email). Tab Kiểm kho → Đếm lại & chốt: nhập số còn bán được của các dòng lệch, ghi nguyên nhân. Hệ thống điều chỉnh lô và tồn kho, có phiếu điều chỉnh.
+- Người nhận hàng / người đếm không tự duyệt biên bản / phiếu của mình.
+
+## Lô hàng, NSX / HSD, hàng hết hạn
+- NSX, HSD ghi theo lô khi nhận hàng, không nhập ở sản phẩm. Kho & Sản phẩm hiện lô đang bán (xuất trước, dùng chung cho bán web và tại quầy) và danh sách lô (NSX, HSD, còn lại, giá nhập). Tồn kho không sửa trực tiếp.
+- Mỹ phẩm hết hạn tự tách khỏi hàng bán. Tab Lô đến hạn / hết hạn → Hủy hàng (ghi lý do / biên bản hủy).
 
 ## Khuyến mãi và mã nội bộ
 - Khuyến mãi → Tạo mã: phạm vi (toàn đơn, dịch vụ, sản phẩm, gói), giá trị tối thiểu, mức giảm tối đa, số lượt.

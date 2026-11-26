@@ -17,6 +17,8 @@ export const TEMPLATE_LABEL = {
   APPOINTMENT_BOOKED: 'Xác nhận lịch khám', APPOINTMENT_RESCHEDULED: 'Đã đổi lịch khám', DEPOSIT_REFUNDED: 'Đã hoàn cọc', POINTS_CREDITED: 'Cộng Điểm GlowSkin',
   CONSULT_BOOKED: 'Xác nhận lịch tư vấn', CONSULT_RESULT: 'Có kết quả tư vấn', CONSULT_EXPERT_ABSENT: 'Chuyên gia vắng',
   ORDER_PLACED: 'Đặt hàng thành công', ORDER_SHIPPING: 'Đơn đang giao', ORDER_CANCELLED: 'Đơn bị hủy', ORDER_REFUNDED: 'Đã hoàn tiền đơn', RETURN_UPDATE: 'Hoàn / trả hàng',
+  PO_SENT: 'Đơn đặt hàng gửi NCC', PO_CANCELLED: 'Hủy đơn đặt hàng (NCC)', PO_RECEIVED: 'Xác nhận nhận hàng (NCC)', PO_ISSUE: 'Chênh lệch nhận hàng (NCC)',
+  RECEIPT_REVIEW: 'Biên bản nhận hàng cần kiểm tra', STOCK_COUNT_REVIEW: 'Kiểm kho lệch',
   REMIND_APPOINTMENT: 'Nhắc lịch khám', REMIND_CONSULT: 'Nhắc lịch tư vấn', REMIND_FOLLOW_UP: 'Nhắc tái khám', REMIND_PACKAGE: 'Nhắc gói liệu trình',
   SKIN_REVIEWED: 'Bác sĩ xác nhận soi da',
 };

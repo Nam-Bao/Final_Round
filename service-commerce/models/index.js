@@ -22,8 +22,9 @@ const Product = sequelize.define('Product', {
   weight: { type: DataTypes.INTEGER, defaultValue: 200, comment: 'Cân nặng sản phẩm tính bằng gram' },
   stock_quantity: { type: DataTypes.INTEGER, defaultValue: 0 },
   category_id: { type: DataTypes.UUID, allowNull: true },
-  start_date: { type: DataTypes.DATE, allowNull: false },
-  end_date: { type: DataTypes.DATE, allowNull: false },
+  // NSX / HSD cũ theo sản phẩm: nay ghi theo từng lô (MaterialLot). Chỉ còn dùng để tạo lô tồn đầu kỳ cho dữ liệu cũ
+  start_date: { type: DataTypes.DATE, allowNull: true },
+  end_date: { type: DataTypes.DATE, allowNull: true },
   image_url: { type: DataTypes.JSONB }, 
 });
 
@@ -131,7 +132,9 @@ const OrderDetail = sequelize.define('OrderDetail', {
   quantity: { type: DataTypes.INTEGER, allowNull: false },
   price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   weight: { type: DataTypes.INTEGER, defaultValue: 200 }, // Mặc định mỗi sp 200g, NVBH có thể sửa sau 
-  is_sale: { type: DataTypes.BOOLEAN, defaultValue: false } // mua lúc đang khuyến mãi => không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
+  is_sale: { type: DataTypes.BOOLEAN, defaultValue: false }, // mua lúc đang khuyến mãi => không hoàn tiền, lỗi chỉ đổi đúng sản phẩm
+  // Mỹ phẩm xuất theo lô nào: [{ lot_id, lot_no, expiry_date, quantity }] => hủy đơn / trả hàng cộng lại đúng lô
+  lot_allocations: { type: DataTypes.JSONB },
 });
 
 const InventoryRequest = sequelize.define('InventoryRequest', {
@@ -159,15 +162,23 @@ const InventoryRequest = sequelize.define('InventoryRequest', {
 });
 
 // Lô vật tư: xuất theo nguyên tắc hết hạn trước dùng trước; lô đã hết hạn không được xuất cho buổi trị liệu
+// Lô hàng (vật tư và mỹ phẩm): NSX / HSD ghi theo lô, xuất lô hết hạn trước bán trước
 const MaterialLot = sequelize.define('MaterialLot', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   product_id: { type: DataTypes.UUID, allowNull: false },
   lot_no: { type: DataTypes.STRING(50), allowNull: false },
+  manufacture_date: { type: DataTypes.DATEONLY },      // NSX (lô tồn đầu kỳ của vật tư có thể không có)
   expiry_date: { type: DataTypes.DATEONLY, allowNull: false },
   quantity_received: { type: DataTypes.INTEGER, allowNull: false },
   quantity_left: { type: DataTypes.INTEGER, allowNull: false },
   unit_cost: { type: DataTypes.INTEGER },              // giá nhập / đơn vị; lô tồn đầu kỳ không có
   purchase_request_id: { type: DataTypes.UUID },
+  purchase_order_id: { type: DataTypes.UUID },
+  receipt_id: { type: DataTypes.UUID },                // biên bản nhận hàng đã nhập lô này
+  supplier_id: { type: DataTypes.UUID },
+  // Mỹ phẩm hết hạn: tách khỏi hàng bán (không còn tính vào tồn kho bán), chờ quản lý hủy
+  hold_reason: { type: DataTypes.STRING(20) },         // EXPIRED | null (đang bán được)
+  hold_at: { type: DataTypes.DATE },
 }, { indexes: [{ fields: ['product_id', 'expiry_date'] }] });
 
 // Phiếu kiểm kê: chênh lệch giữa số trên hệ thống và số đếm thực tế của từng lô
@@ -180,6 +191,74 @@ const StockAdjustment = sequelize.define('StockAdjustment', {
   quantity_after: { type: DataTypes.INTEGER, allowNull: false },
   reason: { type: DataTypes.STRING(500), allowNull: false },
   adjusted_by: { type: DataTypes.UUID, allowNull: false },
+});
+
+// ===== Mua hàng: nhà cung cấp, đơn đặt hàng, biên bản nhận hàng, kiểm kho tuần =====
+const Supplier = sequelize.define('Supplier', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  name: { type: DataTypes.STRING(200), allowNull: false },
+  tax_code: { type: DataTypes.STRING(20) },
+  contact_name: { type: DataTypes.STRING(100) },
+  email: { type: DataTypes.STRING(200), allowNull: false },   // nhận email đơn đặt hàng
+  phone: { type: DataTypes.STRING(20) },
+  address: { type: DataTypes.STRING(300) },
+  note: { type: DataTypes.STRING(500) },
+  is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  created_by: { type: DataTypes.UUID },
+});
+
+// Đơn đặt hàng gửi nhà cung cấp (tạo từ đề xuất nhập đã duyệt)
+// SENT đã gửi | PARTIAL đã nhận một phần, chờ giao bù | RECEIVED đã nhận xong | CANCELLED đã hủy
+const PurchaseOrder = sequelize.define('PurchaseOrder', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  code: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  request_id: { type: DataTypes.UUID },
+  supplier_id: { type: DataTypes.UUID, allowNull: false },
+  status: { type: DataTypes.STRING(12), allowNull: false, defaultValue: 'SENT' },
+  // [{ product_id, name, type, unit, quantity, unit_cost, received_qty, closed }]
+  items: { type: DataTypes.JSONB, allowNull: false },
+  expected_date: { type: DataTypes.DATEONLY },
+  note: { type: DataTypes.STRING(1000) },
+  created_by: { type: DataTypes.UUID, allowNull: false },
+  email_status: { type: DataTypes.STRING(12) },   // SENT | FAILED | SKIPPED (lần gửi gần nhất)
+  cancelled_by: { type: DataTypes.UUID },
+  cancelled_at: { type: DataTypes.DATE },
+  cancel_reason: { type: DataTypes.STRING(500) },
+  completed_at: { type: DataTypes.DATE },
+});
+
+// Biên bản nhận hàng: NVBH kiểm từng dòng; có chênh lệch / lỗi thì quản lý kiểm tra thực tế và quyết định
+// MATCHED khớp, đã nhập kho | PENDING_REVIEW chờ quản lý | REVIEWED quản lý đã xử lý
+const GoodsReceipt = sequelize.define('GoodsReceipt', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  code: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  purchase_order_id: { type: DataTypes.UUID, allowNull: false },
+  status: { type: DataTypes.STRING(16), allowNull: false },
+  // [{ product_id, name, type, expected_qty, delivered_qty, counted_qty, defect_qty, lot_no, manufacture_date, expiry_date,
+  //    condition, label_ok, registration_ok, images, note, issues: [mã], stocked_qty, decision }]
+  lines: { type: DataTypes.JSONB, allowNull: false },
+  delivery_images: { type: DataTypes.JSONB },     // ảnh phiếu giao hàng / hóa đơn nhà cung cấp
+  note: { type: DataTypes.STRING(1000) },
+  received_by: { type: DataTypes.UUID, allowNull: false },
+  reviewed_by: { type: DataTypes.UUID },
+  reviewed_at: { type: DataTypes.DATE },
+  review_note: { type: DataTypes.STRING(1000) },
+});
+
+// Phiếu kiểm kho tuần (mỹ phẩm): NVBH đếm không thấy số trên hệ thống; lệch dù 1 sản phẩm => quản lý kiểm tra lại
+// MATCHED khớp | PENDING_REVIEW chờ quản lý | REVIEWED đã chốt
+const StockCount = sequelize.define('StockCount', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  code: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  week: { type: DataTypes.STRING(8), allowNull: false },   // tuần kiểm, vd 2026-W48
+  status: { type: DataTypes.STRING(16), allowNull: false },
+  // [{ product_id, name, lot_id, lot_no, expiry_date, on_hold, system_qty, counted_qty, defect_qty, condition, note, images, extra, final_qty }]
+  lines: { type: DataTypes.JSONB, allowNull: false },
+  note: { type: DataTypes.STRING(1000) },
+  counted_by: { type: DataTypes.UUID, allowNull: false },
+  reviewed_by: { type: DataTypes.UUID },
+  reviewed_at: { type: DataTypes.DATE },
+  review_note: { type: DataTypes.STRING(1000) },
 });
 
 // Thông tin vật tư nội bộ (Product type MATERIAL): đơn vị tính, quy cách, nguồn gốc, mức tồn tối thiểu.
@@ -335,5 +414,8 @@ const { watch } = require('../utils/notify');
 watch(Order, 'orders');
 watch(OrderReturn, 'returns');
 watch(InventoryRequest, 'purchase-requests');
+watch(PurchaseOrder, 'purchase-orders');
+watch(GoodsReceipt, 'goods-receipts');
+watch(StockCount, 'stock-counts');
 
-module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };
+module.exports = { sequelize, Category, Product, ProductDetail, Cart, CartItem, Review, Order, OrderDetail, InventoryRequest, MaterialSpec, MaterialNorm, MaterialLot, StockAdjustment, Supplier, PurchaseOrder, GoodsReceipt, StockCount, Promotion, UserAddress, SavedPromotion, PromotionUsage, OrderReturn };

@@ -25,17 +25,19 @@ const smtp = () => {
 
 const from = () => process.env.MAIL_FROM || (process.env.SMTP_USER ? `GlowSkin <${process.env.SMTP_USER}>` : 'GlowSkin <no-reply@glowskin.local>');
 
-// { to, subject, html, text } => { mode, id }
-const send = async ({ to, subject, html, text, key }) => {
+// { to, subject, html, text, attachments: [{ filename, content (Buffer), contentType }] } => { mode, id }
+const send = async ({ to, subject, html, text, key, attachments = [] }) => {
   if (mode() === 'smtp') {
-    const info = await smtp().sendMail({ from: from(), to, subject, html, text });
+    const info = await smtp().sendMail({ from: from(), to, subject, html, text, attachments });
     return { mode: 'smtp', id: info.messageId };
   }
   const dir = LOG_DIR();
   fs.mkdirSync(dir, { recursive: true });
   const safe = String(key || Date.now()).replace(/[^\w.-]+/g, '_').slice(0, 120);
   const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}_${safe}.html`);
-  fs.writeFileSync(file, `<!-- To: ${to}\nSubject: ${subject} -->\n${html}`);
+  fs.writeFileSync(file, `<!-- To: ${to}\nSubject: ${subject}${attachments.length ? `\nAttachments: ${attachments.map((a) => a.filename).join(', ')}` : ''} -->\n${html}`);
+  // Chế độ log: lưu file đính kèm cạnh email để xem lại
+  attachments.forEach((a) => fs.writeFileSync(file.replace(/\.html$/, `_${String(a.filename).replace(/[^\w.-]+/g, '_')}`), a.content));
   return { mode: 'log', id: file };
 };
 

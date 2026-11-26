@@ -313,6 +313,7 @@ function AdminLayoutInner() {
       ['Kho hàng', <InboxOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
         { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+        { key: '/purchasing', icon: <ShoppingCartOutlined />, label: 'Nhập hàng & Kiểm kho' },
       ]],
       ['Website', <GlobalOutlined />, [{ key: '/content', icon: <GlobalOutlined />, label: 'Quản lý trang' }]],
     ],
@@ -341,6 +342,7 @@ function AdminLayoutInner() {
       ['Kho hàng', <InboxOutlined />, [
         { key: '/inventory', icon: <AppstoreOutlined />, label: 'Kho & Sản phẩm' },
         { key: '/materials', icon: <ExperimentOutlined />, label: 'Vật tư & Định mức' },
+        { key: '/purchasing', icon: <ShoppingCartOutlined />, label: 'Nhập hàng & Kiểm kho' },
       ]],
       ['Marketing & Website', <NotificationOutlined />, [
         { key: '/promotions', icon: <PercentageOutlined />, label: 'Mã khuyến mãi' },
@@ -373,6 +375,7 @@ function AdminLayoutInner() {
       ['Bán hàng', <ShoppingCartOutlined />, [
         { key: '/sales-management', icon: <DollarOutlined />, label: 'Quản lý đơn hàng' },
         { key: '/returns', icon: <RollbackOutlined />, label: 'Hoàn / trả hàng' },
+        { key: '/purchasing', icon: <InboxOutlined />, label: 'Kho mỹ phẩm (nhận hàng, kiểm kho)' },
       ]],
       ['Cá nhân', <IdcardOutlined />, personal],
     ],

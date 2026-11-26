@@ -26,6 +26,8 @@ const io = new Server(server, { cors: { origin: SOCKET_ORIGINS } });
 require('./chat.socket.js')(io);
 
 // Gắn Route vào ứng dụng
+// Email nội bộ có thể kèm file PDF (đơn đặt hàng gửi nhà cung cấp) => giới hạn riêng 5mb
+app.use('/internal', express.json({ limit: '5mb' }));
 app.use(express.json());
 // Thông báo real-time cho trang quản trị (namespace /notify + POST /notify/emit cho các service)
 require('./notify.socket.js')(io, app);

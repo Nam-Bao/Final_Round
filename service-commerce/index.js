@@ -16,6 +16,7 @@ const reviewRoute = require('./routes/review.route.js');
 const returnRoute = require('./routes/return.route.js');
 const materialRoute = require('./routes/material.route.js');
 const reportRoute = require('./routes/report.route.js');
+const purchasingRoute = require('./routes/purchasing.route.js');
 
 const app = express();
 // Gateway chuyển /api/commerce sang port 4003
@@ -35,6 +36,7 @@ app.use('/api/commerce/reviews', reviewRoute);
 app.use('/api/commerce/returns', returnRoute);
 app.use('/api/commerce/materials', materialRoute);
 app.use('/api/commerce/reports', reportRoute);
+app.use('/api/commerce/purchasing', purchasingRoute); // nhập hàng: nhà cung cấp, đơn đặt hàng, nhận hàng, kiểm kho
 app.use('/api/commerce/tasks', require('./routes/task.route.js')); // việc đang chờ (chuông thông báo)
 
 // 2. Mount dự phòng đường dẫn ngắn (Direct Service Calls)
@@ -47,6 +49,7 @@ app.use('/reviews', reviewRoute);
 app.use('/returns', returnRoute);
 app.use('/materials', materialRoute);
 app.use('/reports', reportRoute);
+app.use('/purchasing', purchasingRoute);
 app.use('/tasks', require('./routes/task.route.js'));
 
 app.listen(PORT, async() => {
@@ -64,6 +67,11 @@ app.listen(PORT, async() => {
           END IF;
         END $$;`);
         await sequelize.sync({ alter });
+        // Nhập hàng theo lô (cột mới cho DB cũ): NSX / HSD theo lô, lô ghi nhà cung cấp / đơn đặt hàng / biên bản,
+        // lô mỹ phẩm hết hạn tách khỏi hàng bán, dòng đơn ghi lô đã xuất
+        await sequelize.query('ALTER TABLE "Products" ALTER COLUMN "start_date" DROP NOT NULL, ALTER COLUMN "end_date" DROP NOT NULL');
+        await sequelize.query('ALTER TABLE "MaterialLots" ADD COLUMN IF NOT EXISTS "manufacture_date" DATE, ADD COLUMN IF NOT EXISTS "purchase_order_id" UUID, ADD COLUMN IF NOT EXISTS "receipt_id" UUID, ADD COLUMN IF NOT EXISTS "supplier_id" UUID, ADD COLUMN IF NOT EXISTS "hold_reason" VARCHAR(20), ADD COLUMN IF NOT EXISTS "hold_at" TIMESTAMPTZ');
+        await sequelize.query('ALTER TABLE "OrderDetails" ADD COLUMN IF NOT EXISTS "lot_allocations" JSONB');
         await sequelize.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "points_used" INTEGER, ADD COLUMN IF NOT EXISTS "refund_account" VARCHAR(200)');
         // sync thường không thêm cột vào bảng đã có => tự bổ sung cột mới cho DB cũ
         await sequelize.query('ALTER TABLE "ProductDetails" ADD COLUMN IF NOT EXISTS "is_prescription" BOOLEAN NOT NULL DEFAULT false');
@@ -94,6 +102,13 @@ app.listen(PORT, async() => {
         const releaseOrders = () => releaseExpiredOrders().catch((e) => console.error('Lỗi tự hủy đơn quá hạn:', e.message));
         releaseOrders();
         setInterval(releaseOrders, 60 * 1000);
+        // Mỹ phẩm có tồn kho chưa thuộc lô nào => lô tồn đầu kỳ; lô hết hạn tách khỏi hàng bán (mỗi giờ kiểm tra lại)
+        const stockLots = require('./utils/stockLots');
+        const opened = await stockLots.syncOpeningLots();
+        if (opened) console.log(`📦 Đã tạo lô tồn đầu kỳ cho ${opened} mỹ phẩm (NSX / HSD lấy theo dữ liệu cũ của sản phẩm)`);
+        const holdLots = () => stockLots.holdExpiredLots().then((n) => { if (n) console.log(`⏳ Đã tách ${n} lô mỹ phẩm hết hạn khỏi hàng bán`); }).catch((e) => console.error('Lỗi tách lô hết hạn:', e.message));
+        holdLots();
+        setInterval(holdLots, 60 * 60 * 1000);
         // Mỗi buổi trị liệu chỉ có 1 phiếu xuất vật tư (chặn trừ kho 2 lần khi bấm hoàn thành 2 lần cùng lúc)
         await sequelize.query('CREATE UNIQUE INDEX IF NOT EXISTS "inventory_requests_reference_unique" ON "InventoryRequests" ("type", "reference_type", "reference_id") WHERE "reference_id" IS NOT NULL');
         console.log('✅ Đã kết nối DB và cập nhật bảng phân hệ Commerce!');
