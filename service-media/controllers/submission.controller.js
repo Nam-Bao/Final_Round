@@ -18,7 +18,7 @@ const snapshotOf = (s) => Object.fromEntries(CONTENT_FIELDS.map((k) => [k, s[k]]
 // Tên + ảnh bác sĩ lấy từ service-identity (token chỉ chứa id, role) để tác giả không tự khai tên người khác
 const fetchDoctor = async (doctorId) => {
   try {
-    const base = (process.env.IDENTITY_SERVICE_URL || 'http://localhost:4001').replace(/\/+$/, '');
+    const base = (process.env.IDENTITY_SERVICE_URL || process.env.IDENTITY_URL || 'http://localhost:4001').replace(/\/+$/, '');
     const res = await fetch(`${base}/users/doctors/public`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return null;
     const { data } = await res.json();

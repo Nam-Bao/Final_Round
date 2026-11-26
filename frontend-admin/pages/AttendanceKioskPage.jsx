@@ -3,6 +3,7 @@ import { QRCode, Button, Input, Progress, Result, Popconfirm, Form, message } fr
 import { ScanOutlined, CheckCircleFilled, FullscreenOutlined, PoweroffOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ATT_API, QR_PREFIX } from '../components/attendance/attendanceApi';
+import { API_BASE } from '../config';
 
 // Máy chấm công đặt tại quầy (tablet / màn hình). Không cần đăng nhập nhân viên: dùng token máy do quản lý kích hoạt.
 // Bấm "Chấm công" => hiện QR 20 giây (mỗi lần bấm 1 mã mới, dùng 1 lần) => nhân viên quét bằng điện thoại.
@@ -40,7 +41,7 @@ function Activation({ onDone }) {
     try {
       let token = sessionToken;
       if (!token) {
-        const login = await fetch('http://localhost:4000/api/identity/auth/login', {
+        const login = await fetch(`${API_BASE}/api/identity/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: values.email, password: values.password }),

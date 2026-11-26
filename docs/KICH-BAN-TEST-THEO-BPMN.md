@@ -126,11 +126,11 @@ Người test: khách (trang 3001, menu **Đặt lịch**), CSKH (trang 3000, **
 
 | Ca | Nhánh trong sơ đồ | Thực hiện | Kết quả đúng |
 |---|---|---|---|
-| 2.1 | Yêu cầu → Hủy lịch | Khách vào **Sổ lịch khám**, lịch đã cọc → **Hủy lịch** | Hệ thống hỏi xác nhận mất cọc; đồng ý thì lịch "Đã hủy". Quản lý xem **Báo cáo doanh thu**: mục cọc bị mất tăng đúng số tiền cọc |
+| 2.1 | Yêu cầu → Hủy lịch | Khách vào **Sổ lịch khám**, lịch đã cọc → **Hủy lịch**: (a) lịch còn từ 24 giờ trở lên; (b) lịch còn dưới 24 giờ | (a) Cọc đổi thành Điểm GlowSkin (1 điểm = 100đ, vd cọc 50.000đ = 500 điểm), không hỏi xác nhận mất cọc, khách nhận email cộng điểm. (b) Hệ thống hỏi xác nhận mất cọc; đồng ý thì lịch "Đã hủy", **Báo cáo doanh thu** mục cọc bị mất tăng đúng số tiền cọc. Lịch "cần xếp lại lịch" (bác sĩ nghỉ) hủy lúc nào cũng đổi thành điểm |
 | 2.2 | Đổi lịch → Được | Lịch còn hơn 24 giờ, chưa đổi lần nào → **Đổi lịch** → chọn ngày giờ mới → xác nhận | Lịch sang giờ mới, không mất cọc; nút Đổi lịch không còn (chỉ đổi 1 lần) |
 | 2.3 | Đổi lịch → Không được | Thử đổi lịch còn dưới 24 giờ, hoặc lịch vừa đổi ở ca 2.2 | Không đổi được, hệ thống báo liên hệ CSKH |
 | 2.4 | Quá giờ hẹn 15 phút → Khách không đến | CSKH vào **Quản lý lịch hẹn**, mở lịch đã quá giờ hẹn 15 phút → **Khách không đến** | Lịch chuyển "Khách không đến", giữ cọc. Chưa đủ 15 phút thì không có nút này |
-| 2.5 | Bác sĩ vắng, sự cố → Hủy và hoàn cọc | CSKH mở lịch đã cọc → **Hủy Lịch** → chọn bên yêu cầu **Phòng khám**, lý do ≥ 10 ký tự | Lịch hiện ở khối **Chờ hoàn cọc** bên phải. Bấm **Đã chuyển khoản hoàn cọc**, nhập mã giao dịch → lịch rời khối, khách thấy đã hoàn cọc |
+| 2.5 | Bác sĩ vắng, sự cố → Hủy và hoàn cọc | CSKH mở lịch đã cọc → **Hủy Lịch** → chọn bên yêu cầu **Phòng khám**, lý do ≥ 10 ký tự | Lịch hiện ở khối **Chờ hoàn cọc**. Hỏi khách: nhận tiền → **Đã chuyển khoản hoàn cọc**, nhập mã giao dịch (chờ ngân hàng báo tiền ra để xác minh); nhận điểm → **Hoàn bằng điểm**, cộng thêm 10%. Cọc đã trả bằng điểm thì tự hoàn điểm +10% |
 | 2.6 | (phụ) Bác sĩ xin nghỉ đột xuất | Bác sĩ gửi đơn nghỉ ở **Lịch làm việc của tôi**; quản lý duyệt ở **Lịch làm việc** | Khách trong ca đó chuyển sang tab **Xử lý dời lịch** ở Không gian tư vấn để CSKH đổi giờ |
 
 ## 3. Tiếp nhận và khám tại phòng khám (sơ đồ 03)
@@ -185,7 +185,7 @@ Cần một lịch hẹn **hôm nay**: CSKH tạo ở **Quản lý lịch hẹn 
 | 4.5 | Hết giờ giữ chỗ | Đặt nhưng không thanh toán, đợi hết giờ giữ chỗ | Lịch tư vấn bị hủy, giờ trống lại |
 | 4.6 | Ai đã vào phòng? → Cả hai | Đến giờ hẹn: khách vào phòng từ Sổ lịch khám, chuyên gia bấm **Vào phòng tư vấn**. Sau ít nhất 5 phút chuyên gia nhập nhận định, lời khuyên, gợi ý sản phẩm → **Gửi cho khách** | Lịch hoàn thành; khách xem kết quả trong Sổ lịch khám. Phí tư vấn không trừ vào phí khám; khách đi khám sau đó được CSKH áp voucher nội bộ (ca 3.9b) |
 | 4.7 | Ai đã vào phòng? → Khách vắng | Chỉ chuyên gia vào phòng; đợi phòng đóng (45 phút sau giờ hẹn) | Lịch "Khách vắng", khách mất cọc |
-| 4.8 | Chuyên gia vắng / quá 24 giờ chưa gửi kết quả | Khách vào phòng, chuyên gia không vào (hoặc không gửi kết quả trong 24 giờ) | Lịch chuyển chờ hoàn cọc; quản lý / CSKH bấm **Đã hoàn cọc** và nhập mã giao dịch |
+| 4.8 | Chuyên gia vắng / quá 24 giờ chưa gửi kết quả | Khách vào phòng, chuyên gia không vào (hoặc không gửi kết quả trong 24 giờ) | Lịch chuyển chờ hoàn phí; quản lý / CSKH bấm **Đã hoàn cọc** (nhập mã giao dịch) hoặc hoàn bằng điểm +10%. Phí đã trả bằng điểm thì tự hoàn điểm +10%; khách nhận email xin lỗi kèm số tiền / điểm hoàn |
 
 Ca 4.7 và 4.8 phải chờ thời gian thật. Trong dữ liệu demo đã có sẵn lịch "Khách vắng" và "Chuyên gia vắng (đã hoàn cọc)" để xem kết quả ở **Tư vấn chuyên gia → Lịch tư vấn**.
 
@@ -220,14 +220,14 @@ Có sẵn: `khang.lm11@glowskin.demo` có một yêu cầu đang chờ duyệt.
 
 | Ca | Nhánh trong sơ đồ | Thực hiện | Kết quả đúng |
 |---|---|---|---|
-| 7.1 | Gửi yêu cầu | Khách vào **Đơn hàng**, đơn hoàn thành trong 7 ngày → yêu cầu hoàn trả → chọn sản phẩm, lý do, ảnh, tài khoản nhận tiền | Yêu cầu "Chờ duyệt"; nhân viên thấy ở **Hoàn / trả hàng**. Đơn quá 7 ngày không có nút này |
+| 7.1 | Gửi yêu cầu | Khách vào **Đơn hàng**, đơn đã nhận trong 7 ngày → yêu cầu hoàn trả → chọn sản phẩm, lý do (móp vỡ, giao sai, lỗi, hết hạn), mô tả, ảnh, cách xử lý **Đổi sản phẩm** (mặc định) hoặc **Hoàn tiền** (nhập tài khoản; đơn trả bằng điểm thì hoàn điểm, không cần tài khoản) | Yêu cầu "Chờ duyệt"; nhân viên thấy ở **Hoàn / trả hàng**. Đơn quá 7 ngày không có nút này; hàng khuyến mãi không chọn được Hoàn tiền |
 | 7.2 | Duyệt? → Không | Nhân viên → **Từ chối**, ghi lý do | Khách thấy "Yêu cầu bị từ chối" kèm lý do |
 | 7.3 | Duyệt? → Có → Tạo đơn lấy hàng | **Duyệt yêu cầu** → **Tạo đơn GHN lấy hàng** | Trạng thái "GHN đang lấy hàng", có mã vận đơn |
 | 7.4 | Lấy hàng thất bại | Giả lập `returned` (hoặc `cancel`) với mã vận đơn lấy hàng | Quay về "Đã duyệt - chờ tạo GHN" để tạo lại đơn lấy hàng |
 | 7.5 | Đã lấy về kho | Giả lập `delivered` | "Kho đã nhận - chờ kiểm tra" |
 | 7.6 | Hàng hợp lệ? → Không | **Không đạt - Từ chối**, ghi lý do | Yêu cầu bị từ chối, không hoàn tiền |
-| 7.7 | Hợp lệ → Còn bán lại được | **Đạt - Ghi nhận hoàn tiền**, chọn nhập lại kho, nhập mã giao dịch | "Đã hoàn tiền"; tồn kho sản phẩm tăng; báo cáo doanh thu trừ phần tiền hàng đã hoàn |
-| 7.8 | Hợp lệ → Không bán lại được | Như 7.7 nhưng không nhập lại kho | "Đã hoàn tiền"; tồn kho không đổi |
+| 7.7 | Hợp lệ → Khách chọn đổi hàng | **Đạt - Đổi hàng**, giữ đúng sản phẩm và số lượng, chọn nhập lại kho nếu hàng còn bán được | "Đã đổi"; tạo đơn giao hàng đổi 0đ đi tiếp luồng đóng gói / GHN; tồn kho trừ hàng đổi (cộng lại hàng trả nếu nhập kho); không cộng doanh thu |
+| 7.8 | Hợp lệ → Khách chọn hoàn tiền | **Đạt - Ghi nhận hoàn tiền**, chọn có / không nhập lại kho, nhập mã giao dịch (đơn trả bằng điểm: **Đạt - Hoàn điểm cho khách**, không cần mã) | "Đã hoàn tiền"; nhập kho thì tồn kho tăng; báo cáo doanh thu trừ phần tiền hàng đã hoàn |
 
 ## 8. Chấm công nhân viên (sơ đồ 08)
 
@@ -428,6 +428,8 @@ Kho kiến thức nạp tự động khi service-ai-analysis khởi động và 
 | 19.15 | NVBH: gợi ý sản phẩm tại quầy | Quản lý đơn hàng → Tạo đơn mới → **Gợi ý sản phẩm theo nhu cầu (AI)** → nhập nhu cầu (vd "da dầu, mụn ẩn, cần sữa rửa mặt"), ngân sách, tình trạng khách → **Gợi ý** | Tối đa 3 sản phẩm còn hàng, không phải thuốc kê đơn, trong ngân sách, kèm lý do + cách dùng. Sản phẩm vướng **Chống chỉ định** với tình trạng đã chọn bị loại và ghi lý do; mức Thận trọng hiện cảnh báo. **Thêm vào đơn** điền vào dòng sản phẩm, đơn vẫn qua bước Sàng lọc an toàn như cũ |
 | 19.16 | Hỏi quy trình (ô chat sổ tay) | Nhân viên bất kỳ, ở trang nào cũng có nút **Hỏi quy trình** góc phải dưới (CSKH: phía trên nút chat với khách) → bấm câu gợi ý theo vai trò hoặc tự gõ (vd "Khách chuyển khoản thừa tiền cọc thì làm gì?") | Trả lời theo từng bước, có **Nguồn** (mục sổ tay / chính sách) mở xem được; dưới câu trả lời có 2-3 nút câu hỏi tiếp theo, bấm thì gửi như tự gõ, tự gõ câu khác thì nút ẩn. Chỉ tra phần sổ tay **đúng vai trò** (NVBH không thấy mục lương của quản lý). Câu không có trong sổ tay thì nói chưa có hướng dẫn, mời hỏi quản lý. Khách gọi API bị từ chối. Nội dung sổ tay: `service-ai-analysis/knowledge/so-tay/*.md` |
 | 19.17 | Hỏi quy trình theo chủ đề | Mở ô **Hỏi quy trình** → chọn một chủ đề (vd CSKH: **Đối soát tiền vào**) → bấm một câu hỏi thường gặp → sau câu trả lời bấm **Câu hỏi khác trong chủ đề** / **Chủ đề khác** | Mỗi vai trò có danh sách chủ đề riêng (CSKH 7, bác sĩ 4, KTV 3, NVBH 5, chuyên gia 1, quản lý 5, admin 2); chọn chủ đề hiện 3-5 câu hỏi thường gặp; trả lời có nguồn thuộc chủ đề và 1-3 câu hỏi tiếp theo (không lặp câu vừa hỏi). Không chọn chủ đề vẫn tự gõ hỏi được. Chủ đề, câu hỏi sửa ở `service-ai-analysis/knowledge/so-tay/chu-de.json` |
+| 19.18 | Sổ y bạ đầy đủ | Bác sĩ chọn khách trong hàng chờ → **Tra cứu Sổ y bạ** | Có: lần khám sắp tới, sàng lọc an toàn, gói liệu trình (còn bao nhiêu buổi), dòng thời gian gồm lần khám (đơn kê kèm cách dùng, mục khách thực mua, lý do vẫn kê khi có cảnh báo, cảnh báo AI), buổi dịch vụ (ghi chú KTV), soi da, tư vấn chuyên gia, đơn mỹ phẩm + trả hàng (hồ sơ Bản thân). Bác sĩ chưa từng khám hồ sơ đó bị chặn |
+| 19.19 | AI tóm tắt hồ sơ | Chưa tick đồng ý → nút bị khóa; CSKH / bác sĩ tick **Khách đồng ý cho AI tóm tắt hồ sơ khám** ở khung Sàng lọc an toàn (tab Lộ trình & Kê đơn) → mở Sổ y bạ → **Tóm tắt hồ sơ** → bấm một nguồn [dd/mm] | Tối đa 8 ý, mỗi ý có nguồn; bấm nguồn cuộn tới và tô sáng bản ghi. Mở lại khi hồ sơ không đổi thì dùng bản lưu tạm. Bỏ tick thì không tóm tắt được nữa. Dữ liệu gửi AI không có tên, SĐT, email, ngày sinh, ảnh |
 | 19.9 | AI rà soát đơn có nguồn | Bác sĩ: khách "Đang mang thai", kê sản phẩm có Retinal / dịch vụ lăn kim → **Rà soát bằng AI** | Cảnh báo AI có khung **Quy tắc phòng khám** + nguồn y khoa (link); cảnh báo không dựa trên quy tắc ghi "AI nhận định theo thành phần / kiến thức chung" |
 | 19.10 | Đánh giá trước / sau | `cd service-ai-analysis && node scripts/rag_eval.js` rồi `node scripts/safety_rag_eval.js` | Ghi kết quả vào `docs/DANH-GIA-CHATBOT-RAG.md` |
 

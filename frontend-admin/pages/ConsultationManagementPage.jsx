@@ -6,9 +6,10 @@ import RefundTransferNote from '../components/RefundTransferNote';
 import dayjs from 'dayjs';
 import { CONSULT_FIELD_OPTIONS } from '../components/hr/ProfessionalFields';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Text, Paragraph } = Typography;
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 const FIELD_LABEL = Object.fromEntries(CONSULT_FIELD_OPTIONS.map((o) => [o.value, o.label]));

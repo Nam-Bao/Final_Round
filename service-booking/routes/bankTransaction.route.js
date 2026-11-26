@@ -6,6 +6,7 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware.
 const { verifyInternal } = require('../middlewares/webhook.middleware.js');
 const { isDuplicateTransaction, recordTransaction } = require('../utils/bankLog');
 const { OPEN, recordClaim, validateClaimInput, reconcile } = require('../utils/refunds');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 const router = express.Router();
 const staff = [verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER', 'CONSULTANT')];
@@ -13,7 +14,7 @@ const managers = [verifyToken, authorizeRoles('ADMIN', 'GEN_MANAGER')];
 const ACTIONS = ['REFUNDED', 'MANUAL', 'IGNORED'];
 // Khoản CSKH còn phải xử lý: chuyển thiếu, không khớp, chuyển thừa
 const OPEN_STATUSES = ['PARTIAL', 'UNMATCHED', 'OVERPAID'];
-const GATEWAY = 'http://localhost:4000/api/identity/users';
+const GATEWAY = `${GATEWAY_URL}/api/identity/users`;
 
 // Khách hàng (tên, SĐT, email) theo id. Lỗi thì trả rỗng: trang vẫn hiện được giao dịch
 const loadPeople = async (authorization, withStaff) => {

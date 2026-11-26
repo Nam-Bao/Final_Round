@@ -25,13 +25,22 @@ axios.interceptors.response.use(undefined, (error) => {
 // Tự gắn token đăng nhập vào mọi request axios gửi tới API Gateway (backend lấy định danh khách từ token,
 // không còn tin customer_id gửi trong body/query). Không gắn cho domain khác để không lộ token ra ngoài.
 const GATEWAY_PATH = '/api';
+// Web gọi API bằng đường dẫn tương đối /api. Chạy dev: Vite chuyển tiếp sang gateway (vite.config.js).
+// Bản build đưa lên máy chủ: đặt VITE_API_URL (vd https://api.glowskin.vn) để gọi thẳng gateway.
+const API_URL = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const withApiUrl = (url) => (API_URL && typeof url === 'string' && url.startsWith(GATEWAY_PATH) ? API_URL + url : url);
 axios.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
   if (token && config.url?.startsWith(GATEWAY_PATH) && !config.headers?.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.url = withApiUrl(config.url);
   return config;
 });
+if (API_URL) {
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => nativeFetch(withApiUrl(input), init);
+}
 
 // Ảnh hỏng (link chết, ảnh đã xóa) hiện ảnh thay thế nhẹ nhàng thay vì icon vỡ và chữ mô tả đè lên giao diện
 const IMAGE_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#F2F7F6"/><path d="M100 62l9 29 29 9-29 9-9 29-9-29-29-9 29-9z" fill="#B7D3CF"/></svg>')}`;

@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Input, Tag, message } from 'antd';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/booking/safety';
+const API = `${API_BASE}/api/booking/safety`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 
 // Sàng lọc an toàn của 1 hồ sơ người khám. Lưu = đã hỏi khách trong lần khám này.
@@ -17,6 +18,9 @@ export default function PatientSafetyPanel({ patientProfileId, onSaved, onStatus
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [counter, setCounter] = useState(null); // khách khai khi mua tại quầy (chưa tính là sàng lọc của lần khám)
+  const [aiConsent, setAiConsent] = useState(false); // khách đồng ý cho AI tóm tắt hồ sơ khám (dữ liệu đã bỏ định danh)
+  const [aiConsentAt, setAiConsentAt] = useState(null);
+  const role = JSON.parse(sessionStorage.getItem('admin_user') || '{}').role;
 
   useEffect(() => { onStatus?.(today && !dirty); }, [today, dirty]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -26,6 +30,7 @@ export default function PatientSafetyPanel({ patientProfileId, onSaved, onStatus
     axios.get(`${API}/patients/${patientProfileId}`, { headers: headers() }).then((r) => {
       const d = r.data.data;
       setFlags(d.flags); setAllergies(d.allergies); setScreenedAt(d.screened_at); setToday(d.screened_today); setCounter(d.counter);
+      setAiConsent(!!d.ai_summary_consent); setAiConsentAt(d.ai_summary_consent_at);
     }).catch(() => message.error('Không tải được sàng lọc an toàn'));
   }, [patientProfileId]);
 
@@ -37,6 +42,15 @@ export default function PatientSafetyPanel({ patientProfileId, onSaved, onStatus
       message.success('Đã lưu sàng lọc an toàn');
       onSaved?.();
     } catch (error) { message.error(error.response?.data?.message || 'Không lưu được'); } finally { setSaving(false); }
+  };
+
+  // Lưu ngay khi tick / bỏ tick (tách khỏi nút xác nhận sàng lọc)
+  const changeAiConsent = async (checked) => {
+    try {
+      const r = await axios.put(`${API}/patients/${patientProfileId}/ai-summary-consent`, { consent: checked }, { headers: headers() });
+      setAiConsent(checked); setAiConsentAt(new Date().toISOString());
+      message.success(r.data.message);
+    } catch (error) { message.error(error.response?.data?.message || 'Không lưu được'); }
   };
 
   if (!patientProfileId) return null;
@@ -65,6 +79,12 @@ export default function PatientSafetyPanel({ patientProfileId, onSaved, onStatus
       <Input className="mb-2" maxLength={500} value={allergies} onChange={(e) => { setAllergies(e.target.value); setDirty(true); }} placeholder="Thành phần đã dị ứng, cách nhau bằng dấu phẩy. VD: Salicylic Acid, Niacinamide" />
       <div className="text-xs text-gray-600 mb-2">Hỏi khách từng mục (không có mục nào thì để trống), rồi bấm xác nhận. Phải xác nhận mới chuyển được hồ sơ cho bác sĩ.</div>
       <Button size="small" type="primary" loading={saving} onClick={save}>Xác nhận đã hỏi khách</Button>
+      <div className="mt-3 pt-2 border-t border-amber-200">
+        <Checkbox checked={aiConsent} disabled={!['CONSULTANT', 'DOCTOR'].includes(role)} onChange={(e) => changeAiConsent(e.target.checked)}>
+          Khách đồng ý cho AI tóm tắt hồ sơ khám
+        </Checkbox>
+        <div className="text-xs text-gray-500 ml-6">Hỏi khách: bệnh án được gửi cho AI (Google Gemini) sau khi bỏ tên, SĐT, ngày sinh, ảnh, để bác sĩ đọc nhanh trước khi khám. Khách rút lại thì bỏ tick.{aiConsent && aiConsentAt ? ` Ghi nhận ${dayjs(aiConsentAt).format('DD/MM/YYYY')}.` : ''}</div>
+      </div>
     </div>
   );
 }

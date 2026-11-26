@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Modal, Input, Button, Radio, Form, DatePicker, Select, Alert, Result, Typography, message } from 'antd';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 const { Text } = Typography;
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 

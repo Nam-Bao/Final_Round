@@ -3,8 +3,9 @@ import { Alert, Button, Image, Empty, Input, InputNumber, Modal, Radio, Select, 
 import { CheckOutlined, EditOutlined, ExpandOutlined, DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api/ai/analyses';
+const API = `${API_BASE}/api/ai/analyses`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const GROUPS = [
   ['inflammatory', 'Mụn viêm'], ['comedone', 'Mụn đầu đen/đầu trắng'], ['pih', 'Thâm sau mụn'], ['pigment_region', 'Nám/tàn nhang'],
@@ -395,7 +396,7 @@ function ClinicPhotos({ appointment, scans, onScanned }) {
   const scan = async (force = false) => {
     setBusy(true);
     try {
-      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${appointment.id}/ai-scan`, { force }, { headers: headers() });
+      const res = await axios.put(`${API_BASE}/api/booking/appointments/${appointment.id}/ai-scan`, { force }, { headers: headers() });
       message.success(res.data.message);
       onScanned(res.data.data?.id);
     } catch (e) {

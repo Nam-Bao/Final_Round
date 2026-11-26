@@ -3,6 +3,7 @@ import { Row, Col, Card, Collapse, Avatar, Typography, Input, Space, Tag, Timeli
 import { UserOutlined, SearchOutlined, HistoryOutlined, MedicineBoxOutlined, PictureOutlined, ScissorOutlined, ShoppingOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -22,10 +23,10 @@ export default function CustomerProfilePage() {
       try {
         const token = sessionStorage.getItem('admin_token');
         const [custRes, srvRes, pkgRes, prodRes] = await Promise.all([
-          axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } }),
-          axios.get('http://localhost:4000/api/booking/spa-services'),
-          axios.get('http://localhost:4000/api/booking/packages'),
-          axios.get('http://localhost:4000/api/commerce/products')
+          axios.get(`${API_BASE}/api/identity/users/customers`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          axios.get(`${API_BASE}/api/booking/spa-services`),
+          axios.get(`${API_BASE}/api/booking/packages`),
+          axios.get(`${API_BASE}/api/commerce/products`)
         ]);
         setCustomers(custRes.data?.data || []);
         setFilteredCustomers(custRes.data?.data || []);
@@ -54,9 +55,9 @@ export default function CustomerProfilePage() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [medRes, sessionRes, aptRes] = await Promise.all([
-        axios.get(`http://localhost:4000/api/identity/medical-records/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`http://localhost:4000/api/booking/sessions/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`http://localhost:4000/api/booking/appointments/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get(`${API_BASE}/api/identity/medical-records/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/api/booking/sessions/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/api/booking/appointments/patient/${profile.id}`, { headers }).catch(() => ({ data: { data: [] } }))
       ]);
 
       const medData = Array.isArray(medRes.data?.data) ? medRes.data.data : [];

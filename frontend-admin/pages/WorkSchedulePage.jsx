@@ -3,6 +3,7 @@ import { Table, Tag, Space, Button, message, Card, Modal, Form, Select, DatePick
 import { CalendarOutlined, PlusOutlined, SolutionOutlined, CheckOutlined, CloseOutlined, AlertOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -36,7 +37,7 @@ export default function WorkSchedulePage() {
   const fetchEmployees = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/identity/users', {
+      const res = await fetch(`${API_BASE}/api/identity/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -52,7 +53,7 @@ export default function WorkSchedulePage() {
       const startDate = startOfWeek.format('YYYY-MM-DD');
       const endDate = startOfWeek.add(6, 'day').format('YYYY-MM-DD');
       
-      const res = await fetch(`http://localhost:4000/api/booking/shifts?startDate=${startDate}&endDate=${endDate}`, {
+      const res = await fetch(`${API_BASE}/api/booking/shifts?startDate=${startDate}&endDate=${endDate}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -63,7 +64,7 @@ export default function WorkSchedulePage() {
   const fetchRequests = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:4000/api/booking/shifts/requests', {
+      const res = await fetch(`${API_BASE}/api/booking/shifts/requests`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await res.json();
@@ -74,7 +75,7 @@ export default function WorkSchedulePage() {
   const handleProcessRequest = async (requestId, status) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:4000/api/booking/shifts/requests/${requestId}`, {
+      const res = await fetch(`${API_BASE}/api/booking/shifts/requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status })
@@ -113,7 +114,7 @@ export default function WorkSchedulePage() {
         shift_types: values.shift_types
       };
 
-      const res = await fetch('http://localhost:4000/api/booking/shifts', {
+      const res = await fetch(`${API_BASE}/api/booking/shifts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
@@ -132,7 +133,7 @@ export default function WorkSchedulePage() {
   const handleDelete = async (shiftId) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      await fetch(`http://localhost:4000/api/booking/shifts/${shiftId}`, {
+      await fetch(`${API_BASE}/api/booking/shifts/${shiftId}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       fetchShifts();

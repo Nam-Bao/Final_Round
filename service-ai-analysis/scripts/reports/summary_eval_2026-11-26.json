@@ -1,0 +1,364 @@
+[
+  {
+    "id": "1f7bc8a9-de32-4395-8068-0ca750ad67a1",
+    "events": 14,
+    "lines": 18,
+    "items": 6,
+    "raw": 6,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+      "Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml",
+      "Gel trị mụn Klenzit C (Adapalene 0.1% + Clindamycin 1%) 15g",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 8,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám lần này: E2E_SOYBA. [V]",
+      "Chẩn đoán qua các lần: Mụn trứng cá mức độ nhẹ, ưu thế nhân mụn (15/09/2026, 27/10/2026); Mụn trứng cá nội tiết ở phụ nữ trưởng thành (13/10/2026). [E3,E7,E12]",
+      "Thuốc, sản phẩm đã dùng: Gel trị mụn Klenzit C, Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser, Kem giảm mụn La Roche-Posay Effaclar Duo+M. [E2,E11]",
+      "Liệu trình đang làm: Gói Liệu trình trị mụn chuẩn y khoa 6 buổi còn 4/6 buổi (ACTIVE); gói trước đó đã hoàn thành 0/6 buổi. [P1,P2]",
+      "Sàng lọc an toàn: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]",
+      "Tư vấn chuyên gia ngày 11/09/2026: Da hỗn hợp thiên dầu, lỗ chân lông to vùng chữ T, có vài mụn viêm nhẹ; quy trình nhiều bước dễ kích ứng, được khuyên rút gọn quy trình và đi khám. [E14]"
+    ]
+  },
+  {
+    "id": "6cb0bdc2-4880-4036-bb6b-01cf08fcb936",
+    "events": 10,
+    "lines": 13,
+    "items": 6,
+    "raw": 6,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 3,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám lần này: Da đỏ, rát, châm chích khi dùng mỹ phẩm, dùng nhiều sản phẩm treatment cùng lúc. [V]",
+      "Chẩn đoán trước đó: Mụn trứng cá nhẹ đến trung bình, ưu thế nhân mụn, mụn sẩn đỏ và mụn viêm. [E3,E6,E9]",
+      "Sản phẩm, thuốc đã/đang dùng: La Roche-Posay Effaclar Duo+M, Cetaphil Gentle Exfoliating SA Cleanser, Bioderma Sensibio H2O, La Roche-Posay Effaclar Purifying Foaming Gel, Klenzit C. [E2,E5,E7,E8]",
+      "Liệu trình: Đang thực hiện gói Liệu trình trị mụn chuẩn y khoa 6 buổi, còn lại 4/6 buổi. [P1]",
+      "Sàng lọc an toàn: Chưa sàng lọc, không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]",
+      "Tư vấn chuyên gia trước đó ghi nhận da nhạy cảm, dễ kích ứng do dùng chồng hoạt chất và quy trình nhiều bước. [E10]"
+    ]
+  },
+  {
+    "id": "cd81a4fe-9910-45b4-b2f9-648677481dae",
+    "events": 4,
+    "lines": 5,
+    "items": 6,
+    "raw": 6,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Gel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g)",
+      "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+      "Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml"
+    ],
+    "invented": [],
+    "nums": 6,
+    "badNums": [],
+    "coversDx": false,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám 16/11/2026: fdsfsd. [E2]",
+      "Khám ngày 31/08/2026: Nổi mụn viêm vùng má và cằm khoảng 3 tháng nay, mụn viêm, mụn mủ rải rác hai má, da đổ dầu nhiều. [E4]",
+      "Chẩn đoán ngày 31/08/2026: Mụn trứng cá mức độ nhẹ, ưu thế nhân mụn. [E4]",
+      "Thuốc, sản phẩm đã/đang dùng: Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml, Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml. [E2,E3,E4]",
+      "Sàng lọc an toàn ngày 16/11/2026: không có tình trạng đặc biệt; dị ứng: không ghi nhận. [S]",
+      "AI rà soát cảnh báo ngày 16/11/2026: Thận trọng Gel Azaduo Medisun điều trị mụn trứng cá nhẹ đến vừa (15g) - Sản phẩm chứa Adapalen (Retinoid), chống chỉ đị. [E2]"
+    ]
+  },
+  {
+    "id": "03418b65-13e1-47e2-8b6a-1a4510e3a8d4",
+    "events": 10,
+    "lines": 13,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+      "Kem trị mụn Megaduo Gel",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 4,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám lần này: Da xỉn màu, nhiều đốm thâm, khám lần đầu. [V]",
+      "Chẩn đoán trước đó: Mụn trứng cá nội tiết ở phụ nữ trưởng thành (ghi nhận ngày 27/08/2026 và 24/09/2026). [E4,E9]",
+      "Sản phẩm đang/đã dùng: Serum vitamin C, kem chống nắng, sữa rửa mặt tạo bọt, kem dưỡng ẩm, kem trị mụn Megaduo Gel, sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser. [V,E3,E4,E8]",
+      "Liệu trình: Liệu trình trị mụn chuẩn y khoa 6 buổi đã hoàn thành (còn 0/6 buổi). [P1]",
+      "Sàng lọc an toàn: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]"
+    ]
+  },
+  {
+    "id": "1153ec77-1933-4fba-accb-97394bc100bb",
+    "events": 5,
+    "lines": 7,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Gel trị mụn Klenzit C (Adapalene 0.1% + Clindamycin 1%) 15g",
+      "Lấy nhân mụn chuẩn y khoa"
+    ],
+    "invented": [],
+    "nums": 3,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám hôm nay: Da xỉn màu, nhiều đốm thâm; đang dùng serum vitamin C, kem chống nắng. Khách khám lần đầu. [V]",
+      "Sàng lọc an toàn chưa sàng lọc: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]",
+      "Tái khám 20/09/2026: Mụn trứng cá mức độ nhẹ, ưu thế nhân mụn; triệu chứng mụn viêm mủ rải rác má, đổ dầu nhiều. Đã chỉ định lấy nhân mụn chuẩn y khoa và LED, dùng gel Adapalene. [E1,E2]",
+      "Khám 23/08/2026: Mụn trứng cá nội tiết ở phụ nữ trưởng thành; triệu chứng mụn đầu đen, ẩn vùng chữ T, lỗ chân lông to, nổi mụn viêm má và cằm. Kê đơn Gel trị mụn Klenzit C. [E3,E4]",
+      "Tư vấn chuyên gia 14/08/2026: Da hỗn hợp thiên dầu, lỗ chân lông to vùng chữ T, vài mụn viêm nhẹ. Khuyên rút gọn quy trình skincare và đi khám. [E5]"
+    ]
+  },
+  {
+    "id": "1248b168-73f3-42a8-8df3-3cb1ce8e4f76",
+    "events": 6,
+    "lines": 8,
+    "items": 6,
+    "raw": 6,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 4,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám lần này: Mụn đầu đen, mụn ẩn nhiều ở trán và mũi, mụn viêm, mụn mủ rải rác hai má, da đổ dầu nhiều. [E3]",
+      "Chẩn đoán gần nhất (25/10/2026): Mụn trứng cá thông thường mức độ trung bình. [E3]",
+      "Thuốc, sản phẩm đã dùng: Megaduo Gel, La Roche-Posay Effaclar Duo+M, Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser. [E2,E5]",
+      "Liệu trình: Liệu trình trị mụn chuẩn y khoa 6 buổi, hiện còn 4/6 buổi. [P1]",
+      "Ghi chú KTV buổi gần nhất (04/11/2026): Da đáp ứng tốt, không kích ứng sau buổi. [E1]",
+      "Sàng lọc an toàn: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]"
+    ]
+  },
+  {
+    "id": "141ab06b-40dd-4159-b942-ec787eabbeb7",
+    "events": 2,
+    "lines": 3,
+    "items": 3,
+    "raw": 3,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [],
+    "invented": [],
+    "nums": 0,
+    "badNums": [],
+    "coversDx": false,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám: Muốn gặp BS; Da sần sùi, sẫm màu. [E1,E2]",
+      "Sản phẩm đang dùng: TT Garnier. [E1]",
+      "Sàng lọc an toàn: không có tình trạng đặc biệt; dị ứng: không ghi nhận. [S]"
+    ]
+  },
+  {
+    "id": "1673870d-975f-474f-861a-59afd3c4bb55",
+    "events": 12,
+    "lines": 15,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Kem trị mụn Megaduo Gel",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 3,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám: Mụn viêm tái đi tái lại trước kỳ kinh, tự mua kem trị mụn ngoài tiệm. [V]",
+      "Chẩn đoán trước: Mụn trứng cá nội tiết ở phụ nữ trưởng thành, mụn trứng cá thông thường mức độ trung bình (Acne vulgaris). [E4,E10]",
+      "Thuốc, sản phẩm đã dùng: Klenzit C, La Roche-Posay Effaclar Duo+M, Bioderma Sensibio H2O, Cetaphil Gentle Exfoliating SA Cleanser. [E3,E7,E9]",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi: đã hoàn thành (còn 0/6 buổi). KTV ghi nhận da hơi đỏ nhẹ ở buổi cuối, các buổi trước chịu đau tốt. [P1,E1,E5,E6]",
+      "Sàng lọc an toàn: chưa sàng lọc, không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]"
+    ]
+  },
+  {
+    "id": "17ec06c5-60bf-4be4-b5f7-f1af3935ab97",
+    "events": 5,
+    "lines": 7,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Kem trị mụn Megaduo Gel",
+      "Serum cấp ẩm Vichy Mineral 89",
+      "Kem giảm mụn La Roche-Posay Effaclar Duo+M 40ml"
+    ],
+    "invented": [],
+    "nums": 3,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám hôm nay: Mụn đầu đen, mụn ẩn nhiều ở trán và mũi. [V]",
+      "Khám ngày 13/10/2026: Chẩn đoán nám mảng thượng bì, có dát nâu sậm vùng gò má và trán. [E3]",
+      "Khám ngày 01/09/2026: Chẩn đoán nám hỗn hợp hai bên gò má, tăng sắc tố rải rác sau mụn. [E5]",
+      "Sản phẩm đang/đã dùng: Kem giảm mụn La Roche-Posay Effaclar Duo+M, serum cấp ẩm Vichy Mineral 89, chống nắng Anessa, tinh chất Eucerin Spotless Brightening, kem trị mụn mua ngoài tiệm. [V,E1,E2,E4]",
+      "Sàng lọc an toàn: Không có tình trạng đặc biệt, không ghi nhận dị ứng. [S]"
+    ]
+  },
+  {
+    "id": "1985a778-ab7e-4acc-9dc8-7609514f8ebf",
+    "events": 4,
+    "lines": 5,
+    "items": 4,
+    "raw": 4,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Kem trị mụn Megaduo Gel"
+    ],
+    "invented": [],
+    "nums": 6,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám lần này: Mụn viêm tái đi tái lại trước kỳ kinh, mụn đầu đen và mụn ẩn vùng chữ T, lỗ chân lông to. [E2]",
+      "Khám ngày 27/09/2026: Mụn trứng cá mức độ nhẹ, ưu thế nhân mụn. Tái khám ngày 25/10/2026: Mụn trứng cá nội tiết ở phụ nữ trưởng thành, khách tái khám theo hẹn. [E2,E4]",
+      "Sản phẩm/thuốc đang và đã dùng: tự mua kem trị mụn ngoài tiệm, đơn mỹ phẩm tại quầy ngày 27/09/2026 (Megaduo Gel x1), đơn mỹ phẩm online ngày 28/10/2026 (Bioderma Sensibio H2O 500ml x1). [E1,E2,E3]",
+      "Sàng lọc an toàn: chưa sàng lọc, không có tình trạng đặc biệt; dị ứng: không ghi nhận. [S]"
+    ]
+  },
+  {
+    "id": "290a58f8-36e0-4c8d-8786-7a8f6cb6e9c0",
+    "events": 8,
+    "lines": 10,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Sữa rửa mặt Cetaphil Gentle Exfoliating SA Cleanser 473ml",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi"
+    ],
+    "invented": [],
+    "nums": 6,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do tái khám: Mụn đầu đen, mụn ẩn nhiều ở trán và mũi, kèm mụn viêm, mụn mủ rải rác hai má và da đổ dầu nhiều. [E2]",
+      "Chẩn đoán trước đó: Mụn trứng cá nội tiết ở phụ nữ trưởng thành (09/10/2026), sau đó chẩn đoán mụn trứng cá mức độ nhẹ, ưu thế nhân mụn (06/11/2026). [E2,E7]",
+      "Đang dùng sữa rửa mặt tạo bọt, kem dưỡng ẩm và gel Klenzit C (Adapalene 0.1% + Clindamycin 1%) buổi tối. Đã từng dùng La Roche-Posay Effaclar Duo+M. [E1,E2,E6,E7]",
+      "Liệu trình trị mụn chuẩn y khoa 6 buổi đang còn 2/6 buổi. KTV ghi nhận các buổi gần đây da giảm đỏ so với buổi trước. [P1,E3,E4]",
+      "Sàng lọc an toàn chưa ghi nhận tình trạng đặc biệt hay dị ứng. [S]"
+    ]
+  },
+  {
+    "id": "29b9632f-55cf-4ca8-9a92-b01b1f8db346",
+    "events": 6,
+    "lines": 7,
+    "items": 5,
+    "raw": 5,
+    "dropped": 0,
+    "leak": {
+      "phone": false,
+      "email": false,
+      "name": false,
+      "dob": false
+    },
+    "mentioned": [
+      "Kem phục hồi La Roche-Posay Cicaplast Baume B5+",
+      "Sữa chống nắng Anessa Perfect UV Sunscreen Skincare Milk SPF50+ PA++++ 60ml",
+      "Peel da sinh học mờ thâm"
+    ],
+    "invented": [],
+    "nums": 4,
+    "badNums": [],
+    "coversDx": true,
+    "coversAllergy": true,
+    "summary": [
+      "Lý do khám: Đốm nâu xuất hiện sau sinh con, tăng sắc tố rải rác sau mụn. [E2]",
+      "Chẩn đoán trước: Tăng sắc tố sau viêm (PIH) (23/09/2026), Nám mảng thượng bì (04/11/2026). [E2,E6]",
+      "Sản phẩm đang/đã dùng: Sữa chống nắng Anessa, Serum Vichy Mineral 89, Kem phục hồi La Roche-Posay B5+, Serum Eucerin Spotless Brightening, serum vitamin C. [E1,E2,E4,E5]",
+      "Liệu trình: Peel da sinh học mờ thâm (04/11/2026), KTV ghi da giảm đỏ so với buổi trước. [E3]",
+      "Sàng lọc an toàn: Không có tình trạng đặc biệt, dị ứng penicillin. [S]"
+    ]
+  }
+]

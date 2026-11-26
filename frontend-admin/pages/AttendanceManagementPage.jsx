@@ -11,6 +11,7 @@ import CheckoutRequestTab from '../components/attendance/CheckoutRequestTab';
 import { FaceBadge, FaceReviewDrawer, FaceEnrollTab, ShiftHoursTab, FLAGGED } from '../components/attendance/FaceAdmin';
 import { useLiveRefresh } from '../components/Notifications';
 import EmployeeMonthDetail from '../components/attendance/EmployeeMonthDetail';
+import { API_BASE } from '../config';
 
 const MANAGER_ROLES = ['ADMIN', 'GEN_MANAGER'];
 const METHOD = { QR: 'Quét QR', EXPLANATION: 'Giải trình', REQUEST: 'Theo đơn', AUTO: 'Hệ thống' };
@@ -320,7 +321,7 @@ export default function AttendanceManagementPage() {
 
   useEffect(() => {
     if (!MANAGER_ROLES.includes(role)) return;
-    axios.get('http://localhost:4000/api/identity/users/employees', authConfig())
+    axios.get(`${API_BASE}/api/identity/users/employees`, authConfig())
       .then((res) => setPeople(Object.fromEntries((res.data.data || []).map((u) => [u.id, { name: u.Profile?.full_name || u.email, role: u.role }]))))
       .catch(() => {});
     axios.get(`${ATT_API}/explanations`, { ...authConfig(), params: { status: 'PENDING' } }).then((res) => setPending(res.data.pending || 0)).catch(() => {});

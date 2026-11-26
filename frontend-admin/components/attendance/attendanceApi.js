@@ -1,9 +1,10 @@
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { API_BASE } from '../../config';
 
-export const ATT_API = 'http://localhost:4000/api/booking/attendance';
-export const PAYROLL_API = 'http://localhost:4000/api/booking/payroll';
-export const MEDIA_UPLOAD = 'http://localhost:4000/api/media/upload';
+export const ATT_API = `${API_BASE}/api/booking/attendance`;
+export const PAYROLL_API = `${API_BASE}/api/booking/payroll`;
+export const MEDIA_UPLOAD = `${API_BASE}/api/media/upload`;
 export const QR_PREFIX = 'GLOWSKIN-ATT:';
 
 export const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });

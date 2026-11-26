@@ -5,10 +5,12 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { openVideoCall } from '../utils/videoCall';
 import PatientSafetyPanel, { SafetyWarnings } from '../components/PatientSafetyPanel';
+import PatientRecordDrawer from '../components/PatientRecordDrawer';
 import AiSafetyReview from '../components/AiSafetyReview';
 import SkinScanReview from '../components/SkinScanReview';
 import { useLiveRefresh } from '../components/Notifications';
 import { openPrint } from '../utils/print';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
 
@@ -41,8 +43,6 @@ export default function DoctorWorkspacePage() {
   
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [isNotesModalVisible, setIsNotesModalVisible] = useState(false); 
-  const [patientHistory, setPatientHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [form] = Form.useForm();
   const [safetyWarnings, setSafetyWarnings] = useState([]);   // cảnh báo theo đơn đang kê
@@ -76,7 +76,7 @@ export default function DoctorWorkspacePage() {
     const prescriptions = (watchedPrescriptions || []).filter((p) => p?.product_id);
     if (!selectedPatient?.patient_profile_id) { setSafetyWarnings([]); return undefined; }
     const timer = setTimeout(() => {
-      axios.post('http://localhost:4000/api/booking/safety/check', {
+      axios.post(`${API_BASE}/api/booking/safety/check`, {
         patient_profile_id: selectedPatient.patient_profile_id, spa_services: watchedServices || [], treatment_package: watchedPackage, prescriptions,
       }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } })
         .then((r) => setSafetyWarnings(r.data.data)).catch(() => {});
@@ -87,7 +87,7 @@ export default function DoctorWorkspacePage() {
   const fetchTodayAppointments = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.get('http://localhost:4000/api/booking/appointments/my-today', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await axios.get(`${API_BASE}/api/booking/appointments/my-today`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.data?.data) {
         setPatients(res.data.data.map(apt => ({
           id: apt.id, customer_id: apt.customer_id, patient_profile_id: apt.patient_profile_id, 
@@ -101,9 +101,9 @@ export default function DoctorWorkspacePage() {
   };
 
   useEffect(() => {
-    fetch('http://localhost:4000/api/booking/packages').then(res => res.json()).then(data => setPackages(data.data || []));
-    fetch('http://localhost:4000/api/booking/spa-services').then(res => res.json()).then(data => setSpaServices(data.data || []));
-    fetch('http://localhost:4000/api/commerce/products').then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
+    fetch(`${API_BASE}/api/booking/packages`).then(res => res.json()).then(data => setPackages(data.data || []));
+    fetch(`${API_BASE}/api/booking/spa-services`).then(res => res.json()).then(data => setSpaServices(data.data || []));
+    fetch(`${API_BASE}/api/commerce/products`).then(res => res.json()).then(data => setProducts((data.data || []).filter(item => item.type === 'PRODUCT')));
     fetchTodayAppointments();
     // CSKH chuyển khách vào hàng chờ bất cứ lúc nào
     const timer = setInterval(fetchTodayAppointments, 30000);
@@ -111,46 +111,19 @@ export default function DoctorWorkspacePage() {
   }, []);
   useLiveRefresh(['appointments'], fetchTodayAppointments); // CSKH chuyển khách vào hàng chờ: hiện ngay
 
-  const fetchPatientHistory = async (patientProfileId) => {
-    setLoadingHistory(true);
-    try {
-      const token = sessionStorage.getItem('admin_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      
-      const [medRes, sessionRes, aptRes] = await Promise.all([
-        axios.get(`http://localhost:4000/api/identity/medical-records/${patientProfileId}`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`http://localhost:4000/api/booking/sessions/patient/${patientProfileId}`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`http://localhost:4000/api/booking/appointments/patient/${patientProfileId}`, { headers }).catch(() => ({ data: { data: [] } }))
-      ]);
 
-      const medData = Array.isArray(medRes.data?.data) ? medRes.data.data : [];
-      const sessionData = Array.isArray(sessionRes.data?.data) ? sessionRes.data.data : [];
-      const aptData = Array.isArray(aptRes.data?.data) ? aptRes.data.data : [];
-
-      const combinedHistory = [
-        ...medData.map(r => {
-          const apt = aptData.find(a => a.id === r.appointment_id);
-          return { type: 'EXAM', date: r.exam_date, data: { ...r, prescribed_services: apt?.prescribed_services, prescribed_packages: apt?.prescribed_packages, prescribed_medicines: apt?.prescribed_medicines }, id: `exam_${r.id}` };
-        }),
-        ...sessionData.map(s => ({ type: 'TREATMENT', date: s.session_date, data: s, id: `session_${s.id}` }))
-      ].sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-      setPatientHistory(combinedHistory);
-    } catch (error) {} finally { setLoadingHistory(false); }
-  };
 
   const handleSelectPatient = async (patient) => {
     setSelectedPatient(patient);
     setActiveTab('1'); setOpenScanId(null); setScanStatus({ count: 0, pending: false });
     form.resetFields();
-    fetchPatientHistory(patient.patient_profile_id);
   };
 
   // Mở hồ sơ chỉ để xem; bác sĩ bấm nút thì mới chuyển trạng thái, CSKH dựa vào đó để biết phòng đang có khách
   const changeExamState = async (action, status) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/${action}`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
+      await axios.put(`${API_BASE}/api/booking/appointments/${selectedPatient.id}/${action}`, {}, { headers: { 'Authorization': `Bearer ${token}` } });
       handleUpdateStatus(status);
       fetchTodayAppointments();
     } catch (error) { message.error(error.response?.data?.message || 'Không chuyển được trạng thái'); }
@@ -166,7 +139,7 @@ export default function DoctorWorkspacePage() {
     if (!productId || form.getFieldValue(['prescriptions', fieldName, 'usage'])) return;
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.get('http://localhost:4000/api/commerce/products/print-info', { params: { ids: productId }, headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get(`${API_BASE}/api/commerce/products/print-info`, { params: { ids: productId }, headers: { Authorization: `Bearer ${token}` } });
       const usage = res.data.data?.[0]?.usage;
       if (usage && !form.getFieldValue(['prescriptions', fieldName, 'usage'])) form.setFieldValue(['prescriptions', fieldName, 'usage'], usage);
     } catch { /* không có hướng dẫn thì bác sĩ tự ghi */ }
@@ -176,7 +149,7 @@ export default function DoctorWorkspacePage() {
     try {
       const examId = selectedPatient.id;
       const token = sessionStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
+      await axios.put(`${API_BASE}/api/booking/appointments/${selectedPatient.id}/finish-exam`, {
         symptoms: values.symptoms, diagnosis: values.diagnosis, doctor_notes: values.doctor_notes,
         follow_up_date: values.follow_up_date ? values.follow_up_date.format('YYYY-MM-DD') : null, 
         spa_services: values.spa_services, treatment_package: values.treatment_package,
@@ -378,51 +351,8 @@ export default function DoctorWorkspacePage() {
         </div>
       </Modal>
 
-      <Drawer title={<span className="text-blue-700"><HistoryOutlined className="mr-2"/> Sổ y bạ điện tử</span>} placement="right" width={550} onClose={() => setIsHistoryVisible(false)} open={isHistoryVisible}>
-        <Spin spinning={loadingHistory} description="Đang tải dữ liệu...">
-          {patientHistory.length === 0 ? <Empty description="Bệnh nhân chưa có lịch sử khám." /> : (
-            <Timeline items={patientHistory.map((item, index) => {
-              if (item.type === 'EXAM') {
-                 return { color: 'blue', dot: <MedicineBoxOutlined className="text-blue-600"/>,
-                   children: (
-                     <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                       <div className="font-bold text-blue-700 border-b border-blue-200 pb-2 mb-2">Khám ngày: {dayjs(item.date).format('DD/MM/YYYY')}</div>
-                       <div><Text strong>Chẩn đoán:</Text> <Text className="text-red-600">{item.data.diagnosis || 'Chưa có'}</Text></div>
-                       <div className="mt-1"><Text strong>Triệu chứng:</Text> <div className="whitespace-pre-line text-sm text-gray-700 mt-1">{item.data.symptoms || 'Không có'}</div></div>
-                       
-                       {(item.data.prescribed_services?.length > 0 || item.data.prescribed_packages?.length > 0 || item.data.prescribed_medicines?.length > 0) && (
-                         <div className="mt-2 p-2 bg-white rounded border border-blue-100 text-xs">
-                           <Text strong className="block mb-1 text-purple-700"><ShoppingOutlined/> Dịch vụ & Thuốc:</Text>
-                           {item.data.prescribed_services?.length > 0 && <div>• {item.data.prescribed_services.map(id => spaServices.find(s=>s.id === id)?.name).join(', ')}</div>}
-                           {item.data.prescribed_packages?.length > 0 && <div>• {item.data.prescribed_packages.map(id => packages.find(p=>p.id === id)?.name).join(', ')}</div>}
-                           {item.data.prescribed_medicines?.length > 0 && <div>• {item.data.prescribed_medicines.map(m => medicineLabel(m, products)).join(', ')}</div>}
-                         </div>
-                       )}
-
-                       {item.data.pre_exam_images?.length > 0 && (
-                          <div className="mt-2 flex gap-2">{item.data.pre_exam_images.map((img, i) => <Image key={i} src={img} width={40} height={40} className="rounded object-cover" />)}</div>
-                       )}
-                     </div>
-                   )
-                 }
-              } else {
-                 return { color: 'green', dot: <ScissorOutlined className="text-green-600"/>,
-                   children: (
-                     <div className="mb-4 bg-green-50 p-3 rounded-lg border border-green-200">
-                       <div className="font-bold text-green-700 border-b border-green-200 pb-2 mb-2">Dịch vụ: {dayjs(item.date).format('DD/MM/YYYY')}</div>
-                       <div><Text strong>Thực hiện:</Text> {item.data.service_name}</div>
-                       <div className="mt-1"><Text strong>KTV Ghi chú:</Text> <Text className="text-gray-700">{item.data.technician_note}</Text></div>
-                       {item.data.post_treatment_images?.length > 0 && (
-                          <div className="mt-2 flex gap-2">{item.data.post_treatment_images.map((img, i) => <Image key={i} src={img} width={40} height={40} className="rounded object-cover" />)}</div>
-                       )}
-                     </div>
-                   )
-                 }
-              }
-            })} />
-          )}
-        </Spin>
-      </Drawer>
+      {/* Sổ y bạ đầy đủ (gom từ mọi service) + AI tóm tắt hồ sơ khi khách đã đồng ý */}
+      <PatientRecordDrawer open={isHistoryVisible} profileId={selectedPatient?.patient_profile_id} onClose={() => setIsHistoryVisible(false)} />
       <Modal title={safetyPending?.warnings?.some((w) => w.source === 'AI') ? 'Đơn kê có cảnh báo an toàn (gồm cảnh báo của AI rà soát)' : 'Đơn kê có cảnh báo an toàn'} open={!!safetyPending} width={640} okText="Vẫn kê, lưu lý do" cancelText="Sửa lại đơn"
         okButtonProps={{ danger: true, disabled: safetyReason.trim().length < 10 }} onCancel={() => setSafetyPending(null)}
         onOk={() => handleSubmitRecord(safetyPending.values, safetyReason)}>

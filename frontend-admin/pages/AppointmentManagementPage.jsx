@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTiming } from '../utils/timing';
 import { useLiveRefresh } from '../components/Notifications';
 import { openPrint } from '../utils/print';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
 
@@ -48,10 +49,10 @@ export default function AppointmentManagementPage() {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [resApt, resCust, resRefunds, resOverdue] = await Promise.all([
-        axios.get('http://localhost:4000/api/booking/appointments', { headers }),
-        axios.get('http://localhost:4000/api/identity/users/customers', { headers }),
-        axios.get('http://localhost:4000/api/booking/appointments/pending-refunds', { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get('http://localhost:4000/api/booking/appointments/overdue-arrivals', { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/api/booking/appointments`, { headers }),
+        axios.get(`${API_BASE}/api/identity/users/customers`, { headers }),
+        axios.get(`${API_BASE}/api/booking/appointments/pending-refunds`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/api/booking/appointments/overdue-arrivals`, { headers }).catch(() => ({ data: { data: [] } })),
       ]);
       setPendingRefunds(resRefunds.data?.data || []);
       setOverdue(resOverdue.data?.data || []);
@@ -92,7 +93,7 @@ export default function AppointmentManagementPage() {
 
     try {
        const token = sessionStorage.getItem('admin_token');
-       const res = await axios.get(`http://localhost:4000/api/identity/profile/patients/user/${userId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+       const res = await axios.get(`${API_BASE}/api/identity/profile/patients/user/${userId}`, { headers: { 'Authorization': `Bearer ${token}` } });
        setPatientProfiles(res.data?.data || []);
     } catch (error) {
        setPatientProfiles([{ 
@@ -106,7 +107,7 @@ export default function AppointmentManagementPage() {
   const fetchAvailableDoctors = async (dateStr) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const resDoc = await axios.get(`http://localhost:4000/api/booking/appointments/doctors-available?date=${dateStr}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const resDoc = await axios.get(`${API_BASE}/api/booking/appointments/doctors-available?date=${dateStr}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setDoctors(resDoc.data?.data || []);
       return resDoc.data?.data || [];
     } catch (error) { return []; }
@@ -119,7 +120,7 @@ export default function AppointmentManagementPage() {
       const dateStr = customDateStr || (formDate ? formDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
       
       const token = sessionStorage.getItem('admin_token');
-      const resSlot = await axios.get(`http://localhost:4000/api/booking/appointments/slots-available?date=${dateStr}&doctorId=${doctorId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const resSlot = await axios.get(`${API_BASE}/api/booking/appointments/slots-available?date=${dateStr}&doctorId=${doctorId}`, { headers: { 'Authorization': `Bearer ${token}` } });
       setAvailableSlots(resSlot.data?.data || []);
       return resSlot.data?.data || [];
     } catch (error) { return []; }
@@ -215,7 +216,7 @@ export default function AppointmentManagementPage() {
     okText: 'Khách không đến', okButtonProps: { danger: true }, cancelText: 'Đóng',
     onOk: async () => {
       try {
-        const res = await axios.put(`http://localhost:4000/api/booking/appointments/${editingAppointment.id}/no-show`, {}, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        const res = await axios.put(`${API_BASE}/api/booking/appointments/${editingAppointment.id}/no-show`, {}, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
         message.success(res.data.message);
         setIsModalVisible(false);
         fetchData();
@@ -231,7 +232,7 @@ export default function AppointmentManagementPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${editingAppointment.id}/cancel`,
+      const res = await axios.put(`${API_BASE}/api/booking/appointments/${editingAppointment.id}/cancel`,
         { initiator: cancelInitiator, reason: cancelReason.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success(res.data.message || 'Đã hủy lịch!');
       setCancelOpen(false);
@@ -248,7 +249,7 @@ export default function AppointmentManagementPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.put(`http://localhost:4000/api/booking/appointments/${refundTarget.appointment_id}/refund-deposit`,
+      const res = await axios.put(`${API_BASE}/api/booking/appointments/${refundTarget.appointment_id}/refund-deposit`,
         { refund_ref: refundRef.trim(), account: refundAccount.trim(), note: refundNote.trim() }, { headers: { 'Authorization': `Bearer ${token}` } });
       message.success(res.data.message);
       setRefundTarget(null);
@@ -265,7 +266,7 @@ export default function AppointmentManagementPage() {
     okText: 'Hoàn bằng điểm', cancelText: 'Hủy',
     onOk: async () => {
       try {
-        const res = await axios.put(`http://localhost:4000/api/booking/appointments/${item.appointment_id}/refund-deposit`, { method: 'POINTS' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
+        const res = await axios.put(`${API_BASE}/api/booking/appointments/${item.appointment_id}/refund-deposit`, { method: 'POINTS' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
         message.success(res.data.message);
         fetchData();
       } catch (error) { message.error(error.response?.data?.message || 'Không hoàn được bằng điểm'); }
@@ -280,7 +281,7 @@ export default function AppointmentManagementPage() {
       let finalPatientProfileId = values.patient_profile_id;
 
       if (customerType === 'NEW' && !editingAppointment) {
-          const resNewUser = await axios.post(`http://localhost:4000/api/identity/users/quick-customer`, {
+          const resNewUser = await axios.post(`${API_BASE}/api/identity/users/quick-customer`, {
               email: values.new_email, full_name: values.new_full_name, phone: values.new_phone
           }, { headers: { 'Authorization': `Bearer ${token}` } });
           
@@ -297,10 +298,10 @@ export default function AppointmentManagementPage() {
       };
 
       if (editingAppointment) {
-        await axios.put(`http://localhost:4000/api/booking/appointments/${editingAppointment.id}`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
+        await axios.put(`${API_BASE}/api/booking/appointments/${editingAppointment.id}`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
         message.success('Cập nhật thành công!');
       } else {
-        await axios.post(`http://localhost:4000/api/booking/appointments`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
+        await axios.post(`${API_BASE}/api/booking/appointments`, payload, { headers: { 'Authorization': `Bearer ${token}` } });
         message.success('Tạo lịch thành công!');
       }
       setIsModalVisible(false);

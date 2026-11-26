@@ -1,4 +1,5 @@
 const axios = require('axios');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // Báo service-booking: nhân viên đã ghi "đã hoàn tiền". Khoản hoàn được đối chiếu với giao dịch tiền ra của ngân hàng
 // (nội dung "HOAN <6 ký tự đầu mã đơn / mã yêu cầu hoàn trả>") ở trang Đối soát tiền của quản lý.
@@ -12,7 +13,7 @@ const validateClaimInput = ({ bank_ref, account }) => {
   return null;
 };
 
-const sendRefundClaim = (claim) => axios.post('http://localhost:4000/api/booking/bank-transactions/refund-claim', claim, {
+const sendRefundClaim = (claim) => axios.post(`${GATEWAY_URL}/api/booking/bank-transactions/refund-claim`, claim, {
   headers: { 'X-Internal-Key': process.env.INTERNAL_API_KEY },
 }).catch((e) => console.error('❌ Không ghi được khoản hoàn để đối chiếu:', claim.source, claim.source_id, e.message));
 

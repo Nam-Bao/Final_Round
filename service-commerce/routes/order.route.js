@@ -13,6 +13,8 @@ router.post('/ghn-webhook', verifyGhnOrStaff, orderController.ghnWebhook);
 router.post('/sepay-webhook', verifySepay, orderController.sepayOrderWebhook);
 
 // 0b. Danh mục địa giới & báo giá GHN: công khai (không chứa dữ liệu cá nhân)
+// Nội bộ (token hệ thống): đơn của 1 khách cho sổ y bạ của bác sĩ (service-booking)
+router.get('/internal/customer/:id', orderController.internalCustomerOrders);
 router.get('/ghn/province', orderController.getGHNProvince);
 router.get('/ghn/district', orderController.getGHNDistrict);
 router.get('/ghn/ward', orderController.getGHNWard);

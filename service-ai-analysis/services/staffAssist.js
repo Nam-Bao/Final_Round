@@ -243,7 +243,13 @@ const handbookAnswer = async ({ question, history = [], role, topicId = null }) 
   }).join(''));
   // AI trả lời theo tài liệu nhưng quên ghi [n]: gắn mục liên quan nhất làm nguồn (trừ khi đang nói sổ tay chưa có hướng dẫn)
   if (!order.length && docs.length && !/chưa có hướng dẫn|chưa có thông tin/i.test(text)) order.push(docs[0]);
-  return { text, quick_replies, sources: order.map((d, i) => ({ n: i + 1, title: d.title, text: d.text })), model: r.model };
+  // Bỏ câu gợi ý mà sổ tay của vai trò không trả lời được (cùng ngưỡng với chatbot khách, lỗi đo thì giữ nguyên)
+  let answerable = quick_replies;
+  try {
+    const scores = await knowledge.bestScores('HANDBOOK', quick_replies, canSee(role));
+    answerable = quick_replies.filter((q, i) => scores[i] >= (Number(process.env.ANSWERABLE_SCORE) || 0.69));
+  } catch { /* giữ nguyên */ }
+  return { text, quick_replies: answerable, sources: order.map((d, i) => ({ n: i + 1, title: d.title, text: d.text })), model: r.model };
 };
 
 module.exports = { draftReply, similarRules, productAdvice, handbookAnswer, handbookTopics, topicsOf, inTopic };

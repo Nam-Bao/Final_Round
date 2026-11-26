@@ -9,6 +9,11 @@ Quy trình của bác sĩ.
 - Nhập triệu chứng, chẩn đoán, ghi chú, ngày tái khám. Kê sản phẩm (số lượng, cách dùng), dịch vụ, gói liệu trình ở tab Lộ trình & Kê đơn; khung Tạm tính chi phí của khách cập nhật ngay.
 - Bấm Hoàn tất khám: khách chuyển sang chờ thu tiền. In đơn thuốc A5 sau khi hoàn tất (chỉ bác sĩ khám lịch đó in được).
 
+## Sổ y bạ và tóm tắt hồ sơ bằng AI
+- Bấm Tra cứu Sổ y bạ: xem đầy đủ các lần khám (lý do, triệu chứng, chẩn đoán, đơn kê kèm cách dùng, mục khách thực mua, hẹn tái khám, lý do vẫn kê khi có cảnh báo), buổi dịch vụ / liệu trình (ghi chú KTV), gói còn bao nhiêu buổi, sàng lọc an toàn, lượt soi da, tư vấn chuyên gia, đơn mỹ phẩm và yêu cầu trả hàng của khách.
+- Bấm Tóm tắt hồ sơ: AI tóm tắt trong vài dòng, mỗi ý có nguồn bấm để mở đúng bản ghi. Chỉ dùng được khi khách đã đồng ý (tick ở khung Sàng lọc an toàn); dữ liệu gửi AI đã bỏ tên, SĐT, ngày sinh, ảnh.
+- Tóm tắt chỉ để đọc nhanh, không chẩn đoán, không gợi ý điều trị; luôn đối chiếu bản ghi gốc. Bác sĩ chỉ mở được sổ y bạ của khách đã có lịch khám với mình.
+
 ## Cảnh báo chống chỉ định khi kê đơn
 - Hệ thống so đơn với bảng quy tắc an toàn theo tình trạng khách (mang thai, cho con bú, isotretinoin...) và dị ứng.
 - Chống chỉ định hoặc Thận trọng: khi hoàn tất khám phải sửa đơn hoặc ghi lý do (ít nhất 10 ký tự) để vẫn kê; lý do được lưu cùng cảnh báo. Mức Lưu ý chỉ hiển thị.

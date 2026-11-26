@@ -17,7 +17,8 @@ app.use('/', aiRoutes);
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/medical_db')
   .then(() => {
-    app.listen(4004, () => console.log('AI Service running on port 4004'));
+    const PORT = Number(process.env.PORT) || 4004;
+    app.listen(PORT, () => console.log(`AI Service running on port ${PORT}`));
     require('./services/scanDeletion').startRetentionJob(); // xoá lượt soi quá hạn lưu 2 năm (SCAN_RETENTION_DAYS)
     require('./services/knowledge').start(); // nạp kho kiến thức RAG (chatbot, AI rà soát đơn), cập nhật định kỳ
   })

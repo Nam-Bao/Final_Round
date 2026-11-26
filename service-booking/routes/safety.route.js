@@ -10,6 +10,7 @@ const staff = [verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT', 'GEN_MANAGER'
 router.get('/flags', ...staff, c.getFlags);
 router.get('/patients/:id', ...staff, c.getPatientSafety);
 router.put('/patients/:id', ...staff, c.savePatientSafety);
+router.put('/patients/:id/ai-summary-consent', verifyToken, authorizeRoles('DOCTOR', 'CONSULTANT'), c.saveAiSummaryConsent);
 router.post('/check', ...staff, c.checkSafety);
 router.post('/ai-review', verifyToken, authorizeRoles('DOCTOR', 'GEN_MANAGER', 'ADMIN'), c.aiReview); // AI rà soát đơn + gợi ý thay thế
 

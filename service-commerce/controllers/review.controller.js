@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { sequelize, Review, Order, OrderDetail, Product } = require('../models');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // "Nguyễn Văn An" -> "Nguyễn V. A." (che bớt tên thật khi hiển thị công khai)
 const maskName = (fullName) => {
@@ -119,7 +120,7 @@ exports.createReview = async (req, res) => {
     if (existing) return res.status(400).json({ message: 'Bạn đã đánh giá sản phẩm này trong đơn hàng này rồi' });
 
     // Lấy tên thật của khách từ service-identity
-    const profileRes = await axios.get('http://localhost:4000/api/identity/profile/me', {
+    const profileRes = await axios.get(`${GATEWAY_URL}/api/identity/profile/me`, {
       headers: { Authorization: req.headers.authorization }
     }).catch(() => null);
 

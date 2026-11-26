@@ -5,8 +5,9 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')}đ`;
 

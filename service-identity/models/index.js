@@ -6,7 +6,7 @@ const sequelize = new Sequelize(
   process.env.DB_NAME || 'identity_db',
   process.env.DB_USER || 'postgres',
   process.env.DB_PASSWORD || 'password',
-  { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5435), dialect: 'postgres' }
+  { host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5435), dialect: 'postgres', dialectOptions: process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {} }
 );
 
 // 1. Bảng Users

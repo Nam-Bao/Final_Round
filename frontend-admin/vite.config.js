@@ -11,6 +11,6 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 3000, // Chạy Admin ở port 3000
     // Điện thoại gọi /api cùng địa chỉ trang => chuyển tiếp sang API Gateway trên máy tính
-    proxy: { '/api': { target: 'http://localhost:4000', changeOrigin: true } },
+    proxy: { '/api': { target: process.env.GATEWAY_TARGET || 'http://localhost:4000', changeOrigin: true } },
   },
 }))

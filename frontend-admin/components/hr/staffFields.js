@@ -1,5 +1,6 @@
+import { API_BASE } from '../../config';
 // Danh mục và trường riêng theo vai trò của hồ sơ nhân sự (khớp service-identity/utils/staffRecordFields.js)
-export const HR_API = 'http://localhost:4000/api/identity/hr/records';
+export const HR_API = `${API_BASE}/api/identity/hr/records`;
 
 export const ROLE_INFO = {
   DOCTOR: { label: 'Bác sĩ', color: 'purple', position: 'Bác sĩ Da liễu' },

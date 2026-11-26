@@ -5,10 +5,11 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import FaceCapture from './FaceCapture';
 import { authConfig, errorText } from './attendanceApi';
+import { API_BASE } from '../../config';
 
 // Ảnh gốc khuôn mặt để hệ thống so với ảnh chấm công (dữ liệu sinh trắc học: lưu riêng tư, quản lý duyệt, xoá khi nghỉ việc)
-const FACE_API = 'http://localhost:4000/api/ai/faces';
-const FACE_UPLOAD = 'http://localhost:4000/api/media/upload/face';
+const FACE_API = `${API_BASE}/api/ai/faces`;
+const FACE_UPLOAD = `${API_BASE}/api/media/upload/face`;
 const POSES = ['Nhìn thẳng vào camera', 'Quay mặt nhẹ sang TRÁI', 'Quay mặt nhẹ sang PHẢI'];
 
 function EnrollModal({ onClose, onDone }) {

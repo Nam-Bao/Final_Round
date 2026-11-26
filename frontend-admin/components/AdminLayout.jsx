@@ -14,6 +14,7 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 import { TaskProvider, NotificationBell, useTasks } from './Notifications';
 import HandbookChat from './HandbookChat';
+import { API_BASE, SOCKET_BASE } from '../config';
 
 const { Header, Sider, Content } = Layout;
 
@@ -46,14 +47,14 @@ function AttachToRecordModal({ open, customerId, urls, onClose }) {
   useEffect(() => {
     if (!open) return;
     setPicked(urls || []); setAptId(null); setList(null);
-    axios.get(`http://localhost:4000/api/booking/appointments/customer/${customerId}/upcoming`, { headers })
+    axios.get(`${API_BASE}/api/booking/appointments/customer/${customerId}/upcoming`, { headers })
       .then((r) => { setList(r.data.data || []); setAptId(r.data.data?.[0]?.id || null); })
       .catch(() => setList([]));
   }, [open, customerId]);
   const save = async () => {
     setSaving(true);
     try {
-      const r = await axios.put(`http://localhost:4000/api/booking/appointments/${aptId}/attach-images`, { customer_id: customerId, urls: picked }, { headers });
+      const r = await axios.put(`${API_BASE}/api/booking/appointments/${aptId}/attach-images`, { customer_id: customerId, urls: picked }, { headers });
       message.success(r.data.message); onClose();
     } catch (e) { message.error(e.response?.data?.message || 'Không đính được ảnh'); } finally { setSaving(false); }
   };
@@ -127,8 +128,8 @@ function AdminLayoutInner() {
       const headers = { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` };
       const formData = new FormData();
       formData.append('image', file);
-      const uploadRes = await axios.post('http://localhost:4000/api/media/upload', formData, { headers });
-      await axios.put('http://localhost:4000/api/identity/profile/me', { avatar: uploadRes.data.url }, { headers });
+      const uploadRes = await axios.post(`${API_BASE}/api/media/upload`, formData, { headers });
+      await axios.put(`${API_BASE}/api/identity/profile/me`, { avatar: uploadRes.data.url }, { headers });
       sessionStorage.setItem('admin_user', JSON.stringify({ ...currentUser, Profile: { ...(currentUser.Profile || {}), avatar: uploadRes.data.url } }));
       setAvatarOverride(uploadRes.data.url);
       message.success('Đã cập nhật ảnh đại diện');
@@ -159,12 +160,12 @@ function AdminLayoutInner() {
   useEffect(() => {
     if (role === 'CONSULTANT') {
       const token = sessionStorage.getItem('admin_token');
-      axios.get('http://localhost:4000/api/identity/users/customers', { headers: { 'Authorization': `Bearer ${token}` } })
+      axios.get(`${API_BASE}/api/identity/users/customers`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => setCustomers(res.data?.data || []))
         .catch(err => console.log('Lỗi lấy danh sách khách', err));
 
       // Server chỉ cho tài khoản CONSULTANT (xác thực bằng token) nhận khách
-      const newSocket = io('http://localhost:4001', { auth: { token } });
+      const newSocket = io(`${SOCKET_BASE}`, { auth: { token } });
       setChatSocket(newSocket);
 
       newSocket.on('connect', () => {
@@ -229,7 +230,7 @@ function AdminLayoutInner() {
       const msgs = (session.messages || []).filter(m => m.text).map(m => ({ sender: m.sender === 'CONSULTANT' ? 'CONSULTANT' : 'CUSTOMER', text: m.text }));
       setReplyDraft({ sessionId: activeSessionId, loading: true });
       try {
-          const res = await axios.post('http://localhost:4000/api/ai/assist/reply-draft', { messages: msgs }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, timeout: 60000 });
+          const res = await axios.post(`${API_BASE}/api/ai/assist/reply-draft`, { messages: msgs }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, timeout: 60000 });
           setReplyDraft({ sessionId: activeSessionId, data: res.data.data });
       } catch (err) {
           setReplyDraft({ sessionId: activeSessionId, error: err.response?.data?.message || 'Không gợi ý được, vui lòng thử lại' });
@@ -247,7 +248,7 @@ function AdminLayoutInner() {
           try {
               const form = new FormData();
               form.append('file', file);
-              const res = await fetch('http://localhost:4000/api/media/upload/chat', { method: 'POST', headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, body: form });
+              const res = await fetch(`${API_BASE}/api/media/upload/chat`, { method: 'POST', headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, body: form });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) throw new Error(data.message || 'Không gửi được tệp');
               attachments.push(data);

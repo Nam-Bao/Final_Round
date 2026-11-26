@@ -4,6 +4,7 @@ import { UserOutlined, PlayCircleOutlined, CheckCircleOutlined, HistoryOutlined,
 import axios from 'axios'; 
 import SessionMaterialsForm from '../components/SessionMaterialsForm';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Title, Text } = Typography;
 
@@ -24,7 +25,7 @@ export default function TechnicianWorkspacePage() {
   const fetchQueues = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.get('http://localhost:4000/api/booking/sessions/technician-queues', {
+      const res = await axios.get(`${API_BASE}/api/booking/sessions/technician-queues`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.data.data) {
@@ -50,7 +51,7 @@ export default function TechnicianWorkspacePage() {
   const handleStartService = async () => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
+      await axios.put(`${API_BASE}/api/booking/sessions/${selectedCustomer.id}/status`, 
         { status: 'IN_PROGRESS', type: selectedCustomer.type }, 
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
@@ -65,7 +66,7 @@ export default function TechnicianWorkspacePage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const res = await axios.put(`http://localhost:4000/api/booking/sessions/${selectedCustomer.id}/status`, 
+      const res = await axios.put(`${API_BASE}/api/booking/sessions/${selectedCustomer.id}/status`, 
         { 
           status: 'COMPLETED', 
           technician_note: values.technician_note, 
@@ -95,7 +96,7 @@ export default function TechnicianWorkspacePage() {
       const formData = new FormData();
       formData.append('image', file);
       
-      const uploadRes = await fetch('http://localhost:4000/api/media/upload', {
+      const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
         method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
       });
       const uploadData = await uploadRes.json();

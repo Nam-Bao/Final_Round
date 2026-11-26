@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Button, Checkbox, Input, InputNumber, Tag, message } from 'antd';
 import { RobotOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:4000/api';
+const API = `${API_BASE}/api`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
 const vnd = (n) => `${Number(n || 0).toLocaleString('vi-VN')} ₫`;
 

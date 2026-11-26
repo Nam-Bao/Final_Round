@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Space, Button, message, Card, Modal, Form, Input, Select, Popconfirm } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { API_BASE } from '../config';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -18,7 +19,7 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('admin_token');
-      const response = await fetch('http://localhost:4000/api/identity/users', {
+      const response = await fetch(`${API_BASE}/api/identity/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();
@@ -42,7 +43,7 @@ export default function UsersPage() {
     try {
       const token = sessionStorage.getItem('admin_token');
       const isUpdate = !!editingUser;
-      const url = isUpdate ? `http://localhost:4000/api/identity/users/${editingUser.id}` : 'http://localhost:4000/api/identity/users';
+      const url = isUpdate ? `${API_BASE}/api/identity/users/${editingUser.id}` : `${API_BASE}/api/identity/users`;
       const method = isUpdate ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -59,7 +60,7 @@ export default function UsersPage() {
   const handleDelete = async (id) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      const response = await fetch(`http://localhost:4000/api/identity/users/${id}`, {
+      const response = await fetch(`${API_BASE}/api/identity/users/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();

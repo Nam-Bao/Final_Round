@@ -1,3 +1,4 @@
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 const axios = require('axios');
 const { sequelize, AppointmentReview, Appointment } = require('../models');
 
@@ -104,8 +105,8 @@ exports.createReview = async(req, res) => {
         // Lấy tên thật của khách và bác sĩ từ service-identity
         const headers = { Authorization: req.headers.authorization };
         const [profileRes, doctorsRes] = await Promise.all([
-            axios.get('http://localhost:4000/api/identity/profile/me', { headers }).catch(() => null),
-            axios.get('http://localhost:4000/api/identity/users/doctors', { headers }).catch(() => null)
+            axios.get(`${GATEWAY_URL}/api/identity/profile/me`, { headers }).catch(() => null),
+            axios.get(`${GATEWAY_URL}/api/identity/users/doctors`, { headers }).catch(() => null)
         ]);
         const customerName = profileRes?.data?.Profile?.full_name || null;
         const doctor = (doctorsRes?.data?.data || []).find(d => d.id === apt.doctor_id);
@@ -209,7 +210,7 @@ exports.createServiceReview = async(req, res) => {
         const existing = await ServiceReview.findOne({ where: { session_id } });
         if (existing) return res.status(400).json({ message: 'Bạn đã đánh giá buổi dịch vụ này rồi' });
 
-        const profileRes = await axios.get('http://localhost:4000/api/identity/profile/me', {
+        const profileRes = await axios.get(`${GATEWAY_URL}/api/identity/profile/me`, {
             headers: { Authorization: req.headers.authorization }
         }).catch(() => null);
 

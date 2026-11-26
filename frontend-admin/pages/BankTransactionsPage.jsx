@@ -4,9 +4,10 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import RefundTransferNote from '../components/RefundTransferNote';
 import { useLiveRefresh } from '../components/Notifications';
+import { API_BASE } from '../config';
 
 const { Text } = Typography;
-const API = 'http://localhost:4000/api/booking/bank-transactions';
+const API = `${API_BASE}/api/booking/bank-transactions`;
 const headers = () => ({ Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` });
 const money = (n) => `${Number(n || 0).toLocaleString('vi-VN')} đ`;
 const currentUser = () => { try { return JSON.parse(sessionStorage.getItem('admin_user') || '{}') || {}; } catch { return {}; } };

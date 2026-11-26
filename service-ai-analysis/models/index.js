@@ -167,7 +167,19 @@ const chatConsentSchema = new mongoose.Schema({
 }, { timestamps: true });
 chatConsentSchema.index({ user_id: 1, session_id: 1, scope: 1 });
 
+// Bản tóm tắt hồ sơ khám bằng AI (lưu tạm theo hash dữ liệu đầu vào) + nhật ký người xem
+const patientSummarySchema = new mongoose.Schema({
+  patient_profile_id: { type: String, required: true, index: true },
+  hash: { type: String, required: true },          // hash dữ liệu đã bỏ định danh gửi cho AI; hồ sơ đổi => tạo bản mới
+  items: mongoose.Schema.Types.Mixed,              // [{ text, refs: [{ code, type, id, date }] }]
+  model: String,
+  input_lines: Number,
+  views: [{ user_id: String, role: String, at: Date, _id: false }],
+}, { timestamps: true });
+patientSummarySchema.index({ patient_profile_id: 1, hash: 1 });
+
 module.exports = {
+  PatientSummary: mongoose.model('PatientSummary', patientSummarySchema),
   AiAnalysis: mongoose.model('AiAnalysis', aiAnalysisSchema),
   StaffFace: mongoose.model('StaffFace', staffFaceSchema),
   KnowledgeChunk: mongoose.model('KnowledgeChunk', knowledgeChunkSchema),

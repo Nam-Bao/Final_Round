@@ -2,6 +2,7 @@ const axios = require('axios');
 const dayjs = require('dayjs');
 const { Op } = require('sequelize');
 const { CustomerPackage, TreatmentPackage, TreatmentSession, ServiceSession, WorkShift } = require('../models');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 // Số ngày tối đa khách được đặt trước cho buổi liệu trình tiếp theo
 const BOOK_AHEAD_DAYS = 30;
@@ -9,7 +10,7 @@ const DATE_FORMAT = 'YYYY-MM-DD';
 
 // Mã các KTV đang làm việc (service-identity, chỉ trả về mã)
 const fetchTechnicianIds = async (authorization) => {
-  const res = await axios.get('http://localhost:4000/api/identity/users/technician-ids', { headers: { Authorization: authorization } });
+  const res = await axios.get(`${GATEWAY_URL}/api/identity/users/technician-ids`, { headers: { Authorization: authorization } });
   return res.data.data || [];
 };
 

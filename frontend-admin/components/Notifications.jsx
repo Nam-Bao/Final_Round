@@ -4,13 +4,14 @@ import { BellOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { API_BASE, SOCKET_BASE } from '../config';
 
 // THÔNG BÁO REAL-TIME
 // - Việc đang chờ (số trên chuông và menu) đếm từ dữ liệu thật ở từng service (GET /tasks/mine):
 //   tải lại trang không mất, xử lý xong thì tự hết.
 // - Socket /notify (service-identity) báo "chủ đề đã thay đổi" => tải lại số việc + báo các trang đang mở tự cập nhật (useLiveRefresh).
-const TASK_URLS = ['booking', 'commerce', 'media', 'ai'].map((s) => `http://localhost:4000/api/${s}/tasks/mine`);
-const SOCKET_URL = 'http://localhost:4001/notify';
+const TASK_URLS = ['booking', 'commerce', 'media', 'ai'].map((s) => `${API_BASE}/api/${s}/tasks/mine`);
+const SOCKET_URL = `${SOCKET_BASE}/notify`;
 const FALLBACK_REFRESH_MS = 2 * 60 * 1000; // dự phòng khi mất kết nối socket
 
 const TaskContext = createContext({ tasks: [], countFor: () => 0, connected: false, reload: () => {} });

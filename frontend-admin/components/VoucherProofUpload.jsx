@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, Button, Image, message } from 'antd';
 import { CameraOutlined, DeleteOutlined } from '@ant-design/icons';
+import { API_BASE } from '../config';
 
 // Ảnh xác thực khi nhân viên áp voucher cho khách (VD: chụp lịch sử tư vấn chuyên gia trên điện thoại khách).
 // Bắt buộc với mọi lần áp mã tại quầy; quản lý xem lại ở Khuyến mãi > Lịch sử áp mã.
@@ -12,7 +13,7 @@ export default function VoucherProofUpload({ value, onChange }) {
     try {
       const formData = new FormData();
       formData.append('image', file);
-      const res = await fetch('http://localhost:4000/api/media/upload', {
+      const res = await fetch(`${API_BASE}/api/media/upload`, {
         method: 'POST', headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }, body: formData,
       });
       const data = await res.json();

@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { PatientSafety, SpaService, TreatmentPackage, Appointment, AiReviewLog } = require('../models');
 const { historyCounts, findAlternatives } = require('../utils/alternatives');
 const { FLAGS, counterFlags, hasCounterRule, proceduresOf, ingredientsOf, targetLabel, evaluate } = require('../utils/safetyRules');
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:4000';
 
 const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const screenedToday = (row) => !!row?.screened_at && dayjs(row.screened_at).isSame(dayjs(), 'day');
@@ -16,7 +17,7 @@ const collectItems = async ({ services = [], packages = [], medicines = [], auth
     services.length ? SpaService.findAll({ where: { id: services }, attributes: ['name'], raw: true }) : [],
     packages.length ? TreatmentPackage.findAll({ where: { id: packages }, attributes: ['name', 'description'], raw: true }) : [],
     medicines.length
-      ? axios.get('http://localhost:4000/api/commerce/products/safety-info', { params: { ids: medicines.join(',') }, headers: { Authorization: authorization } }).catch(() => null)
+      ? axios.get(`${GATEWAY_URL}/api/commerce/products/safety-info`, { params: { ids: medicines.join(',') }, headers: { Authorization: authorization } }).catch(() => null)
       : { data: { data: [] } },
   ]);
   const products = productRes?.data?.data || [];
@@ -59,6 +60,7 @@ const getPatientSafety = async (req, res) => {
         flags: row?.flags || [], allergies: row?.allergies || '', screened_at: row?.screened_at || null, screened_today: screenedToday(row),
         // Khách khai khi mua tại quầy (chưa phải sàng lọc của lần khám): CSKH điền vào form rồi tự xác nhận
         counter: row?.counter_reported_at ? { flags: row.counter_flags || [], allergies: row.counter_allergies || '', reported_at: row.counter_reported_at } : null,
+        ai_summary_consent: !!row?.ai_summary_consent, ai_summary_consent_at: row?.ai_summary_consent_at || null,
       },
     });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
@@ -73,6 +75,19 @@ const savePatientSafety = async (req, res) => {
     const allergies = String(req.body.allergies || '').trim().slice(0, 500);
     await PatientSafety.upsert({ patient_profile_id: req.params.id, flags, allergies, screened_at: new Date(), screened_by: req.user.id });
     res.status(200).json({ message: 'Đã lưu sàng lọc an toàn' });
+  } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
+};
+
+// [CSKH / BÁC SĨ] PUT /safety/patients/:id/ai-summary-consent { consent: true | false } — khách đồng ý / rút lại đồng ý cho AI tóm tắt hồ sơ khám
+const saveAiSummaryConsent = async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Hồ sơ người khám không hợp lệ' });
+    const consent = req.body.consent === true;
+    const row = await PatientSafety.findByPk(req.params.id);
+    const values = { ai_summary_consent: consent, ai_summary_consent_at: new Date(), ai_summary_consent_by: req.user.id };
+    if (row) await row.update(values);
+    else await PatientSafety.create({ patient_profile_id: req.params.id, flags: [], ...values }); // chưa sàng lọc: screened_at để trống
+    res.status(200).json({ message: consent ? 'Đã ghi nhận khách đồng ý cho AI tóm tắt hồ sơ' : 'Đã ghi nhận khách không đồng ý / rút lại đồng ý' });
   } catch (error) { res.status(500).json({ message: 'Lỗi server', error: error.message }); }
 };
 
@@ -110,8 +125,8 @@ const aiReview = async (req, res) => {
       PatientSafety.findByPk(patient_profile_id, { raw: true }),
       services.length ? SpaService.findAll({ where: { id: services }, attributes: ['name', 'description'], raw: true }) : [],
       packages.length ? TreatmentPackage.findAll({ where: { id: packages }, attributes: ['name', 'description'], raw: true }) : [],
-      medicines.length ? axios.get('http://localhost:4000/api/commerce/products/safety-info', { params: { ids: medicines.join(',') }, headers }) : { data: { data: [] } },
-      medicines.length ? axios.get('http://localhost:4000/api/commerce/products/safety-catalog', { headers }).catch(() => ({ data: { data: [] } })) : { data: { data: [] } },
+      medicines.length ? axios.get(`${GATEWAY_URL}/api/commerce/products/safety-info`, { params: { ids: medicines.join(',') }, headers }) : { data: { data: [] } },
+      medicines.length ? axios.get(`${GATEWAY_URL}/api/commerce/products/safety-catalog`, { headers }).catch(() => ({ data: { data: [] } })) : { data: { data: [] } },
       checkPrescription({ patient_profile_id, services, packages, medicines, authorization }),
       medicines.length
         ? Appointment.findAll({ where: { status: ['COMPLETED', 'WAITING_FOR_SALE'], diagnosis: { [Op.ne]: null } }, attributes: ['diagnosis', 'prescribed_medicines'], order: [['createdAt', 'DESC']], limit: 3000, raw: true })
@@ -158,7 +173,7 @@ const aiReview = async (req, res) => {
 
     let ai;
     try {
-      ai = (await axios.post('http://localhost:4000/api/ai/safety-review', input, { headers, timeout: 120000 })).data.data;
+      ai = (await axios.post(`${GATEWAY_URL}/api/ai/safety-review`, input, { headers, timeout: 120000 })).data.data;
     } catch (error) {
       // AI lỗi / hết lượt: vẫn trả sản phẩm thay thế theo quy tắc
       return res.status(200).json({ data: { ...base, summary: '', warnings: [], questions: [], ai_error: error.response?.data?.message || 'Không gọi được AI, bác sĩ đánh giá theo cảnh báo hệ thống' } });
@@ -212,7 +227,7 @@ const sanitizeAnswers = (answers) => ({
 // Hồ sơ "Bản thân" của tài khoản khách (đơn tại quầy luôn gắn tài khoản; khách mới thì NVBH tạo nhanh kèm hồ sơ này)
 const selfProfileOf = async (customer_id, headers) => {
   if (!isUuid(customer_id)) return null;
-  const res = await axios.get(`http://localhost:4000/api/identity/profile/patients/user/${customer_id}`, { headers }).catch(() => null);
+  const res = await axios.get(`${GATEWAY_URL}/api/identity/profile/patients/user/${customer_id}`, { headers }).catch(() => null);
   const profiles = res?.data?.data || [];
   return profiles.find((p) => p.relationship === 'Bản thân') || profiles[0] || null;
 };
@@ -236,7 +251,7 @@ const counterCheck = async (req, res) => {
     if (!ids.length) return res.status(200).json({ data: { needs_screening: false, questions, warnings: [], prefill: null, profile_id: null } });
     const headers = { Authorization: req.headers.authorization };
     const [productRes, profile] = await Promise.all([
-      axios.get('http://localhost:4000/api/commerce/products/safety-info', { params: { ids: ids.join(',') }, headers }),
+      axios.get(`${GATEWAY_URL}/api/commerce/products/safety-info`, { params: { ids: ids.join(',') }, headers }),
       selfProfileOf(req.body.customer_id, headers),
     ]);
     const products = productRes.data.data || [];
@@ -288,4 +303,4 @@ const aiWarningsFor = async ({ appointment_id, services = [], packages = [], med
     }));
 };
 
-module.exports = { aiWarningsFor, counterCheck, counterReport, aiReview, SCREENING_REQUIRED, isScreenedForVisit, checkPrescription, getFlags, getPatientSafety, savePatientSafety, checkSafety };
+module.exports = { aiWarningsFor, counterCheck, counterReport, aiReview, SCREENING_REQUIRED, isScreenedForVisit, checkPrescription, getFlags, getPatientSafety, savePatientSafety, saveAiSummaryConsent, checkSafety };
