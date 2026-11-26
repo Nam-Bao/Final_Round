@@ -11,6 +11,9 @@ const TZ = 'Asia/Ho_Chi_Minh';
 const MAX_ATTEMPTS = 3;
 const GATEWAY = () => process.env.GATEWAY_URL || 'http://localhost:4000';
 const CLIENT_URL = () => (process.env.CLIENT_URL || 'http://localhost:3001').replace(/\/$/, '');
+// Link trong email gửi nhân viên (vd quản lý xem biên bản nhận hàng) mở trang nội bộ
+const ADMIN_URL = () => (process.env.ADMIN_URL || 'http://localhost:3000').replace(/\/$/, '');
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Email tạm của hồ sơ khách tạo tại quầy (chưa đăng ký tài khoản) => không gửi
 const UNDELIVERABLE = /@walkin\.glowskin\.local$/i;
 
@@ -41,13 +44,14 @@ const resolveNames = async (data) => {
 const redact = (tpl, data) => Object.fromEntries(Object.entries(data || {}).filter(([k]) => !(tpl.sensitive || []).includes(k)));
 
 // Dựng + gửi 1 email đã có dòng nhật ký. data: dữ liệu đầy đủ (kể cả phần nhạy cảm như OTP)
-const deliver = async (log, user, data) => {
+const deliver = async (log, user, data, attachments = []) => {
   const tpl = TEMPLATES[log.template];
   try {
     const [clinic, names] = await Promise.all([clinicInfo(), resolveNames(data)]);
-    const mail = render(tpl, { name: user?.Profile?.full_name, data, clinic, ...names, link: (p) => `${CLIENT_URL()}${p}` });
+    const base = tpl.admin ? ADMIN_URL() : CLIENT_URL();
+    const mail = render(tpl, { name: user?.Profile?.full_name || data.to_name, data, clinic, ...names, link: (p) => `${base}${p}` });
     await log.update({ subject: mail.subject.slice(0, 300), attempts: log.attempts + 1 });
-    await mailer.send({ to: log.to_email, subject: mail.subject, html: mail.html, text: mail.text, key: log.key });
+    await mailer.send({ to: log.to_email, subject: mail.subject, html: mail.html, text: mail.text, key: log.key, attachments });
     await log.update({ status: 'SENT', sent_at: new Date(), last_error: null });
   } catch (error) {
     await log.update({ status: 'FAILED', last_error: String(error.message || error).slice(0, 500) });
@@ -58,12 +62,32 @@ const deliver = async (log, user, data) => {
 
 // Xếp email vào nhật ký và gửi. Trả { status, duplicate? }
 // template: tên mẫu (utils/mailTemplates.js); key: khóa chống trùng; user_id: người nhận
-const queueEmail = async ({ template, user_id, key, data = {} }) => {
+// Người nhận ngoài hệ thống (nhà cung cấp): to_email + to_name thay cho user_id (chỉ mẫu kind 'external').
+// attachments: [{ filename, content (base64), contentType }] — chỉ gửi kèm lần đầu, không lưu vào nhật ký
+const queueEmail = async ({ template, user_id, key, data = {}, to_email, to_name, attachments = [] }) => {
   const tpl = TEMPLATES[template];
   if (!tpl) throw Object.assign(new Error('Mẫu email không tồn tại'), { status: 400 });
   if (!key || String(key).length > 200) throw Object.assign(new Error('Thiếu khóa email'), { status: 400 });
   const existing = await EmailLog.findOne({ where: { key } });
   if (existing) return { status: existing.status, duplicate: true };
+  const files = (Array.isArray(attachments) ? attachments : []).slice(0, 3)
+    .filter((a) => a && a.filename && a.content)
+    .map((a) => ({ filename: String(a.filename).slice(0, 100), content: Buffer.from(String(a.content), 'base64'), contentType: a.contentType || 'application/pdf' }));
+  if (!user_id && to_email) {
+    if (tpl.kind !== 'external') throw Object.assign(new Error('Mẫu này chỉ gửi cho người dùng trong hệ thống'), { status: 400 });
+    const email = String(to_email).trim().slice(0, 200);
+    const skip = EMAIL_RE.test(email) ? null : 'Email người nhận không hợp lệ';
+    const full = { ...data, to_name: String(to_name || '').slice(0, 200) };
+    let log;
+    try {
+      log = await EmailLog.create({ key, template, user_id: null, to_email: email, data: redact(tpl, full), status: skip ? 'SKIPPED' : 'QUEUED', skip_reason: skip });
+    } catch (error) {
+      if (error instanceof UniqueConstraintError) return { status: 'QUEUED', duplicate: true };
+      throw error;
+    }
+    if (skip) return { status: 'SKIPPED', reason: skip };
+    return { status: await deliver(log, null, full, files) };
+  }
 
   const user = user_id ? await User.findByPk(user_id, { include: [{ model: Profile, attributes: ['full_name'] }] }) : null;
   const skip = !user || !user.email ? 'Không tìm thấy email người nhận'
@@ -81,13 +105,18 @@ const queueEmail = async ({ template, user_id, key, data = {} }) => {
     throw error;
   }
   if (skip) return { status: 'SKIPPED', reason: skip };
-  return { status: await deliver(log, user, data) };
+  return { status: await deliver(log, user, data, files) };
 };
 
 // Gửi lại email lỗi (mẫu có dữ liệu nhạy cảm như OTP không gửi lại được vì không lưu mã)
 const resend = async (log) => {
   const tpl = TEMPLATES[log.template];
   if (!tpl || (tpl.sensitive || []).length) throw Object.assign(new Error('Email này không gửi lại được (mã OTP không được lưu), khách cần yêu cầu mã mới'), { status: 409 });
+  // Người nhận ngoài hệ thống (nhà cung cấp): gửi lại tới đúng email cũ (file đính kèm không lưu nên không gửi lại)
+  if (!log.user_id && log.to_email) {
+    await log.update({ status: 'QUEUED' });
+    return deliver(log, null, log.data || {});
+  }
   const user = await User.findByPk(log.user_id, { include: [{ model: Profile, attributes: ['full_name'] }] });
   if (!user) throw Object.assign(new Error('Không còn tài khoản người nhận'), { status: 409 });
   await log.update({ status: 'QUEUED', to_email: user.email });

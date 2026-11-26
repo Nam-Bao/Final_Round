@@ -242,6 +242,21 @@
           "Voucher có dùng chung giá khuyến mãi không?"
         ]
       },
+      {
+        "id": "kho-my-pham",
+        "label": "Nhận hàng & kiểm kho",
+        "sections": [
+          "Nhận hàng nhập (biên bản nhận hàng)",
+          "Kiểm kho mỹ phẩm hàng tuần",
+          "Đề xuất nhập mỹ phẩm, lô hàng khi bán"
+        ],
+        "questions": [
+          "Nhận hàng nhà cung cấp giao tới thế nào?",
+          "Hàng giao thiếu hoặc bị móp thì làm gì?",
+          "Kiểm kho hàng tuần làm thế nào?",
+          "Mỹ phẩm sắp hết thì đề xuất nhập ở đâu?"
+        ]
+      },
       "cham-cong"
     ],
     "EXPERT": [
@@ -327,6 +342,22 @@
           "Báo cáo điểm GlowSkin xem được gì?",
           "Sửa giá xong thì AI cập nhật khi nào?"
         ]
+      },
+      {
+        "id": "nhap-hang",
+        "label": "Nhập hàng & kiểm kho",
+        "sections": [
+          "Nhà cung cấp và đơn đặt hàng",
+          "Kiểm tra biên bản nhận hàng và kiểm kho",
+          "Lô hàng, NSX / HSD, hàng hết hạn",
+          "Kho, vật tư, đề xuất nhập hàng"
+        ],
+        "questions": [
+          "Đặt hàng nhà cung cấp thế nào?",
+          "Biên bản nhận hàng bị lệch thì xử lý ra sao?",
+          "Kiểm kho tuần bị lệch thì chốt thế nào?",
+          "Mỹ phẩm hết hạn thì xử lý thế nào?"
+        ]
       }
     ],
     "ADMIN": [
@@ -352,9 +383,26 @@
           "Trợ lý AI và kho kiến thức"
         ],
         "questions": [
+          "Duyệt đề xuất nhập hàng thế nào?",
+          "Tạo mã giảm giá nội bộ thế nào?",
           "Báo cáo điểm GlowSkin xem được gì?",
-          "Xem lịch sử email gửi khách ở đâu?",
           "Sửa giá xong thì AI cập nhật khi nào?"
+        ]
+      },
+      {
+        "id": "nhap-hang",
+        "label": "Nhập hàng & kiểm kho",
+        "sections": [
+          "Nhà cung cấp và đơn đặt hàng",
+          "Kiểm tra biên bản nhận hàng và kiểm kho",
+          "Lô hàng, NSX / HSD, hàng hết hạn",
+          "Kho, vật tư, đề xuất nhập hàng"
+        ],
+        "questions": [
+          "Đặt hàng nhà cung cấp thế nào?",
+          "Biên bản nhận hàng bị lệch thì xử lý ra sao?",
+          "Kiểm kho tuần bị lệch thì chốt thế nào?",
+          "Mỹ phẩm hết hạn thì xử lý thế nào?"
         ]
       }
     ]

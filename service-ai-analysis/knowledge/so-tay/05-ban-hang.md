@@ -34,3 +34,22 @@ Quy trình của nhân viên bán hàng (NVBH).
 - Mỗi sản phẩm có giá niêm yết; giá khuyến mãi online áp dụng trong thời gian ưu đãi.
 - Trả bằng điểm luôn tính theo giá niêm yết, làm tròn lên (1 điểm = 100đ).
 - Voucher không cộng dồn với giá khuyến mãi, không trừ vào phí vận chuyển; mỗi đơn một mã.
+
+## Nhận hàng nhập (biên bản nhận hàng)
+- Kho mỹ phẩm (nhận hàng, kiểm kho) → tab Nhận hàng: danh sách đơn đặt hàng đang chờ hàng về. Bấm Đơn để xem PDF đơn đặt hàng, bấm Nhận hàng khi nhà cung cấp giao tới.
+- Với từng sản phẩm: ghi số trên phiếu giao, số đếm thực tế, số lô, ngày sản xuất (bắt buộc với mỹ phẩm), hạn sử dụng in trên bao bì; kiểm tình trạng (nguyên vẹn, móp / vỡ, rò rỉ, mất niêm phong, đổi màu / mùi lạ, sai sản phẩm / dung tích, bảo quản sai nhiệt độ), nhãn phụ tiếng Việt, số công bố trên nhãn khớp số hệ thống hiển thị.
+- Hàng lỗi: ghi số lượng lỗi và chụp ảnh (bắt buộc). Lô đã hết hạn thì không nhận (ghi số đếm 0 và ghi chú để trả nhà cung cấp). Chụp phiếu giao hàng / hóa đơn của nhà cung cấp.
+- Dòng khớp được nhập kho ngay theo lô. Dòng lệch (thiếu, thừa, khác phiếu giao), có hàng lỗi, sai nhãn / số công bố hoặc hạn dùng còn dưới 6 tháng: phải ghi chú, dòng đó chưa nhập kho, hệ thống báo quản lý kiểm tra thực tế (chuông + email).
+- Biên bản đang chờ quản lý thì đơn đó chưa nhận tiếp được. Người nhận hàng không tự duyệt biên bản của mình.
+
+## Kiểm kho mỹ phẩm hàng tuần
+- Mỗi tuần kiểm kho 1 lần (chuông nhắc "Kiểm kho mỹ phẩm tuần này"): tab Kiểm kho tuần → Bắt đầu kiểm kho.
+- Đếm thực tế từng lô (số lô, HSD in trên bao bì). Phiếu không hiện số trên hệ thống để đếm khách quan; phải nhập số đếm cho tất cả các lô.
+- Hàng lỗi (móp, rò rỉ, đổi màu...) ghi số lượng, tình trạng và chụp ảnh. Lô hết hạn đã được tách riêng vẫn đếm (để riêng, không bán).
+- Gặp hàng không có trong danh sách: Thêm hàng ngoài danh sách (sản phẩm, số lô, NSX, HSD, số đếm).
+- Lệch dù chỉ 1 sản phẩm hoặc có hàng lỗi: phiếu chuyển quản lý đếm lại và chốt số; khớp hết thì phiếu tự hoàn tất.
+
+## Đề xuất nhập mỹ phẩm, lô hàng khi bán
+- Thấy mỹ phẩm sắp hết: tab Đề xuất nhập → Tạo đề xuất nhập (sản phẩm, số lượng, lý do). NVBH chỉ đề xuất mỹ phẩm; quản lý duyệt và đặt hàng nhà cung cấp.
+- Hệ thống cũng tự tạo đề xuất khi tồn kho xuống tới mức tồn tối thiểu (người đề xuất ghi "Hệ thống").
+- Bán web và bán tại quầy đều xuất lô hết hạn trước bán trước; lô hết hạn tự ngừng bán. Khách không thấy số lô; trang sản phẩm chỉ ghi thời hạn sử dụng tính từ ngày sản xuất.

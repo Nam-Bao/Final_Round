@@ -20,6 +20,10 @@ const examPlace = (ctx, online) => (online ? 'Khám online qua video' : `Tại p
 const onlineHow = 'Đến giờ khám, đăng nhập website → <b>Sổ lịch khám</b> → bấm <b>Vào phòng khám online</b>. Nên dùng điện thoại / máy tính có camera, nơi đủ sáng để bác sĩ quan sát da.';
 const clinicHow = 'Vui lòng đến trước giờ hẹn khoảng 10 phút để CSKH tiếp nhận. Không trang điểm vùng da cần khám.';
 
+const dmy = (d) => { const [y, m, dd] = String(d || '').slice(0, 10).split('-'); return y ? `${dd}/${m}/${y}` : ''; };
+// Bảng nhiều cột (danh sách sản phẩm) cho email mua hàng
+const itemsTable = (head, rows) => `<table role="presentation" style="border-collapse:collapse;width:100%;margin:8px 0;font-size:13px"><tr>${head.map((h) => `<th style="text-align:left;padding:6px;border-bottom:2px solid #e5e7eb;color:#374151">${esc(h)}</th>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td style="padding:6px;border-bottom:1px solid #f3f4f6;vertical-align:top">${c}</td>`).join('')}</tr>`).join('')}</table>`;
+
 const T = {
   OTP_RESET: {
     kind: 'security', sensitive: ['otp'],
@@ -362,6 +366,114 @@ const T = {
       ],
       cta: { label: 'Xem lịch sử soi da', path: '/lich-su-soi-da' },
     }),
+  },
+
+  // ===== Mua hàng: gửi nhà cung cấp (người nhận ngoài hệ thống, kind 'external') =====
+  PO_SENT: {
+    kind: 'external',
+    build: (ctx) => {
+      const d = ctx.data;
+      const items = Array.isArray(d.items) ? d.items : [];
+      return {
+        subject: `${d.resend ? '[Gửi lại] ' : ''}Đơn đặt hàng ${esc(d.po_code)} - Phòng khám GlowSkin`,
+        title: `Đơn đặt hàng ${esc(d.po_code)}`,
+        lines: [
+          p(`Phòng khám da liễu GlowSkin gửi ${esc(d.supplier_name || 'Quý công ty')} đơn đặt hàng dưới đây${d.resend ? ' (gửi lại, nội dung không đổi)' : ''}. File PDF đơn hàng được đính kèm.`),
+          itemsTable(['Sản phẩm', 'Số lượng', 'Đơn giá', 'Thành tiền'], items.map((i) => [esc(i.name), `${esc(i.quantity)} ${esc(i.unit || '')}`, i.unit_cost != null ? money(i.unit_cost) : '—', i.unit_cost != null ? money(i.unit_cost * i.quantity) : '—'])),
+          table([
+            row('Tổng giá trị dự kiến', money(d.total)),
+            row('Ngày giao mong muốn', d.expected_date ? day(d.expected_date) : 'Thỏa thuận'),
+            row('Địa chỉ giao hàng', esc(d.delivery_address || ctx.clinic.address || 'Phòng khám GlowSkin')),
+            row('Liên hệ nhận hàng', esc(d.contact_phone || ctx.clinic.hotline)),
+          ]),
+          d.note ? note(`Ghi chú: ${esc(d.note)}`) : '',
+          warn('Yêu cầu khi giao hàng: mỗi sản phẩm ghi rõ <b>số lô, ngày sản xuất, hạn sử dụng</b>; hàng nhập khẩu có nhãn phụ tiếng Việt; kèm phiếu giao hàng / hóa đơn. Hạn sử dụng còn lại quá ngắn hoặc bao bì hư hỏng sẽ bị trả lại.'),
+          p(`Vui lòng xác nhận đơn và ngày giao qua hotline <b>${esc(ctx.clinic.hotline)}</b>.`),
+        ].filter(Boolean),
+      };
+    },
+  },
+  PO_CANCELLED: {
+    kind: 'external',
+    build: (ctx) => ({
+      subject: `Hủy đơn đặt hàng ${esc(ctx.data.po_code)} - Phòng khám GlowSkin`,
+      title: `Hủy đơn đặt hàng ${esc(ctx.data.po_code)}`,
+      lines: [
+        p(`Phòng khám GlowSkin xin hủy đơn đặt hàng <b>${esc(ctx.data.po_code)}</b> đã gửi ngày ${esc(ctx.data.sent_date || '')}.`),
+        ctx.data.reason ? note(`Lý do: ${esc(ctx.data.reason)}`) : '',
+        p(`Nếu hàng đã chuẩn bị hoặc đang giao, vui lòng liên hệ hotline <b>${esc(ctx.clinic.hotline)}</b> để thống nhất.`),
+      ].filter(Boolean),
+    }),
+  },
+  PO_RECEIVED: {
+    kind: 'external',
+    build: (ctx) => {
+      const d = ctx.data;
+      return {
+        subject: `Xác nhận đã nhận đủ hàng đơn ${esc(d.po_code)} - Phòng khám GlowSkin`,
+        title: 'Xác nhận nhận hàng',
+        lines: [
+          p(`Phòng khám GlowSkin xác nhận đã nhận đủ hàng của đơn <b>${esc(d.po_code)}</b> (biên bản ${esc(d.receipt_code)}), hàng đạt yêu cầu.`),
+          itemsTable(['Sản phẩm', 'Số lượng', 'Số lô', 'Hạn sử dụng'], (d.items || []).map((i) => [esc(i.name), esc(i.quantity), esc(i.lot_no || '—'), i.expiry_date ? esc(dmy(i.expiry_date)) : '—'])),
+          p('Cảm ơn Quý công ty đã hợp tác.'),
+        ],
+      };
+    },
+  },
+  PO_ISSUE: {
+    kind: 'external',
+    build: (ctx) => {
+      const d = ctx.data;
+      const back = d.backorder || [];
+      const ret = d.returns || [];
+      return {
+        subject: `Thông báo chênh lệch / hàng lỗi đơn ${esc(d.po_code)} - Phòng khám GlowSkin`,
+        title: `Chênh lệch khi nhận hàng đơn ${esc(d.po_code)}`,
+        lines: [
+          p(`Khi nhận hàng đơn <b>${esc(d.po_code)}</b> (biên bản ${esc(d.receipt_code)}), phòng khám đã kiểm tra thực tế và ghi nhận:`),
+          itemsTable(['Sản phẩm', 'Vấn đề', 'Số lượng'], (d.issues || []).map((i) => [esc(i.name), esc(i.problem), esc(i.quantity ?? '')])),
+          back.length ? p(`<b>Đề nghị giao bù</b>: ${back.map((b) => `${esc(b.name)} × ${esc(b.quantity)}`).join('; ')}.`) : '',
+          ret.length ? p(`<b>Hàng trả lại</b> (đang giữ tại phòng khám, chờ Quý công ty nhận lại / đổi): ${ret.map((b) => `${esc(b.name)} × ${esc(b.quantity)}`).join('; ')}.`) : '',
+          d.accepted_short ? p('Phần giao thiếu còn lại phòng khám không cần giao bù, đơn hàng được chốt theo số đã nhận.') : '',
+          d.note ? note(`Ghi chú: ${esc(d.note)}`) : '',
+          p(`Vui lòng phản hồi qua hotline <b>${esc(ctx.clinic.hotline)}</b> để thống nhất cách xử lý.`),
+        ].filter(Boolean),
+      };
+    },
+  },
+
+  // ===== Gửi quản lý (nhân viên, link mở trang nội bộ) =====
+  RECEIPT_REVIEW: {
+    kind: 'staff', admin: true,
+    build: (ctx) => {
+      const d = ctx.data;
+      return {
+        subject: `[Cần kiểm tra] Biên bản nhận hàng ${esc(d.receipt_code)} có chênh lệch`,
+        title: 'Biên bản nhận hàng cần kiểm tra',
+        lines: [
+          p(`Nhân viên ${esc(d.received_by_name || 'bán hàng')} vừa nhận hàng đơn <b>${esc(d.po_code)}</b> của ${esc(d.supplier_name || 'nhà cung cấp')} và ghi nhận chênh lệch / hàng lỗi:`),
+          itemsTable(['Sản phẩm', 'Vấn đề'], (d.lines || []).map((l) => [esc(l.name), esc(l.problem)])),
+          warn('Các dòng có vấn đề <b>chưa nhập kho</b>. Vui lòng kiểm tra thực tế rồi quyết định nhận / trả nhà cung cấp / hủy / yêu cầu giao bù.'),
+        ],
+        cta: { label: 'Xem biên bản', path: '/purchasing?tab=receipts' },
+      };
+    },
+  },
+  STOCK_COUNT_REVIEW: {
+    kind: 'staff', admin: true,
+    build: (ctx) => {
+      const d = ctx.data;
+      return {
+        subject: `[Cần kiểm tra] Kiểm kho ${esc(d.count_code)} lệch ${esc(d.diff_count)} dòng`,
+        title: 'Kiểm kho có chênh lệch',
+        lines: [
+          p(`Phiếu kiểm kho tuần <b>${esc(d.week)}</b> (${esc(d.count_code)}) có số đếm thực tế khác số trên hệ thống hoặc có hàng lỗi:`),
+          itemsTable(['Sản phẩm', 'Lô', 'Chênh lệch'], (d.lines || []).map((l) => [esc(l.name), esc(l.lot_no || '—'), esc(l.problem)])),
+          warn('Tồn kho <b>chưa được điều chỉnh</b>. Vui lòng đếm lại thực tế rồi chốt số trên phiếu.'),
+        ],
+        cta: { label: 'Xem phiếu kiểm kho', path: '/purchasing?tab=counts' },
+      };
+    },
   },
 };
 

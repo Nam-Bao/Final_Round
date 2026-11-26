@@ -7,6 +7,14 @@ const pointsLib = require('../utils/points');
 const paidByPoints = (order) => order?.payment_method === 'POINTS';
 const { ghnUrl, shopWarehouse, ghnHeaders } = require('../utils/ghn');
 const { sendRefundClaim } = require('../utils/refundClaim');
+const { takeStock, putBack } = require('../utils/stockLots');
+
+// Hàng trả còn bán được => nhập lại kho, về đúng lô đã xuất cho đơn gốc
+const restockReturn = async (ret, transaction) => {
+  const details = await OrderDetail.findAll({ where: { order_id: ret.order_id }, attributes: ['product_id', 'lot_allocations'], transaction });
+  const lotsOf = Object.fromEntries(details.map((d) => [d.product_id, d.lot_allocations]));
+  for (const item of ret.items) await putBack(item.product_id, item.quantity, lotsOf[item.product_id], transaction);
+};
 
 // ==========================================
 // QUY ĐỊNH HOÀN / TRẢ HÀNG (đồng bộ với nội dung hiển thị cho khách ở frontend-client)
@@ -303,7 +311,7 @@ exports.refundReturn = (req, res) => {
       // Đơn trả bằng điểm: hoàn điểm theo giá trị hàng trả (1:1), không chuyển khoản
       const { value_vnd: valueVnd } = await pointsLib.balance(ret.customer_id);
       const pts = pointsLib.toPointsFloor(ret.refund_amount, valueVnd);
-      if (restock) for (const item of ret.items) await Product.increment('stock_quantity', { by: item.quantity, where: { id: item.product_id }, transaction: t });
+      if (restock) await restockReturn(ret, t);
       await pointsLib.credit({ customerId: ret.customer_id, points: pts, type: 'RETURN_REFUND', referenceType: 'RETURN', referenceId: ret.id, note: `Hoàn điểm hàng trả lại đơn #${String(order.id).slice(0, 8).toUpperCase()}`, amountVnd: Number(ret.refund_amount), orderId: order.id });
       Object.assign(ret, { status: 'REFUNDED', refund_ref: `POINTS:${pts}`, restocked: restock, refunded_at: new Date(), handled_by: req.user.id });
       t.afterCommit(() => returnUpdate(ret, { status: 'REFUNDED', points: pts }));
@@ -315,11 +323,7 @@ exports.refundReturn = (req, res) => {
       source: 'RETURN', source_id: ret.id, customer_id: ret.customer_id, amount: Number(ret.refund_amount), bank_ref: refund_ref,
       account: `${ret.bank_name} - ${ret.bank_account} - ${ret.bank_holder}`, claimed_by: req.user.id,
     }));
-    if (restock) {
-      for (const item of ret.items) {
-        await Product.increment('stock_quantity', { by: item.quantity, where: { id: item.product_id }, transaction: t });
-      }
-    }
+    if (restock) await restockReturn(ret, t);
     Object.assign(ret, { status: 'REFUNDED', refund_ref, restocked: restock, refunded_at: new Date(), handled_by: req.user.id });
     t.afterCommit(() => returnUpdate(ret, { status: 'REFUNDED', amount: Number(ret.refund_amount), ref: refund_ref }));
   }, 'Đã hoàn tất hoàn tiền cho khách');
@@ -358,11 +362,13 @@ exports.exchangeReturn = (req, res) => {
     if (value > returnedValue) throw new ReturnError(`Giá trị hàng đổi (${value.toLocaleString('vi-VN')}đ) vượt giá trị hàng khách trả (${returnedValue.toLocaleString('vi-VN')}đ)`);
 
     // Hàng trả còn bán được thì nhập lại kho trước (đổi đúng sản phẩm vẫn dùng được hàng vừa nhập)
-    if (restock) for (const i of ret.items) await Product.increment('stock_quantity', { by: i.quantity, where: { id: i.product_id }, transaction: t });
+    if (restock) await restockReturn(ret, t);
     for (const l of lines) {
-      const [affected] = await Product.update({ stock_quantity: sequelize.literal(`stock_quantity - ${Number(l.quantity)}`) },
-        { where: { id: l.product.id, stock_quantity: { [Op.gte]: l.quantity } }, transaction: t });
-      if (!affected) throw new ReturnError(`${l.product.name} không đủ hàng để đổi. Chọn sản phẩm khác${hasSaleItem(ret) ? '' : ' hoặc chuyển sang hoàn tiền'}`);
+      // Xuất lô hết hạn trước bán trước, ghi lại lô đã xuất cho đơn đổi
+      l.lots = await takeStock(l.product, l.quantity, t).catch((e) => {
+        if (!e.status) throw e;
+        throw new ReturnError(`${l.product.name} không đủ hàng còn hạn để đổi. Chọn sản phẩm khác${hasSaleItem(ret) ? '' : ' hoặc chuyển sang hoàn tiền'}`);
+      });
     }
     const exchangeOrder = await Order.create({
       customer_id: ret.customer_id, recipient_name: order.recipient_name, shipping_phone: order.shipping_phone, shipping_address: order.shipping_address,
@@ -371,7 +377,7 @@ exports.exchangeReturn = (req, res) => {
       note: `Đơn đổi hàng cho yêu cầu hoàn trả #${ret.id.slice(0, 8).toUpperCase()} (đơn gốc #${order.id.slice(0, 8).toUpperCase()})`,
       status: 'CONFIRMED', payment_method: 'COD',
     }, { transaction: t });
-    await OrderDetail.bulkCreate(lines.map((l) => ({ order_id: exchangeOrder.id, product_id: l.product.id, quantity: l.quantity, price: l.price, weight: l.product.weight || 200, is_sale: l.is_sale })), { transaction: t });
+    await OrderDetail.bulkCreate(lines.map((l) => ({ order_id: exchangeOrder.id, product_id: l.product.id, quantity: l.quantity, price: l.price, weight: l.product.weight || 200, is_sale: l.is_sale, lot_allocations: l.lots })), { transaction: t });
     // Đổi sang sản phẩm rẻ hơn (kể cả đã thêm sản phẩm bù): phần chênh còn lại cộng thành Điểm GlowSkin, khách không bị thiệt
     let diffPoints = 0;
     if (returnedValue - value > 0) {

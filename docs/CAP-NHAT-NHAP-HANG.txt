@@ -1,0 +1,58 @@
+CẬP NHẬT NHẬP HÀNG THEO LÔ, NHÀ CUNG CẤP, KIỂM KHO TUẦN - GLOWSKIN
+Viết cho: các bạn trong nhóm, cập nhật ngày 26/11/2026 (giai đoạn 1)
+
+==================================================
+TÓM TẮT
+==================================================
+  1. Mỹ phẩm quản lý theo lô: NSX / HSD ghi theo lô khi nhận hàng, không còn nhập ở sản phẩm.
+     Bán web và bán tại quầy xuất lô hết hạn trước bán trước; dòng đơn ghi lô đã xuất;
+     hủy đơn / nhập lại hàng trả cộng về đúng lô. Lô hết hạn tự ngừng bán, quản lý hủy hàng.
+  2. Trang mới "Nhập hàng & Kiểm kho" (/purchasing):
+       - Quản lý: đề xuất nhập, đơn đặt hàng (email + PDF cho nhà cung cấp), biên bản nhận hàng,
+         kiểm kho, nhà cung cấp.
+       - NVBH ("Kho mỹ phẩm"): nhận hàng, kiểm kho tuần, đề xuất nhập mỹ phẩm, biên bản của mình.
+  3. NVBH nhận hàng, kiểm từng dòng (số lượng, lô, NSX, HSD, tình trạng, nhãn, số công bố, ảnh).
+     Khớp: nhập kho ngay. Lệch / lỗi: quản lý kiểm tra thực tế, quyết định nhận / trả / hủy / giao bù.
+  4. Kiểm kho mỹ phẩm hàng tuần: NVBH đếm không thấy số hệ thống; lệch dù 1 sản phẩm thì quản lý
+     đếm lại và chốt.
+  5. Không tự duyệt: đề xuất, biên bản, phiếu kiểm kho đều không do chính người tạo duyệt.
+     Đề xuất tự động ghi người đề xuất là "Hệ thống".
+  6. Kho & Sản phẩm: bỏ ô tồn kho / NSX / HSD, thêm "Tồn tối thiểu", cột "Lô đang bán", danh sách lô.
+
+==================================================
+VIỆC CẦN LÀM SAU KHI PULL
+==================================================
+1. Không cần migrate tay. Khi commerce khởi động sẽ tự:
+     - tạo 4 bảng Suppliers, PurchaseOrders, GoodsReceipts, StockCounts
+     - thêm cột MaterialLots (manufacture_date, purchase_order_id, receipt_id, supplier_id,
+       hold_reason, hold_at), OrderDetails.lot_allocations; bỏ NOT NULL ở Products.start_date/end_date
+     - gom tồn kho mỹ phẩm hiện có thành lô "TON-DAU-KY" (NSX / HSD lấy theo dữ liệu cũ)
+     - tách lô mỹ phẩm đã hết hạn khỏi hàng bán (máy mình có 2 sản phẩm như vậy => tồn kho bán về 0)
+   Nên backup DB trước khi chạy bản này.
+2. Biến .env mới (có mặc định):
+     service-commerce/.env   PURCHASE_MIN_SHELF_MONTHS=   (mặc định 6)
+     service-identity/.env   ADMIN_URL=                   (link email cho quản lý, mặc định http://localhost:3000)
+3. Khởi động lại identity (email gửi nhà cung cấp / theo vai trò, đính kèm PDF) và commerce.
+4. Email nhà cung cấp là email thật: khi thử thì dùng MAIL_MODE=log trong service-identity/.env,
+   email và file PDF nằm trong service-identity/mail-outbox.
+
+==================================================
+ẢNH HƯỞNG TỚI CODE CỦA BẠN
+==================================================
+  - Trừ / cộng tồn kho mỹ phẩm: dùng utils/stockLots.js (takeStock, restoreOrderStock, putBack),
+    không Product.update stock_quantity trực tiếp nữa.
+  - API sửa sản phẩm không nhận stock_quantity / start_date / end_date nữa.
+  - Đã bỏ 2 API cũ PUT /materials/purchase-requests/:id/ordered và /receive
+    (thay bằng /purchasing/orders và /purchasing/orders/:id/receipts).
+  - Sổ tay quy trình (05-ban-hang.md, 07-quan-ly.md, chu-de.json), kịch bản test mục 20,
+    BPMN 10 (sửa), 12, 13 (mới) đã cập nhật.
+
+==================================================
+API MỚI (/api/commerce/purchasing)
+==================================================
+  GET/POST /suppliers, PUT /suppliers/:id
+  GET/POST /orders, GET /orders/:id/pdf, POST /orders/:id/resend, PUT /orders/:id/cancel
+  POST /orders/:id/receipts, GET /receipts, PUT /receipts/:id/review
+  GET /stock-counts/template, GET/POST /stock-counts, PUT /stock-counts/:id/review
+  GET /products/:id/lots, PUT /lots/:id/dispose
+  Đề xuất nhập: GET/POST /materials/purchase-requests mở thêm cho SALES (mỹ phẩm), TECHNICIAN (vật tư)

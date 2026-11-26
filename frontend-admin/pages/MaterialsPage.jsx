@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveRefresh } from '../components/Notifications';
 import { API_BASE } from '../config';
+import RequestsTab from '../components/purchasing/RequestsTab';
 
 const API = `${API_BASE}/api`;
 const authConfig = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` } });
@@ -299,147 +300,6 @@ function UsageTab() {
   );
 }
 
-// ---------------- Tab 4: Đề xuất nhập hàng ----------------
-function PurchaseTab({ reloadKey }) {
-  const [rows, setRows] = useState([]);
-  useEffect(() => {
-    axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => message.error('Không tải được đề xuất'));
-  }, [reloadKey]);
-  const [deciding, setDeciding] = useState(null); // { row, decision, note, packs: { product_id: n } }
-  const [ordering, setOrdering] = useState(null); // { row, supplier, expected_date }
-  const [receiving, setReceiving] = useState(null); // { row, note, items: [{ product_id, received_quantity, unit_cost, lot_no, expiry_date }] }
-  const [busy, setBusy] = useState(false);
-  const reload = () => axios.get(`${API}/commerce/materials/purchase-requests`, authConfig()).then((r) => setRows(r.data.data || [])).catch(() => {});
-  useLiveRefresh(['purchase-requests'], reload);
-
-  const submitDecision = async () => {
-    const { row, decision, note, packs } = deciding;
-    if (decision === 'REJECT' && !note.trim()) { message.warning('Cần ghi lý do từ chối'); return; }
-    setBusy(true);
-    try {
-      await axios.put(`${API}/commerce/materials/purchase-requests/${row.id}/decision`, {
-        decision, note, items: decision === 'APPROVE' ? Object.entries(packs).map(([product_id, n]) => ({ product_id, packs: n })) : undefined,
-      }, authConfig());
-      message.success(decision === 'APPROVE' ? 'Đã duyệt đề xuất' : 'Đã từ chối đề xuất');
-      setDeciding(null);
-      reload();
-    } catch (e) { message.error(e.response?.data?.message || 'Không xử lý được'); } finally { setBusy(false); }
-  };
-  const submitOrdered = async () => {
-    setBusy(true);
-    try {
-      await axios.put(`${API}/commerce/materials/purchase-requests/${ordering.row.id}/ordered`, {
-        supplier: ordering.supplier, expected_date: ordering.expected_date ? ordering.expected_date.format('YYYY-MM-DD') : null,
-      }, authConfig());
-      message.success('Đã ghi nhận đặt hàng');
-      setOrdering(null);
-      reload();
-    } catch (e) { message.error(e.response?.data?.message || 'Không ghi nhận được'); } finally { setBusy(false); }
-  };
-  const openReceive = (row) => setReceiving({
-    row, note: '',
-    items: (row.items || []).map((i) => ({ product_id: i.product_id, name: i.name, unit: i.unit, approved: Number(i.quantity), received_quantity: Number(i.quantity), unit_cost: null, lot_no: '', expiry_date: null })),
-  });
-  const updateReceive = (id, patch) => setReceiving((r) => ({ ...r, items: r.items.map((i) => (i.product_id === id ? { ...i, ...patch } : i)) }));
-  const submitReceive = async () => {
-    setBusy(true);
-    try {
-      await axios.put(`${API}/commerce/materials/purchase-requests/${receiving.row.id}/receive`, {
-        note: receiving.note,
-        items: receiving.items.map((i) => ({ ...i, expiry_date: i.expiry_date ? i.expiry_date.format('YYYY-MM-DD') : null })),
-      }, authConfig());
-      message.success('Đã nhập kho');
-      setReceiving(null);
-      reload();
-    } catch (e) { message.error(e.response?.data?.message || 'Không nhập kho được'); } finally { setBusy(false); }
-  };
-  const statusTag = (r) => {
-    if (r.status === 'APPROVED' && r.received_at) return <Tag color="green">Đã nhập kho</Tag>;
-    if (r.status === 'APPROVED' && r.ordered_at) return <Tag color="cyan">Đã đặt hàng, chờ hàng về</Tag>;
-    return <Tag color={{ PENDING: 'gold', APPROVED: 'blue', REJECTED: 'red' }[r.status]}>{{ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt, chưa đặt hàng', REJECTED: 'Từ chối' }[r.status]}</Tag>;
-  };
-
-  return (
-    <>
-      <Alert className="mb-3" type="info" showIcon message="Quy trình: Chờ duyệt → Duyệt (có thể chỉnh số lượng) hoặc Từ chối (ghi lý do) → Ghi nhận đã đặt hàng nhà cung cấp → Nhận hàng theo số thực nhận, số lô, hạn dùng, giá nhập (tự cộng tồn kho). Đề xuất đã duyệt mà hàng chưa về thì không tạo đề xuất mới. Đề xuất tự tạo khi vật tư xuống dưới tồn tối thiểu, hoặc do quản lý tạo từ tab Tồn kho." />
-      <Table rowKey="id" dataSource={rows} size="middle" pagination={{ pageSize: 10 }}
-        columns={[
-          { title: 'Ngày tạo', dataIndex: 'createdAt', width: 140, render: (v) => dayjs(v).format('HH:mm DD/MM/YYYY') },
-          { title: 'Lý do', dataIndex: 'reason', width: 220 },
-          {
-            title: 'Cần nhập',
-            render: (_, r) => (r.items || []).map((i) => (
-              <div key={i.product_id}>
-                {i.name}: <b>{i.packs} × {i.pack_label || 'quy cách'}</b> ({i.quantity} {i.unit}; tồn lúc đề xuất {i.stock})
-                {i.received_quantity !== undefined && (
-                  <div className={`text-xs ${i.received_quantity < i.quantity ? 'text-red-600' : 'text-gray-500'}`}>
-                    Thực nhận {i.received_quantity} {i.unit}{i.lot_no ? ` • Lô ${i.lot_no}` : ''}{i.expiry_date ? ` • HSD ${dayjs(i.expiry_date).format('DD/MM/YYYY')}` : ''}{i.unit_cost != null ? ` • ${vnd(i.unit_cost)}/${i.unit}` : ''}
-                  </div>
-                )}
-              </div>
-            )),
-          },
-          {
-            title: 'Trạng thái', width: 220,
-            render: (_, r) => (
-              <div>
-                {statusTag(r)}
-                {r.decided_at && <div className="text-xs text-gray-500 mt-1">{r.status === 'REJECTED' ? 'Từ chối' : 'Duyệt'} lúc {dayjs(r.decided_at).format('HH:mm DD/MM')}{r.decision_note ? `: ${r.decision_note}` : ''}</div>}
-                {r.ordered_at && <div className="text-xs text-gray-500">Đặt của {r.supplier}{r.expected_date ? `, dự kiến ${dayjs(r.expected_date).format('DD/MM')}` : ''}</div>}
-                {r.received_at && <div className="text-xs text-gray-500">Nhập kho lúc {dayjs(r.received_at).format('HH:mm DD/MM')}{r.receive_note ? `: ${r.receive_note}` : ''}</div>}
-              </div>
-            ),
-          },
-          {
-            title: '', width: 190, fixed: 'right',
-            render: (_, r) => (
-              <Space wrap>
-                {r.status === 'PENDING' && (
-                  <>
-                    <Button size="small" type="primary" onClick={() => setDeciding({ row: r, decision: 'APPROVE', note: '', packs: Object.fromEntries((r.items || []).map((i) => [i.product_id, i.packs])) })}>Duyệt</Button>
-                    <Button size="small" danger onClick={() => setDeciding({ row: r, decision: 'REJECT', note: '', packs: {} })}>Từ chối</Button>
-                  </>
-                )}
-                {r.status === 'APPROVED' && !r.ordered_at && <Button size="small" type="primary" onClick={() => setOrdering({ row: r, supplier: '', expected_date: null })}>Đã đặt hàng</Button>}
-                {r.status === 'APPROVED' && r.ordered_at && !r.received_at && <Button size="small" type="primary" className="!bg-green-600" onClick={() => openReceive(r)}>Nhận hàng</Button>}
-              </Space>
-            ),
-          },
-        ]} />
-      <Modal open={!!deciding} title={deciding?.decision === 'APPROVE' ? 'Duyệt đề xuất nhập hàng' : 'Từ chối đề xuất nhập hàng'}
-        onCancel={() => setDeciding(null)} onOk={submitDecision} confirmLoading={busy} okText={deciding?.decision === 'APPROVE' ? 'Duyệt' : 'Từ chối'}
-        okButtonProps={{ danger: deciding?.decision === 'REJECT' }} destroyOnHidden>
-        {deciding?.decision === 'APPROVE' && (deciding.row.items || []).map((i) => (
-          <div key={i.product_id} className="flex items-center justify-between gap-3 mb-2">
-            <span className="text-sm">{i.name}</span>
-            <InputNumber min={1} max={10000} precision={0} value={deciding.packs[i.product_id]} suffix={i.pack_label || 'quy cách'} className="!w-48"
-              onChange={(v) => setDeciding((d) => ({ ...d, packs: { ...d.packs, [i.product_id]: v || 1 } }))} />
-          </div>
-        ))}
-        <Input.TextArea className="mt-2" rows={3} maxLength={1000} value={deciding?.note}
-          placeholder={deciding?.decision === 'APPROVE' ? 'Ghi chú (không bắt buộc), vd nhà cung cấp, ngày giao dự kiến' : 'Lý do từ chối (bắt buộc)'}
-          onChange={(e) => setDeciding((d) => ({ ...d, note: e.target.value }))} />
-      </Modal>
-      <Modal open={!!ordering} title="Ghi nhận đã đặt hàng nhà cung cấp" onCancel={() => setOrdering(null)} onOk={submitOrdered} confirmLoading={busy} okText="Lưu" destroyOnHidden>
-        <Input className="mb-3" maxLength={200} placeholder="Nhà cung cấp" value={ordering?.supplier} onChange={(e) => setOrdering((o) => ({ ...o, supplier: e.target.value }))} />
-        <DatePicker className="w-full" format="DD/MM/YYYY" placeholder="Ngày dự kiến giao (không bắt buộc)" value={ordering?.expected_date} onChange={(v) => setOrdering((o) => ({ ...o, expected_date: v }))} />
-      </Modal>
-      <Modal open={!!receiving} title="Nhận hàng về kho" onCancel={() => setReceiving(null)} onOk={submitReceive} confirmLoading={busy} okText="Nhập kho" width={860} destroyOnHidden>
-        <Table rowKey="product_id" size="small" pagination={false} dataSource={receiving?.items || []} scroll={{ x: 760 }}
-          columns={[
-            { title: 'Vật tư', dataIndex: 'name', render: (v, i) => <div>{v}<div className="text-xs text-gray-500">Đã duyệt {i.approved} {i.unit}</div></div> },
-            { title: 'Thực nhận', width: 120, render: (_, i) => <InputNumber size="small" min={0} max={i.approved} precision={0} value={i.received_quantity} suffix={i.unit} className="!w-full" onChange={(v) => updateReceive(i.product_id, { received_quantity: v ?? 0 })} /> },
-            { title: 'Giá nhập / đơn vị', width: 130, render: (_, i) => <InputNumber size="small" min={0} precision={0} value={i.unit_cost} className="!w-full" onChange={(v) => updateReceive(i.product_id, { unit_cost: v })} /> },
-            { title: 'Số lô', width: 130, render: (_, i) => <Input size="small" maxLength={50} value={i.lot_no} onChange={(e) => updateReceive(i.product_id, { lot_no: e.target.value })} /> },
-            { title: 'Hạn dùng', width: 140, render: (_, i) => <DatePicker size="small" format="DD/MM/YYYY" value={i.expiry_date} className="!w-full" disabledDate={(d) => !d.isAfter(dayjs(), 'day')} onChange={(v) => updateReceive(i.product_id, { expiry_date: v })} /> },
-          ]} />
-        <Input.TextArea className="mt-3" rows={2} maxLength={1000} value={receiving?.note} onChange={(e) => setReceiving((r) => ({ ...r, note: e.target.value }))}
-          placeholder="Ghi chú (bắt buộc nếu giao thiếu), VD: Nhà cung cấp giao thiếu 2 hộp, hẹn bù tuần sau" />
-      </Modal>
-    </>
-  );
-}
-
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState([]);
   const [demandAvailable, setDemandAvailable] = useState(true);
@@ -468,7 +328,7 @@ export default function MaterialsPage() {
         { key: 'stock', label: <span>Tồn kho vật tư {alertCount > 0 && <Tag color="red" className="ml-1">{alertCount}</Tag>}</span>, children: <StockTab materials={materials} demandAvailable={demandAvailable} reload={load} /> },
         { key: 'norms', label: 'Định mức theo dịch vụ', children: <NormsTab materials={materials} /> },
         { key: 'usage', label: 'Lịch sử xuất & Thống kê', children: <UsageTab /> },
-        { key: 'purchase', label: 'Đề xuất nhập hàng', children: <PurchaseTab reloadKey={reloadKey} /> },
+        { key: 'purchase', label: 'Đề xuất nhập hàng', children: <RequestsTab productType="MATERIAL" /> },
       ]} />
     </div>
   );

@@ -18,6 +18,8 @@ Mở và chỉnh sửa bằng https://demo.bpmn.io (kéo thả file vào trang) 
 | 09 | Tính lương hàng tháng |
 | 10 | Xuất vật tư và nhập kho |
 | 11 | Quản lý quy tắc an toàn (chống chỉ định): quản lý soạn hoặc bác sĩ đề xuất, bác sĩ xem xét, quản lý chung duyệt; sửa / ngưng theo phiên bản |
+| 12 | Nhập hàng: đề xuất (tự động / NVBH / KTV / quản lý) → quản lý duyệt → đơn đặt hàng gửi email + PDF cho nhà cung cấp → NVBH nhận hàng, kiểm từng dòng → lệch / lỗi thì quản lý kiểm tra thực tế, giao bù |
+| 13 | Kiểm kho mỹ phẩm hàng tuần (NVBH đếm không thấy số hệ thống, lệch dù 1 sản phẩm thì quản lý đếm lại và chốt) và hủy lô hết hạn |
 
 ## Vai trò
 
@@ -28,7 +30,7 @@ Mở và chỉnh sửa bằng https://demo.bpmn.io (kéo thả file vào trang) 
 | Bác sĩ | Khám, chẩn đoán, kê đơn; xem xét và đề xuất quy tắc an toàn |
 | Chuyên gia | Tư vấn online, gợi ý sản phẩm. Không khám, không kê thuốc |
 | Kỹ thuật viên | Làm dịch vụ, ghi vật tư đã dùng |
-| Nhân viên bán hàng | Duyệt, đóng gói, hủy đơn mỹ phẩm, xử lý hoàn trả |
+| Nhân viên bán hàng | Duyệt, đóng gói, hủy đơn mỹ phẩm, xử lý hoàn trả; nhận hàng nhập, kiểm kho tuần |
 | Quản lý | Mở ca, duyệt đề xuất, duyệt giải trình, tính lương |
 | Hệ thống | Các bước tự động của phần mềm |
 

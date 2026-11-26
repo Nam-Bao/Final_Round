@@ -3,6 +3,8 @@ const { Op } = require('sequelize'); // getAllProducts dùng Op/sequelize/Review
 const { getRatingStats } = require('./review.controller');
 const { SALE_FIELDS, withOnlinePrice } = require('../utils/pricing');
 const { CONCERNS, sanitizeConcerns } = require('../utils/concerns');
+const { takeStock, lotsByProduct } = require('../utils/stockLots');
+const { MaterialSpec } = require('../models');
 
 // Số lượng đã bán thật: tổng số lượng trong các đơn đã giao xong (COMPLETED, gồm cả đơn tại quầy),
 // trừ phần khách đã trả lại và được hoàn tiền. productIds bỏ trống => tính cho tất cả sản phẩm.
@@ -44,8 +46,17 @@ const getNewProductIds = async () => {
 };
 
 // Cửa hàng web: kèm giá khuyến mãi online đang chạy (price = giá khách trả, original_price = giá niêm yết)
-const withShopStats = (product, ratingStats, soldStats, newIds) => ({
-  ...withOnlinePrice(product.toJSON()),
+// Thời hạn sử dụng (tháng) theo lô đang bán: khách chỉ thấy "N tháng kể từ ngày sản xuất", không thấy số lô / ngày cụ thể
+const shelfLifeOf = (lots) => {
+  const lot = (lots || []).find((l) => l.sellable && l.manufacture_date);
+  if (!lot) return null;
+  const months = Math.round((new Date(lot.expiry_date) - new Date(lot.manufacture_date)) / (30.44 * 86400000));
+  return months > 0 ? months : null;
+};
+const withoutOldDates = ({ start_date, end_date, ...rest }) => rest;
+const withShopStats = (product, ratingStats, soldStats, newIds, lots = {}) => ({
+  ...withoutOldDates(withOnlinePrice(product.toJSON())),
+  shelf_life_months: shelfLifeOf(lots[product.id]),
   is_new: newIds.has(product.id),
   avg_rating: ratingStats[product.id]?.avg_rating || 0,
   review_count: ratingStats[product.id]?.review_count || 0,
@@ -67,7 +78,7 @@ const getProducts = async (req, res) => {
     // Điểm đánh giá thật từ bảng Reviews và số đã bán từ các đơn đã giao (trang shop hiển thị)
     const [ratingStats, soldStats] = await Promise.all([getRatingStats(), getSoldStats()]);
     const data = products.map((p) => {
-      const { ProductDetail: detail, ...rest } = withStats(p, ratingStats, soldStats);
+      const { ProductDetail: detail, start_date, end_date, ...rest } = withStats(p, ratingStats, soldStats);
       return { ...rest, is_prescription: !!detail?.is_prescription };
     });
     res.status(200).json({ data });
@@ -113,8 +124,8 @@ const getShopProducts = async (req, res) => {
       ],
       order: [['createdAt', 'DESC']]
     });
-    const [ratingStats, soldStats, newIds] = await Promise.all([getRatingStats(), getSoldStats(), getNewProductIds()]);
-    res.status(200).json({ data: products.map((p) => withShopStats(p, ratingStats, soldStats, newIds)) });
+    const [ratingStats, soldStats, newIds, lots] = await Promise.all([getRatingStats(), getSoldStats(), getNewProductIds(), lotsByProduct(products.map((p) => p.id))]);
+    res.status(200).json({ data: products.map((p) => withShopStats(p, ratingStats, soldStats, newIds, lots)) });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -132,8 +143,8 @@ const getShopProduct = async (req, res) => {
       ]
     });
     if (!product) return res.status(404).json({ message: 'Sản phẩm không tồn tại hoặc chưa bán trên web' });
-    const [ratingStats, soldStats, newIds] = await Promise.all([getRatingStats([product.id]), getSoldStats([product.id]), getNewProductIds()]);
-    res.status(200).json({ data: withShopStats(product, ratingStats, soldStats, newIds) });
+    const [ratingStats, soldStats, newIds, lots] = await Promise.all([getRatingStats([product.id]), getSoldStats([product.id]), getNewProductIds(), lotsByProduct([product.id])]);
+    res.status(200).json({ data: withShopStats(product, ratingStats, soldStats, newIds, lots) });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -231,39 +242,68 @@ const upsertProductDetail = async (req, res) => {
 };
 
 // 1b. Quản lý kho: lấy TẤT CẢ (mỹ phẩm + vật tư nội bộ) - chỉ ADMIN/GEN_MANAGER
+// Kèm các lô còn hàng: lô đang bán (xuất trước, dùng chung cho bán web và bán tại quầy), lô chờ hủy (hết hạn), tồn tối thiểu
 const getProductsForAdmin = async (req, res) => {
   try {
     const products = await Product.findAll({
-      include: [{ model: Category, attributes: ['id', 'name'] }, { model: ProductDetail, attributes: ['slug', 'is_published', ...SALE_FIELDS] }],
+      include: [{ model: Category, attributes: ['id', 'name'] }, { model: ProductDetail, attributes: ['slug', 'is_published', ...SALE_FIELDS] }, { model: MaterialSpec, attributes: ['min_stock', 'unit'] }],
       order: [['createdAt', 'DESC']]
     });
-    res.status(200).json({ data: products });
+    const lots = await lotsByProduct(products.map((p) => p.id));
+    res.status(200).json({ data: products.map((p) => {
+      const list = lots[p.id] || [];
+      const rest = withoutOldDates(p.toJSON());
+      return {
+        ...rest, lots: list, selling_lot: list.find((l) => l.sellable) || null,
+        held_qty: list.filter((l) => l.hold_reason).reduce((sum, l) => sum + l.quantity_left, 0), min_stock: p.MaterialSpec?.min_stock ?? 0,
+      };
+    }) });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };
 
 // 2. Thêm Sản phẩm (Chỉ Admin)
+// Tồn kho, NSX, HSD không nhập ở đây: hàng vào kho qua Nhập hàng (biên bản nhận hàng ghi số lô, NSX, HSD)
+const EDITABLE = ['name', 'price', 'weight', 'category_id', 'image_url'];
+const pick = (body) => Object.fromEntries(EDITABLE.filter((k) => k in body).map((k) => [k, body[k]]));
+const saveMinStock = async (productId, body) => {
+  if (!('min_stock' in body) || body.min_stock === null || body.min_stock === undefined) return;
+  const n = Number(body.min_stock);
+  if (!Number.isInteger(n) || n < 0 || n > 100000) throw Object.assign(new Error('Tồn tối thiểu phải là số nguyên từ 0'), { status: 400 });
+  const spec = await MaterialSpec.findOne({ where: { product_id: productId } });
+  if (spec) await spec.update({ min_stock: n });
+  else await MaterialSpec.create({ product_id: productId, unit: 'sản phẩm', pack_size: 1, pack_label: '1 sản phẩm', min_stock: n });
+};
 const createProduct = async (req, res) => {
   try {
-    const { name, type, price, weight, stock_quantity, category_id, start_date, end_date, image_url } = req.body;
-    const newProduct = await Product.create({
-      name, type, price, weight, stock_quantity, category_id, start_date, end_date, image_url // weight: dùng để tính phí GHN
-    });
-    res.status(201).json({ message: 'Thêm sản phẩm thành công', data: newProduct });
+    const type = req.body.type === 'MATERIAL' ? 'MATERIAL' : 'PRODUCT';
+    const newProduct = await Product.create({ ...pick(req.body), type, stock_quantity: 0 }); // weight: dùng để tính phí GHN
+    await saveMinStock(newProduct.id, req.body);
+    res.status(201).json({ message: 'Đã thêm sản phẩm. Hàng vào kho qua Nhập hàng (ghi số lô, NSX, HSD khi nhận hàng)', data: newProduct });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi tạo sản phẩm', error: error.message });
   }
 };
 
 // 3. Cập nhật Sản phẩm
+// Không sửa thẳng tồn kho / NSX / HSD: tồn kho chỉ đổi qua nhập hàng, bán, trả hàng, kiểm kho
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    await Product.update(req.body, { where: { id } });
+    if (!UUID_RE.test(String(id))) return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    const product = await Product.findByPk(id);
+    if (!product) return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    const values = pick(req.body);
+    if (req.body.type && req.body.type !== product.type) {
+      if (product.stock_quantity > 0) return res.status(409).json({ message: 'Còn hàng trong kho, không đổi được phân loại sản phẩm / vật tư' });
+      values.type = req.body.type === 'MATERIAL' ? 'MATERIAL' : 'PRODUCT';
+    }
+    await product.update(values);
+    await saveMinStock(product.id, req.body);
     res.status(200).json({ message: 'Cập nhật thành công' });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi cập nhật', error: error.message });
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Lỗi khi cập nhật', error: error.message });
   }
 };
 
@@ -285,11 +325,11 @@ const deductInventory = async (req, res) => {
     if (!product_ids || product_ids.length === 0) return res.status(200).json({ message: 'Không có sản phẩm để trừ' });
 
     for (const id of product_ids) {
-      const product = await Product.findByPk(id);
-      if (product && product.stock_quantity > 0) {
-        product.stock_quantity -= 1; // Mỗi món mua số lượng 1
-        await product.save();
-      }
+      // Mỗi món số lượng 1; trừ theo lô hết hạn trước bán trước. Hết hàng thì bỏ qua như trước
+      await sequelize.transaction(async (t) => {
+        const product = await Product.findByPk(id, { transaction: t });
+        if (product && product.stock_quantity > 0) await takeStock(product, 1, t).catch((e) => { if (!e.status) throw e; });
+      });
     }
     res.status(200).json({ message: 'Đã trừ tồn kho thành công' });
   } catch (error) {

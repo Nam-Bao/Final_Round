@@ -9,13 +9,8 @@ import ProductIngredients, { parseIngredients } from '../components/ProductIngre
 import ProductCard, { vnd, getImages, isOnSale, ProductBadges } from '../components/ProductCard';
 
 // Hạn sử dụng tính từ ngày sản xuất đến ngày hết hạn, hiển thị dạng "24 tháng" như trên bao bì
-const shelfLife = (start, end) => {
-  if (!start || !end) return null;
-  const months = Math.round(dayjs(end).diff(dayjs(start), 'month', true));
-  if (months >= 1) return `${months} tháng kể từ ngày sản xuất`;
-  const days = dayjs(end).diff(dayjs(start), 'day');
-  return days > 0 ? `${days} ngày kể từ ngày sản xuất` : null;
-};
+// Thời hạn sử dụng theo lô đang bán (server chỉ trả số tháng, không trả số lô / ngày cụ thể)
+const shelfLife = (months) => (months > 0 ? `${months} tháng kể từ ngày sản xuất (ngày cụ thể in trên bao bì)` : null);
 
 import { useAuthStore } from '../store/authStore';
 
@@ -144,7 +139,7 @@ export default function ProductDetailPage() {
   const images = getImages(product.image_url);
   const outOfStock = !(product.stock_quantity > 0);
   const maxQty = Math.max(1, Math.min(MAX_QTY, product.stock_quantity || 1));
-  const shelfLifeText = shelfLife(product.start_date, product.end_date);
+  const shelfLifeText = shelfLife(product.shelf_life_months);
 
   const detail = product.ProductDetail || {};
   // Tên các hoạt chất chính (hiện ngay dưới giá, bấm để mở tab Thành phần)

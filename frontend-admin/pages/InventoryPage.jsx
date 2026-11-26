@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Space, Button, message, Modal, Form, Input, InputNumber, Select, Popconfirm, Tabs, DatePicker, Radio, Upload } from 'antd';
+import { Table, Tag, Space, Button, message, Modal, Form, Input, InputNumber, Select, Popconfirm, Tabs, Radio, Upload, Alert } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, GlobalOutlined } from '@ant-design/icons';
 import ProductWebInfoModal from '../components/ProductWebInfoModal';
 import dayjs from 'dayjs';
 import { API_BASE } from '../config';
+import { useLiveRefresh } from '../components/Notifications';
 
 // ==========================================
 // TAB 1: COMPONENT QUẢN LÝ DANH MỤC
@@ -13,21 +14,21 @@ const CategoriesTab = () => {
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [searchText, setSearchText] = useState(''); 
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   useEffect(() => { fetchCategories(); }, []);
 
-  const fetchCategories = async () => { 
+  const fetchCategories = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/commerce/categories`);
       const data = await res.json();
       setCategories(data.data || []);
-    } catch (error) { 
-      message.error('Lỗi tải danh mục'); 
-    } finally { 
-      setLoading(false); 
+    } catch (error) {
+      message.error('Lỗi tải danh mục');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,14 +38,14 @@ const CategoriesTab = () => {
     setIsModalVisible(true);
   };
 
-  const handleSubmit = async (values) => { 
+  const handleSubmit = async (values) => {
     try {
       const token = sessionStorage.getItem('admin_token');
       const isUpdate = !!editingItem;
       const url = isUpdate ? `${API_BASE}/api/commerce/categories/${editingItem.id}` : `${API_BASE}/api/commerce/categories`;
       const res = await fetch(url, {
-        method: isUpdate ? 'PUT' : 'POST', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        method: isUpdate ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(values)
       });
 
@@ -59,14 +60,14 @@ const CategoriesTab = () => {
     } catch (error) { message.error(error.message); }
   };
 
-  const handleDelete = async (id) => { 
+  const handleDelete = async (id) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      await fetch(`${API_BASE}/api/commerce/categories/${id}`, { 
-        method: 'DELETE', 
-        headers: { 'Authorization': `Bearer ${token}` } 
+      await fetch(`${API_BASE}/api/commerce/categories/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      message.success('Đã xóa danh mục!'); 
+      message.success('Đã xóa danh mục!');
       fetchCategories();
     } catch (error) { message.error('Lỗi khi xóa'); }
   };
@@ -131,30 +132,30 @@ const ProductsTab = () => {
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [searchText, setSearchText] = useState(''); 
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
-  
-  const [imageMode, setImageMode] = useState('url'); 
+
+  const [imageMode, setImageMode] = useState('url');
   const [fileList, setFileList] = useState([]);
   const [webInfoProduct, setWebInfoProduct] = useState(null); // sản phẩm đang mở modal "Thông tin bán web"
 
   useEffect(() => { fetchProducts(); fetchCategories(); }, []);
 
-  const fetchProducts = async () => { 
+  const fetchProducts = async () => {
     setLoading(true);
     try {
       // /admin: lấy cả vật tư nội bộ (API công khai chỉ còn trả mỹ phẩm bán cho khách)
       const res = await fetch(`${API_BASE}/api/commerce/products/admin`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
       const data = await res.json();
       setProducts(data.data || []);
-    } catch (error) { 
-      message.error('Lỗi tải sản phẩm'); 
-    } finally { 
-      setLoading(false); 
+    } catch (error) {
+      message.error('Lỗi tải sản phẩm');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchCategories = async () => { 
+  const fetchCategories = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/commerce/categories`);
       const data = await res.json();
@@ -168,39 +169,28 @@ const ProductsTab = () => {
     await fetchCategories();
     setEditingItem(record);
     setFileList([]);
-    
+
     if (record) {
       let parsedImages = [];
       if (record.image_url) {
         try {
           parsedImages = typeof record.image_url === 'string' ? JSON.parse(record.image_url) : record.image_url;
           if (!Array.isArray(parsedImages)) parsedImages = [record.image_url];
-        } catch (e) { 
-          parsedImages = [record.image_url]; 
+        } catch (e) {
+          parsedImages = [record.image_url];
         }
       }
-      form.setFieldsValue({
-        ...record,
-        stock_quantity: record.stock_quantity !== undefined ? record.stock_quantity : record.stock,
-        start_date: record.start_date ? dayjs(record.start_date) : dayjs(),
-        end_date: record.end_date ? dayjs(record.end_date) : dayjs().add(1, 'year'),
-        image_url: parsedImages 
-      });
+      form.setFieldsValue({ ...record, min_stock: record.min_stock ?? 0, image_url: parsedImages });
       setImageMode('url');
-    } else { 
-      form.resetFields(); 
-      form.setFieldsValue({
-        type: 'PRODUCT',
-        start_date: dayjs(),
-        end_date: dayjs().add(1, 'year'),
-        stock_quantity: 100
-      });
+    } else {
+      form.resetFields();
+      form.setFieldsValue({ type: 'PRODUCT', min_stock: 5 });
       setImageMode('url');
     }
     setIsModalVisible(true);
   };
 
-  const handleSubmit = async (values) => { 
+  const handleSubmit = async (values) => {
     try {
       const token = sessionStorage.getItem('admin_token');
       let finalImages = values.image_url || [];
@@ -210,13 +200,13 @@ const ProductsTab = () => {
         for (const file of fileList) {
           const formData = new FormData();
           formData.append('image', file.originFileObj || file);
-          
+
           const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
           });
-          
+
           const uploadData = await uploadRes.json();
           if (!uploadRes.ok) throw new Error('Không thể tải ảnh lên máy chủ!');
           uploadedUrls.push(uploadData.url);
@@ -229,25 +219,19 @@ const ProductsTab = () => {
       }
 
       const isUpdate = !!editingItem;
-      const url = isUpdate 
-        ? `${API_BASE}/api/commerce/products/${editingItem.id}` 
+      const url = isUpdate
+        ? `${API_BASE}/api/commerce/products/${editingItem.id}`
         : `${API_BASE}/api/commerce/products`;
-      
-      const payload = {
-        ...values,
-        stock_quantity: Number(values.stock_quantity),
-        stock: Number(values.stock_quantity), // Gửi đồng bộ cả 2 biến
-        start_date: values.start_date ? values.start_date.toISOString() : null,
-        end_date: values.end_date ? values.end_date.toISOString() : null,
-        image_url: finalImages 
-      };
+
+      // Tồn kho, NSX, HSD không nhập ở đây: hàng vào kho qua Nhập hàng (ghi theo lô)
+      const payload = { ...values, image_url: finalImages };
 
       const res = await fetch(url, {
-        method: isUpdate ? 'PUT' : 'POST', 
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}` 
-        }, 
+        method: isUpdate ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -261,29 +245,29 @@ const ProductsTab = () => {
 
       if (!res.ok) throw new Error(resData.message || 'Thao tác thất bại');
 
-      message.success(isUpdate ? 'Cập nhật tồn kho thành công!' : 'Thêm sản phẩm thành công!'); 
-      setIsModalVisible(false); 
+      message.success(isUpdate ? 'Đã cập nhật sản phẩm' : resData.message || 'Đã thêm sản phẩm');
+      setIsModalVisible(false);
       fetchProducts();
-    } catch (error) { 
+    } catch (error) {
       console.error('Lỗi Submit Form:', error);
-      message.error(error.message); 
+      message.error(error.message);
     }
   };
 
-  const handleDelete = async (id) => { 
+  const handleDelete = async (id) => {
     try {
       const token = sessionStorage.getItem('admin_token');
-      await fetch(`${API_BASE}/api/commerce/products/${id}`, { 
-        method: 'DELETE', 
-        headers: { 'Authorization': `Bearer ${token}` } 
+      await fetch(`${API_BASE}/api/commerce/products/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      message.success('Đã xóa sản phẩm!'); 
+      message.success('Đã xóa sản phẩm!');
       fetchProducts();
     } catch (error) {
       message.error('Lỗi khi xóa sản phẩm');
     }
   };
-  
+
   const uploadProps = {
     onRemove: (file) => {
       const index = fileList.indexOf(file);
@@ -297,7 +281,7 @@ const ProductsTab = () => {
          return false;
       }
       setFileList([...fileList, file]);
-      return false; 
+      return false;
     },
     fileList,
     multiple: true,
@@ -307,14 +291,14 @@ const ProductsTab = () => {
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchText.toLowerCase()));
 
   const columns = [
-    { title: 'Tên Sản phẩm/Vật tư', dataIndex: 'name', key: 'name', render: text => <b>{text}</b> },
-    { 
-      title: 'Danh mục', dataIndex: 'Category', key: 'category', 
+    { title: 'Tên Sản phẩm/Vật tư', dataIndex: 'name', key: 'name', width: 260, render: text => <b>{text}</b> },
+    {
+      title: 'Danh mục', dataIndex: 'Category', key: 'category',
       filters: categories.map(c => ({ text: c.name, value: c.id })),
       onFilter: (value, record) => record.category_id === value || record.Category?.id === value,
-      render: (cat, record) => <Tag color="blue">{cat?.name || record.category || 'Dược Mỹ Phẩm'}</Tag> 
+      render: (cat, record) => <Tag color="blue">{cat?.name || record.category || 'Dược Mỹ Phẩm'}</Tag>
     },
-    { 
+    {
       title: 'Loại', dataIndex: 'type', key: 'type',
       filters: [
         { text: 'Sản phẩm', value: 'PRODUCT' },
@@ -340,9 +324,31 @@ const ProductsTab = () => {
         );
       },
     },
-    { 
-      title: 'Tồn kho', key: 'stock', 
-      render: (_, record) => <b>{record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0)}</b> 
+    {
+      title: 'Tồn kho', key: 'stock', sorter: (a, b) => a.stock_quantity - b.stock_quantity,
+      render: (_, record) => (
+        <div>
+          <b className={record.min_stock > 0 && record.stock_quantity <= record.min_stock ? 'text-red-600' : ''}>{record.stock_quantity}</b>
+          {record.min_stock > 0 && <div className="text-xs text-gray-500">tối thiểu {record.min_stock}</div>}
+          {record.held_qty > 0 && <div className="text-xs text-red-600">{record.held_qty} hết hạn, chờ hủy</div>}
+        </div>
+      ),
+    },
+    {
+      // Lô xuất trước (hết hạn trước bán trước), dùng chung cho bán web và bán tại quầy. Khách không thấy thông tin lô.
+      title: 'Lô đang bán', key: 'lot', width: 210,
+      render: (_, record) => {
+        const l = record.selling_lot;
+        if (!l) return <span className="text-gray-400">{record.stock_quantity > 0 ? '-' : 'Hết hàng'}</span>;
+        const days = dayjs(l.expiry_date).diff(dayjs(), 'day');
+        return (
+          <div className="text-sm">
+            <b>{l.lot_no}</b> <span className="text-gray-500">còn {l.quantity_left}</span>
+            <div className={`text-xs ${days <= 90 ? 'text-orange-600' : 'text-gray-500'}`}>{l.manufacture_date ? `NSX ${dayjs(l.manufacture_date).format('DD/MM/YYYY')} • ` : ''}HSD {dayjs(l.expiry_date).format('DD/MM/YYYY')}</div>
+            {record.type === 'PRODUCT' && <div className="text-xs text-gray-400">Bán web và tại quầy</div>}
+          </div>
+        );
+      },
     },
     {
       title: 'Bán trên web', key: 'web',
@@ -376,22 +382,37 @@ const ProductsTab = () => {
         </Space>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Thêm Sản Phẩm</Button>
       </div>
-      <Table columns={columns} dataSource={filteredProducts} rowKey="id" loading={loading} />
+      <Table columns={columns} dataSource={filteredProducts} rowKey="id" loading={loading} scroll={{ x: 1350 }}
+        expandable={{
+          rowExpandable: (r) => (r.lots || []).length > 0,
+          expandedRowRender: (r) => (
+            <Table size="small" rowKey="id" pagination={false} dataSource={r.lots}
+              columns={[
+                { title: 'Số lô', dataIndex: 'lot_no', render: (v, l) => <span>{v}{l.id === r.selling_lot?.id && <Tag color="green" className="ml-1">đang bán</Tag>}</span> },
+                { title: 'NSX', dataIndex: 'manufacture_date', render: (v) => (v ? dayjs(v).format('DD/MM/YYYY') : '-') },
+                { title: 'HSD', dataIndex: 'expiry_date', render: (v) => dayjs(v).format('DD/MM/YYYY') },
+                { title: 'Còn lại', dataIndex: 'quantity_left' },
+                { title: 'Đã nhập', dataIndex: 'quantity_received' },
+                { title: 'Giá nhập', dataIndex: 'unit_cost', render: (v) => (v != null ? `${Number(v).toLocaleString('vi-VN')} ₫` : '-') },
+                { title: 'Trạng thái', render: (_, l) => (l.hold_reason ? <Tag color="red">Hết hạn, chờ hủy</Tag> : l.id === r.selling_lot?.id ? <Tag color="green">Đang bán</Tag> : <Tag>Chờ bán (xuất sau)</Tag>) },
+              ]} />
+          ),
+        }} />
       
       <Modal title={editingItem ? "Sửa sản phẩm" : "Thêm sản phẩm mới"} width={700} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          
+
           <div className="mb-4 p-3 bg-gray-50 border rounded">
              <div className="mb-2 font-medium">Hình ảnh sản phẩm (Tối đa 5 ảnh)</div>
-             <Radio.Group 
-                value={imageMode} 
+             <Radio.Group
+                value={imageMode}
                 onChange={(e) => setImageMode(e.target.value)}
                 className="mb-3"
               >
                 <Radio value="url">Nhập/Dán URL</Radio>
                 <Radio value="file">Tải lên từ máy tính</Radio>
              </Radio.Group>
-             
+
              {imageMode === 'url' ? (
                 <Form.Item name="image_url" noStyle>
                    <Select mode="tags" maxCount={5} placeholder="Dán đường dẫn ảnh và nhấn Enter" open={false} />
@@ -404,28 +425,20 @@ const ProductsTab = () => {
           </div>
 
           <Form.Item label="Tên sản phẩm" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên sản phẩm' }]}><Input /></Form.Item>
-          
+
           <div className="flex gap-4">
             <Form.Item label="Danh mục" name="category_id" className="flex-1" rules={[{ required: true }]}><Select>{categories.map(c => (<Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>))}</Select></Form.Item>
             <Form.Item label="Phân loại" name="type" className="flex-1" rules={[{ required: true }]}><Select><Select.Option value="PRODUCT">Sản phẩm bán</Select.Option><Select.Option value="MATERIAL">Vật tư nội bộ</Select.Option></Select></Form.Item>
           </div>
-          
+
           {/* ĐÃ THÊM Ô NHẬP TRỌNG LƯỢNG VÀO ĐÂY, SẮP XẾP LẠI THÀNH 3 CỘT */}
           <div className="flex gap-4">
             <Form.Item label="Giá bán (VNĐ)" name="price" className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} step={1000} /></Form.Item>
             <Form.Item label="Trọng lượng (gram)" name="weight" initialValue={200} className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} /></Form.Item>
-            <Form.Item label="Tồn kho" name="stock_quantity" className="flex-1" rules={[{ required: true }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            <Form.Item label="Tồn tối thiểu" name="min_stock" className="flex-1" tooltip="Tồn kho xuống tới mức này thì hệ thống tự tạo đề xuất nhập hàng (0 = không tự đề xuất)"><InputNumber className="w-full" min={0} precision={0} /></Form.Item>
           </div>
+          <Alert type="info" showIcon className="mb-2" message="Tồn kho, số lô, ngày sản xuất và hạn sử dụng ghi theo từng lô khi nhận hàng (trang Nhập hàng & Kiểm kho), không nhập ở đây." />
 
-          <div className="flex gap-4">
-            <Form.Item label="Ngày sản xuất" name="start_date" className="flex-1" rules={[{ required: true }]}>
-               <DatePicker format="DD/MM/YYYY" className="w-full" />
-            </Form.Item>
-            <Form.Item label="Hạn sử dụng" name="end_date" className="flex-1" rules={[{ required: true }]}>
-               <DatePicker format="DD/MM/YYYY" className="w-full" />
-            </Form.Item>
-          </div>
-          
           <Form.Item className="text-right mb-0 mt-4">
             <Space>
               <Button onClick={() => setIsModalVisible(false)}>Hủy</Button>
@@ -443,57 +456,68 @@ const ProductsTab = () => {
 // TAB 3: COMPONENT SẢN PHẨM ĐẾN HẠN
 // ==========================================
 const ExpiringProductsTab = () => {
-  const [products, setProducts] = useState([]);
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [disposing, setDisposing] = useState(null);
 
-  useEffect(() => { fetchExpiringProducts(); }, []);
-
-  const fetchExpiringProducts = async () => {
+  const load = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/commerce/products/admin`, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` } });
       const data = await res.json();
-
       const today = dayjs();
-      const expiring = (data.data || [])
-        .filter(p => p.end_date)
-        .map(p => {
-          const daysLeft = dayjs(p.end_date).diff(today, 'day');
-          return { ...p, daysLeft };
-        })
-        .filter(p => p.daysLeft <= 90)
-        .sort((a, b) => a.daysLeft - b.daysLeft); 
-
-      setProducts(expiring);
+      // Theo lô: lô hết hạn (đã tách khỏi hàng bán) và lô còn hạn dưới 90 ngày
+      setRows((data.data || []).flatMap((p) => (p.lots || []).map((l) => ({ ...l, product: p.name, type: p.type, daysLeft: dayjs(l.expiry_date).diff(today, 'day') })))
+        .filter((l) => l.hold_reason || l.daysLeft <= 90).sort((a, b) => a.daysLeft - b.daysLeft));
     } catch (error) {
-      message.error('Lỗi tải dữ liệu sản phẩm đến hạn');
+      message.error('Lỗi tải dữ liệu lô đến hạn');
     } finally {
       setLoading(false);
     }
   };
+  useEffect(() => { load(); }, []);
+  useLiveRefresh(['purchase-orders', 'stock-counts', 'goods-receipts'], load);
+
+  const dispose = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/commerce/purchasing/lots/${disposing.lot.id}/dispose`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionStorage.getItem('admin_token')}` }, body: JSON.stringify({ reason: disposing.reason }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      message.success(d.message); setDisposing(null); load();
+    } catch (e) { message.error(e.message || 'Không hủy được'); }
+  };
 
   const columns = [
-    { title: 'Tên Sản phẩm/Vật tư', dataIndex: 'name', key: 'name', render: text => <b>{text}</b> },
-    { title: 'Danh mục', dataIndex: 'Category', key: 'category', render: (cat, record) => <Tag color="blue">{cat?.name || record.category || 'Chưa phân loại'}</Tag> },
-    { title: 'Tồn kho', key: 'stock', render: (_, record) => record.stock_quantity !== undefined ? record.stock_quantity : (record.stock || 0) },
-    { title: 'Ngày sản xuất', dataIndex: 'start_date', key: 'start_date', render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-' },
-    { title: 'Hạn sử dụng', dataIndex: 'end_date', key: 'end_date', render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-' },
+    { title: 'Sản phẩm / Vật tư', dataIndex: 'product', key: 'product', render: (text, l) => <div><b>{text}</b><div className="text-xs text-gray-500">{l.type === 'PRODUCT' ? 'Mỹ phẩm' : 'Vật tư'}</div></div> },
+    { title: 'Số lô', dataIndex: 'lot_no', key: 'lot_no' },
+    { title: 'NSX', dataIndex: 'manufacture_date', key: 'mfg', render: (d) => (d ? dayjs(d).format('DD/MM/YYYY') : '-') },
+    { title: 'HSD', dataIndex: 'expiry_date', key: 'exp', render: (d) => dayjs(d).format('DD/MM/YYYY') },
+    { title: 'Còn lại', dataIndex: 'quantity_left', key: 'left' },
     {
       title: 'Tình trạng', key: 'status',
-      render: (_, record) => {
-        if (record.daysLeft < 0) return <Tag color="red">Đã hết hạn ({Math.abs(record.daysLeft)} ngày)</Tag>;
-        if (record.daysLeft <= 30) return <Tag color="volcano">Sắp hết hạn (Còn {record.daysLeft} ngày)</Tag>;
-        return <Tag color="orange">Còn {record.daysLeft} ngày</Tag>;
+      render: (_, l) => {
+        if (l.hold_reason) return <Tag color="red">Hết hạn, đã ngừng bán, chờ hủy</Tag>;
+        if (l.daysLeft < 0) return <Tag color="red">Đã hết hạn ({Math.abs(l.daysLeft)} ngày)</Tag>;
+        if (l.daysLeft <= 30) return <Tag color="volcano">Sắp hết hạn (còn {l.daysLeft} ngày)</Tag>;
+        return <Tag color="orange">Còn {l.daysLeft} ngày</Tag>;
       }
-    }
+    },
+    { title: '', key: 'act', render: (_, l) => l.hold_reason && <Button size="small" danger onClick={() => setDisposing({ lot: l, reason: '' })}>Hủy hàng</Button> },
   ];
 
   return (
     <div className="pt-2">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-700 m-0">Danh sách Cảnh báo (Còn hạn dưới 90 ngày)</h3>
+        <h3 className="text-lg font-semibold text-gray-700 m-0">Lô hàng hết hạn và còn hạn dưới 90 ngày</h3>
+        <div className="text-sm text-gray-500">Mỹ phẩm hết hạn tự tách khỏi hàng bán; quản lý hủy hàng và ghi biên bản.</div>
       </div>
-      <Table columns={columns} dataSource={products} rowKey="id" loading={loading} />
+      <Table columns={columns} dataSource={rows} rowKey="id" loading={loading} />
+      <Modal open={!!disposing} title={`Hủy lô ${disposing?.lot.lot_no} - ${disposing?.lot.product}`} onCancel={() => setDisposing(null)} onOk={dispose} okText="Ghi nhận hủy" okButtonProps={{ danger: true }} destroyOnHidden>
+        <p>Hủy {disposing?.lot.quantity_left} sản phẩm của lô này (tồn kho lô về 0, có phiếu điều chỉnh).</p>
+        <Input.TextArea rows={3} maxLength={500} placeholder="Lý do / biên bản hủy (bắt buộc)" value={disposing?.reason} onChange={(e) => setDisposing((d) => ({ ...d, reason: e.target.value }))} />
+      </Modal>
     </div>
   );
 };
@@ -505,7 +529,7 @@ export default function InventoryPage() {
   const items = [
     { key: '1', label: '📦 Quản lý Sản phẩm', children: <ProductsTab /> },
     { key: '2', label: '🏷️ Danh mục Dược mỹ phẩm', children: <CategoriesTab /> },
-    { key: '3', label: '⚠️ Sản phẩm đến hạn', children: <ExpiringProductsTab /> },
+    { key: '3', label: '⚠️ Lô đến hạn / hết hạn', children: <ExpiringProductsTab /> },
   ];
 
   return (

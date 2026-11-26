@@ -17,3 +17,18 @@ const sendEmail = (template, user_id, key, data = {}) => {
 };
 
 module.exports = { sendEmail };
+
+// Gửi email tới người nhận ngoài hệ thống (nhà cung cấp: to_email + to_name) hoặc mọi nhân viên của 1 vai trò (to_role).
+// attachments: [{ filename, content (Buffer), contentType }]. Trả kết quả của identity ({ status }) hoặc null khi lỗi.
+const sendEmailTo = ({ template, key, data = {}, to_email, to_name, to_role, attachments = [] }) => {
+  if (!process.env.JWT_SECRET || (!to_email && !to_role)) return Promise.resolve(null);
+  const token = jwt.sign({ sys: true }, process.env.JWT_SECRET, { expiresIn: '2m' });
+  return fetch(`${IDENTITY_URL}/internal/email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ template, key, data, to_email, to_name, to_role, attachments: attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, content: Buffer.from(a.content).toString('base64') })) }),
+    signal: AbortSignal.timeout(30000),
+  }).then((r) => r.json()).catch((e) => { console.warn(`[EMAIL] Không gửi được ${template}:`, e.message); return null; });
+};
+
+module.exports.sendEmailTo = sendEmailTo;
