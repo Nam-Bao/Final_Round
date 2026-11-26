@@ -7,11 +7,14 @@ import dayjs from 'dayjs';
 import { useLiveRefresh } from '../Notifications';
 import { API, auth, vnd, role, isManagerRole, errMsg } from './common';
 
+const myId = () => { try { return JSON.parse(sessionStorage.getItem('admin_user') || '{}').id; } catch { return null; } };
+
 const statusTag = (r) => {
   if (r.status === 'APPROVED' && r.received_at) return <Tag color="green">Đã nhập kho</Tag>;
   if (r.status === 'APPROVED' && r.ordered_at) return <Tag color="cyan">Đã đặt hàng, chờ hàng về</Tag>;
   return <Tag color={{ PENDING: 'gold', APPROVED: 'blue', REJECTED: 'red' }[r.status]}>{{ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt, chưa đặt hàng', REJECTED: 'Từ chối' }[r.status]}</Tag>;
 };
+const selfTag = (r) => (r.self_approved ? <Tag color="purple" className="!mt-1">Quản lý tự đề xuất & duyệt</Tag> : null);
 
 // productType: 'PRODUCT' (NVBH, trang Nhập hàng) | 'MATERIAL' (trang Vật tư) | null (quản lý: tất cả)
 export default function RequestsTab({ productType = null }) {
@@ -51,6 +54,7 @@ export default function RequestsTab({ productType = null }) {
   const submitDecision = async () => {
     const { row, decision, note, packs } = deciding;
     if (decision === 'REJECT' && !note.trim()) { message.warning('Cần ghi lý do từ chối'); return; }
+    if (decision === 'APPROVE' && row.requester_id === myId() && note.trim().length < 10) { message.warning('Tự duyệt đề xuất của mình: ghi lý do (ít nhất 10 ký tự)'); return; }
     setBusy(true);
     try {
       await axios.put(`${API}/materials/purchase-requests/${row.id}/decision`, {
@@ -99,7 +103,7 @@ export default function RequestsTab({ productType = null }) {
             title: 'Trạng thái', width: 220,
             render: (_, r) => (
               <div>
-                {statusTag(r)}
+                {statusTag(r)}{selfTag(r)}
                 {r.decided_at && <div className="text-xs text-gray-500 mt-1">{r.status === 'REJECTED' ? 'Từ chối' : 'Duyệt'} {r.approver_name ? `bởi ${r.approver_name} ` : ''}lúc {dayjs(r.decided_at).format('HH:mm DD/MM')}{r.decision_note ? `: ${r.decision_note}` : ''}</div>}
                 {r.ordered_at && <div className="text-xs text-gray-500">Đặt của {r.supplier}{r.expected_date ? `, dự kiến ${dayjs(r.expected_date).format('DD/MM')}` : ''}</div>}
               </div>
@@ -138,6 +142,9 @@ export default function RequestsTab({ productType = null }) {
       <Modal open={!!deciding} title={deciding?.decision === 'APPROVE' ? 'Duyệt đề xuất nhập hàng' : 'Từ chối đề xuất nhập hàng'}
         onCancel={() => setDeciding(null)} onOk={submitDecision} confirmLoading={busy} cancelText="Đóng" okText={deciding?.decision === 'APPROVE' ? 'Duyệt' : 'Từ chối'}
         okButtonProps={{ danger: deciding?.decision === 'REJECT' }} destroyOnHidden>
+        {deciding?.decision === 'APPROVE' && deciding.row.requester_id === myId() && (
+          <Alert className="mb-3" type="warning" showIcon message="Đây là đề xuất do chính bạn tạo" description="Bạn vẫn duyệt được, nhưng phải ghi lý do; đề xuất được gắn nhãn “Quản lý tự đề xuất & duyệt” để đối chiếu sau." />
+        )}
         {deciding?.decision === 'APPROVE' && (deciding.row.items || []).map((i) => (
           <div key={i.product_id} className="flex items-center justify-between gap-3 mb-2">
             <span className="text-sm">{i.name}</span>
@@ -146,7 +153,7 @@ export default function RequestsTab({ productType = null }) {
           </div>
         ))}
         <Input.TextArea className="mt-2" rows={3} maxLength={1000} value={deciding?.note}
-          placeholder={deciding?.decision === 'APPROVE' ? 'Ghi chú (không bắt buộc)' : 'Lý do từ chối (bắt buộc)'}
+          placeholder={deciding?.decision === 'APPROVE' ? (deciding.row.requester_id === myId() ? 'Lý do tự duyệt (bắt buộc), vd: hàng bán chạy, sắp hết trước đợt khuyến mãi' : 'Ghi chú (không bắt buộc)') : 'Lý do từ chối (bắt buộc)'}
           onChange={(e) => setDeciding((d) => ({ ...d, note: e.target.value }))} />
       </Modal>
 

@@ -38,7 +38,7 @@ router.get('/mine', verifyToken, async (req, res) => {
     }
     if (['GEN_MANAGER', 'ADMIN'].includes(role)) {
       const [purchase, toOrder, receipts, counts, held] = await Promise.all([
-        InventoryRequest.count({ where: { type: 'PURCHASE_ORDER', status: 'PENDING', requester_id: { [Op.ne]: id } } }),
+        InventoryRequest.count({ where: { type: 'PURCHASE_ORDER', status: 'PENDING' } }),
         InventoryRequest.count({ where: { type: 'PURCHASE_ORDER', status: 'APPROVED', ordered_at: null, received_at: null } }),
         GoodsReceipt.count({ where: { status: 'PENDING_REVIEW', received_by: { [Op.ne]: id } } }),
         StockCount.count({ where: { status: 'PENDING_REVIEW', counted_by: { [Op.ne]: id } } }),

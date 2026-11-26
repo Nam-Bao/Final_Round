@@ -443,11 +443,14 @@ exports.decidePurchaseRequest = async (req, res) => {
   try {
     const row = await findRequest(req.params.id, t);
     if (row.status !== 'PENDING') throw bad('Đề xuất đã được xử lý', 409);
-    if (row.requester_id === req.user.id) throw bad('Không tự duyệt đề xuất của chính mình, nhờ quản lý khác duyệt', 403);
     const approve = req.body.decision === 'APPROVE';
     if (!approve && req.body.decision !== 'REJECT') throw bad('Quyết định không hợp lệ');
     const note = String(req.body.note || '').trim().slice(0, 1000);
     if (!approve && !note) throw bad('Cần ghi lý do từ chối');
+    // Quản lý tự duyệt đề xuất do chính mình tạo: được, nhưng bắt buộc ghi lý do và gắn nhãn để đối chiếu.
+    // Kiểm soát chéo vẫn giữ ở khâu sau: người nhận hàng / người đếm kho không tự duyệt biên bản / phiếu của mình
+    const selfApproved = approve && row.requester_id === req.user.id;
+    if (selfApproved && note.length < 10) throw bad('Tự duyệt đề xuất của mình: ghi lý do (ít nhất 10 ký tự)');
     let items = row.items || [];
     if (approve && Array.isArray(req.body.items)) {
       const packs = Object.fromEntries(req.body.items.map((i) => [i.product_id, Number(i.packs)]));
@@ -458,7 +461,7 @@ exports.decidePurchaseRequest = async (req, res) => {
         return { ...i, packs: n, quantity: n * (i.pack_size || 1) };
       });
     }
-    await row.update({ status: approve ? 'APPROVED' : 'REJECTED', approver_id: req.user.id, decision_note: note || null, decided_at: new Date(), items }, { transaction: t });
+    await row.update({ status: approve ? 'APPROVED' : 'REJECTED', approver_id: req.user.id, decision_note: note || null, decided_at: new Date(), items, self_approved: selfApproved }, { transaction: t });
     await t.commit();
     res.status(200).json({ message: approve ? 'Đã duyệt đề xuất nhập hàng' : 'Đã từ chối đề xuất', data: row });
   } catch (error) { await t.rollback(); fail(res, error); }
